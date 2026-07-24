@@ -4,6 +4,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 
+from zcad_core.hardware.electronics.connectors import (
+    BoardEdge,
+)
+
 
 @dataclass(frozen=True)
 class ClearanceEnvelope:
@@ -17,6 +21,41 @@ class ClearanceEnvelope:
 
     negative_z_mm: float = 0.0
     positive_z_mm: float = 0.0
+
+    @classmethod
+    def for_edge(
+        cls,
+        *,
+        edge: BoardEdge,
+        clearance_mm: float,
+    ) -> "ClearanceEnvelope":
+        """Return clearance directed outward through one lateral edge."""
+        if clearance_mm < 0:
+            raise ValueError("clearance_mm must not be negative")
+
+        values = {
+            "negative_x": {
+                "negative_x_mm": clearance_mm,
+            },
+            "positive_x": {
+                "positive_x_mm": clearance_mm,
+            },
+            "negative_y": {
+                "negative_y_mm": clearance_mm,
+            },
+            "positive_y": {
+                "positive_y_mm": clearance_mm,
+            },
+        }
+
+        try:
+            parameters = values[edge]
+        except KeyError as error:
+            raise ValueError(f"unsupported clearance edge: {edge}") from error
+
+        return cls(
+            **parameters,
+        )
 
     def __post_init__(self) -> None:
         """Validate directional clearance distances."""

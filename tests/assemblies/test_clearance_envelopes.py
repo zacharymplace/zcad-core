@@ -290,3 +290,99 @@ def test_policy_does_not_mutate_component() -> None:
     assert assembly.get("first") is component
     assert component.clearance_envelope is envelope
     assert envelope.positive_x_mm == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize(
+    (
+        "edge",
+        "expected",
+    ),
+    (
+        (
+            "negative_x",
+            {
+                "negative_x_mm": 2.5,
+            },
+        ),
+        (
+            "positive_x",
+            {
+                "positive_x_mm": 2.5,
+            },
+        ),
+        (
+            "negative_y",
+            {
+                "negative_y_mm": 2.5,
+            },
+        ),
+        (
+            "positive_y",
+            {
+                "positive_y_mm": 2.5,
+            },
+        ),
+    ),
+)
+def test_for_edge_sets_only_requested_direction(
+    edge: str,
+    expected: dict[str, float],
+) -> None:
+    envelope = ClearanceEnvelope.for_edge(
+        edge=edge,
+        clearance_mm=2.5,
+    )
+
+    actual = {
+        "negative_x_mm": envelope.negative_x_mm,
+        "positive_x_mm": envelope.positive_x_mm,
+        "negative_y_mm": envelope.negative_y_mm,
+        "positive_y_mm": envelope.positive_y_mm,
+        "negative_z_mm": envelope.negative_z_mm,
+        "positive_z_mm": envelope.positive_z_mm,
+    }
+
+    expected_complete = {
+        "negative_x_mm": 0.0,
+        "positive_x_mm": 0.0,
+        "negative_y_mm": 0.0,
+        "positive_y_mm": 0.0,
+        "negative_z_mm": 0.0,
+        "positive_z_mm": 0.0,
+        **expected,
+    }
+
+    assert actual == expected_complete
+    assert envelope.has_clearance
+
+
+def test_for_edge_accepts_zero_clearance() -> None:
+    envelope = ClearanceEnvelope.for_edge(
+        edge="negative_y",
+        clearance_mm=0.0,
+    )
+
+    assert not envelope.has_clearance
+    assert envelope.negative_y_mm == pytest.approx(0.0)
+
+
+def test_for_edge_rejects_negative_clearance() -> None:
+    with pytest.raises(
+        ValueError,
+        match="clearance_mm",
+    ):
+        ClearanceEnvelope.for_edge(
+            edge="positive_x",
+            clearance_mm=-0.1,
+        )
+
+
+def test_for_edge_rejects_unsupported_edge() -> None:
+    with pytest.raises(
+        ValueError,
+        match="unsupported clearance edge",
+    ):
+        ClearanceEnvelope.for_edge(
+            edge="positive_z",
+            clearance_mm=1.0,
+        )
