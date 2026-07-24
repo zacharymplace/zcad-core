@@ -13,6 +13,7 @@ def _pico2_usb_connector() -> RectangularConnectorSpec:
         identifier="USB_MICRO_B",
         width_mm=8.9,
         height_mm=3.2,
+        depth_mm=6.075,
         board_edge="negative_y",
         center_offset_mm=0.0,
         bottom_offset_from_board_top_mm=0.0,

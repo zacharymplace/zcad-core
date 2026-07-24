@@ -18,6 +18,7 @@ class RectangularConnectorSpec:
     identifier: str
     width_mm: float
     height_mm: float
+    depth_mm: float
     board_edge: BoardEdge
     center_offset_mm: float = 0.0
     bottom_offset_from_board_top_mm: float = 0.0
@@ -32,3 +33,6 @@ class RectangularConnectorSpec:
 
         if self.height_mm <= 0:
             raise ValueError("height_mm must be greater than zero")
+
+        if self.depth_mm <= 0:
+            raise ValueError("depth_mm must be greater than zero")
