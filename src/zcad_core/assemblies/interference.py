@@ -7,6 +7,10 @@ from math import sqrt
 
 import cadquery as cq
 
+from zcad_core.assemblies.clearance import (
+    ClearanceEnvelope,
+    ClearancePolicy,
+)
 from zcad_core.assemblies.component import (
     AssemblyComponent,
 )
@@ -152,14 +156,11 @@ def _bounding_box_clearance_mm(
 
 def _expanded_bounds_overlap(
     first: cq.BoundBox,
-    first_component: AssemblyComponent,
+    first_envelope: ClearanceEnvelope,
     second: cq.BoundBox,
-    second_component: AssemblyComponent,
+    second_envelope: ClearanceEnvelope,
 ) -> bool:
     """Return whether directional keep-out bounds overlap."""
-    first_envelope = first_component.clearance_envelope
-    second_envelope = second_component.clearance_envelope
-
     return not (
         (
             first.xmax + first_envelope.positive_x_mm
@@ -193,15 +194,12 @@ def _directional_requirement_mm(
     axis: str,
     first_minimum_mm: float,
     first_maximum_mm: float,
-    first_component: AssemblyComponent,
+    first_envelope: ClearanceEnvelope,
     second_minimum_mm: float,
     second_maximum_mm: float,
-    second_component: AssemblyComponent,
+    second_envelope: ClearanceEnvelope,
 ) -> float:
     """Return combined envelope requirement along one axis."""
-    first_envelope = first_component.clearance_envelope
-    second_envelope = second_component.clearance_envelope
-
     if first_maximum_mm <= second_minimum_mm:
         return first_envelope.positive_for_axis(
             axis
@@ -217,37 +215,37 @@ def _directional_requirement_mm(
 
 def _envelope_required_clearance_mm(
     first: cq.BoundBox,
-    first_component: AssemblyComponent,
+    first_envelope: ClearanceEnvelope,
     second: cq.BoundBox,
-    second_component: AssemblyComponent,
+    second_envelope: ClearanceEnvelope,
 ) -> float:
     """Return combined directional envelope distance."""
     required_x_mm = _directional_requirement_mm(
         axis="x",
         first_minimum_mm=first.xmin,
         first_maximum_mm=first.xmax,
-        first_component=first_component,
+        first_envelope=first_envelope,
         second_minimum_mm=second.xmin,
         second_maximum_mm=second.xmax,
-        second_component=second_component,
+        second_envelope=second_envelope,
     )
     required_y_mm = _directional_requirement_mm(
         axis="y",
         first_minimum_mm=first.ymin,
         first_maximum_mm=first.ymax,
-        first_component=first_component,
+        first_envelope=first_envelope,
         second_minimum_mm=second.ymin,
         second_maximum_mm=second.ymax,
-        second_component=second_component,
+        second_envelope=second_envelope,
     )
     required_z_mm = _directional_requirement_mm(
         axis="z",
         first_minimum_mm=first.zmin,
         first_maximum_mm=first.zmax,
-        first_component=first_component,
+        first_envelope=first_envelope,
         second_minimum_mm=second.zmin,
         second_maximum_mm=second.zmax,
-        second_component=second_component,
+        second_envelope=second_envelope,
     )
 
     return sqrt(required_x_mm**2 + required_y_mm**2 + required_z_mm**2)
@@ -275,6 +273,7 @@ def analyze_component_interference(
     allowed_contact_pairs: Iterable[ComponentPair] = (),
     minimum_clearance_mm: float = 0.0,
     collision_volume_tolerance_mm3: float = 1e-6,
+    clearance_policy: ClearancePolicy | None = None,
 ) -> InterferenceReport:
     """Analyze pairwise collision and clearance conditions."""
     if minimum_clearance_mm < 0:
@@ -289,6 +288,21 @@ def analyze_component_interference(
 
     if len(set(identifiers)) != len(identifiers):
         raise ValueError("component identifiers must be unique")
+
+    resolved_policy = (
+        clearance_policy if clearance_policy is not None else ClearancePolicy()
+    )
+    resolved_policy.validate_identifiers(set(identifiers))
+
+    effective_envelopes = {
+        component.identifier: (
+            resolved_policy.envelope_for(
+                component.identifier,
+                component.clearance_envelope,
+            )
+        )
+        for component in resolved_components
+    }
 
     allowed_pairs = frozenset(frozenset(pair) for pair in allowed_contact_pairs)
 
@@ -343,19 +357,19 @@ def analyze_component_interference(
             second_bounds,
         )
 
-        has_envelope = (
-            first.clearance_envelope.has_clearance
-            or second.clearance_envelope.has_clearance
-        )
+        first_envelope = effective_envelopes[first.identifier]
+        second_envelope = effective_envelopes[second.identifier]
+
+        has_envelope = first_envelope.has_clearance or second_envelope.has_clearance
 
         if (
             has_envelope
             and pair not in allowed_pairs
             and _expanded_bounds_overlap(
                 first_bounds,
-                first,
+                first_envelope,
                 second_bounds,
-                second,
+                second_envelope,
             )
         ):
             findings.append(
@@ -366,9 +380,9 @@ def analyze_component_interference(
                     required_clearance_mm=(
                         _envelope_required_clearance_mm(
                             first_bounds,
-                            first,
+                            first_envelope,
                             second_bounds,
-                            second,
+                            second_envelope,
                         )
                     ),
                     measured_clearance_mm=(measured_clearance_mm),

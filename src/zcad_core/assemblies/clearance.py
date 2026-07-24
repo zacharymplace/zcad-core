@@ -1,6 +1,8 @@
 """Directional component clearance envelopes."""
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from types import MappingProxyType
 
 
 @dataclass(frozen=True)
@@ -76,3 +78,62 @@ class ClearanceEnvelope:
             return self.positive_z_mm
 
         raise ValueError(f"unsupported clearance axis: {axis}")
+
+
+@dataclass(frozen=True)
+class ClearancePolicy:
+    """Immutable analysis-time envelope overrides."""
+
+    component_envelopes: Mapping[
+        str,
+        ClearanceEnvelope,
+    ] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Validate and freeze component overrides."""
+        resolved: dict[str, ClearanceEnvelope] = {}
+
+        for identifier, envelope in self.component_envelopes.items():
+            if not identifier.strip():
+                raise ValueError("clearance policy identifier must not be empty")
+
+            if not isinstance(
+                envelope,
+                ClearanceEnvelope,
+            ):
+                raise TypeError(
+                    "clearance policy values must be ClearanceEnvelope instances"
+                )
+
+            resolved[identifier] = envelope
+
+        object.__setattr__(
+            self,
+            "component_envelopes",
+            MappingProxyType(resolved),
+        )
+
+    def validate_identifiers(
+        self,
+        identifiers: set[str],
+    ) -> None:
+        """Reject overrides for unknown components."""
+        unknown = set(self.component_envelopes) - identifiers
+
+        if unknown:
+            rendered = ", ".join(sorted(unknown))
+
+            raise ValueError(
+                f"clearance policy contains unknown component identifiers: {rendered}"
+            )
+
+    def envelope_for(
+        self,
+        identifier: str,
+        embedded: ClearanceEnvelope,
+    ) -> ClearanceEnvelope:
+        """Return the override or embedded envelope."""
+        return self.component_envelopes.get(
+            identifier,
+            embedded,
+        )

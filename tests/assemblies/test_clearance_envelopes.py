@@ -151,3 +151,142 @@ def test_exact_envelope_boundary_passes() -> None:
     report = assembly.analyze_interference()
 
     assert not report.has_findings
+
+
+def test_policy_overrides_embedded_envelope() -> None:
+    from zcad_core.assemblies import ClearancePolicy
+
+    assembly = DeviceAssembly(
+        (
+            _box(
+                identifier="first",
+                x_mm=0.0,
+                envelope=ClearanceEnvelope(
+                    positive_x_mm=0.5,
+                ),
+            ),
+            _box(
+                identifier="second",
+                x_mm=12.0,
+            ),
+        )
+    )
+
+    assert not assembly.analyze_interference().has_findings
+
+    report = assembly.analyze_interference(
+        clearance_policy=ClearancePolicy(
+            component_envelopes={
+                "first": ClearanceEnvelope(
+                    positive_x_mm=3.0,
+                ),
+            }
+        )
+    )
+
+    assert len(report.clearance_violations) == 1
+    assert report.clearance_violations[0].required_clearance_mm == pytest.approx(3.0)
+
+
+def test_policy_preserves_unmentioned_envelopes() -> None:
+    from zcad_core.assemblies import ClearancePolicy
+
+    assembly = DeviceAssembly(
+        (
+            _box(
+                identifier="first",
+                x_mm=0.0,
+                envelope=ClearanceEnvelope(
+                    positive_x_mm=1.0,
+                ),
+            ),
+            _box(
+                identifier="second",
+                x_mm=12.0,
+                envelope=ClearanceEnvelope(
+                    negative_x_mm=2.0,
+                ),
+            ),
+        )
+    )
+
+    report = assembly.analyze_interference(
+        clearance_policy=ClearancePolicy(
+            component_envelopes={
+                "first": ClearanceEnvelope(
+                    positive_x_mm=1.5,
+                ),
+            }
+        )
+    )
+
+    assert len(report.clearance_violations) == 1
+    assert report.clearance_violations[0].required_clearance_mm == pytest.approx(3.5)
+
+
+def test_policy_rejects_unknown_identifier() -> None:
+    from zcad_core.assemblies import ClearancePolicy
+
+    assembly = DeviceAssembly(
+        (
+            _box(
+                identifier="first",
+                x_mm=0.0,
+            ),
+            _box(
+                identifier="second",
+                x_mm=20.0,
+            ),
+        )
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="unknown component identifiers",
+    ):
+        assembly.analyze_interference(
+            clearance_policy=ClearancePolicy(
+                component_envelopes={
+                    "missing": ClearanceEnvelope(
+                        positive_x_mm=1.0,
+                    ),
+                }
+            )
+        )
+
+
+def test_policy_does_not_mutate_component() -> None:
+    from zcad_core.assemblies import ClearancePolicy
+
+    assembly = DeviceAssembly(
+        (
+            _box(
+                identifier="first",
+                x_mm=0.0,
+                envelope=ClearanceEnvelope(
+                    positive_x_mm=0.5,
+                ),
+            ),
+            _box(
+                identifier="second",
+                x_mm=12.0,
+            ),
+        )
+    )
+
+    component = assembly.get("first")
+    envelope = component.clearance_envelope
+
+    assembly.analyze_interference(
+        clearance_policy=ClearancePolicy(
+            component_envelopes={
+                "first": ClearanceEnvelope(
+                    positive_x_mm=3.0,
+                ),
+            }
+        )
+    )
+
+    assert assembly.get("first") is component
+    assert component.clearance_envelope is envelope
+    assert envelope.positive_x_mm == pytest.approx(0.5)

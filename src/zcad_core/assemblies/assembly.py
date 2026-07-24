@@ -5,6 +5,9 @@ from dataclasses import dataclass
 
 import cadquery as cq
 
+from zcad_core.assemblies.clearance import (
+    ClearancePolicy,
+)
 from zcad_core.assemblies.component import (
     AssemblyComponent,
 )
@@ -155,6 +158,7 @@ class DeviceAssembly:
         allowed_contact_pairs: tuple[ComponentPair, ...] = (),
         minimum_clearance_mm: float = 0.0,
         collision_volume_tolerance_mm3: float = 1e-6,
+        clearance_policy: ClearancePolicy | None = None,
     ) -> InterferenceReport:
         """Return pairwise interference findings."""
         return analyze_component_interference(
@@ -162,6 +166,7 @@ class DeviceAssembly:
             allowed_contact_pairs=(allowed_contact_pairs),
             minimum_clearance_mm=(minimum_clearance_mm),
             collision_volume_tolerance_mm3=(collision_volume_tolerance_mm3),
+            clearance_policy=clearance_policy,
         )
 
     def compound(
