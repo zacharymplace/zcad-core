@@ -4,6 +4,10 @@ from zcad_core.assemblies.assembly import (
     AssemblyBounds,
     DeviceAssembly,
 )
+from zcad_core.assemblies.boundary import (
+    EnclosureBoundary,
+    analyze_boundary_clearance,
+)
 from zcad_core.assemblies.clearance import (
     ClearanceEnvelope,
     ClearancePolicy,
@@ -29,9 +33,11 @@ __all__ = [
     "ClearancePolicy",
     "ComponentPair",
     "DeviceAssembly",
+    "EnclosureBoundary",
     "InterferenceFinding",
     "InterferenceReport",
     "Placement",
+    "analyze_boundary_clearance",
     "analyze_component_interference",
     "component_pair",
 ]
