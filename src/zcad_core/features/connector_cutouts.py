@@ -4,6 +4,9 @@ from dataclasses import dataclass
 
 import cadquery as cq
 
+from zcad_core.assemblies.component import (
+    AssemblyComponent,
+)
 from zcad_core.hardware.electronics.connectors import (
     BoardEdge,
     RectangularConnectorSpec,
@@ -48,6 +51,41 @@ class ConnectorCutoutParameters:
             height_clearance_mm=height_clearance_mm,
             cutter_depth_mm=cutter_depth_mm,
             cutter_overtravel_mm=cutter_overtravel_mm,
+        )
+
+    @classmethod
+    def from_component(
+        cls,
+        *,
+        component: AssemblyComponent,
+        connector: RectangularConnectorSpec,
+        width_clearance_mm: float = 0.6,
+        height_clearance_mm: float = 0.6,
+        cutter_depth_mm: float = 10.0,
+        cutter_overtravel_mm: float = 1.0,
+    ) -> "ConnectorCutoutParameters":
+        """Derive a cutout from one placed connector component."""
+        component.validate()
+        connector.validate()
+
+        if connector.board_edge in {
+            "negative_y",
+            "positive_y",
+        }:
+            center_offset_mm = component.placement.x_mm
+        else:
+            center_offset_mm = component.placement.y_mm
+
+        return cls(
+            edge=connector.board_edge,
+            center_offset_mm=center_offset_mm,
+            bottom_z_mm=(component.placement.z_mm),
+            width_mm=connector.width_mm,
+            height_mm=connector.height_mm,
+            width_clearance_mm=(width_clearance_mm),
+            height_clearance_mm=(height_clearance_mm),
+            cutter_depth_mm=cutter_depth_mm,
+            cutter_overtravel_mm=(cutter_overtravel_mm),
         )
 
     @property
