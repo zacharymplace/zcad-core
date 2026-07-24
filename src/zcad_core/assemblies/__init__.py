@@ -18,6 +18,9 @@ from zcad_core.assemblies.component import (
 from zcad_core.assemblies.connectors import (
     build_board_edge_connector_component,
 )
+from zcad_core.assemblies.hardware import (
+    build_rectangular_hardware_component,
+)
 from zcad_core.assemblies.interference import (
     ComponentPair,
     InterferenceFinding,
@@ -43,5 +46,6 @@ __all__ = [
     "analyze_boundary_clearance",
     "analyze_component_interference",
     "build_board_edge_connector_component",
+    "build_rectangular_hardware_component",
     "component_pair",
 ]
