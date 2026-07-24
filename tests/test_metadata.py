@@ -6,11 +6,11 @@ from pathlib import Path
 import cadquery as cq
 import pytest
 
-from zcad.metadata.build_record import (
+from zcad_core.metadata.build_record import (
     build_part_record,
     estimate_mass_grams,
 )
-from zcad.profiles.loading import (
+from zcad_core.profiles.loading import (
     load_material_profile,
     load_printer_profile,
 )

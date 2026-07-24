@@ -1,12 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "zcad-core"
 version = "0.1.0"
 description = "Reusable parametric CAD engine"
-
 requires-python = ">=3.11"
+dependencies = [
+  "cadquery>=2.8,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9,<10",
+  "ruff>=0.16,<1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["zcad_core*"]
 
 [tool.ruff]
 line-length = 88
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+testpaths = ["tests"]

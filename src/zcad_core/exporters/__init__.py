@@ -1,11 +1,11 @@
 """Reusable CAD export services."""
 
-from zcad.exporters.models import (
+from zcad_core.exporters.models import (
     ExportedPart,
     ExportRequest,
     ExportResult,
 )
-from zcad.exporters.service import export_parts
+from zcad_core.exporters.service import export_parts
 
 __all__ = [
     "ExportRequest",

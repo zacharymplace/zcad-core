@@ -3,7 +3,7 @@
 import cadquery as cq
 import pytest
 
-from zcad.validation.profile_rules import (
+from zcad_core.validation.profile_rules import (
     raise_for_validation_errors,
     validate_build_volume,
     validate_design_and_parts,

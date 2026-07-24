@@ -6,7 +6,7 @@ from pathlib import Path
 import cadquery as cq
 import pytest
 
-from zcad.exporters import (
+from zcad_core.exporters import (
     ExportRequest,
     export_parts,
 )

@@ -5,12 +5,12 @@ import re
 
 import cadquery as cq
 
-from zcad.exporters.models import (
+from zcad_core.exporters.models import (
     ExportedPart,
     ExportRequest,
     ExportResult,
 )
-from zcad.metadata.build_record import build_part_record
+from zcad_core.metadata.build_record import build_part_record
 
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 

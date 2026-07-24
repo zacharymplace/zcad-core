@@ -1,6 +1,6 @@
 """Validation rules for assembly definitions."""
 
-from zcad.assemblies.models import Assembly
+from zcad_core.assemblies.models import Assembly
 
 
 def validate_assembly(

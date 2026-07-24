@@ -1,6 +1,6 @@
 """Assembly definition for enclosure body and lid."""
 
-from zcad.assemblies.models import (
+from zcad_core.assemblies.models import (
     Assembly,
     AssemblyPart,
     Mate,

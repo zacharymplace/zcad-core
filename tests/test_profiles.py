@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from zcad.profiles.loading import (
+from zcad_core.profiles.loading import (
     load_material_profile,
     load_printer_profile,
 )
