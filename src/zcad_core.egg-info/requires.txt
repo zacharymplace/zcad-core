@@ -1,5 +1,0 @@
-cadquery<3,>=2.8
-
-[dev]
-pytest<10,>=9
-ruff<1,>=0.16

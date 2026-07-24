@@ -6,3 +6,6 @@ __pycache__/
 .DS_Store
 build/
 exports/
+
+# Python package build metadata
+*.egg-info/
