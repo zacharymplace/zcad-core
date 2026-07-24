@@ -19,6 +19,7 @@ class InsertBossParameters:
     pilot_hole_diameter_mm: float
     insert_pocket_diameter_mm: float
     insert_pocket_depth_mm: float
+    base_z_mm: float = 0.0
 
     @classmethod
     def from_fastener(
@@ -28,6 +29,7 @@ class InsertBossParameters:
         x: float = 0.0,
         y: float = 0.0,
         base_height_mm: float,
+        base_z_mm: float = 0.0,
         boss_height_mm: float | None = None,
         radial_wall_mm: float = 1.8,
     ) -> "InsertBossParameters":
@@ -63,6 +65,7 @@ class InsertBossParameters:
             pilot_hole_diameter_mm=fastener.tap_hole_mm,
             insert_pocket_diameter_mm=insert_diameter,
             insert_pocket_depth_mm=insert_depth,
+            base_z_mm=base_z_mm,
         )
 
     def validate(self) -> None:
@@ -105,7 +108,7 @@ def add_heat_set_insert_boss(
             parameters.y,
         )
         .workplane(
-            offset=parameters.base_height_mm,
+            offset=(parameters.base_z_mm + parameters.base_height_mm),
         )
         .circle(
             parameters.boss_outer_diameter_mm / 2,
@@ -119,6 +122,9 @@ def add_heat_set_insert_boss(
 
     pilot_hole = (
         cq.Workplane("XY")
+        .workplane(
+            offset=parameters.base_z_mm,
+        )
         .center(
             parameters.x,
             parameters.y,
@@ -139,7 +145,8 @@ def add_heat_set_insert_boss(
         )
         .workplane(
             offset=(
-                parameters.base_height_mm
+                parameters.base_z_mm
+                + parameters.base_height_mm
                 + parameters.boss_height_mm
                 - parameters.insert_pocket_depth_mm
             ),

@@ -56,3 +56,27 @@ def test_boss_height_must_exceed_insert_depth() -> None:
             base_height_mm=3.0,
             boss_height_mm=5.0,
         )
+
+
+def test_insert_boss_supports_centered_model_coordinates() -> None:
+    base = cq.Workplane("XY").box(
+        20.0,
+        20.0,
+        4.0,
+    )
+
+    model = add_heat_set_insert_boss(
+        base,
+        parameters=InsertBossParameters.from_fastener(
+            fastener=get_fastener("M3"),
+            base_z_mm=-2.0,
+            base_height_mm=4.0,
+        ),
+    )
+
+    solid = model.val()
+    bounds = solid.BoundingBox()
+
+    assert solid.isValid()
+    assert bounds.zmin == pytest.approx(-2.0)
+    assert bounds.zmax == pytest.approx(8.5)
