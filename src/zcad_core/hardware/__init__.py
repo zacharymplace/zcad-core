@@ -11,8 +11,10 @@ __all__ = [
     "HardwareCatalog",
     "HardwareSpec",
     "MagnetSpec",
+    "RaspberryPiPico2Spec",
     "get_fastener",
     "get_magnet",
+    "get_raspberry_pi_pico2",
     "list_fasteners",
     "list_magnets",
 ]
@@ -20,6 +22,10 @@ __all__ = [
 from zcad_core.hardware.catalog import (
     HardwareCatalog,
     HardwareSpec,
+)
+from zcad_core.hardware.electronics import (
+    RaspberryPiPico2Spec,
+    get_raspberry_pi_pico2,
 )
 from zcad_core.hardware.magnets import (
     MagnetSpec,
