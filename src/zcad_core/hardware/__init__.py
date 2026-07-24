@@ -7,11 +7,13 @@ from zcad_core.hardware.fasteners import (
 )
 
 __all__ = [
+    "BoardEdge",
     "FastenerSpec",
     "HardwareCatalog",
     "HardwareSpec",
     "MagnetSpec",
     "RaspberryPiPico2Spec",
+    "RectangularConnectorSpec",
     "get_fastener",
     "get_magnet",
     "get_raspberry_pi_pico2",
@@ -24,7 +26,9 @@ from zcad_core.hardware.catalog import (
     HardwareSpec,
 )
 from zcad_core.hardware.electronics import (
+    BoardEdge,
     RaspberryPiPico2Spec,
+    RectangularConnectorSpec,
     get_raspberry_pi_pico2,
 )
 from zcad_core.hardware.magnets import (

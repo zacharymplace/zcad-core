@@ -1,6 +1,22 @@
 """Raspberry Pi board specifications."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from zcad_core.hardware.electronics.connectors import (
+    RectangularConnectorSpec,
+)
+
+
+def _pico2_usb_connector() -> RectangularConnectorSpec:
+    """Return Pico 2 USB connector placement metadata."""
+    return RectangularConnectorSpec(
+        identifier="USB_MICRO_B",
+        width_mm=8.9,
+        height_mm=3.2,
+        board_edge="negative_y",
+        center_offset_mm=0.0,
+        bottom_offset_from_board_top_mm=0.0,
+    )
 
 
 @dataclass(frozen=True)
@@ -15,6 +31,9 @@ class RaspberryPiPico2Spec:
 
     usb_connector_width_mm: float = 8.9
     usb_connector_height_mm: float = 3.2
+    usb_connector: RectangularConnectorSpec = field(
+        default_factory=_pico2_usb_connector
+    )
 
     mounting_hole_diameter_mm: float = 2.1
     mounting_hole_spacing_x_mm: float = 11.4

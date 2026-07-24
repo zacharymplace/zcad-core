@@ -1,5 +1,9 @@
 """Reusable modeling features for Z$ CAD."""
 
+from zcad_core.features.connector_cutouts import (
+    ConnectorCutoutParameters,
+    cut_connector_opening,
+)
 from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
@@ -13,6 +17,7 @@ from zcad_core.features.pcb_mounts import (
 )
 
 __all__ = [
+    "ConnectorCutoutParameters",
     "InsertBossParameters",
     "MountableBoardSpec",
     "PcbStandoffParameters",
@@ -20,4 +25,5 @@ __all__ = [
     "add_heat_set_insert_boss",
     "add_pcb_standoff",
     "centered_mounting_hole_positions",
+    "cut_connector_opening",
 ]
