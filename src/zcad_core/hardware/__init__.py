@@ -1,5 +1,11 @@
 """Reusable engineering hardware specifications."""
 
+from zcad_core.hardware.electronics.displays import (
+    REFERENCE_OLED_128X64,
+    DisplayMountStyle,
+    DisplaySpec,
+    get_reference_oled_128x64,
+)
 from zcad_core.hardware.fasteners import (
     FastenerSpec,
     get_fastener,
@@ -7,7 +13,10 @@ from zcad_core.hardware.fasteners import (
 )
 
 __all__ = [
+    "REFERENCE_OLED_128X64",
     "BoardEdge",
+    "DisplayMountStyle",
+    "DisplaySpec",
     "FastenerSpec",
     "HardwareCatalog",
     "HardwareSpec",
@@ -17,6 +26,7 @@ __all__ = [
     "get_fastener",
     "get_magnet",
     "get_raspberry_pi_pico2",
+    "get_reference_oled_128x64",
     "list_fasteners",
     "list_magnets",
 ]
