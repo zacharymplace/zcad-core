@@ -1,0 +1,9 @@
+{
+  "profile_id": "petg",
+  "name": "PETG",
+  "density_g_cm3": 1.27,
+  "notes": [
+    "Use for durable functional parts.",
+    "Keep away from sustained high-temperature surfaces."
+  ]
+}

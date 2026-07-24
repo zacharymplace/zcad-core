@@ -1,0 +1,21 @@
+{
+  "profile_id": "default-fdm",
+  "name": "Default FDM Printer",
+  "build_volume_mm": {
+    "x": 256,
+    "y": 256,
+    "z": 256
+  },
+  "tolerances_mm": {
+    "hole_oversize": 0.2,
+    "sliding_clearance_per_side": 0.2,
+    "press_fit_clearance_per_side": 0.05,
+    "magnet_pocket_oversize": 0.15
+  },
+  "minimums_mm": {
+    "wall": 1.2,
+    "floor": 1.2,
+    "emboss_height": 0.4,
+    "text_size": 3.0
+  }
+}
