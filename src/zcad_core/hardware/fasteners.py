@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from zcad_core.hardware.catalog import HardwareCatalog
+
 
 @dataclass(frozen=True)
 class FastenerSpec:
@@ -15,7 +17,7 @@ class FastenerSpec:
     heat_set_insert_depth_mm: float | None = None
 
 
-_FASTENERS = {
+_FASTENER_ENTRIES = {
     "M2": FastenerSpec(
         identifier="M2",
         nominal_diameter_mm=2.0,
@@ -51,16 +53,19 @@ _FASTENERS = {
 }
 
 
+FASTENER_CATALOG = HardwareCatalog(
+    category="fastener",
+    entries=_FASTENER_ENTRIES,
+)
+
+
 def get_fastener(
     identifier: str,
 ) -> FastenerSpec:
     """Return one reusable fastener specification."""
-    try:
-        return _FASTENERS[identifier.upper()]
-    except KeyError as exc:
-        raise ValueError(f"Unsupported fastener: {identifier}") from exc
+    return FASTENER_CATALOG.get(identifier)
 
 
 def list_fasteners() -> tuple[str, ...]:
     """Return supported fastener identifiers."""
-    return tuple(sorted(_FASTENERS))
+    return FASTENER_CATALOG.identifiers()

@@ -8,6 +8,13 @@ from zcad_core.hardware.fasteners import (
 
 __all__ = [
     "FastenerSpec",
+    "HardwareCatalog",
+    "HardwareSpec",
     "get_fastener",
     "list_fasteners",
 ]
+
+from zcad_core.hardware.catalog import (
+    HardwareCatalog,
+    HardwareSpec,
+)
