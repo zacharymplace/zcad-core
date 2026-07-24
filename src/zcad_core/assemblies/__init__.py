@@ -7,6 +7,13 @@ from zcad_core.assemblies.assembly import (
 from zcad_core.assemblies.component import (
     AssemblyComponent,
 )
+from zcad_core.assemblies.interference import (
+    ComponentPair,
+    InterferenceFinding,
+    InterferenceReport,
+    analyze_component_interference,
+    component_pair,
+)
 from zcad_core.assemblies.placement import (
     Placement,
 )
@@ -14,6 +21,11 @@ from zcad_core.assemblies.placement import (
 __all__ = [
     "AssemblyBounds",
     "AssemblyComponent",
+    "ComponentPair",
     "DeviceAssembly",
+    "InterferenceFinding",
+    "InterferenceReport",
     "Placement",
+    "analyze_component_interference",
+    "component_pair",
 ]

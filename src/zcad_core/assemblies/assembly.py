@@ -8,6 +8,11 @@ import cadquery as cq
 from zcad_core.assemblies.component import (
     AssemblyComponent,
 )
+from zcad_core.assemblies.interference import (
+    ComponentPair,
+    InterferenceReport,
+    analyze_component_interference,
+)
 
 
 @dataclass(frozen=True)
@@ -142,6 +147,21 @@ class DeviceAssembly:
             maximum_x_mm=max(bounds.xmax for bounds in bounding_boxes),
             maximum_y_mm=max(bounds.ymax for bounds in bounding_boxes),
             maximum_z_mm=max(bounds.zmax for bounds in bounding_boxes),
+        )
+
+    def analyze_interference(
+        self,
+        *,
+        allowed_contact_pairs: tuple[ComponentPair, ...] = (),
+        minimum_clearance_mm: float = 0.0,
+        collision_volume_tolerance_mm3: float = 1e-6,
+    ) -> InterferenceReport:
+        """Return pairwise interference findings."""
+        return analyze_component_interference(
+            self._components,
+            allowed_contact_pairs=(allowed_contact_pairs),
+            minimum_clearance_mm=(minimum_clearance_mm),
+            collision_volume_tolerance_mm3=(collision_volume_tolerance_mm3),
         )
 
     def compound(
