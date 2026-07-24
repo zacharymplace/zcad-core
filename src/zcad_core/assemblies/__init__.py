@@ -4,6 +4,12 @@ from zcad_core.assemblies.assembly import (
     AssemblyBounds,
     DeviceAssembly,
 )
+from zcad_core.assemblies.board_display import (
+    RectangularBoardSpec,
+    RectangularDisplaySpec,
+    analyze_board_display_assembly,
+    build_board_display_assembly,
+)
 from zcad_core.assemblies.boundary import (
     EnclosureBoundary,
     analyze_boundary_clearance,
@@ -43,8 +49,12 @@ __all__ = [
     "InterferenceFinding",
     "InterferenceReport",
     "Placement",
+    "RectangularBoardSpec",
+    "RectangularDisplaySpec",
+    "analyze_board_display_assembly",
     "analyze_boundary_clearance",
     "analyze_component_interference",
+    "build_board_display_assembly",
     "build_board_edge_connector_component",
     "build_rectangular_hardware_component",
     "component_pair",
