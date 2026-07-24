@@ -6,6 +6,9 @@ from typing import Any
 
 import cadquery as cq
 
+from zcad_core.assemblies.clearance import (
+    ClearanceEnvelope,
+)
 from zcad_core.assemblies.placement import (
     Placement,
 )
@@ -19,6 +22,7 @@ class AssemblyComponent:
     geometry: cq.Workplane
     placement: Placement = field(default_factory=Placement)
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    clearance_envelope: ClearanceEnvelope = field(default_factory=ClearanceEnvelope)
 
     def validate(self) -> None:
         """Validate component identity and geometry."""

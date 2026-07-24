@@ -3,6 +3,7 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 from itertools import combinations
+from math import sqrt
 
 import cadquery as cq
 
@@ -24,6 +25,7 @@ class InterferenceFinding:
     intersection_volume_mm3: float = 0.0
     required_clearance_mm: float = 0.0
     measured_clearance_mm: float | None = None
+    clearance_source: str | None = None
 
     @property
     def pair(self) -> ComponentPair:
@@ -148,6 +150,109 @@ def _bounding_box_clearance_mm(
     return (gap_x_mm**2 + gap_y_mm**2 + gap_z_mm**2) ** 0.5
 
 
+def _expanded_bounds_overlap(
+    first: cq.BoundBox,
+    first_component: AssemblyComponent,
+    second: cq.BoundBox,
+    second_component: AssemblyComponent,
+) -> bool:
+    """Return whether directional keep-out bounds overlap."""
+    first_envelope = first_component.clearance_envelope
+    second_envelope = second_component.clearance_envelope
+
+    return not (
+        (
+            first.xmax + first_envelope.positive_x_mm
+            <= second.xmin - second_envelope.negative_x_mm
+        )
+        or (
+            second.xmax + second_envelope.positive_x_mm
+            <= first.xmin - first_envelope.negative_x_mm
+        )
+        or (
+            first.ymax + first_envelope.positive_y_mm
+            <= second.ymin - second_envelope.negative_y_mm
+        )
+        or (
+            second.ymax + second_envelope.positive_y_mm
+            <= first.ymin - first_envelope.negative_y_mm
+        )
+        or (
+            first.zmax + first_envelope.positive_z_mm
+            <= second.zmin - second_envelope.negative_z_mm
+        )
+        or (
+            second.zmax + second_envelope.positive_z_mm
+            <= first.zmin - first_envelope.negative_z_mm
+        )
+    )
+
+
+def _directional_requirement_mm(
+    *,
+    axis: str,
+    first_minimum_mm: float,
+    first_maximum_mm: float,
+    first_component: AssemblyComponent,
+    second_minimum_mm: float,
+    second_maximum_mm: float,
+    second_component: AssemblyComponent,
+) -> float:
+    """Return combined envelope requirement along one axis."""
+    first_envelope = first_component.clearance_envelope
+    second_envelope = second_component.clearance_envelope
+
+    if first_maximum_mm <= second_minimum_mm:
+        return first_envelope.positive_for_axis(
+            axis
+        ) + second_envelope.negative_for_axis(axis)
+
+    if second_maximum_mm <= first_minimum_mm:
+        return second_envelope.positive_for_axis(
+            axis
+        ) + first_envelope.negative_for_axis(axis)
+
+    return 0.0
+
+
+def _envelope_required_clearance_mm(
+    first: cq.BoundBox,
+    first_component: AssemblyComponent,
+    second: cq.BoundBox,
+    second_component: AssemblyComponent,
+) -> float:
+    """Return combined directional envelope distance."""
+    required_x_mm = _directional_requirement_mm(
+        axis="x",
+        first_minimum_mm=first.xmin,
+        first_maximum_mm=first.xmax,
+        first_component=first_component,
+        second_minimum_mm=second.xmin,
+        second_maximum_mm=second.xmax,
+        second_component=second_component,
+    )
+    required_y_mm = _directional_requirement_mm(
+        axis="y",
+        first_minimum_mm=first.ymin,
+        first_maximum_mm=first.ymax,
+        first_component=first_component,
+        second_minimum_mm=second.ymin,
+        second_maximum_mm=second.ymax,
+        second_component=second_component,
+    )
+    required_z_mm = _directional_requirement_mm(
+        axis="z",
+        first_minimum_mm=first.zmin,
+        first_maximum_mm=first.zmax,
+        first_component=first_component,
+        second_minimum_mm=second.zmin,
+        second_maximum_mm=second.zmax,
+        second_component=second_component,
+    )
+
+    return sqrt(required_x_mm**2 + required_y_mm**2 + required_z_mm**2)
+
+
 def _intersection_volume_mm3(
     first: cq.Shape,
     second: cq.Shape,
@@ -233,22 +338,58 @@ def analyze_component_interference(
 
             continue
 
-        if minimum_clearance_mm <= 0:
-            continue
-
         measured_clearance_mm = _bounding_box_clearance_mm(
             first_bounds,
             second_bounds,
         )
 
+        has_envelope = (
+            first.clearance_envelope.has_clearance
+            or second.clearance_envelope.has_clearance
+        )
+
+        if (
+            has_envelope
+            and pair not in allowed_pairs
+            and _expanded_bounds_overlap(
+                first_bounds,
+                first,
+                second_bounds,
+                second,
+            )
+        ):
+            findings.append(
+                InterferenceFinding(
+                    first_identifier=first.identifier,
+                    second_identifier=second.identifier,
+                    kind="clearance",
+                    required_clearance_mm=(
+                        _envelope_required_clearance_mm(
+                            first_bounds,
+                            first,
+                            second_bounds,
+                            second,
+                        )
+                    ),
+                    measured_clearance_mm=(measured_clearance_mm),
+                    clearance_source="envelope",
+                )
+            )
+
+            continue
+
+        if minimum_clearance_mm <= 0:
+            continue
+
         if measured_clearance_mm < minimum_clearance_mm and pair not in allowed_pairs:
             findings.append(
                 InterferenceFinding(
-                    first_identifier=(first.identifier),
-                    second_identifier=(second.identifier),
+                    first_identifier=first.identifier,
+                    second_identifier=second.identifier,
                     kind="clearance",
                     required_clearance_mm=(minimum_clearance_mm),
                     measured_clearance_mm=(measured_clearance_mm),
+                    clearance_source="minimum",
                 )
             )
 
