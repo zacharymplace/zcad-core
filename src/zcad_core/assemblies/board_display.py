@@ -19,6 +19,9 @@ from zcad_core.assemblies.interference import (
     InterferenceReport,
     component_pair,
 )
+from zcad_core.assemblies.mounting import (
+    rectangular_board_mounting_metadata,
+)
 from zcad_core.assemblies.placement import (
     Placement,
 )
@@ -84,6 +87,15 @@ def build_board_display_assembly(
         raise ValueError("component identifiers must be unique")
 
     connector = board.usb_connector
+    board_mounting = rectangular_board_mounting_metadata(board)
+
+    board_metadata = (
+        {
+            "mounting": board_mounting,
+        }
+        if board_mounting is not None
+        else None
+    )
 
     return DeviceAssembly(
         (
@@ -98,6 +110,7 @@ def build_board_display_assembly(
                 clearance_envelope=ClearanceEnvelope(
                     positive_z_mm=board_display_clearance_mm,
                 ),
+                metadata=board_metadata,
             ),
             build_board_edge_connector_component(
                 identifier=connector_identifier,
