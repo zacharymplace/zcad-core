@@ -46,6 +46,7 @@ __all__ = [
     "ComponentPair",
     "DeviceAssembly",
     "EnclosureBoundary",
+    "EnclosureSpecification",
     "InterferenceFinding",
     "InterferenceReport",
     "Placement",
@@ -58,4 +59,10 @@ __all__ = [
     "build_board_edge_connector_component",
     "build_rectangular_hardware_component",
     "component_pair",
+    "derive_enclosure_specification",
 ]
+
+from zcad_core.assemblies.enclosure import (
+    EnclosureSpecification,
+    derive_enclosure_specification,
+)
