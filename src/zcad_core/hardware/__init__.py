@@ -23,10 +23,12 @@ __all__ = [
     "MagnetSpec",
     "RaspberryPiPico2Spec",
     "RectangularConnectorSpec",
+    "SeeedXiaoEsp32S3Spec",
     "get_fastener",
     "get_magnet",
     "get_raspberry_pi_pico2",
     "get_reference_oled_128x64",
+    "get_seeed_xiao_esp32s3",
     "list_fasteners",
     "list_magnets",
 ]
@@ -39,7 +41,9 @@ from zcad_core.hardware.electronics import (
     BoardEdge,
     RaspberryPiPico2Spec,
     RectangularConnectorSpec,
+    SeeedXiaoEsp32S3Spec,
     get_raspberry_pi_pico2,
+    get_seeed_xiao_esp32s3,
 )
 from zcad_core.hardware.magnets import (
     MagnetSpec,
