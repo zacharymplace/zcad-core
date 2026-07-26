@@ -24,6 +24,10 @@ from zcad_core.assemblies.component import (
 from zcad_core.assemblies.connectors import (
     build_board_edge_connector_component,
 )
+from zcad_core.assemblies.enclosure import (
+    EnclosureSpecification,
+    derive_enclosure_specification,
+)
 from zcad_core.assemblies.hardware import (
     build_rectangular_hardware_component,
 )
@@ -42,10 +46,19 @@ from zcad_core.assemblies.mounting import (
 from zcad_core.assemblies.placement import (
     Placement,
 )
+from zcad_core.assemblies.retention import (
+    BoardClipRegion,
+    BoardKeepoutRegion,
+    BoardRetentionMetadata,
+    board_retention_metadata,
+)
 
 __all__ = [
     "AssemblyBounds",
     "AssemblyComponent",
+    "BoardClipRegion",
+    "BoardKeepoutRegion",
+    "BoardRetentionMetadata",
     "ClearanceEnvelope",
     "ClearancePolicy",
     "ComponentPair",
@@ -62,6 +75,7 @@ __all__ = [
     "analyze_boundary_clearance",
     "analyze_component_interference",
     "assembly_mounting_hole_positions",
+    "board_retention_metadata",
     "build_board_display_assembly",
     "build_board_edge_connector_component",
     "build_rectangular_hardware_component",
@@ -69,8 +83,3 @@ __all__ = [
     "derive_enclosure_specification",
     "rectangular_board_mounting_metadata",
 ]
-
-from zcad_core.assemblies.enclosure import (
-    EnclosureSpecification,
-    derive_enclosure_specification,
-)
