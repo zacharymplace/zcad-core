@@ -19,6 +19,12 @@ from zcad_core.retention.engine import (
     RetentionFitReport,
     RetentionStrategy,
 )
+from zcad_core.retention.production_board import (
+    CornerClearanceResult,
+    ProductionBoardCornerAdapter,
+    ProductionBoardModel,
+    ProductionCornerDerivation,
+)
 from zcad_core.retention.synthetic_backend import SyntheticCornerCaptureBackend
 
 __all__ = [
@@ -31,6 +37,10 @@ __all__ = [
     "CornerCaptureParameters",
     "CornerCapturePolicy",
     "CornerCaptureRequest",
+    "CornerClearanceResult",
+    "ProductionBoardCornerAdapter",
+    "ProductionBoardModel",
+    "ProductionCornerDerivation",
     "RetentionBackend",
     "RetentionEngine",
     "RetentionExecution",
