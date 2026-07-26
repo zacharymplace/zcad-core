@@ -25,6 +25,9 @@ from zcad_core.assemblies.mounting import (
 from zcad_core.assemblies.placement import (
     Placement,
 )
+from zcad_core.assemblies.retention import (
+    board_retention_metadata,
+)
 from zcad_core.hardware.electronics.connectors import (
     RectangularConnectorSpec,
 )
@@ -88,14 +91,17 @@ def build_board_display_assembly(
 
     connector = board.usb_connector
     board_mounting = rectangular_board_mounting_metadata(board)
+    board_retention = board_retention_metadata(board)
 
-    board_metadata = (
-        {
-            "mounting": board_mounting,
-        }
-        if board_mounting is not None
-        else None
-    )
+    resolved_board_metadata: dict[str, object] = {}
+
+    if board_mounting is not None:
+        resolved_board_metadata["mounting"] = board_mounting
+
+    if board_retention is not None:
+        resolved_board_metadata["retention"] = board_retention
+
+    board_metadata = resolved_board_metadata if resolved_board_metadata else None
 
     return DeviceAssembly(
         (

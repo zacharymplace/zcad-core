@@ -186,9 +186,11 @@ def board_retention_metadata(
         None,
     )
 
+    # Every rectangular board already exposes board_thickness_mm.
+    # Retention metadata is considered present only when one of the
+    # retention-specific fields is supplied.
     supplied = (
-        board_thickness_mm is not None
-        or insertion_axis is not None
+        insertion_axis is not None
         or clip_regions is not None
         or keepout_regions is not None
     )
