@@ -12,6 +12,7 @@ from zcad_core.retention.corner_capture import (
     CornerCapturePolicy,
     derive_corner_capture_parameters,
 )
+from zcad_core.retention.synthetic_backend import SyntheticCornerCaptureBackend
 
 __all__ = [
     "BoardCorner",
@@ -23,5 +24,6 @@ __all__ = [
     "CornerCaptureParameters",
     "CornerCapturePolicy",
     "CornerCaptureRequest",
+    "SyntheticCornerCaptureBackend",
     "derive_corner_capture_parameters",
 ]
