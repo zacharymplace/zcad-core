@@ -25,6 +25,11 @@ from zcad_core.retention.production_board import (
     ProductionBoardModel,
     ProductionCornerDerivation,
 )
+from zcad_core.retention.production_execution import (
+    ProductionCornerExecutionRequest,
+    ProductionCornerExecutionResult,
+    execute_production_corner_capture,
+)
 from zcad_core.retention.synthetic_backend import SyntheticCornerCaptureBackend
 
 __all__ = [
@@ -41,6 +46,8 @@ __all__ = [
     "ProductionBoardCornerAdapter",
     "ProductionBoardModel",
     "ProductionCornerDerivation",
+    "ProductionCornerExecutionRequest",
+    "ProductionCornerExecutionResult",
     "RetentionBackend",
     "RetentionEngine",
     "RetentionExecution",
@@ -48,4 +55,5 @@ __all__ = [
     "RetentionStrategy",
     "SyntheticCornerCaptureBackend",
     "derive_corner_capture_parameters",
+    "execute_production_corner_capture",
 ]
