@@ -21,6 +21,10 @@ from zcad_core.features.pcb_mounts import (
     add_pcb_standoff,
     centered_mounting_hole_positions,
 )
+from zcad_core.features.snap_retention import (
+    SnapRetentionClipParameters,
+    add_snap_retention_clip,
+)
 
 __all__ = [
     "ConnectorCutoutParameters",
@@ -29,10 +33,12 @@ __all__ = [
     "InsertBossParameters",
     "MountableBoardSpec",
     "PcbStandoffParameters",
+    "SnapRetentionClipParameters",
     "add_board_standoffs",
     "add_display_bezel",
     "add_heat_set_insert_boss",
     "add_pcb_standoff",
+    "add_snap_retention_clip",
     "centered_mounting_hole_positions",
     "cut_connector_opening",
     "cut_display_window",
