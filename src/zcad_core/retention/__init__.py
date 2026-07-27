@@ -19,6 +19,13 @@ from zcad_core.retention.engine import (
     RetentionFitReport,
     RetentionStrategy,
 )
+from zcad_core.retention.evidence_artifact import (
+    GeometryInterferenceResult,
+    ProductionEvidenceArtifact,
+    analyze_capture_interference,
+    build_evidence_report,
+    generate_production_evidence_artifact,
+)
 from zcad_core.retention.production_board import (
     CornerClearanceResult,
     ProductionBoardCornerAdapter,
@@ -43,17 +50,22 @@ __all__ = [
     "CornerCapturePolicy",
     "CornerCaptureRequest",
     "CornerClearanceResult",
+    "GeometryInterferenceResult",
     "ProductionBoardCornerAdapter",
     "ProductionBoardModel",
     "ProductionCornerDerivation",
     "ProductionCornerExecutionRequest",
     "ProductionCornerExecutionResult",
+    "ProductionEvidenceArtifact",
     "RetentionBackend",
     "RetentionEngine",
     "RetentionExecution",
     "RetentionFitReport",
     "RetentionStrategy",
     "SyntheticCornerCaptureBackend",
+    "analyze_capture_interference",
+    "build_evidence_report",
     "derive_corner_capture_parameters",
     "execute_production_corner_capture",
+    "generate_production_evidence_artifact",
 ]

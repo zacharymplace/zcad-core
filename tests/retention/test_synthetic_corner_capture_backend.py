@@ -260,3 +260,36 @@ def test_corner_sign_mapping(
     backend = SyntheticCornerCaptureBackend()
 
     assert backend._corner_signs(corner) == expected
+
+
+def test_capture_geometry_does_not_intersect_board() -> None:
+    backend = SyntheticCornerCaptureBackend()
+    parameters = backend.derive(valid_request())
+
+    pcb = (
+        cq.Workplane("XY")
+        .box(
+            40.0,
+            30.0,
+            1.6,
+        )
+        .translate(
+            (
+                0.0,
+                0.0,
+                0.8,
+            )
+        )
+        .val()
+    )
+
+    capture = backend.build_geometry(parameters).val()
+
+    intersection = capture.intersect(pcb)
+
+    volume = 0.0 if intersection.isNull() else float(intersection.Volume())
+
+    assert volume == pytest.approx(
+        0.0,
+        abs=1e-6,
+    )

@@ -47,15 +47,30 @@ class SyntheticCornerCaptureBackend:
                 "SyntheticCornerCaptureBackend requires a cadquery.Workplane model"
             )
 
-        result = model
+        return model.union(self.build_geometry(parameters))
 
-        for location in parameters.locations:
-            capture = self._build_capture(
+    def build_geometry(
+        self,
+        parameters: CornerCaptureParameters,
+    ) -> cq.Workplane:
+        """Build capture-only geometry without a board model."""
+
+        captures = tuple(
+            self._build_capture(
                 parameters=parameters,
                 corner=location.corner,
                 x_mm=location.x_mm,
                 y_mm=location.y_mm,
             )
+            for location in parameters.locations
+        )
+
+        if not captures:
+            raise ValueError("Corner capture requires geometry locations")
+
+        result = captures[0]
+
+        for capture in captures[1:]:
             result = result.union(capture)
 
         return result
@@ -162,9 +177,9 @@ class SyntheticCornerCaptureBackend:
         )
 
         x_wall_center_x = x_mm + x_sign * (clearance + wall / 2.0)
-        x_wall_center_y = y_mm - y_sign * arm_width / 2.0
+        x_wall_center_y = y_mm - y_sign * (arm_width + engagement) / 2.0
 
-        y_wall_center_x = x_mm - x_sign * arm_width / 2.0
+        y_wall_center_x = x_mm - x_sign * (arm_width + engagement) / 2.0
         y_wall_center_y = y_mm + y_sign * (clearance + wall / 2.0)
 
         x_wall = (
