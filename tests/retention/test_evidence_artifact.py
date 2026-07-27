@@ -254,3 +254,40 @@ def test_interference_uses_capture_only_geometry(
         0.0,
         abs=1e-6,
     )
+
+
+def test_report_contains_manufacturing_validation(
+    tmp_path: Path,
+) -> None:
+    source_step = tmp_path / "board.step"
+    output_step = tmp_path / "capture.step"
+    report_path = tmp_path / "capture.json"
+
+    export_clear_board(source_step)
+
+    generate_production_evidence_artifact(
+        ProductionCornerExecutionRequest(
+            source_step=source_step,
+            pcb_solid_index=1,
+            output_step=output_step,
+            policy=CornerCapturePolicy(),
+        ),
+        report_path=report_path,
+    )
+
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+
+    manufacturing = report["manufacturing"]
+
+    assert manufacturing["passed"] is True
+    assert set(manufacturing["checks"]) == {
+        "minimum_wall",
+        "board_clearance",
+        "vertical_overlap",
+        "arm_proportion",
+        "capture_spacing",
+        "print_orientation",
+        "overhang",
+    }
+
+    assert all(result["passed"] for result in (manufacturing["checks"].values()))

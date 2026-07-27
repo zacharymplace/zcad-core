@@ -11,6 +11,11 @@ import cadquery as cq
 from zcad_core.retention.backend import (
     CornerCaptureFitCheck,
 )
+from zcad_core.retention.manufacturing import (
+    ManufacturingPolicy,
+    ManufacturingReport,
+    validate_corner_capture_manufacturing,
+)
 from zcad_core.retention.production_execution import (
     ProductionCornerExecutionRequest,
     ProductionCornerExecutionResult,
@@ -59,6 +64,7 @@ def generate_production_evidence_artifact(
     request: ProductionCornerExecutionRequest,
     *,
     report_path: Path,
+    manufacturing_policy: ManufacturingPolicy | None = None,
 ) -> ProductionEvidenceArtifact:
     """Execute, verify, and record production retention evidence."""
 
@@ -76,9 +82,25 @@ def generate_production_evidence_artifact(
         exist_ok=True,
     )
 
+    manufacturing = validate_corner_capture_manufacturing(
+        execution.execution.parameters,
+        policy=(manufacturing_policy or ManufacturingPolicy()),
+    )
+
+    if not manufacturing.passed:
+        failed_checks = ", ".join(
+            result.check.value for result in manufacturing.failures
+        )
+
+        raise ValueError(
+            "Generated capture geometry failed "
+            f"manufacturing validation: {failed_checks}"
+        )
+
     report = build_evidence_report(
         execution=execution,
         interference=interference,
+        manufacturing=manufacturing,
     )
 
     report_path.write_text(
@@ -134,6 +156,7 @@ def build_evidence_report(
     *,
     execution: ProductionCornerExecutionResult,
     interference: GeometryInterferenceResult,
+    manufacturing: ManufacturingReport,
 ) -> dict[str, object]:
     """Build a deterministic, inspectable evidence record."""
 
@@ -164,6 +187,7 @@ def build_evidence_report(
             "verified_candidate"
             if execution.passed
             and interference.passed
+            and manufacturing.passed
             and observed_checks == required_checks
             else "rejected"
         ),
@@ -200,6 +224,18 @@ def build_evidence_report(
                 interference.component_capture_intersection_mm3
             ),
             "tolerance_mm3": (interference.tolerance_mm3),
+        },
+        "manufacturing": {
+            "passed": manufacturing.passed,
+            "checks": {
+                result.check.value: {
+                    "passed": result.passed,
+                    "measured_value": (result.measured_value),
+                    "required_value": (result.required_value),
+                    "detail": result.detail,
+                }
+                for result in manufacturing.results
+            },
         },
         "metadata_publication": {
             "approved": False,

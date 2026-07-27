@@ -26,6 +26,14 @@ from zcad_core.retention.evidence_artifact import (
     build_evidence_report,
     generate_production_evidence_artifact,
 )
+from zcad_core.retention.manufacturing import (
+    ManufacturingCheck,
+    ManufacturingCheckResult,
+    ManufacturingPolicy,
+    ManufacturingReport,
+    PrintOrientation,
+    validate_corner_capture_manufacturing,
+)
 from zcad_core.retention.production_board import (
     CornerClearanceResult,
     ProductionBoardCornerAdapter,
@@ -51,6 +59,11 @@ __all__ = [
     "CornerCaptureRequest",
     "CornerClearanceResult",
     "GeometryInterferenceResult",
+    "ManufacturingCheck",
+    "ManufacturingCheckResult",
+    "ManufacturingPolicy",
+    "ManufacturingReport",
+    "PrintOrientation",
     "ProductionBoardCornerAdapter",
     "ProductionBoardModel",
     "ProductionCornerDerivation",
@@ -68,4 +81,5 @@ __all__ = [
     "derive_corner_capture_parameters",
     "execute_production_corner_capture",
     "generate_production_evidence_artifact",
+    "validate_corner_capture_manufacturing",
 ]
