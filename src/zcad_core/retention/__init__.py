@@ -54,6 +54,13 @@ from zcad_core.retention.production_execution import (
     ProductionCornerExecutionResult,
     execute_production_corner_capture,
 )
+from zcad_core.retention.revision_history import (
+    ParameterDelta,
+    RevisionDeltaReport,
+    RevisionRelationship,
+    RevisionRelationshipType,
+    compare_candidate_parameters,
+)
 from zcad_core.retention.synthetic_backend import SyntheticCornerCaptureBackend
 from zcad_core.retention.validation_fixture import (
     ValidationFixtureArtifact,
@@ -88,6 +95,7 @@ __all__ = [
     "ManufacturingCheckResult",
     "ManufacturingPolicy",
     "ManufacturingReport",
+    "ParameterDelta",
     "PhysicalTrialManifest",
     "PhysicalValidationCheck",
     "PhysicalValidationDisposition",
@@ -105,6 +113,9 @@ __all__ = [
     "RetentionExecution",
     "RetentionFitReport",
     "RetentionStrategy",
+    "RevisionDeltaReport",
+    "RevisionRelationship",
+    "RevisionRelationshipType",
     "SyntheticCornerCaptureBackend",
     "ValidationFixtureArtifact",
     "ValidationFixturePolicy",
@@ -113,6 +124,7 @@ __all__ = [
     "build_evidence_report",
     "build_validation_fixture",
     "candidate_identifier",
+    "compare_candidate_parameters",
     "complete_physical_validation_record",
     "create_pending_physical_validation_record",
     "derive_corner_capture_parameters",
