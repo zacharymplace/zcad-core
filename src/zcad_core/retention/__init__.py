@@ -34,6 +34,15 @@ from zcad_core.retention.manufacturing import (
     PrintOrientation,
     validate_corner_capture_manufacturing,
 )
+from zcad_core.retention.physical_validation import (
+    PhysicalValidationCheck,
+    PhysicalValidationDisposition,
+    PhysicalValidationObservation,
+    PhysicalValidationRecord,
+    complete_physical_validation_record,
+    create_pending_physical_validation_record,
+    write_physical_validation_record,
+)
 from zcad_core.retention.production_board import (
     CornerClearanceResult,
     ProductionBoardCornerAdapter,
@@ -46,6 +55,12 @@ from zcad_core.retention.production_execution import (
     execute_production_corner_capture,
 )
 from zcad_core.retention.synthetic_backend import SyntheticCornerCaptureBackend
+from zcad_core.retention.validation_fixture import (
+    ValidationFixtureArtifact,
+    ValidationFixturePolicy,
+    build_validation_fixture,
+    export_validation_fixture,
+)
 
 __all__ = [
     "BoardCorner",
@@ -63,6 +78,10 @@ __all__ = [
     "ManufacturingCheckResult",
     "ManufacturingPolicy",
     "ManufacturingReport",
+    "PhysicalValidationCheck",
+    "PhysicalValidationDisposition",
+    "PhysicalValidationObservation",
+    "PhysicalValidationRecord",
     "PrintOrientation",
     "ProductionBoardCornerAdapter",
     "ProductionBoardModel",
@@ -76,10 +95,17 @@ __all__ = [
     "RetentionFitReport",
     "RetentionStrategy",
     "SyntheticCornerCaptureBackend",
+    "ValidationFixtureArtifact",
+    "ValidationFixturePolicy",
     "analyze_capture_interference",
     "build_evidence_report",
+    "build_validation_fixture",
+    "complete_physical_validation_record",
+    "create_pending_physical_validation_record",
     "derive_corner_capture_parameters",
     "execute_production_corner_capture",
+    "export_validation_fixture",
     "generate_production_evidence_artifact",
     "validate_corner_capture_manufacturing",
+    "write_physical_validation_record",
 ]
