@@ -61,9 +61,19 @@ from zcad_core.retention.validation_fixture import (
     build_validation_fixture,
     export_validation_fixture,
 )
+from zcad_core.retention.validation_lab import (
+    CandidateRevision,
+    PhysicalTrialManifest,
+    ValidationTarget,
+    candidate_identifier,
+    load_manifest,
+    sha256_file,
+    write_immutable_manifest,
+)
 
 __all__ = [
     "BoardCorner",
+    "CandidateRevision",
     "CornerCaptureBackend",
     "CornerCaptureFitCheck",
     "CornerCaptureFitReport",
@@ -78,6 +88,7 @@ __all__ = [
     "ManufacturingCheckResult",
     "ManufacturingPolicy",
     "ManufacturingReport",
+    "PhysicalTrialManifest",
     "PhysicalValidationCheck",
     "PhysicalValidationDisposition",
     "PhysicalValidationObservation",
@@ -97,15 +108,20 @@ __all__ = [
     "SyntheticCornerCaptureBackend",
     "ValidationFixtureArtifact",
     "ValidationFixturePolicy",
+    "ValidationTarget",
     "analyze_capture_interference",
     "build_evidence_report",
     "build_validation_fixture",
+    "candidate_identifier",
     "complete_physical_validation_record",
     "create_pending_physical_validation_record",
     "derive_corner_capture_parameters",
     "execute_production_corner_capture",
     "export_validation_fixture",
     "generate_production_evidence_artifact",
+    "load_manifest",
+    "sha256_file",
     "validate_corner_capture_manufacturing",
+    "write_immutable_manifest",
     "write_physical_validation_record",
 ]
