@@ -60,6 +60,8 @@ from zcad_core.retention.revision_history import (
     RevisionRelationship,
     RevisionRelationshipType,
     compare_candidate_parameters,
+    write_revision_delta_report,
+    write_revision_relationship,
 )
 from zcad_core.retention.synthetic_backend import SyntheticCornerCaptureBackend
 from zcad_core.retention.validation_fixture import (
@@ -136,4 +138,6 @@ __all__ = [
     "validate_corner_capture_manufacturing",
     "write_immutable_manifest",
     "write_physical_validation_record",
+    "write_revision_delta_report",
+    "write_revision_relationship",
 ]

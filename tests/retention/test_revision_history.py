@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from zcad_core.retention.revision_history import (
@@ -8,6 +11,8 @@ from zcad_core.retention.revision_history import (
     RevisionRelationship,
     RevisionRelationshipType,
     compare_candidate_parameters,
+    write_revision_delta_report,
+    write_revision_relationship,
 )
 
 
@@ -117,3 +122,109 @@ def test_non_shared_parameters_are_ignored() -> None:
     assert tuple(change.parameter for change in report.changes) == (
         "board_clearance_mm",
     )
+
+
+def test_relationship_write_is_idempotent(
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "relationship.json"
+
+    write_revision_relationship(
+        valid_relationship(),
+        output_path=output_path,
+    )
+    write_revision_relationship(
+        valid_relationship(),
+        output_path=output_path,
+    )
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert payload["relationship"] == "supersedes"
+
+
+def test_relationship_write_rejects_conflict(
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "relationship.json"
+
+    write_revision_relationship(
+        valid_relationship(),
+        output_path=output_path,
+    )
+
+    changed = RevisionRelationship(
+        schema_version="1.0.0",
+        target_id="adafruit-feather-rp2040",
+        source_candidate_id=("adafruit-feather-rp2040-corner-capture-r002"),
+        target_candidate_id=("adafruit-feather-rp2040-corner-capture-r001"),
+        relationship=(RevisionRelationshipType.SUPERSEDES),
+        reason="Different reason.",
+        created_at_utc=("2026-07-27T04:00:00+00:00"),
+    )
+
+    with pytest.raises(
+        FileExistsError,
+        match="immutable revision record",
+    ):
+        write_revision_relationship(
+            changed,
+            output_path=output_path,
+        )
+
+
+def changed_report() -> RevisionDeltaReport:
+    return compare_candidate_parameters(
+        source_candidate_id="candidate-r001",
+        target_candidate_id="candidate-r002",
+        source_parameters={
+            "board_clearance_mm": 0.20,
+            "vertical_overlap_mm": 0.40,
+        },
+        target_parameters={
+            "board_clearance_mm": 0.25,
+            "vertical_overlap_mm": 0.60,
+        },
+    )
+
+
+def test_delta_report_write_is_idempotent(
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "parameter-delta.json"
+
+    write_revision_delta_report(
+        changed_report(),
+        output_path=output_path,
+    )
+    write_revision_delta_report(
+        changed_report(),
+        output_path=output_path,
+    )
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert payload["changed"] is True
+    assert tuple(item["parameter"] for item in payload["changes"]) == (
+        "board_clearance_mm",
+        "vertical_overlap_mm",
+    )
+
+
+def test_delta_report_records_signed_change(
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "parameter-delta.json"
+
+    write_revision_delta_report(
+        changed_report(),
+        output_path=output_path,
+    )
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+
+    changes = {item["parameter"]: item for item in payload["changes"]}
+
+    assert changes["board_clearance_mm"]["change"] == pytest.approx(0.05)
+
+    assert changes["vertical_overlap_mm"]["change"] == pytest.approx(0.20)

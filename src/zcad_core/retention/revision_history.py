@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 
 
 class RevisionRelationshipType(str, Enum):
@@ -97,4 +99,91 @@ def compare_candidate_parameters(
         source_candidate_id=source_candidate_id,
         target_candidate_id=target_candidate_id,
         changes=changes,
+    )
+
+
+def write_revision_relationship(
+    relationship: RevisionRelationship,
+    *,
+    output_path: Path,
+) -> None:
+    """Write one immutable revision relationship."""
+
+    payload = {
+        "schema_version": relationship.schema_version,
+        "target_id": relationship.target_id,
+        "source_candidate_id": (relationship.source_candidate_id),
+        "target_candidate_id": (relationship.target_candidate_id),
+        "relationship": relationship.relationship.value,
+        "reason": relationship.reason,
+        "created_at_utc": relationship.created_at_utc,
+    }
+
+    _write_immutable_json(
+        payload,
+        output_path=output_path,
+    )
+
+
+def write_revision_delta_report(
+    report: RevisionDeltaReport,
+    *,
+    output_path: Path,
+) -> None:
+    """Write one immutable parameter-delta report."""
+
+    payload = {
+        "schema_version": "1.0.0",
+        "source_candidate_id": (report.source_candidate_id),
+        "target_candidate_id": (report.target_candidate_id),
+        "changed": report.changed,
+        "changes": [
+            {
+                "parameter": change.parameter,
+                "previous_value": (change.previous_value),
+                "current_value": (change.current_value),
+                "change": change.change,
+            }
+            for change in report.changes
+        ],
+    }
+
+    _write_immutable_json(
+        payload,
+        output_path=output_path,
+    )
+
+
+def _write_immutable_json(
+    payload: dict[str, object],
+    *,
+    output_path: Path,
+) -> None:
+    serialized = (
+        json.dumps(
+            payload,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    if output_path.exists():
+        existing = output_path.read_text(encoding="utf-8")
+
+        if existing == serialized:
+            return
+
+        raise FileExistsError(
+            f"Refusing to overwrite immutable revision record: {output_path}"
+        )
+
+    output_path.write_text(
+        serialized,
+        encoding="utf-8",
     )
