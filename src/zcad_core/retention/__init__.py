@@ -110,6 +110,9 @@ __all__ = [
     "ProductionCornerExecutionRequest",
     "ProductionCornerExecutionResult",
     "ProductionEvidenceArtifact",
+    "PromotionDecision",
+    "PromotionRecord",
+    "PublicationEligibility",
     "RetentionBackend",
     "RetentionEngine",
     "RetentionExecution",
@@ -132,6 +135,7 @@ __all__ = [
     "create_pending_physical_validation_record",
     "derive_candidate_revision",
     "derive_corner_capture_parameters",
+    "evaluate_publication_eligibility",
     "execute_production_corner_capture",
     "export_validation_fixture",
     "generate_production_evidence_artifact",
@@ -142,10 +146,18 @@ __all__ = [
     "validate_corner_capture_manufacturing",
     "write_immutable_manifest",
     "write_physical_validation_record",
+    "write_promotion_record",
     "write_revision_delta_report",
     "write_revision_relationship",
 ]
 
+from .promotion import (
+    PromotionDecision,
+    PromotionRecord,
+    PublicationEligibility,
+    evaluate_publication_eligibility,
+    write_promotion_record,
+)
 from .revision_registration import (
     RevisionRegistrationResult,
     derive_candidate_revision,
