@@ -1,0 +1,39 @@
+{
+  "bottom_shell_layers": 5,
+  "brim": {
+    "enabled": false,
+    "status": "review_after_slice"
+  },
+  "estimated_material_grams": null,
+  "estimated_print_time_seconds": null,
+  "generated_project_path": null,
+  "infill": {
+    "density_percent": 20,
+    "pattern": "gyroid"
+  },
+  "layer_height_mm": 0.2,
+  "material_profile_id": "petg",
+  "name": "Bambu Studio A1 mini PETG Validation Fixture",
+  "notes": [
+    "Settings are a project-planned validation baseline, not a Bambu Lab default preset.",
+    "Software version and slice metrics must be recorded from Bambu Studio."
+  ],
+  "nozzle_diameter_mm": 0.4,
+  "orientation": "base_down",
+  "printer_profile_id": "bambu-lab-a1-mini",
+  "profile_id": "bambu-studio-a1-mini-petg-validation",
+  "slice_completed": false,
+  "software": {
+    "name": "Bambu Studio",
+    "version": "pending"
+  },
+  "source_artifact_path": "evidence/adafruit-feather-rp2040/validation-lab/candidates/r003/fixture.stl",
+  "status": "planned",
+  "supports": {
+    "enabled": false,
+    "rationale": "Validation fixture is designed for base-down printing without supports.",
+    "status": "planned"
+  },
+  "top_shell_layers": 5,
+  "wall_loops": 4
+}

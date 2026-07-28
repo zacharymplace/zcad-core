@@ -80,6 +80,13 @@ from zcad_core.retention.revision_history import (
     write_revision_delta_report,
     write_revision_relationship,
 )
+from zcad_core.retention.slicing_readiness import (
+    SlicingReadinessCheck,
+    SlicingReadinessReport,
+    SlicingReadinessResult,
+    evaluate_slicing_readiness,
+    write_slicing_readiness_report,
+)
 from zcad_core.retention.synthetic_backend import SyntheticCornerCaptureBackend
 from zcad_core.retention.validation_fixture import (
     ValidationFixtureArtifact,
@@ -153,6 +160,9 @@ __all__ = [
     "RevisionRegistrationResult",
     "RevisionRelationship",
     "RevisionRelationshipType",
+    "SlicingReadinessCheck",
+    "SlicingReadinessReport",
+    "SlicingReadinessResult",
     "SyntheticCornerCaptureBackend",
     "ValidationFixtureArtifact",
     "ValidationFixturePolicy",
@@ -174,6 +184,7 @@ __all__ = [
     "derive_candidate_revision",
     "derive_corner_capture_parameters",
     "evaluate_publication_eligibility",
+    "evaluate_slicing_readiness",
     "execute_production_corner_capture",
     "export_design_review_package",
     "export_validation_fixture",
@@ -192,6 +203,7 @@ __all__ = [
     "write_promotion_record",
     "write_revision_delta_report",
     "write_revision_relationship",
+    "write_slicing_readiness_report",
     "write_visual_review_record",
 ]
 

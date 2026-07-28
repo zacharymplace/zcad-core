@@ -94,3 +94,61 @@ def load_material_profile(
         raise ValueError("density_g_cm3 must be greater than zero")
 
     return profile
+
+
+def load_slicer_profile(
+    path: Path,
+) -> dict[str, Any]:
+    """Load and validate a slicer profile."""
+
+    profile = load_json_object(path)
+
+    required = {
+        "profile_id",
+        "name",
+        "status",
+        "software",
+        "printer_profile_id",
+        "material_profile_id",
+        "nozzle_diameter_mm",
+        "orientation",
+        "layer_height_mm",
+        "wall_loops",
+        "infill",
+        "supports",
+        "slice_completed",
+        "estimated_print_time_seconds",
+        "estimated_material_grams",
+    }
+    missing = required.difference(profile)
+
+    if missing:
+        raise ValueError(
+            "Slicer profile is missing fields: " + ", ".join(sorted(missing))
+        )
+
+    for field in (
+        "nozzle_diameter_mm",
+        "layer_height_mm",
+        "wall_loops",
+    ):
+        value = profile[field]
+
+        if not isinstance(value, int | float) or value <= 0:
+            raise ValueError(f"{field} must be greater than zero")
+
+    if not isinstance(
+        profile["slice_completed"],
+        bool,
+    ):
+        raise TypeError("slice_completed must be boolean")
+
+    if not profile["slice_completed"]:
+        for field in (
+            "estimated_print_time_seconds",
+            "estimated_material_grams",
+        ):
+            if profile[field] is not None:
+                raise ValueError(f"{field} must remain null before slicing")
+
+    return profile

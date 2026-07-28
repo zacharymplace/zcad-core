@@ -1,0 +1,45 @@
+{
+  "build_volume_mm": {
+    "x": 180,
+    "y": 180,
+    "z": 180
+  },
+  "calibration_status": "uncalibrated",
+  "configured_nozzle_diameter_mm": 0.4,
+  "manufacturer": "Bambu Lab",
+  "minimums_mm": {
+    "emboss_height": 0.4,
+    "floor": 1.2,
+    "text_size": 3.0,
+    "wall": 1.2
+  },
+  "model": "A1 mini",
+  "name": "Bambu Lab A1 mini",
+  "profile_id": "bambu-lab-a1-mini",
+  "sources": [
+    {
+      "supports": [
+        "build_volume_mm"
+      ],
+      "title": "A1 mini FAQ",
+      "url": "https://wiki.bambulab.com/en/a1-mini/manual/faq"
+    },
+    {
+      "supports": [
+        "petg_compatibility"
+      ],
+      "title": "A1 mini Introduction",
+      "url": "https://wiki.bambulab.com/en/a1-mini/manual/intro-a1-mini"
+    }
+  ],
+  "supported_material_profile_ids": [
+    "petg"
+  ],
+  "tolerance_status": "provisional",
+  "tolerances_mm": {
+    "hole_oversize": 0.2,
+    "magnet_pocket_oversize": 0.15,
+    "press_fit_clearance_per_side": 0.05,
+    "sliding_clearance_per_side": 0.2
+  }
+}
