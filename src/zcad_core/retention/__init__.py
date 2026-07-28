@@ -16,6 +16,10 @@ from zcad_core.retention.corner_capture import (
     CornerCapturePolicy,
     derive_corner_capture_parameters,
 )
+from zcad_core.retention.design_review import (
+    DesignReviewArtifact,
+    export_design_review_package,
+)
 from zcad_core.retention.engine import (
     RetentionBackend,
     RetentionEngine,
@@ -97,6 +101,7 @@ __all__ = [
     "CornerCapturePolicy",
     "CornerCaptureRequest",
     "CornerClearanceResult",
+    "DesignReviewArtifact",
     "GeometryInterferenceResult",
     "ManufacturingCheck",
     "ManufacturingCheckResult",
@@ -142,6 +147,7 @@ __all__ = [
     "derive_corner_capture_parameters",
     "evaluate_publication_eligibility",
     "execute_production_corner_capture",
+    "export_design_review_package",
     "export_validation_fixture",
     "generate_production_evidence_artifact",
     "load_candidate_revision",
