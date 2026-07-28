@@ -1,3 +1,7 @@
+from zcad_core.retention.artifact_revision import (
+    ArtifactBackedRevisionResult,
+    register_artifact_backed_revision,
+)
 from zcad_core.retention.backend import (
     CornerCaptureBackend,
     CornerCaptureFitCheck,
@@ -81,6 +85,7 @@ from zcad_core.retention.validation_lab import (
 )
 
 __all__ = [
+    "ArtifactBackedRevisionResult",
     "BoardCorner",
     "CandidateRevision",
     "CornerCaptureBackend",
@@ -141,6 +146,8 @@ __all__ = [
     "generate_production_evidence_artifact",
     "load_candidate_revision",
     "load_manifest",
+    "persist_candidate_revision",
+    "register_artifact_backed_revision",
     "register_candidate_promotion",
     "register_candidate_revision",
     "sha256_file",
@@ -164,5 +171,6 @@ from .revision_registration import (
     RevisionRegistrationResult,
     derive_candidate_revision,
     load_candidate_revision,
+    persist_candidate_revision,
     register_candidate_revision,
 )

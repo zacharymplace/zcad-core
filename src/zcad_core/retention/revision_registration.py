@@ -117,22 +117,23 @@ def derive_candidate_revision(
     )
 
 
-def register_candidate_revision(
+def persist_candidate_revision(
     *,
     parent_candidate: CandidateRevision,
-    revision: str,
-    parameter_updates: dict[str, float],
+    candidate: CandidateRevision,
     relationship: RevisionRelationshipType,
     reason: str,
     output_directory: Path,
-    automated_decision: str,
 ) -> RevisionRegistrationResult:
-    candidate = derive_candidate_revision(
-        parent_candidate=parent_candidate,
-        revision=revision,
-        parameter_updates=parameter_updates,
-        automated_decision=automated_decision,
-    )
+    """Persist one fully prepared candidate revision."""
+
+    if candidate.target_id != parent_candidate.target_id:
+        raise ValueError(
+            "Candidate and parent must reference the same validation target"
+        )
+
+    if candidate.candidate_id == parent_candidate.candidate_id:
+        raise ValueError("Candidate revision cannot reference itself")
 
     relationship_record = RevisionRelationship(
         schema_version="1.0.0",
@@ -147,7 +148,7 @@ def register_candidate_revision(
     delta_report = compare_candidate_parameters(
         source_candidate_id=parent_candidate.candidate_id,
         target_candidate_id=candidate.candidate_id,
-        source_parameters=parent_candidate.derived_parameters,
+        source_parameters=(parent_candidate.derived_parameters),
         target_parameters=candidate.derived_parameters,
     )
 
@@ -177,4 +178,30 @@ def register_candidate_revision(
         candidate_path=candidate_path,
         relationship_path=relationship_path,
         delta_report_path=delta_path,
+    )
+
+
+def register_candidate_revision(
+    *,
+    parent_candidate: CandidateRevision,
+    revision: str,
+    parameter_updates: dict[str, float],
+    relationship: RevisionRelationshipType,
+    reason: str,
+    output_directory: Path,
+    automated_decision: str,
+) -> RevisionRegistrationResult:
+    candidate = derive_candidate_revision(
+        parent_candidate=parent_candidate,
+        revision=revision,
+        parameter_updates=parameter_updates,
+        automated_decision=automated_decision,
+    )
+
+    return persist_candidate_revision(
+        parent_candidate=parent_candidate,
+        candidate=candidate,
+        relationship=relationship,
+        reason=reason,
+        output_directory=output_directory,
     )
