@@ -229,3 +229,169 @@ def test_load_candidate_revision_rejects_derived_parameters(
         match=("derived_parameters must be an object"),
     ):
         load_candidate_revision(path)
+
+
+def test_derive_candidate_revision(
+    tmp_path: Path,
+) -> None:
+    from zcad_core.retention import (
+        derive_candidate_revision,
+        load_candidate_revision,
+    )
+
+    path = tmp_path / "candidate.json"
+    write_candidate_payload(
+        path,
+        valid_candidate_payload(),
+    )
+    parent = load_candidate_revision(path)
+
+    candidate = derive_candidate_revision(
+        parent_candidate=parent,
+        revision="r002",
+        parameter_updates={
+            "board_clearance_mm": 0.30,
+        },
+        automated_decision=("synthetic_revision_candidate"),
+    )
+
+    assert candidate.candidate_id == "synthetic-target-corner-capture-r002"
+    assert candidate.revision == "r002"
+    assert candidate.retention_policy["board_clearance_mm"] == 0.30
+    assert candidate.derived_parameters["board_clearance_mm"] == 0.30
+    assert candidate.retention_policy["arm_width_mm"] == 3.0
+    assert candidate.created_at_utc == (parent.created_at_utc)
+
+    assert parent.retention_policy["board_clearance_mm"] == 0.25
+    assert parent.derived_parameters["board_clearance_mm"] == 0.25
+
+
+def test_derive_candidate_revision_rejects_empty_updates(
+    tmp_path: Path,
+) -> None:
+    import pytest
+
+    from zcad_core.retention import (
+        derive_candidate_revision,
+        load_candidate_revision,
+    )
+
+    path = tmp_path / "candidate.json"
+    write_candidate_payload(
+        path,
+        valid_candidate_payload(),
+    )
+    parent = load_candidate_revision(path)
+
+    with pytest.raises(
+        ValueError,
+        match=("parameter_updates cannot be empty"),
+    ):
+        derive_candidate_revision(
+            parent_candidate=parent,
+            revision="r002",
+            parameter_updates={},
+            automated_decision="synthetic",
+        )
+
+
+def test_derive_candidate_revision_rejects_unshared_parameter(
+    tmp_path: Path,
+) -> None:
+    import pytest
+
+    from zcad_core.retention import (
+        derive_candidate_revision,
+        load_candidate_revision,
+    )
+
+    path = tmp_path / "candidate.json"
+    write_candidate_payload(
+        path,
+        valid_candidate_payload(),
+    )
+    parent = load_candidate_revision(path)
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "parameter_updates must reference "
+            "parameters present in retention_policy "
+            "and derived_parameters: "
+            "board_thickness_mm"
+        ),
+    ):
+        derive_candidate_revision(
+            parent_candidate=parent,
+            revision="r002",
+            parameter_updates={
+                "board_thickness_mm": 1.60,
+            },
+            automated_decision="synthetic",
+        )
+
+
+def test_register_candidate_revision_is_idempotent(
+    tmp_path: Path,
+) -> None:
+    import json
+
+    from zcad_core.retention import (
+        RevisionRelationshipType,
+        load_candidate_revision,
+        register_candidate_revision,
+    )
+
+    parent_path = tmp_path / "r001" / "candidate.json"
+    parent_path.parent.mkdir(
+        parents=True,
+    )
+    write_candidate_payload(
+        parent_path,
+        valid_candidate_payload(),
+    )
+
+    parent = load_candidate_revision(parent_path)
+    output_directory = tmp_path / "r002"
+
+    first = register_candidate_revision(
+        parent_candidate=parent,
+        revision="r002",
+        parameter_updates={
+            "board_clearance_mm": 0.30,
+        },
+        relationship=(RevisionRelationshipType.SUPERSEDES),
+        reason=("Synthetic revision increases board clearance."),
+        output_directory=output_directory,
+        automated_decision=("synthetic_revision_candidate"),
+    )
+
+    second = register_candidate_revision(
+        parent_candidate=parent,
+        revision="r002",
+        parameter_updates={
+            "board_clearance_mm": 0.30,
+        },
+        relationship=(RevisionRelationshipType.SUPERSEDES),
+        reason=("Synthetic revision increases board clearance."),
+        output_directory=output_directory,
+        automated_decision=("synthetic_revision_candidate"),
+    )
+
+    assert first == second
+    assert first.candidate_path.is_file()
+    assert first.relationship_path.is_file()
+    assert first.delta_report_path.is_file()
+
+    candidate_payload = json.loads(first.candidate_path.read_text(encoding="utf-8"))
+    relationship_payload = json.loads(
+        first.relationship_path.read_text(encoding="utf-8")
+    )
+    delta_payload = json.loads(first.delta_report_path.read_text(encoding="utf-8"))
+
+    assert candidate_payload["candidate_id"] == "synthetic-target-corner-capture-r002"
+    assert candidate_payload["derived_parameters"]["board_clearance_mm"] == 0.30
+    assert relationship_payload["relationship"] == "supersedes"
+    assert relationship_payload["target_candidate_id"] == parent.candidate_id
+    assert delta_payload["changed"] is True
+    assert delta_payload["changes"][0]["parameter"] == "board_clearance_mm"
