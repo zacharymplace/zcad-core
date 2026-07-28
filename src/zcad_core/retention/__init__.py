@@ -116,6 +116,7 @@ __all__ = [
     "RetentionFitReport",
     "RetentionStrategy",
     "RevisionDeltaReport",
+    "RevisionRegistrationResult",
     "RevisionRelationship",
     "RevisionRelationshipType",
     "SyntheticCornerCaptureBackend",
@@ -133,6 +134,7 @@ __all__ = [
     "execute_production_corner_capture",
     "export_validation_fixture",
     "generate_production_evidence_artifact",
+    "load_candidate_revision",
     "load_manifest",
     "sha256_file",
     "validate_corner_capture_manufacturing",
@@ -141,3 +143,8 @@ __all__ = [
     "write_revision_delta_report",
     "write_revision_relationship",
 ]
+
+from .revision_registration import (
+    RevisionRegistrationResult,
+    load_candidate_revision,
+)
