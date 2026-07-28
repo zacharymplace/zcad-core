@@ -21,6 +21,7 @@ def test_pending_record_fails_closed(
         fixture_stl_path=(tmp_path / "fixture.stl"),
         printer_profile="test-printer",
         material_profile="test-material",
+        slicer_profile="test-slicer",
     )
 
     assert record.complete is True
@@ -34,6 +35,7 @@ def test_complete_passing_record_passes() -> None:
         fixture_stl_path=Path("fixture.stl"),
         printer_profile="test-printer",
         material_profile="test-material",
+        slicer_profile="test-slicer",
         observations=tuple(
             PhysicalValidationObservation(
                 check=check,
@@ -66,6 +68,7 @@ def test_failed_observation_blocks_pass() -> None:
         fixture_stl_path=Path("fixture.stl"),
         printer_profile="test-printer",
         material_profile="test-material",
+        slicer_profile="test-slicer",
         observations=observations,
         disposition=(PhysicalValidationDisposition.PASS),
         operator_notes="Board did not seat.",
@@ -89,6 +92,7 @@ def test_incomplete_record_fails_closed() -> None:
         fixture_stl_path=Path("fixture.stl"),
         printer_profile="test-printer",
         material_profile="test-material",
+        slicer_profile="test-slicer",
         observations=observations,
         disposition=(PhysicalValidationDisposition.PASS),
         operator_notes="Incomplete.",
@@ -108,6 +112,7 @@ def test_record_writes_json(
         fixture_stl_path=(tmp_path / "fixture.stl"),
         printer_profile="test-printer",
         material_profile="test-material",
+        slicer_profile="test-slicer",
     )
 
     write_physical_validation_record(
@@ -119,4 +124,5 @@ def test_record_writes_json(
 
     assert payload["complete"] is True
     assert payload["passed"] is False
+    assert payload["slicer_profile"] == "test-slicer"
     assert len(payload["observations"]) == len(PhysicalValidationCheck)

@@ -148,6 +148,7 @@ class PhysicalTrialManifest:
     fixture_artifact_path: str
     printer_profile: str
     material_profile: str
+    slicer_profile: str
     disposition: str
     complete: bool
     passed: bool
@@ -172,6 +173,7 @@ class PhysicalTrialManifest:
             ),
             ("printer_profile", self.printer_profile),
             ("material_profile", self.material_profile),
+            ("slicer_profile", self.slicer_profile),
             ("disposition", self.disposition),
             ("created_at_utc", self.created_at_utc),
         )

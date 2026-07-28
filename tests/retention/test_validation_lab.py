@@ -71,6 +71,7 @@ def valid_trial() -> PhysicalTrialManifest:
         fixture_artifact_path="fixture.stl",
         printer_profile="pending-selection",
         material_profile="pending-selection",
+        slicer_profile="pending-selection",
         disposition="revise",
         complete=True,
         passed=False,

@@ -46,6 +46,7 @@ class PhysicalValidationRecord:
     fixture_stl_path: str
     printer_profile: str
     material_profile: str
+    slicer_profile: str
     observations: tuple[PhysicalValidationObservation, ...]
     disposition: PhysicalValidationDisposition
     operator_notes: str
@@ -78,6 +79,7 @@ def create_pending_physical_validation_record(
     fixture_stl_path: Path,
     printer_profile: str,
     material_profile: str,
+    slicer_profile: str,
 ) -> PhysicalValidationRecord:
     """Create a fail-closed record awaiting operator inspection."""
 
@@ -87,6 +89,7 @@ def create_pending_physical_validation_record(
         fixture_stl_path=str(fixture_stl_path),
         printer_profile=printer_profile,
         material_profile=material_profile,
+        slicer_profile=slicer_profile,
         observations=tuple(
             PhysicalValidationObservation(
                 check=check,
@@ -134,6 +137,7 @@ def complete_physical_validation_record(
     fixture_stl_path: Path,
     printer_profile: str,
     material_profile: str,
+    slicer_profile: str,
     observations: tuple[PhysicalValidationObservation, ...],
     disposition: PhysicalValidationDisposition,
     operator_notes: str,
@@ -146,6 +150,7 @@ def complete_physical_validation_record(
         fixture_stl_path=str(fixture_stl_path),
         printer_profile=printer_profile,
         material_profile=material_profile,
+        slicer_profile=slicer_profile,
         observations=observations,
         disposition=disposition,
         operator_notes=operator_notes.strip(),
