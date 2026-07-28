@@ -34,6 +34,15 @@ from zcad_core.retention.evidence_artifact import (
     build_evidence_report,
     generate_production_evidence_artifact,
 )
+from zcad_core.retention.installation_path import (
+    InstallationPathCollision,
+    InstallationPathPlan,
+    InstallationPathReport,
+    InstallationPathResult,
+    analyze_installation_paths,
+    default_installation_path_plans,
+    write_installation_path_report,
+)
 from zcad_core.retention.manufacturing import (
     ManufacturingCheck,
     ManufacturingCheckResult,
@@ -87,6 +96,14 @@ from zcad_core.retention.validation_lab import (
     sha256_file,
     write_immutable_manifest,
 )
+from zcad_core.retention.visual_review import (
+    VisualReviewCheck,
+    VisualReviewDisposition,
+    VisualReviewObservation,
+    VisualReviewRecord,
+    complete_visual_review_record,
+    write_visual_review_record,
+)
 
 __all__ = [
     "ArtifactBackedRevisionResult",
@@ -103,6 +120,10 @@ __all__ = [
     "CornerClearanceResult",
     "DesignReviewArtifact",
     "GeometryInterferenceResult",
+    "InstallationPathCollision",
+    "InstallationPathPlan",
+    "InstallationPathReport",
+    "InstallationPathResult",
     "ManufacturingCheck",
     "ManufacturingCheckResult",
     "ManufacturingPolicy",
@@ -136,13 +157,20 @@ __all__ = [
     "ValidationFixtureArtifact",
     "ValidationFixturePolicy",
     "ValidationTarget",
+    "VisualReviewCheck",
+    "VisualReviewDisposition",
+    "VisualReviewObservation",
+    "VisualReviewRecord",
     "analyze_capture_interference",
+    "analyze_installation_paths",
     "build_evidence_report",
     "build_validation_fixture",
     "candidate_identifier",
     "compare_candidate_parameters",
     "complete_physical_validation_record",
+    "complete_visual_review_record",
     "create_pending_physical_validation_record",
+    "default_installation_path_plans",
     "derive_candidate_revision",
     "derive_corner_capture_parameters",
     "evaluate_publication_eligibility",
@@ -159,10 +187,12 @@ __all__ = [
     "sha256_file",
     "validate_corner_capture_manufacturing",
     "write_immutable_manifest",
+    "write_installation_path_report",
     "write_physical_validation_record",
     "write_promotion_record",
     "write_revision_delta_report",
     "write_revision_relationship",
+    "write_visual_review_record",
 ]
 
 from .promotion import (
