@@ -9,3 +9,6 @@ exports/
 
 # Python package build metadata
 *.egg-info/
+
+# Local Validation Lab source and generated evidence
+evidence/
