@@ -141,6 +141,7 @@ __all__ = [
     "generate_production_evidence_artifact",
     "load_candidate_revision",
     "load_manifest",
+    "register_candidate_promotion",
     "register_candidate_revision",
     "sha256_file",
     "validate_corner_capture_manufacturing",
@@ -156,6 +157,7 @@ from .promotion import (
     PromotionRecord,
     PublicationEligibility,
     evaluate_publication_eligibility,
+    register_candidate_promotion,
     write_promotion_record,
 )
 from .revision_registration import (

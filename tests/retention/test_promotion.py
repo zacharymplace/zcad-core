@@ -166,3 +166,74 @@ def test_write_promotion_record_rejects_overwrite(
             changed,
             output_path=path,
         )
+
+
+def test_register_candidate_promotion_is_idempotent(
+    tmp_path: Path,
+) -> None:
+    from zcad_core.retention import (
+        register_candidate_promotion,
+    )
+
+    candidate = tmp_path / "candidate.json"
+    relationship = tmp_path / "relationship.json"
+    delta = tmp_path / "parameter-delta.json"
+    trial = tmp_path / "trial.json"
+
+    for path in (
+        candidate,
+        relationship,
+        delta,
+        trial,
+    ):
+        path.write_text(
+            "{}\n",
+            encoding="utf-8",
+        )
+
+    promotion_path = tmp_path / "promotion.json"
+
+    record = PromotionRecord(
+        **{
+            **valid_promotion_record().__dict__,
+            "candidate_manifest_path": str(candidate),
+            "relationship_path": str(relationship),
+            "parameter_delta_path": str(delta),
+            "physical_trial_path": str(trial),
+        }
+    )
+
+    first = register_candidate_promotion(
+        record=record,
+        output_path=promotion_path,
+    )
+
+    second = register_candidate_promotion(
+        record=record,
+        output_path=promotion_path,
+    )
+
+    assert first == second
+    assert promotion_path.is_file()
+
+
+def test_register_candidate_promotion_rejects_missing_artifacts(
+    tmp_path: Path,
+) -> None:
+    from zcad_core.retention import (
+        register_candidate_promotion,
+    )
+
+    record = valid_promotion_record()
+    promotion_path = tmp_path / "promotion.json"
+
+    with pytest.raises(
+        ValueError,
+        match="candidate_manifest_missing",
+    ):
+        register_candidate_promotion(
+            record=record,
+            output_path=promotion_path,
+        )
+
+    assert not promotion_path.exists()

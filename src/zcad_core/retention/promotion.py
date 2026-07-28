@@ -150,3 +150,30 @@ def write_promotion_record(
         serialized,
         encoding="utf-8",
     )
+
+
+def register_candidate_promotion(
+    *,
+    record: PromotionRecord,
+    output_path: Path,
+) -> PromotionRecord:
+    eligibility = evaluate_publication_eligibility(
+        automated_validation_passed=(record.automated_validation_passed),
+        physical_validation_passed=(record.physical_validation_passed),
+        candidate_manifest_exists=Path(record.candidate_manifest_path).is_file(),
+        relationship_exists=Path(record.relationship_path).is_file(),
+        parameter_delta_exists=Path(record.parameter_delta_path).is_file(),
+        physical_trial_exists=Path(record.physical_trial_path).is_file(),
+    )
+
+    if not eligibility.eligible:
+        failures = ", ".join(eligibility.failures)
+
+        raise ValueError(f"Candidate is not eligible for promotion: {failures}")
+
+    write_promotion_record(
+        record,
+        output_path=output_path,
+    )
+
+    return record
