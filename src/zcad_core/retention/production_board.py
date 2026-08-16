@@ -49,6 +49,51 @@ class ProductionCornerDerivation:
     selected_corners: tuple[BoardCorner, ...]
 
 
+def import_production_board_model(
+    *,
+    source_step: Path,
+    pcb_solid_index: int,
+) -> ProductionBoardModel:
+    """Import a STEP model and identify its PCB solid.
+
+    Shared by every retention strategy's production adapter: importing a
+    board and separating its PCB from surrounding component solids does
+    not depend on which retention strategy will consume the result.
+    """
+
+    if pcb_solid_index < 1:
+        raise ValueError("pcb_solid_index must be one-based and positive")
+
+    shape = workplane_shape(cq.importers.importStep(str(source_step)))
+
+    if shape.isNull():
+        raise ValueError("STEP model contains no shape")
+
+    solids = tuple(shape.Solids())
+
+    if pcb_solid_index > len(solids):
+        raise ValueError("pcb_solid_index exceeds imported solid count")
+
+    pcb = solids[pcb_solid_index - 1]
+
+    components = tuple(
+        solid
+        for index, solid in enumerate(
+            solids,
+            start=1,
+        )
+        if index != pcb_solid_index
+    )
+
+    return ProductionBoardModel(
+        source_step=source_step,
+        pcb_solid_index=pcb_solid_index,
+        shape=shape,
+        pcb=pcb,
+        component_solids=components,
+    )
+
+
 class ProductionBoardCornerAdapter:
     """Derive corner-capture input from production STEP evidence."""
 
@@ -75,36 +120,9 @@ class ProductionBoardCornerAdapter:
     ) -> ProductionBoardModel:
         """Import a STEP model and identify its PCB solid."""
 
-        if pcb_solid_index < 1:
-            raise ValueError("pcb_solid_index must be one-based and positive")
-
-        shape = workplane_shape(cq.importers.importStep(str(source_step)))
-
-        if shape.isNull():
-            raise ValueError("STEP model contains no shape")
-
-        solids = tuple(shape.Solids())
-
-        if pcb_solid_index > len(solids):
-            raise ValueError("pcb_solid_index exceeds imported solid count")
-
-        pcb = solids[pcb_solid_index - 1]
-
-        components = tuple(
-            solid
-            for index, solid in enumerate(
-                solids,
-                start=1,
-            )
-            if index != pcb_solid_index
-        )
-
-        return ProductionBoardModel(
+        return import_production_board_model(
             source_step=source_step,
             pcb_solid_index=pcb_solid_index,
-            shape=shape,
-            pcb=pcb,
-            component_solids=components,
         )
 
     def analyze_corner_clearance(

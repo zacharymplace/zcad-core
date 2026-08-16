@@ -31,9 +31,10 @@ def test_uno_r4_wifi_has_no_clear_diagonal_corners() -> None:
     This documents a genuine per-board finding, not a code defect: the
     corner-capture strategy (see docs/roadmaps/validation-lab.md, "Explicitly
     deferred: additional retention strategies") does not generalize to every
-    board layout. UNO R4 WiFi needs either a different retention strategy or
-    a human engineering call on a smaller, less conservative capture
-    geometry than this repository is prepared to generate unsupervised.
+    board layout. Edge capture (see
+    test_production_edge_execution_uno_r4.py) generates real, validated
+    retention geometry for this exact board via its negative-Y edge, which
+    corner capture never considers.
     """
 
     adapter = ProductionBoardCornerAdapter(corner_keepout_mm=4.2)

@@ -35,6 +35,21 @@ from zcad_core.retention.design_review import (
     DesignReviewArtifact,
     export_design_review_package,
 )
+from zcad_core.retention.edge_backend import (
+    EdgeCaptureBackend,
+    EdgeCaptureFitCheck,
+    EdgeCaptureFitReport,
+    EdgeCaptureFitResult,
+    EdgeCaptureRequest,
+    as_edge_capture_fit_report,
+)
+from zcad_core.retention.edge_capture import (
+    EdgeCaptureLocation,
+    EdgeCaptureParameters,
+    EdgeCapturePolicy,
+    as_edge_capture_parameters,
+    derive_edge_capture_parameters,
+)
 from zcad_core.retention.engine import (
     RetentionBackend,
     RetentionEngine,
@@ -81,6 +96,16 @@ from zcad_core.retention.production_board import (
     ProductionBoardModel,
     ProductionCornerDerivation,
 )
+from zcad_core.retention.production_edge_board import (
+    EdgeClearanceResult,
+    ProductionBoardEdgeAdapter,
+    ProductionEdgeDerivation,
+)
+from zcad_core.retention.production_edge_execution import (
+    ProductionEdgeExecutionRequest,
+    ProductionEdgeExecutionResult,
+    execute_production_edge_capture,
+)
 from zcad_core.retention.production_execution import (
     ProductionCornerExecutionRequest,
     ProductionCornerExecutionResult,
@@ -103,6 +128,7 @@ from zcad_core.retention.slicing_readiness import (
     write_slicing_readiness_report,
 )
 from zcad_core.retention.synthetic_backend import SyntheticCornerCaptureBackend
+from zcad_core.retention.synthetic_edge_backend import SyntheticEdgeCaptureBackend
 from zcad_core.retention.validation_fixture import (
     ValidationFixtureArtifact,
     ValidationFixturePolicy,
@@ -142,6 +168,15 @@ __all__ = [
     "CornerCaptureRequest",
     "CornerClearanceResult",
     "DesignReviewArtifact",
+    "EdgeCaptureBackend",
+    "EdgeCaptureFitCheck",
+    "EdgeCaptureFitReport",
+    "EdgeCaptureFitResult",
+    "EdgeCaptureLocation",
+    "EdgeCaptureParameters",
+    "EdgeCapturePolicy",
+    "EdgeCaptureRequest",
+    "EdgeClearanceResult",
     "GeometryInterferenceResult",
     "InstallationPathCollision",
     "InstallationPathPlan",
@@ -159,10 +194,14 @@ __all__ = [
     "PhysicalValidationRecord",
     "PrintOrientation",
     "ProductionBoardCornerAdapter",
+    "ProductionBoardEdgeAdapter",
     "ProductionBoardModel",
     "ProductionCornerDerivation",
     "ProductionCornerExecutionRequest",
     "ProductionCornerExecutionResult",
+    "ProductionEdgeDerivation",
+    "ProductionEdgeExecutionRequest",
+    "ProductionEdgeExecutionResult",
     "ProductionEvidenceArtifact",
     "PromotionDecision",
     "PromotionRecord",
@@ -183,6 +222,7 @@ __all__ = [
     "SlicingReadinessReport",
     "SlicingReadinessResult",
     "SyntheticCornerCaptureBackend",
+    "SyntheticEdgeCaptureBackend",
     "TrialOutcomeComparison",
     "ValidationFixtureArtifact",
     "ValidationFixturePolicy",
@@ -195,6 +235,8 @@ __all__ = [
     "analyze_installation_paths",
     "as_corner_capture_fit_report",
     "as_corner_capture_parameters",
+    "as_edge_capture_fit_report",
+    "as_edge_capture_parameters",
     "build_evidence_report",
     "build_publication_record",
     "build_validation_fixture",
@@ -209,9 +251,11 @@ __all__ = [
     "default_installation_path_plans",
     "derive_candidate_revision",
     "derive_corner_capture_parameters",
+    "derive_edge_capture_parameters",
     "evaluate_publication_eligibility",
     "evaluate_slicing_readiness",
     "execute_production_corner_capture",
+    "execute_production_edge_capture",
     "export_design_review_package",
     "export_validation_fixture",
     "generate_production_evidence_artifact",

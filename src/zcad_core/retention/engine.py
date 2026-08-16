@@ -9,6 +9,7 @@ class RetentionStrategy(str, Enum):
     """Registered board-retention strategy."""
 
     CORNER_CAPTURE = "corner_capture"
+    EDGE_CLIP = "edge_clip"
 
 
 @runtime_checkable
