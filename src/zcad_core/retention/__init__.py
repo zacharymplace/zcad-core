@@ -55,6 +55,10 @@ from zcad_core.retention.edge_evidence_artifact import (
     build_edge_evidence_report,
     generate_production_edge_evidence_artifact,
 )
+from zcad_core.retention.edge_installation_path import (
+    analyze_edge_installation_paths,
+    default_edge_installation_path_plans,
+)
 from zcad_core.retention.engine import (
     RetentionBackend,
     RetentionEngine,
@@ -241,6 +245,7 @@ __all__ = [
     "VisualReviewObservation",
     "VisualReviewRecord",
     "analyze_capture_interference",
+    "analyze_edge_installation_paths",
     "analyze_installation_paths",
     "as_corner_capture_fit_report",
     "as_corner_capture_parameters",
@@ -259,6 +264,7 @@ __all__ = [
     "complete_physical_validation_record",
     "complete_visual_review_record",
     "create_pending_physical_validation_record",
+    "default_edge_installation_path_plans",
     "default_installation_path_plans",
     "derive_candidate_revision",
     "derive_corner_capture_parameters",
