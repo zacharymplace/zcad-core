@@ -8,8 +8,13 @@ from pathlib import Path
 
 import cadquery as cq
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention.backend import (
     CornerCaptureFitCheck,
+    as_corner_capture_fit_report,
+)
+from zcad_core.retention.corner_capture import (
+    as_corner_capture_parameters,
 )
 from zcad_core.retention.manufacturing import (
     ManufacturingPolicy,
@@ -83,7 +88,7 @@ def generate_production_evidence_artifact(
     )
 
     manufacturing = validate_corner_capture_manufacturing(
-        execution.execution.parameters,
+        as_corner_capture_parameters(execution.execution.parameters),
         policy=(manufacturing_policy or ManufacturingPolicy()),
     )
 
@@ -126,11 +131,13 @@ def analyze_capture_interference(
 ) -> GeometryInterferenceResult:
     """Measure capture-only intersection with PCB and components."""
 
-    parameters = execution.execution.parameters
+    parameters = as_corner_capture_parameters(execution.execution.parameters)
 
-    capture_shape = SyntheticCornerCaptureBackend().build_geometry(parameters).val()
+    capture_shape = workplane_shape(
+        SyntheticCornerCaptureBackend().build_geometry(parameters)
+    )
 
-    if capture_shape is None:
+    if capture_shape.isNull():
         raise ValueError("Production execution contains no capture geometry")
 
     pcb_intersection = _intersection_volume(
@@ -166,14 +173,15 @@ def build_evidence_report(
 
     pcb_bounds = execution.board_model.pcb.BoundingBox()
 
-    parameters = execution.execution.parameters
+    parameters = as_corner_capture_parameters(execution.execution.parameters)
+    report = as_corner_capture_fit_report(execution.execution.report)
 
     fit_results = {
         result.check.value: {
             "passed": result.passed,
             "detail": result.detail,
         }
-        for result in (execution.execution.report.results)
+        for result in report.results
     }
 
     required_checks = {check.value for check in CornerCaptureFitCheck}

@@ -83,6 +83,17 @@ class CornerCaptureParameters:
             )
 
 
+def as_corner_capture_parameters(
+    value: object,
+) -> CornerCaptureParameters:
+    """Narrow a generic retention-execution value to corner-capture parameters."""
+
+    if not isinstance(value, CornerCaptureParameters):
+        raise TypeError("Expected CornerCaptureParameters from the retention execution")
+
+    return value
+
+
 def derive_corner_capture_parameters(
     *,
     board_thickness_mm: float,

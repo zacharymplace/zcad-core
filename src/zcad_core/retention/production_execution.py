@@ -8,6 +8,7 @@ import cadquery as cq
 from zcad_core.retention.backend import (
     CornerCaptureFitCheck,
     CornerCaptureFitReport,
+    as_corner_capture_fit_report,
 )
 from zcad_core.retention.corner_capture import (
     CornerCapturePolicy,
@@ -94,7 +95,11 @@ def execute_production_corner_capture(
     engine = RetentionEngine()
     engine.register(
         RetentionStrategy.CORNER_CAPTURE,
-        SyntheticCornerCaptureBackend(),
+        # SyntheticCornerCaptureBackend narrows RetentionBackend's
+        # object-typed parameters to CornerCaptureParameters, which
+        # Protocol contravariance cannot express structurally; the
+        # engine only ever calls it through this one strategy.
+        SyntheticCornerCaptureBackend(),  # type: ignore[arg-type]
     )
 
     pcb_workplane = cq.Workplane("XY").newObject([board_model.pcb])
@@ -132,6 +137,9 @@ def execute_production_corner_capture(
         exist_ok=True,
     )
 
+    if not isinstance(production_execution.model, cq.Workplane):
+        raise TypeError("Retention execution did not produce a cadquery Workplane")
+
     cq.exporters.export(
         production_execution.model,
         str(request.output_step),
@@ -157,6 +165,7 @@ def _production_evidence_report(
     """Replace synthetic clearance language with evidence results."""
 
     selected_names = ", ".join(corner.value for corner in derivation.selected_corners)
+    report = as_corner_capture_fit_report(execution.report)
 
     results = tuple(
         replace(
@@ -170,7 +179,7 @@ def _production_evidence_report(
         )
         if (result.check is CornerCaptureFitCheck.COMPONENT_CLEARANCE)
         else result
-        for result in execution.report.results
+        for result in report.results
     )
 
     return CornerCaptureFitReport(results=results)

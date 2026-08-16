@@ -14,6 +14,7 @@ from zcad_core.assemblies.clearance import (
 from zcad_core.assemblies.component import (
     AssemblyComponent,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 
 ComponentPair = frozenset[str]
 
@@ -258,7 +259,7 @@ def _intersection_volume_mm3(
     """Return exact common solid volume."""
     intersection = first.intersect(second)
 
-    if intersection is None:
+    if intersection.isNull():
         return 0.0
 
     return max(
@@ -309,7 +310,7 @@ def analyze_component_interference(
     findings: list[InterferenceFinding] = []
 
     transformed = {
-        component.identifier: (component.transformed_geometry().val())
+        component.identifier: workplane_shape(component.transformed_geometry())
         for component in resolved_components
     }
 

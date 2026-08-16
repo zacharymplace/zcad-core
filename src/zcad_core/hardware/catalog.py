@@ -7,7 +7,10 @@ from typing import Generic, Protocol, TypeVar
 class HardwareSpec(Protocol):
     """Minimum contract for cataloged hardware."""
 
-    identifier: str
+    @property
+    def identifier(self) -> str:
+        """Stable catalog identifier for this specification."""
+        ...
 
 
 HardwareSpecT = TypeVar(

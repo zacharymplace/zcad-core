@@ -12,6 +12,7 @@ from zcad_core.assemblies.clearance import (
 from zcad_core.assemblies.placement import (
     Placement,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 
 
 @dataclass(frozen=True)
@@ -29,10 +30,7 @@ class AssemblyComponent:
         if not self.identifier.strip():
             raise ValueError("identifier must not be empty")
 
-        value = self.geometry.val()
-
-        if value is None:
-            raise ValueError("geometry must contain a shape")
+        value = workplane_shape(self.geometry)
 
         if not value.isValid():
             raise ValueError("geometry must contain a valid shape")

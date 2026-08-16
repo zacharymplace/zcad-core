@@ -5,6 +5,7 @@ from pathlib import Path
 
 import cadquery as cq
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention.backend import (
     CornerCaptureRequest,
 )
@@ -77,9 +78,9 @@ class ProductionBoardCornerAdapter:
         if pcb_solid_index < 1:
             raise ValueError("pcb_solid_index must be one-based and positive")
 
-        shape = cq.importers.importStep(str(source_step)).val()
+        shape = workplane_shape(cq.importers.importStep(str(source_step)))
 
-        if shape is None:
+        if shape.isNull():
             raise ValueError("STEP model contains no shape")
 
         solids = tuple(shape.Solids())

@@ -7,6 +7,7 @@ import cadquery as cq
 from zcad_core.assemblies.component import (
     AssemblyComponent,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware.electronics.connectors import (
     BoardEdge,
     RectangularConnectorSpec,
@@ -126,7 +127,7 @@ def cut_connector_opening(
     """Cut a rectangular opening through one enclosure edge."""
     parameters.validate()
 
-    bounds = model.val().BoundingBox()
+    bounds = workplane_shape(model).BoundingBox()
     opening_width = parameters.opening_width_mm
     opening_height = parameters.opening_height_mm
     cutter_depth = parameters.cutter_depth_mm + (2 * parameters.cutter_overtravel_mm)

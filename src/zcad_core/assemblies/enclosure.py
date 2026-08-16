@@ -9,6 +9,7 @@ from zcad_core.assemblies.models import (
     AssemblyPart,
     Mate,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware.electronics.connectors import BoardEdge
 
 
@@ -104,7 +105,7 @@ def derive_enclosure_specification(
     expanded_bounds: list[tuple[float, float, float, float, float, float]] = []
 
     for component in assembly:
-        bounds = component.transformed_geometry().val().BoundingBox()
+        bounds = workplane_shape(component.transformed_geometry()).BoundingBox()
         envelope = component.clearance_envelope
 
         expanded_bounds.append(
@@ -129,7 +130,7 @@ def derive_enclosure_specification(
     center_y_mm = (minimum_y_mm + maximum_y_mm) / 2
 
     connector = assembly.get(connector_identifier)
-    connector_bounds = connector.transformed_geometry().val().BoundingBox()
+    connector_bounds = workplane_shape(connector.transformed_geometry()).BoundingBox()
 
     raw_edge = connector.metadata.get("board_edge")
 

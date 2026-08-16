@@ -106,14 +106,22 @@ def rectangular_board_mounting_metadata(
             "board mounting metadata recommended_clearance_mm must not be negative"
         )
 
-    return {
-        "pattern": "rectangular_4_hole",
-        "hole_diameter_mm": (resolved_holes["hole_diameter_mm"]),
-        "spacing_x_mm": resolved_holes["spacing_x_mm"],
-        "spacing_y_mm": resolved_holes["spacing_y_mm"],
-        "recommended_standoff_height_mm": standoff_height,
-        "recommended_clearance_mm": clearance,
-    }
+    hole_diameter_mm = resolved_holes["hole_diameter_mm"]
+    spacing_x_mm = resolved_holes["spacing_x_mm"]
+    spacing_y_mm = resolved_holes["spacing_y_mm"]
+
+    assert hole_diameter_mm is not None
+    assert spacing_x_mm is not None
+    assert spacing_y_mm is not None
+
+    return RectangularMountingMetadata(
+        pattern="rectangular_4_hole",
+        hole_diameter_mm=hole_diameter_mm,
+        spacing_x_mm=spacing_x_mm,
+        spacing_y_mm=spacing_y_mm,
+        recommended_standoff_height_mm=standoff_height,
+        recommended_clearance_mm=clearance,
+    )
 
 
 def _rotate_point(

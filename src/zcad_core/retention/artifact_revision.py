@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from .corner_capture import CornerCapturePolicy
+from .corner_capture import CornerCapturePolicy, as_corner_capture_parameters
 from .evidence_artifact import (
     ProductionEvidenceArtifact,
     generate_production_evidence_artifact,
@@ -125,7 +125,9 @@ def register_artifact_backed_revision(
         policy=(fixture_policy or ValidationFixturePolicy()),
     )
 
-    parameters = evidence_artifact.execution.execution.parameters
+    parameters = as_corner_capture_parameters(
+        evidence_artifact.execution.execution.parameters
+    )
 
     candidate = replace(
         planned_candidate,

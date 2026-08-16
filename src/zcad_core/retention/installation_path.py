@@ -6,8 +6,10 @@ from pathlib import Path
 
 import cadquery as cq
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention.corner_capture import (
     BoardCorner,
+    as_corner_capture_parameters,
 )
 from zcad_core.retention.production_execution import (
     ProductionCornerExecutionResult,
@@ -148,13 +150,12 @@ def default_installation_path_plans(
     """Build vertical and open-corner rigid paths."""
 
     board_bounds = execution.board_model.pcb.BoundingBox()
-    capture = (
-        SyntheticCornerCaptureBackend()
-        .build_geometry(execution.execution.parameters)
-        .val()
+    parameters = as_corner_capture_parameters(execution.execution.parameters)
+    capture = workplane_shape(
+        SyntheticCornerCaptureBackend().build_geometry(parameters)
     )
 
-    if capture is None:
+    if capture.isNull():
         raise ValueError("Production execution contains no capture geometry")
 
     capture_bounds = capture.BoundingBox()
@@ -234,13 +235,12 @@ def analyze_installation_paths(
     if not selected_plans:
         raise ValueError("At least one installation path is required")
 
-    capture = (
-        SyntheticCornerCaptureBackend()
-        .build_geometry(execution.execution.parameters)
-        .val()
+    parameters = as_corner_capture_parameters(execution.execution.parameters)
+    capture = workplane_shape(
+        SyntheticCornerCaptureBackend().build_geometry(parameters)
     )
 
-    if capture is None:
+    if capture.isNull():
         raise ValueError("Production execution contains no capture geometry")
 
     board_shapes = (
@@ -279,9 +279,10 @@ def analyze_installation_paths(
                 plan.samples_per_segment + 1,
             ):
                 fraction = sample_index / plan.samples_per_segment
-                offset = tuple(
-                    start[axis] + (end[axis] - start[axis]) * fraction
-                    for axis in range(3)
+                offset: Vector3 = (
+                    start[0] + (end[0] - start[0]) * fraction,
+                    start[1] + (end[1] - start[1]) * fraction,
+                    start[2] + (end[2] - start[2]) * fraction,
                 )
                 volume = sum(
                     _intersection_volume(
@@ -309,7 +310,11 @@ def analyze_installation_paths(
                                 fraction,
                                 6,
                             ),
-                            offset_mm=tuple(round(value, 6) for value in offset),
+                            offset_mm=(
+                                round(offset[0], 6),
+                                round(offset[1], 6),
+                                round(offset[2], 6),
+                            ),
                             intersection_mm3=round(
                                 volume,
                                 6,

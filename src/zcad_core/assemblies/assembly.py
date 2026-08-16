@@ -16,6 +16,7 @@ from zcad_core.assemblies.interference import (
     InterferenceReport,
     analyze_component_interference,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 
 
 @dataclass(frozen=True)
@@ -139,7 +140,7 @@ class DeviceAssembly:
             raise ValueError("assembly must contain at least one component")
 
         bounding_boxes = [
-            component.transformed_geometry().val().BoundingBox()
+            workplane_shape(component.transformed_geometry()).BoundingBox()
             for component in self._components
         ]
 
@@ -177,7 +178,8 @@ class DeviceAssembly:
             raise ValueError("assembly must contain at least one component")
 
         shapes = [
-            component.transformed_geometry().val() for component in self._components
+            workplane_shape(component.transformed_geometry())
+            for component in self._components
         ]
 
         compound = cq.Compound.makeCompound(shapes)

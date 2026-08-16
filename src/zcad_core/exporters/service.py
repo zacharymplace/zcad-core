@@ -10,6 +10,7 @@ from zcad_core.exporters.models import (
     ExportRequest,
     ExportResult,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.metadata.build_record import build_part_record
 
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
@@ -50,7 +51,7 @@ def _validate_parts(
             value=part_name,
         )
 
-        solid = model.val()
+        solid = workplane_shape(model)
 
         if not solid.isValid():
             raise ValueError(f"Part is not a valid solid: {part_name}")
@@ -79,7 +80,7 @@ def export_parts(
     part_count = len(request.parts)
 
     for part_name, model in request.parts.items():
-        solid = model.val()
+        solid = workplane_shape(model)
         bounds = solid.BoundingBox()
 
         stem = _output_stem(

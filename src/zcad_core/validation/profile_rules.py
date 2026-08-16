@@ -5,6 +5,8 @@ from typing import Any
 
 import cadquery as cq
 
+from zcad_core.geometry.cadquery_support import workplane_shape
+
 
 @dataclass(frozen=True)
 class ValidationIssue:
@@ -71,7 +73,7 @@ def validate_build_volume(
         key="z",
     )
 
-    bounds = model.val().BoundingBox()
+    bounds = workplane_shape(model).BoundingBox()
 
     issues: list[ValidationIssue] = []
 

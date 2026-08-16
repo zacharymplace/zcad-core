@@ -8,12 +8,14 @@ from zcad_core.retention.backend import (
     CornerCaptureFitReport,
     CornerCaptureFitResult,
     CornerCaptureRequest,
+    as_corner_capture_fit_report,
 )
 from zcad_core.retention.corner_capture import (
     BoardCorner,
     CornerCaptureLocation,
     CornerCaptureParameters,
     CornerCapturePolicy,
+    as_corner_capture_parameters,
     derive_corner_capture_parameters,
 )
 from zcad_core.retention.design_review import (
@@ -173,6 +175,8 @@ __all__ = [
     "VisualReviewRecord",
     "analyze_capture_interference",
     "analyze_installation_paths",
+    "as_corner_capture_fit_report",
+    "as_corner_capture_parameters",
     "build_evidence_report",
     "build_validation_fixture",
     "candidate_identifier",

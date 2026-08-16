@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -155,7 +156,7 @@ def write_revision_delta_report(
 
 
 def _write_immutable_json(
-    payload: dict[str, object],
+    payload: Mapping[str, object],
     *,
     output_path: Path,
 ) -> None:

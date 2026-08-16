@@ -5,6 +5,8 @@ from pathlib import Path
 
 import cadquery as cq
 
+from zcad_core.geometry.cadquery_support import workplane_shape
+from zcad_core.retention.corner_capture import as_corner_capture_parameters
 from zcad_core.retention.production_execution import (
     ProductionCornerExecutionResult,
 )
@@ -67,13 +69,12 @@ def build_validation_fixture(
         )
     )
 
-    capture_geometry = SyntheticCornerCaptureBackend().build_geometry(
-        execution.execution.parameters
-    )
+    parameters = as_corner_capture_parameters(execution.execution.parameters)
+    capture_geometry = SyntheticCornerCaptureBackend().build_geometry(parameters)
 
     fixture = base.union(capture_geometry)
 
-    if fixture.val() is None:
+    if workplane_shape(fixture).isNull():
         raise ValueError("Validation fixture contains no geometry")
 
     return fixture

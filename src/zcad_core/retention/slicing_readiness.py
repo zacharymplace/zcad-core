@@ -8,6 +8,8 @@ from typing import Any
 
 import cadquery as cq
 
+from zcad_core.geometry.cadquery_support import workplane_shape
+
 
 class SlicingReadinessCheck(str, Enum):
     """Required pre-slice readiness checks."""
@@ -86,9 +88,9 @@ def evaluate_slicing_readiness(
     if not candidate_id.strip():
         raise ValueError("candidate_id cannot be empty")
 
-    shape = fixture_model.val()
+    shape = workplane_shape(fixture_model)
 
-    if shape is None or shape.isNull():
+    if shape.isNull():
         raise ValueError("Fixture model contains no geometry")
 
     bounds = shape.BoundingBox()

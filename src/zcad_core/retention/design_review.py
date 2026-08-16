@@ -7,6 +7,7 @@ from typing import Any
 
 import cadquery as cq
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention.production_execution import (
     ProductionCornerExecutionResult,
 )
@@ -168,9 +169,9 @@ def export_design_review_package(
         execution,
         policy=fixture_policy,
     )
-    fixture = fixture_workplane.val()
+    fixture = workplane_shape(fixture_workplane)
 
-    if fixture is None or fixture.isNull():
+    if fixture.isNull():
         raise ValueError("Design-review fixture contains no geometry")
 
     pcb = execution.board_model.pcb

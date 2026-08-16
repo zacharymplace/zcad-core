@@ -79,8 +79,8 @@ class DisplaySpec:
                 "values must be defined together"
             )
 
-        for value in mounting_values:
-            if value is not None and value <= 0:
+        for mounting_value in mounting_values:
+            if mounting_value is not None and mounting_value <= 0:
                 raise ValueError("mounting-hole values must be greater than zero")
 
 

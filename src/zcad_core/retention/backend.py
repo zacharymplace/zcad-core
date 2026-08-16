@@ -76,6 +76,17 @@ class CornerCaptureFitReport:
         return tuple(result for result in self.results if not result.passed)
 
 
+def as_corner_capture_fit_report(
+    report: object,
+) -> CornerCaptureFitReport:
+    """Narrow a generic retention fit report to its corner-capture form."""
+
+    if not isinstance(report, CornerCaptureFitReport):
+        raise TypeError("Expected CornerCaptureFitReport from the retention execution")
+
+    return report
+
+
 @runtime_checkable
 class CornerCaptureBackend(Protocol):
     """Backend lifecycle for one corner-capture implementation."""

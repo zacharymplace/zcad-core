@@ -7,6 +7,8 @@ from typing import Any
 
 import cadquery as cq
 
+from zcad_core.geometry.cadquery_support import workplane_shape
+
 
 def current_git_commit(
     repository_root: Path,
@@ -59,7 +61,7 @@ def build_part_record(
     repository_root: Path,
 ) -> dict[str, Any]:
     """Build metadata for one exported part."""
-    solid = model.val()
+    solid = workplane_shape(model)
     bounds = solid.BoundingBox()
     volume_mm3 = solid.Volume()
 
