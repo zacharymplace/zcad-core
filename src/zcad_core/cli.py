@@ -19,18 +19,29 @@ from typing import Any
 
 from zcad_core.retention import (
     CandidateRevision,
+    CornerCapturePolicy,
+    EdgeCapturePolicy,
     PhysicalTrialManifest,
     PhysicalValidationCheck,
     PhysicalValidationDisposition,
     PhysicalValidationObservation,
+    ProductionCornerExecutionRequest,
+    ProductionEdgeExecutionRequest,
     PromotionDecision,
     PromotionRecord,
     RevisionRelationshipType,
+    ValidationFixturePolicy,
     ValidationTarget,
     candidate_identifier,
     compare_candidate_revisions,
     complete_physical_validation_record,
     create_pending_physical_validation_record,
+    execute_production_corner_capture,
+    execute_production_edge_capture,
+    export_edge_validation_fixture,
+    export_validation_fixture,
+    generate_production_edge_evidence_artifact,
+    generate_production_evidence_artifact,
     load_candidate_revision,
     load_manifest,
     promote_preferred_revision,
@@ -43,6 +54,8 @@ from zcad_core.retention import (
     write_revision_comparison_report,
     write_revision_recommendation,
 )
+
+_STRATEGIES = ("corner-capture", "edge-clip")
 
 
 def _now() -> str:
@@ -169,7 +182,90 @@ def _target_register(args: argparse.Namespace) -> int:
     return 0
 
 
+def _build_capture_policy(
+    args: argparse.Namespace,
+) -> CornerCapturePolicy | EdgeCapturePolicy:
+    """Build the geometry policy for whichever strategy was requested.
+
+    CornerCapturePolicy and EdgeCapturePolicy share the same five field
+    names by design (see edge_capture.py), so both strategies read from
+    one set of CLI flags rather than needing strategy-specific ones.
+    """
+
+    fields = {
+        "arm_width_mm": args.arm_width_mm,
+        "engagement_depth_mm": args.engagement_depth_mm,
+        "board_clearance_mm": args.board_clearance_mm,
+        "vertical_overlap_mm": args.vertical_overlap_mm,
+        "minimum_wall_mm": args.minimum_wall_mm,
+    }
+    fields = {key: value for key, value in fields.items() if value is not None}
+
+    if args.strategy == "corner-capture":
+        return CornerCapturePolicy(**fields)
+
+    return EdgeCapturePolicy(**fields)
+
+
 # --- candidate ----------------------------------------------------------------
+
+
+def _candidate_create(args: argparse.Namespace) -> int:
+    """Execute retention geometry generation and write automated evidence."""
+
+    policy = _build_capture_policy(args)
+
+    if args.strategy == "corner-capture":
+        assert isinstance(policy, CornerCapturePolicy)
+        corner_artifact = generate_production_evidence_artifact(
+            ProductionCornerExecutionRequest(
+                source_step=args.source_step,
+                pcb_solid_index=args.pcb_solid_index,
+                output_step=args.output_step,
+                policy=policy,
+            ),
+            report_path=args.report_output,
+        )
+
+        _emit(
+            {
+                "passed": corner_artifact.passed,
+                "strategy": args.strategy,
+                "selected": [
+                    corner.value
+                    for corner in (
+                        corner_artifact.execution.derivation.selected_corners
+                    )
+                ],
+                "step": str(corner_artifact.step_path),
+                "report": str(corner_artifact.report_path),
+            }
+        )
+
+        return 0
+
+    assert isinstance(policy, EdgeCapturePolicy)
+    edge_artifact = generate_production_edge_evidence_artifact(
+        ProductionEdgeExecutionRequest(
+            source_step=args.source_step,
+            pcb_solid_index=args.pcb_solid_index,
+            output_step=args.output_step,
+            policy=policy,
+        ),
+        report_path=args.report_output,
+    )
+
+    _emit(
+        {
+            "passed": edge_artifact.passed,
+            "strategy": args.strategy,
+            "selected": [edge_artifact.execution.derivation.selected_edge.value],
+            "step": str(edge_artifact.step_path),
+            "report": str(edge_artifact.report_path),
+        }
+    )
+
+    return 0
 
 
 def _candidate_register(args: argparse.Namespace) -> int:
@@ -320,6 +416,67 @@ def _candidate_promote(args: argparse.Namespace) -> int:
             "decision": result.decision.value,
             "promotion_manifest": str(args.output),
             "superseded": result.supersedes_candidate_id,
+        }
+    )
+
+    return 0
+
+
+# --- fixture ------------------------------------------------------------------
+
+
+def _fixture_export(args: argparse.Namespace) -> int:
+    """Re-execute retention geometry and export a printable STL fixture.
+
+    Retention execution results (board model, derivation, geometry) are
+    not persisted artifacts on their own - only the STEP and JSON evidence
+    ``candidate create`` writes are. Exporting a fixture re-runs the same
+    deterministic execution from ``--source-step`` rather than reading
+    those files back in, mirroring how the existing per-board generation
+    scripts (e.g. scripts/generate-*-physical-validation.py) work.
+    """
+
+    policy = _build_capture_policy(args)
+    fixture_policy = ValidationFixturePolicy(
+        base_thickness_mm=args.base_thickness_mm,
+        perimeter_margin_mm=args.perimeter_margin_mm,
+    )
+
+    if args.strategy == "corner-capture":
+        assert isinstance(policy, CornerCapturePolicy)
+        execution = execute_production_corner_capture(
+            ProductionCornerExecutionRequest(
+                source_step=args.source_step,
+                pcb_solid_index=args.pcb_solid_index,
+                output_step=args.output_step,
+                policy=policy,
+            )
+        )
+        fixture = export_validation_fixture(
+            execution,
+            output_path=args.output,
+            policy=fixture_policy,
+        )
+    else:
+        assert isinstance(policy, EdgeCapturePolicy)
+        edge_execution = execute_production_edge_capture(
+            ProductionEdgeExecutionRequest(
+                source_step=args.source_step,
+                pcb_solid_index=args.pcb_solid_index,
+                output_step=args.output_step,
+                policy=policy,
+            )
+        )
+        fixture = export_edge_validation_fixture(
+            edge_execution,
+            output_path=args.output,
+            policy=fixture_policy,
+        )
+
+    _emit(
+        {
+            "strategy": args.strategy,
+            "fixture": str(fixture.stl_path),
         }
     )
 
@@ -520,7 +677,114 @@ def _status(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- report -------------------------------------------------------------------
+
+
+def _report(args: argparse.Namespace) -> int:
+    """Aggregate a target's full recorded history into one view.
+
+    Unlike ``status`` (current preference and eligibility only), this
+    walks every candidate's trials and promotion record too - a rollup
+    for human review, not a decision input.
+    """
+
+    target = _load_validation_target(args.target_root / "target.json")
+
+    candidates_root = args.target_root / "candidates"
+    candidate_paths = sorted(candidates_root.glob("*/candidate.json"))
+    candidates = tuple(load_candidate_revision(path) for path in candidate_paths)
+
+    trial_paths = sorted(candidates_root.glob("*/trials/*/trial.json"))
+    trials = tuple(_load_physical_trial_manifest(path) for path in trial_paths)
+
+    trials_by_candidate: dict[str, list[PhysicalTrialManifest]] = {}
+
+    for trial in trials:
+        trials_by_candidate.setdefault(trial.candidate_id, []).append(trial)
+
+    promotions = _scan_target_promotions(args.target_root)
+    promotion_by_candidate = {
+        promotion.candidate_id: promotion for promotion in promotions
+    }
+
+    preferred = select_preferred_revision(
+        target_id=target.target_id,
+        promotion_records=promotions,
+    )
+
+    candidate_reports = []
+
+    for candidate in candidates:
+        candidate_trials = trials_by_candidate.get(candidate.candidate_id, [])
+        promotion = promotion_by_candidate.get(candidate.candidate_id)
+
+        candidate_reports.append(
+            {
+                "candidate_id": candidate.candidate_id,
+                "revision": candidate.revision,
+                "strategy": candidate.strategy,
+                "automated_decision": candidate.automated_decision,
+                "trial_count": len(candidate_trials),
+                "trials_passed": sum(1 for trial in candidate_trials if trial.passed),
+                "promotion": (
+                    None
+                    if promotion is None
+                    else {
+                        "decision": promotion.decision.value,
+                        "reviewer": promotion.reviewer,
+                        "reason": promotion.reason,
+                        "supersedes_candidate_id": (promotion.supersedes_candidate_id),
+                    }
+                ),
+            }
+        )
+
+    _emit(
+        {
+            "target_id": target.target_id,
+            "display_name": target.display_name,
+            "candidate_count": len(candidates),
+            "candidates": candidate_reports,
+            "preferred_candidate_id": (
+                preferred.candidate_id if preferred is not None else None
+            ),
+            "publication_eligible": (
+                preferred is not None
+                and preferred.decision is PromotionDecision.PROMOTED
+            ),
+        }
+    )
+
+    return 0
+
+
 # --- parser -------------------------------------------------------------------
+
+
+def _add_capture_policy_arguments(
+    parser: argparse.ArgumentParser,
+) -> None:
+    """Add the flags shared by ``candidate create`` and ``fixture export``.
+
+    CornerCapturePolicy and EdgeCapturePolicy share these five field
+    names; the target strategy decides which dataclass they build. All
+    default to None so omitting a flag falls back to that policy's own
+    default rather than a CLI-level duplicate of it.
+    """
+
+    parser.add_argument(
+        "--strategy",
+        default="corner-capture",
+        choices=_STRATEGIES,
+    )
+    parser.add_argument("--source-step", required=True, type=Path)
+    parser.add_argument("--pcb-solid-index", required=True, type=int)
+    parser.add_argument("--output-step", required=True, type=Path)
+    parser.add_argument("--arm-width-mm", type=float)
+    parser.add_argument("--engagement-depth-mm", type=float)
+    parser.add_argument("--board-clearance-mm", type=float)
+    parser.add_argument("--vertical-overlap-mm", type=float)
+    parser.add_argument("--minimum-wall-mm", type=float)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -543,6 +807,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     candidate = subcommands.add_parser("candidate")
     candidate_commands = candidate.add_subparsers(dest="subcommand", required=True)
+
+    candidate_create = candidate_commands.add_parser("create")
+    _add_capture_policy_arguments(candidate_create)
+    candidate_create.add_argument("--report-output", required=True, type=Path)
+    candidate_create.set_defaults(handler=_candidate_create)
 
     candidate_register = candidate_commands.add_parser("register")
     candidate_register.add_argument("--target-manifest", required=True, type=Path)
@@ -622,6 +891,16 @@ def build_parser() -> argparse.ArgumentParser:
     candidate_promote.add_argument("--output", required=True, type=Path)
     candidate_promote.set_defaults(handler=_candidate_promote)
 
+    fixture = subcommands.add_parser("fixture")
+    fixture_commands = fixture.add_subparsers(dest="subcommand", required=True)
+
+    fixture_export = fixture_commands.add_parser("export")
+    _add_capture_policy_arguments(fixture_export)
+    fixture_export.add_argument("--base-thickness-mm", type=float, default=2.0)
+    fixture_export.add_argument("--perimeter-margin-mm", type=float, default=2.0)
+    fixture_export.add_argument("--output", required=True, type=Path)
+    fixture_export.set_defaults(handler=_fixture_export)
+
     trial = subcommands.add_parser("trial")
     trial_commands = trial.add_subparsers(dest="subcommand", required=True)
 
@@ -675,6 +954,10 @@ def build_parser() -> argparse.ArgumentParser:
     status = subcommands.add_parser("status")
     status.add_argument("--target-root", required=True, type=Path)
     status.set_defaults(handler=_status)
+
+    report = subcommands.add_parser("report")
+    report.add_argument("--target-root", required=True, type=Path)
+    report.set_defaults(handler=_report)
 
     return parser
 

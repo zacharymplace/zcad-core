@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import cadquery as cq
 import pytest
 
 from zcad_core.cli import main
@@ -16,6 +17,36 @@ def run(
     output = json.loads(capsys.readouterr().out)
 
     return exit_code, output
+
+
+def export_synthetic_board(path: Path) -> None:
+    """A real, cadquery-importable single-solid board, clear of components."""
+
+    pcb = (
+        cq.Workplane("XY")
+        .box(
+            40.0,
+            30.0,
+            1.6,
+        )
+        .translate(
+            (
+                0.0,
+                0.0,
+                0.8,
+            )
+        )
+    )
+
+    assembly = cq.Assembly()
+    assembly.add(
+        pcb,
+        name="pcb",
+    )
+    assembly.export(
+        str(path),
+        exportType="STEP",
+    )
 
 
 def register_target(
@@ -678,3 +709,219 @@ def test_candidate_promote_requires_supersession_for_new_preferred(
     )
 
     assert status["preferred_candidate_id"] == "synthetic-target-corner-capture-r003"
+
+
+def test_candidate_create_corner_capture(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source_step = tmp_path / "board.step"
+    export_synthetic_board(source_step)
+
+    exit_code, result = run(
+        capsys,
+        "candidate",
+        "create",
+        "--strategy",
+        "corner-capture",
+        "--source-step",
+        str(source_step),
+        "--pcb-solid-index",
+        "1",
+        "--output-step",
+        str(tmp_path / "capture.step"),
+        "--report-output",
+        str(tmp_path / "capture.json"),
+    )
+
+    assert exit_code == 0
+    assert result["passed"] is True
+    assert result["strategy"] == "corner-capture"
+    assert len(result["selected"]) == 2
+    assert Path(result["step"]).is_file()
+
+    report = json.loads(Path(result["report"]).read_text(encoding="utf-8"))
+    assert report["decision"] == "verified_candidate"
+
+
+def test_candidate_create_edge_clip(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source_step = tmp_path / "board.step"
+    export_synthetic_board(source_step)
+
+    exit_code, result = run(
+        capsys,
+        "candidate",
+        "create",
+        "--strategy",
+        "edge-clip",
+        "--source-step",
+        str(source_step),
+        "--pcb-solid-index",
+        "1",
+        "--output-step",
+        str(tmp_path / "capture.step"),
+        "--report-output",
+        str(tmp_path / "capture.json"),
+    )
+
+    assert exit_code == 0
+    assert result["passed"] is True
+    assert result["strategy"] == "edge-clip"
+    assert result["selected"][0] in {
+        "negative_x",
+        "positive_x",
+        "negative_y",
+        "positive_y",
+    }
+    assert Path(result["step"]).is_file()
+
+
+def test_candidate_create_rejects_unsupported_strategy(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source_step = tmp_path / "board.step"
+    export_synthetic_board(source_step)
+
+    with pytest.raises(SystemExit) as excinfo:
+        main(
+            [
+                "candidate",
+                "create",
+                "--strategy",
+                "not-a-real-strategy",
+                "--source-step",
+                str(source_step),
+                "--pcb-solid-index",
+                "1",
+                "--output-step",
+                str(tmp_path / "capture.step"),
+                "--report-output",
+                str(tmp_path / "capture.json"),
+            ]
+        )
+
+    assert excinfo.value.code == 2
+
+
+def test_fixture_export_corner_capture(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source_step = tmp_path / "board.step"
+    export_synthetic_board(source_step)
+
+    exit_code, result = run(
+        capsys,
+        "fixture",
+        "export",
+        "--strategy",
+        "corner-capture",
+        "--source-step",
+        str(source_step),
+        "--pcb-solid-index",
+        "1",
+        "--output-step",
+        str(tmp_path / "capture.step"),
+        "--output",
+        str(tmp_path / "fixture.stl"),
+    )
+
+    assert exit_code == 0
+    assert result["strategy"] == "corner-capture"
+
+    fixture_path = Path(result["fixture"])
+    assert fixture_path.is_file()
+    assert fixture_path.stat().st_size > 0
+
+
+def test_fixture_export_edge_clip(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source_step = tmp_path / "board.step"
+    export_synthetic_board(source_step)
+
+    exit_code, result = run(
+        capsys,
+        "fixture",
+        "export",
+        "--strategy",
+        "edge-clip",
+        "--source-step",
+        str(source_step),
+        "--pcb-solid-index",
+        "1",
+        "--output-step",
+        str(tmp_path / "capture.step"),
+        "--output",
+        str(tmp_path / "fixture.stl"),
+    )
+
+    assert exit_code == 0
+    assert result["strategy"] == "edge-clip"
+
+    fixture_path = Path(result["fixture"])
+    assert fixture_path.is_file()
+    assert fixture_path.stat().st_size > 0
+
+
+def test_report_aggregates_candidates_trials_and_promotion(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    trial_manifest = register_trial(
+        tmp_path,
+        capsys,
+        candidate_manifest,
+        revision="r001",
+        passed=True,
+    )
+
+    exit_code, promotion = run(
+        capsys,
+        "candidate",
+        "promote",
+        "--candidate-manifest",
+        str(candidate_manifest),
+        "--physical-trial-path",
+        str(trial_manifest),
+        "--target-root",
+        str(tmp_path),
+        "--reviewer",
+        "operator",
+        "--reason",
+        "First verified candidate with a passing physical trial.",
+        "--automated-validation-passed",
+        "--physical-validation-passed",
+        "--output",
+        str(tmp_path / "candidates/r001/promotion.json"),
+    )
+    assert exit_code == 0
+    assert promotion["decision"] == "promoted"
+
+    exit_code, report = run(
+        capsys,
+        "report",
+        "--target-root",
+        str(tmp_path),
+    )
+
+    assert exit_code == 0
+    assert report["target_id"] == "synthetic-target"
+    assert report["candidate_count"] == 1
+    assert report["preferred_candidate_id"] == "synthetic-target-corner-capture-r001"
+    assert report["publication_eligible"] is True
+
+    candidate_report = report["candidates"][0]
+    assert candidate_report["strategy"] == "corner-capture"
+    assert candidate_report["trial_count"] == 1
+    assert candidate_report["trials_passed"] == 1
+    assert candidate_report["promotion"]["decision"] == "promoted"
+    assert candidate_report["promotion"]["reviewer"] == "operator"
