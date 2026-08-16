@@ -70,6 +70,7 @@ class CandidateRevision:
     automated_evidence_path: str
     fixture_artifact_path: str
     created_at_utc: str
+    strategy: str = "corner-capture"
 
     def __post_init__(self) -> None:
         if self.schema_version != "1.0.0":
@@ -81,9 +82,12 @@ class CandidateRevision:
         if not _REVISION_PATTERN.fullmatch(self.revision):
             raise ValueError("revision must match rNNN")
 
+        if not _TARGET_ID_PATTERN.fullmatch(self.strategy):
+            raise ValueError("strategy must be lowercase kebab-case")
+
         expected_candidate_id = candidate_identifier(
             target_id=self.target_id,
-            strategy="corner-capture",
+            strategy=self.strategy,
             revision=self.revision,
         )
 

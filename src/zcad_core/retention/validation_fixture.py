@@ -7,11 +7,18 @@ import cadquery as cq
 
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention.corner_capture import as_corner_capture_parameters
+from zcad_core.retention.edge_capture import as_edge_capture_parameters
+from zcad_core.retention.production_edge_execution import (
+    ProductionEdgeExecutionResult,
+)
 from zcad_core.retention.production_execution import (
     ProductionCornerExecutionResult,
 )
 from zcad_core.retention.synthetic_backend import (
     SyntheticCornerCaptureBackend,
+)
+from zcad_core.retention.synthetic_edge_backend import (
+    SyntheticEdgeCaptureBackend,
 )
 
 
@@ -89,6 +96,81 @@ def export_validation_fixture(
     """Generate and export a printable STL fixture."""
 
     fixture = build_validation_fixture(
+        execution,
+        policy=policy,
+    )
+
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    cq.exporters.export(
+        fixture,
+        str(output_path),
+        exportType="STL",
+    )
+
+    if not output_path.is_file():
+        raise ValueError("Validation fixture STL was not created")
+
+    return ValidationFixtureArtifact(
+        model=fixture,
+        stl_path=output_path,
+    )
+
+
+def build_edge_validation_fixture(
+    execution: ProductionEdgeExecutionResult,
+    *,
+    policy: ValidationFixturePolicy,
+) -> cq.Workplane:
+    """Build a connected base-down edge-capture validation fixture."""
+
+    pcb_bounds = execution.board_model.pcb.BoundingBox()
+
+    base_x_mm = pcb_bounds.xlen + 2.0 * policy.perimeter_margin_mm
+    base_y_mm = pcb_bounds.ylen + 2.0 * policy.perimeter_margin_mm
+
+    center_x_mm = (pcb_bounds.xmin + pcb_bounds.xmax) / 2.0
+    center_y_mm = (pcb_bounds.ymin + pcb_bounds.ymax) / 2.0
+
+    base = (
+        cq.Workplane("XY")
+        .box(
+            base_x_mm,
+            base_y_mm,
+            policy.base_thickness_mm,
+        )
+        .translate(
+            (
+                center_x_mm,
+                center_y_mm,
+                -policy.base_thickness_mm / 2.0,
+            )
+        )
+    )
+
+    parameters = as_edge_capture_parameters(execution.execution.parameters)
+    capture_geometry = SyntheticEdgeCaptureBackend().build_geometry(parameters)
+
+    fixture = base.union(capture_geometry)
+
+    if workplane_shape(fixture).isNull():
+        raise ValueError("Validation fixture contains no geometry")
+
+    return fixture
+
+
+def export_edge_validation_fixture(
+    execution: ProductionEdgeExecutionResult,
+    *,
+    output_path: Path,
+    policy: ValidationFixturePolicy,
+) -> ValidationFixtureArtifact:
+    """Generate and export a printable STL edge-capture fixture."""
+
+    fixture = build_edge_validation_fixture(
         execution,
         policy=policy,
     )

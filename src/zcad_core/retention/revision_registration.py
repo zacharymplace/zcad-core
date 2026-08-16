@@ -65,6 +65,7 @@ def load_candidate_revision(
         automated_evidence_path=str(payload["automated_evidence_path"]),
         fixture_artifact_path=str(payload["fixture_artifact_path"]),
         created_at_utc=str(payload["created_at_utc"]),
+        strategy=str(payload.get("strategy", "corner-capture")),
     )
 
 
@@ -106,7 +107,7 @@ def derive_candidate_revision(
         parent_candidate,
         candidate_id=candidate_identifier(
             target_id=parent_candidate.target_id,
-            strategy="corner-capture",
+            strategy=parent_candidate.strategy,
             revision=revision,
         ),
         revision=revision,

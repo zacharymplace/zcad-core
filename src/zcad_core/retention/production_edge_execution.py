@@ -20,6 +20,7 @@ from zcad_core.retention.engine import (
     RetentionExecution,
     RetentionStrategy,
 )
+from zcad_core.retention.evidence_artifact import GeometryInterferenceResult
 from zcad_core.retention.production_board import ProductionBoardModel
 from zcad_core.retention.production_edge_board import (
     ProductionBoardEdgeAdapter,
@@ -40,7 +41,7 @@ class ProductionEdgeExecutionRequest:
     policy: EdgeCapturePolicy
     engagement_depth_mm: float = 2.5
     vertical_margin_mm: float = 0.10
-    minimum_anchor_separation_mm: float = 6.0
+    minimum_anchor_separation_mm: float = 10.0
 
     def __post_init__(self) -> None:
         if self.pcb_solid_index < 1:
@@ -60,13 +61,14 @@ class ProductionEdgeExecutionResult:
     board_model: ProductionBoardModel
     derivation: ProductionEdgeDerivation
     execution: RetentionExecution
+    interference: GeometryInterferenceResult
     output_step: Path
 
     @property
     def passed(self) -> bool:
         """Whether the production execution passed verification."""
 
-        return self.execution.passed
+        return self.execution.passed and self.interference.passed
 
 
 def execute_production_edge_capture(
@@ -118,11 +120,13 @@ def execute_production_edge_capture(
         _intersection_volume(capture_shape, component)
         for component in board_model.component_solids
     )
+    interference = GeometryInterferenceResult(
+        pcb_capture_intersection_mm3=pcb_intersection,
+        component_capture_intersection_mm3=component_intersection,
+        tolerance_mm3=_INTERFERENCE_TOLERANCE_MM3,
+    )
 
-    if (
-        pcb_intersection > _INTERFERENCE_TOLERANCE_MM3
-        or component_intersection > _INTERFERENCE_TOLERANCE_MM3
-    ):
+    if not interference.passed:
         raise ValueError(
             "Generated edge-capture geometry intersects production board "
             f"material: pcb={pcb_intersection:.6f}mm3, "
@@ -171,6 +175,7 @@ def execute_production_edge_capture(
         board_model=board_model,
         derivation=derivation,
         execution=production_execution,
+        interference=interference,
         output_step=request.output_step,
     )
 

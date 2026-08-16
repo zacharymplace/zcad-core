@@ -154,6 +154,10 @@ def test_load_candidate_revision(
         "negative_x_negative_y",
         "positive_x_positive_y",
     )
+    # valid_candidate_payload() has no "strategy" key, so this also
+    # confirms loading legacy candidate.json files (written before the
+    # strategy field existed) defaults it to "corner-capture".
+    assert candidate.strategy == "corner-capture"
 
 
 def test_load_candidate_revision_rejects_selected_corners(
@@ -264,6 +268,43 @@ def test_derive_candidate_revision(
 
     assert parent.retention_policy["board_clearance_mm"] == 0.25
     assert parent.derived_parameters["board_clearance_mm"] == 0.25
+
+
+def test_derive_candidate_revision_preserves_parent_strategy(
+    tmp_path: Path,
+) -> None:
+    """Regression test: deriving used to hardcode "corner-capture" for the
+    child's candidate_id regardless of the parent's actual strategy."""
+
+    from dataclasses import replace
+
+    from zcad_core.retention import (
+        derive_candidate_revision,
+        load_candidate_revision,
+    )
+
+    path = tmp_path / "candidate.json"
+    write_candidate_payload(
+        path,
+        valid_candidate_payload(),
+    )
+    parent = replace(
+        load_candidate_revision(path),
+        candidate_id="synthetic-target-edge-clip-r001",
+        strategy="edge-clip",
+    )
+
+    candidate = derive_candidate_revision(
+        parent_candidate=parent,
+        revision="r002",
+        parameter_updates={
+            "board_clearance_mm": 0.30,
+        },
+        automated_decision=("synthetic_revision_candidate"),
+    )
+
+    assert candidate.strategy == "edge-clip"
+    assert candidate.candidate_id == "synthetic-target-edge-clip-r002"
 
 
 def test_derive_candidate_revision_rejects_empty_updates(

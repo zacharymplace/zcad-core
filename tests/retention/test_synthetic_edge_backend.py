@@ -54,7 +54,7 @@ def test_derive_reuses_validated_parameters() -> None:
 
     assert parameters.board_thickness_mm == pytest.approx(1.6)
     assert parameters.locations == spaced_locations()
-    assert parameters.arm_width_mm == pytest.approx(6.0)
+    assert parameters.arm_width_mm == pytest.approx(5.0)
 
 
 def test_apply_requires_cadquery_workplane() -> None:

@@ -50,6 +50,12 @@ class ProductionBoardEdgeAdapter:
     (analogous to
     :meth:`~zcad_core.retention.production_board.ProductionBoardCornerAdapter.analyze_corner_clearance`,
     projected onto edge spans instead of corner squares).
+
+    ``minimum_anchor_separation_mm`` defaults to 10.0mm to match
+    :attr:`~zcad_core.retention.manufacturing.ManufacturingPolicy.minimum_capture_spacing_mm`'s
+    default: a span this adapter accepts should also be one the
+    manufacturing gate accepts, rather than selecting a span that later
+    fails the spacing check downstream.
     """
 
     def __init__(
@@ -59,7 +65,7 @@ class ProductionBoardEdgeAdapter:
         vertical_margin_mm: float = 0.10,
         sample_resolution_mm: float = 0.25,
         required_material_ratio: float = 0.995,
-        minimum_anchor_separation_mm: float = 6.0,
+        minimum_anchor_separation_mm: float = 10.0,
     ) -> None:
         if engagement_depth_mm <= 0:
             raise ValueError("engagement_depth_mm must be positive")

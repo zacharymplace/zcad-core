@@ -50,6 +50,11 @@ from zcad_core.retention.edge_capture import (
     as_edge_capture_parameters,
     derive_edge_capture_parameters,
 )
+from zcad_core.retention.edge_evidence_artifact import (
+    ProductionEdgeEvidenceArtifact,
+    build_edge_evidence_report,
+    generate_production_edge_evidence_artifact,
+)
 from zcad_core.retention.engine import (
     RetentionBackend,
     RetentionEngine,
@@ -80,6 +85,7 @@ from zcad_core.retention.manufacturing import (
     ManufacturingReport,
     PrintOrientation,
     validate_corner_capture_manufacturing,
+    validate_edge_capture_manufacturing,
 )
 from zcad_core.retention.physical_validation import (
     PhysicalValidationCheck,
@@ -132,7 +138,9 @@ from zcad_core.retention.synthetic_edge_backend import SyntheticEdgeCaptureBacke
 from zcad_core.retention.validation_fixture import (
     ValidationFixtureArtifact,
     ValidationFixturePolicy,
+    build_edge_validation_fixture,
     build_validation_fixture,
+    export_edge_validation_fixture,
     export_validation_fixture,
 )
 from zcad_core.retention.validation_lab import (
@@ -200,6 +208,7 @@ __all__ = [
     "ProductionCornerExecutionRequest",
     "ProductionCornerExecutionResult",
     "ProductionEdgeDerivation",
+    "ProductionEdgeEvidenceArtifact",
     "ProductionEdgeExecutionRequest",
     "ProductionEdgeExecutionResult",
     "ProductionEvidenceArtifact",
@@ -237,6 +246,8 @@ __all__ = [
     "as_corner_capture_parameters",
     "as_edge_capture_fit_report",
     "as_edge_capture_parameters",
+    "build_edge_evidence_report",
+    "build_edge_validation_fixture",
     "build_evidence_report",
     "build_publication_record",
     "build_validation_fixture",
@@ -257,7 +268,9 @@ __all__ = [
     "execute_production_corner_capture",
     "execute_production_edge_capture",
     "export_design_review_package",
+    "export_edge_validation_fixture",
     "export_validation_fixture",
+    "generate_production_edge_evidence_artifact",
     "generate_production_evidence_artifact",
     "load_candidate_revision",
     "load_manifest",
@@ -270,6 +283,7 @@ __all__ = [
     "select_preferred_revision",
     "sha256_file",
     "validate_corner_capture_manufacturing",
+    "validate_edge_capture_manufacturing",
     "write_immutable_manifest",
     "write_installation_path_report",
     "write_physical_validation_record",

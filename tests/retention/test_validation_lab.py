@@ -146,6 +146,51 @@ def test_candidate_identity_must_match_revision() -> None:
         )
 
 
+def test_candidate_defaults_to_corner_capture_strategy() -> None:
+    assert valid_candidate().strategy == "corner-capture"
+
+
+def test_candidate_identity_reflects_a_different_strategy() -> None:
+    """A candidate_id must match its own declared strategy, not a fixed one.
+
+    Regression test: CandidateRevision.__post_init__ used to hardcode
+    "corner-capture" when recomputing the expected candidate_id, so no
+    other retention strategy (e.g. edge-clip) could ever construct a
+    self-consistent candidate.
+    """
+
+    candidate = replace(
+        valid_candidate(),
+        candidate_id="adafruit-feather-rp2040-edge-clip-r001",
+        strategy="edge-clip",
+    )
+
+    assert candidate.strategy == "edge-clip"
+
+
+def test_candidate_rejects_strategy_mismatched_with_id() -> None:
+    with pytest.raises(
+        ValueError,
+        match="candidate_id",
+    ):
+        replace(
+            valid_candidate(),
+            strategy="edge-clip",
+        )
+
+
+def test_candidate_rejects_non_kebab_case_strategy() -> None:
+    with pytest.raises(
+        ValueError,
+        match="strategy must be lowercase kebab-case",
+    ):
+        replace(
+            valid_candidate(),
+            candidate_id="adafruit-feather-rp2040-Edge_Clip-r001",
+            strategy="Edge_Clip",
+        )
+
+
 def test_incomplete_trial_cannot_pass() -> None:
     with pytest.raises(
         ValueError,

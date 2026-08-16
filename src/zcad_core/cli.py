@@ -198,7 +198,7 @@ def _candidate_register(args: argparse.Namespace) -> int:
         schema_version="1.0.0",
         candidate_id=candidate_identifier(
             target_id=target.target_id,
-            strategy="corner-capture",
+            strategy=args.strategy,
             revision=args.revision,
         ),
         target_id=target.target_id,
@@ -214,6 +214,7 @@ def _candidate_register(args: argparse.Namespace) -> int:
         automated_evidence_path=str(args.automated_evidence),
         fixture_artifact_path=str(args.fixture),
         created_at_utc=(args.created_at_utc or _now()),
+        strategy=args.strategy,
     )
 
     write_immutable_manifest(
@@ -549,6 +550,14 @@ def build_parser() -> argparse.ArgumentParser:
     candidate_register.add_argument("--retention-step", required=True, type=Path)
     candidate_register.add_argument("--fixture", required=True, type=Path)
     candidate_register.add_argument("--revision", required=True)
+    candidate_register.add_argument(
+        "--strategy",
+        default="corner-capture",
+        help=(
+            "Retention strategy that produced this candidate's evidence "
+            "(e.g. corner-capture, edge-clip). Part of the candidate id."
+        ),
+    )
     candidate_register.add_argument("--git-commit", required=True)
     candidate_register.add_argument("--generator-version", default="1.0.0")
     candidate_register.add_argument("--created-at-utc")

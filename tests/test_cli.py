@@ -58,6 +58,7 @@ def register_candidate(
     target_manifest: Path,
     *,
     revision: str = "r001",
+    strategy: str = "corner-capture",
 ) -> Path:
     evidence = tmp_path / "automated-validation.json"
     evidence.write_text(
@@ -103,6 +104,8 @@ def register_candidate(
         str(fixture),
         "--revision",
         revision,
+        "--strategy",
+        strategy,
         "--git-commit",
         "abc123",
         "--output",
@@ -217,6 +220,29 @@ def test_candidate_register_bootstraps_root_candidate(
 
     assert payload["candidate_id"] == "synthetic-target-corner-capture-r001"
     assert payload["automated_decision"] == "verified_candidate"
+    assert payload["strategy"] == "corner-capture"
+
+
+def test_candidate_register_accepts_a_different_strategy(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Regression test: the CLI used to hardcode strategy="corner-capture"
+    in the candidate id regardless of which strategy produced the
+    evidence, so an edge-clip candidate would get a misleading id."""
+
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(
+        tmp_path,
+        capsys,
+        target_manifest,
+        strategy="edge-clip",
+    )
+
+    payload = json.loads(candidate_manifest.read_text(encoding="utf-8"))
+
+    assert payload["candidate_id"] == "synthetic-target-edge-clip-r001"
+    assert payload["strategy"] == "edge-clip"
 
 
 def test_candidate_derive_registers_child_revision(

@@ -7,6 +7,9 @@ import pytest
 from zcad_core.geometry.types import BoardEdge
 from zcad_core.retention.edge_backend import EdgeCaptureFitCheck
 from zcad_core.retention.edge_capture import EdgeCapturePolicy
+from zcad_core.retention.edge_evidence_artifact import (
+    generate_production_edge_evidence_artifact,
+)
 from zcad_core.retention.production_edge_execution import (
     ProductionEdgeExecutionRequest,
     execute_production_edge_capture,
@@ -60,3 +63,37 @@ def test_uno_r4_wifi_edge_capture_finds_a_real_clear_span(
         if item.check is EdgeCaptureFitCheck.COMPONENT_CLEARANCE
     )
     assert "Production STEP evidence confirmed" in component_result.detail
+
+
+@pytest.mark.skipif(
+    not UNO_R4_WIFI_STEP.is_file(),
+    reason=("Official Arduino UNO R4 WiFi STEP evidence is not available locally"),
+)
+def test_uno_r4_wifi_full_evidence_artifact_passes_manufacturing(
+    tmp_path: Path,
+) -> None:
+    """Regression test for the adapter/manufacturing spacing mismatch.
+
+    The default arm_width_mm and minimum_anchor_separation_mm were
+    originally chosen independently of ManufacturingPolicy's own default
+    minimum_capture_spacing_mm, so ProductionBoardEdgeAdapter could select
+    a span whose two capture points ended up spaced closer than
+    manufacturing validation required - passing derivation, then failing
+    downstream. This exercises the full evidence-artifact layer
+    (derivation, interference, and manufacturing together) against the
+    real board that first exposed the mismatch.
+    """
+
+    artifact = generate_production_edge_evidence_artifact(
+        ProductionEdgeExecutionRequest(
+            source_step=UNO_R4_WIFI_STEP,
+            pcb_solid_index=1,
+            output_step=(tmp_path / "uno-r4-wifi-edge-capture-evidence.step"),
+            policy=EdgeCapturePolicy(),
+        ),
+        report_path=(tmp_path / "uno-r4-wifi-edge-capture-evidence.json"),
+    )
+
+    assert artifact.passed is True
+    assert artifact.step_path.is_file()
+    assert artifact.report_path.is_file()

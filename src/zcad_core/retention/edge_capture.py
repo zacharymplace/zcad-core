@@ -12,7 +12,7 @@ _MINIMUM_LOCATION_SEPARATION_MM = 1e-6
 class EdgeCapturePolicy:
     """Manufacturing and engagement policy for edge capture."""
 
-    arm_width_mm: float = 6.0
+    arm_width_mm: float = 5.0
     engagement_depth_mm: float = 2.5
     board_clearance_mm: float = 0.25
     vertical_overlap_mm: float = 0.6

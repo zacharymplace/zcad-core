@@ -30,7 +30,7 @@ def spaced_locations() -> tuple[EdgeCaptureLocation, ...]:
 def test_default_policy_is_valid() -> None:
     policy = EdgeCapturePolicy()
 
-    assert policy.arm_width_mm == pytest.approx(6.0)
+    assert policy.arm_width_mm == pytest.approx(5.0)
     assert policy.engagement_depth_mm == pytest.approx(2.5)
     assert policy.board_clearance_mm == pytest.approx(0.25)
     assert policy.vertical_overlap_mm == pytest.approx(0.6)
