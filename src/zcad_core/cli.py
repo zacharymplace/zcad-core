@@ -88,6 +88,12 @@ def _load_physical_trial_manifest(path: Path) -> PhysicalTrialManifest:
     )
 
 
+def _optional_str(payload: dict[str, Any], key: str) -> str | None:
+    value = payload.get(key)
+
+    return str(value) if value is not None else None
+
+
 def _load_promotion_record(path: Path) -> PromotionRecord:
     payload = load_manifest(path)
 
@@ -101,15 +107,11 @@ def _load_promotion_record(path: Path) -> PromotionRecord:
         automated_validation_passed=bool(payload["automated_validation_passed"]),
         physical_validation_passed=bool(payload["physical_validation_passed"]),
         candidate_manifest_path=str(payload["candidate_manifest_path"]),
-        relationship_path=str(payload["relationship_path"]),
-        parameter_delta_path=str(payload["parameter_delta_path"]),
         physical_trial_path=str(payload["physical_trial_path"]),
         created_at_utc=str(payload["created_at_utc"]),
-        supersedes_candidate_id=(
-            str(payload["supersedes_candidate_id"])
-            if payload.get("supersedes_candidate_id") is not None
-            else None
-        ),
+        relationship_path=_optional_str(payload, "relationship_path"),
+        parameter_delta_path=_optional_str(payload, "parameter_delta_path"),
+        supersedes_candidate_id=_optional_str(payload, "supersedes_candidate_id"),
     )
 
 
@@ -292,8 +294,14 @@ def _candidate_promote(args: argparse.Namespace) -> int:
         automated_validation_passed=args.automated_validation_passed,
         physical_validation_passed=args.physical_validation_passed,
         candidate_manifest_path=str(args.candidate_manifest),
-        relationship_path=str(args.relationship_path),
-        parameter_delta_path=str(args.parameter_delta_path),
+        relationship_path=(
+            str(args.relationship_path) if args.relationship_path is not None else None
+        ),
+        parameter_delta_path=(
+            str(args.parameter_delta_path)
+            if args.parameter_delta_path is not None
+            else None
+        ),
         physical_trial_path=str(args.physical_trial_path),
         created_at_utc=_now(),
         supersedes_candidate_id=args.supersedes_candidate_id,
@@ -573,8 +581,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     candidate_promote = candidate_commands.add_parser("promote")
     candidate_promote.add_argument("--candidate-manifest", required=True, type=Path)
-    candidate_promote.add_argument("--relationship-path", required=True, type=Path)
-    candidate_promote.add_argument("--parameter-delta-path", required=True, type=Path)
+    candidate_promote.add_argument(
+        "--relationship-path",
+        type=Path,
+        help="Omit for a root candidate with no parent revision.",
+    )
+    candidate_promote.add_argument(
+        "--parameter-delta-path",
+        type=Path,
+        help="Omit for a root candidate with no parent revision.",
+    )
     candidate_promote.add_argument("--physical-trial-path", required=True, type=Path)
     candidate_promote.add_argument("--target-root", required=True, type=Path)
     candidate_promote.add_argument("--reviewer", required=True)

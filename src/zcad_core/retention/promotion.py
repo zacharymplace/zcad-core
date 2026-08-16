@@ -38,10 +38,10 @@ class PromotionRecord:
     automated_validation_passed: bool
     physical_validation_passed: bool
     candidate_manifest_path: str
-    relationship_path: str
-    parameter_delta_path: str
     physical_trial_path: str
     created_at_utc: str
+    relationship_path: str | None = None
+    parameter_delta_path: str | None = None
     supersedes_candidate_id: str | None = None
 
     def __post_init__(self) -> None:
@@ -58,14 +58,6 @@ class PromotionRecord:
                 self.candidate_manifest_path,
             ),
             (
-                "relationship_path",
-                self.relationship_path,
-            ),
-            (
-                "parameter_delta_path",
-                self.parameter_delta_path,
-            ),
-            (
                 "physical_trial_path",
                 self.physical_trial_path,
             ),
@@ -73,6 +65,13 @@ class PromotionRecord:
         ):
             if not value.strip():
                 raise ValueError(f"{field_name} cannot be empty")
+
+        for optional_field_name, optional_value in (
+            ("relationship_path", self.relationship_path),
+            ("parameter_delta_path", self.parameter_delta_path),
+        ):
+            if optional_value is not None and not optional_value.strip():
+                raise ValueError(f"{optional_field_name} cannot be empty")
 
         if self.decision is PromotionDecision.PROMOTED:
             if not self.automated_validation_passed:
@@ -167,8 +166,13 @@ def register_candidate_promotion(
         automated_validation_passed=(record.automated_validation_passed),
         physical_validation_passed=(record.physical_validation_passed),
         candidate_manifest_exists=Path(record.candidate_manifest_path).is_file(),
-        relationship_exists=Path(record.relationship_path).is_file(),
-        parameter_delta_exists=Path(record.parameter_delta_path).is_file(),
+        relationship_exists=(
+            record.relationship_path is None or Path(record.relationship_path).is_file()
+        ),
+        parameter_delta_exists=(
+            record.parameter_delta_path is None
+            or Path(record.parameter_delta_path).is_file()
+        ),
         physical_trial_exists=Path(record.physical_trial_path).is_file(),
     )
 

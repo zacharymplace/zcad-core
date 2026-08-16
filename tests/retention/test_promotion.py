@@ -223,6 +223,47 @@ def test_register_candidate_promotion_is_idempotent(
     assert promotion_path.is_file()
 
 
+def test_register_candidate_promotion_accepts_root_candidate_without_lineage(
+    tmp_path: Path,
+) -> None:
+    """A root candidate has no parent, so it has no relationship or delta
+    report. Eligibility must not demand evidence that cannot exist."""
+
+    from zcad_core.retention import (
+        register_candidate_promotion,
+    )
+
+    candidate = tmp_path / "candidate.json"
+    trial = tmp_path / "trial.json"
+
+    for path in (candidate, trial):
+        path.write_text("{}\n", encoding="utf-8")
+
+    promotion_path = tmp_path / "promotion.json"
+
+    record = PromotionRecord(
+        **{
+            **valid_promotion_record(revision="r001").__dict__,
+            "candidate_manifest_path": str(candidate),
+            "relationship_path": None,
+            "parameter_delta_path": None,
+            "physical_trial_path": str(trial),
+        }
+    )
+
+    result = register_candidate_promotion(
+        record=record,
+        output_path=promotion_path,
+    )
+
+    assert result.decision is PromotionDecision.PROMOTED
+    assert promotion_path.is_file()
+
+    payload = json.loads(promotion_path.read_text(encoding="utf-8"))
+    assert payload["relationship_path"] is None
+    assert payload["parameter_delta_path"] is None
+
+
 def test_register_candidate_promotion_rejects_missing_artifacts(
     tmp_path: Path,
 ) -> None:
