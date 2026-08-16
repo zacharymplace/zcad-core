@@ -1,9 +1,17 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
+from typing import Any
+
+from .revision_history import (
+    RevisionRelationship,
+    RevisionRelationshipType,
+    write_revision_relationship,
+)
 
 
 class PromotionDecision(str, Enum):
@@ -177,3 +185,143 @@ def register_candidate_promotion(
     )
 
     return record
+
+
+def select_preferred_revision(
+    *,
+    target_id: str,
+    promotion_records: Sequence[PromotionRecord],
+    relationships: Sequence[RevisionRelationship] = (),
+) -> PromotionRecord | None:
+    """Return the currently preferred candidate for one target, if any.
+
+    A candidate is preferred when it is PROMOTED and no ``supersedes``
+    relationship names it as the target for this ``target_id``. Promotion
+    records themselves are never rewritten when superseded; supersession is
+    expressed only through :class:`RevisionRelationship`, so each historical
+    promotion decision remains intact.
+    """
+
+    promoted = tuple(
+        record
+        for record in promotion_records
+        if record.target_id == target_id
+        and record.decision is PromotionDecision.PROMOTED
+    )
+
+    superseded_candidate_ids = {
+        relationship.target_candidate_id
+        for relationship in relationships
+        if relationship.target_id == target_id
+        and relationship.relationship is RevisionRelationshipType.SUPERSEDES
+    }
+
+    preferred = tuple(
+        record
+        for record in promoted
+        if record.candidate_id not in superseded_candidate_ids
+    )
+
+    if len(preferred) > 1:
+        candidate_ids = ", ".join(sorted(record.candidate_id for record in preferred))
+
+        raise ValueError(
+            f"Ambiguous preferred revision for {target_id}: {candidate_ids}"
+        )
+
+    return preferred[0] if preferred else None
+
+
+def promote_preferred_revision(
+    *,
+    record: PromotionRecord,
+    output_path: Path,
+    existing_promotion_records: Sequence[PromotionRecord] = (),
+    existing_relationships: Sequence[RevisionRelationship] = (),
+    supersession_relationship: RevisionRelationship | None = None,
+    supersession_output_path: Path | None = None,
+) -> PromotionRecord:
+    """Register a candidate as the preferred revision for its target.
+
+    When a different candidate is already preferred, the caller must supply
+    a ``supersedes`` relationship naming the new candidate as source and the
+    previously preferred candidate as target; the prior promotion record is
+    left untouched, preserving its historical decision.
+    """
+
+    current_preferred = select_preferred_revision(
+        target_id=record.target_id,
+        promotion_records=existing_promotion_records,
+        relationships=existing_relationships,
+    )
+
+    if (
+        current_preferred is not None
+        and current_preferred.candidate_id != record.candidate_id
+    ):
+        if supersession_relationship is None or supersession_output_path is None:
+            raise ValueError(
+                "Promoting a new preferred revision requires a supersession "
+                f"relationship for the currently preferred candidate: "
+                f"{current_preferred.candidate_id}"
+            )
+
+        if (
+            supersession_relationship.relationship
+            is not RevisionRelationshipType.SUPERSEDES
+            or supersession_relationship.source_candidate_id != record.candidate_id
+            or supersession_relationship.target_candidate_id
+            != current_preferred.candidate_id
+        ):
+            raise ValueError(
+                "Supersession relationship must link the new candidate as "
+                "superseding the currently preferred candidate"
+            )
+
+        write_revision_relationship(
+            supersession_relationship,
+            output_path=supersession_output_path,
+        )
+
+    return register_candidate_promotion(
+        record=record,
+        output_path=output_path,
+    )
+
+
+def build_publication_record(
+    *,
+    part_record: dict[str, Any],
+    promotion_record: PromotionRecord,
+    eligibility: PublicationEligibility,
+) -> dict[str, Any]:
+    """Attach an explicit, evidence-gated publication decision to a part record.
+
+    ``part_record`` is the product-agnostic metadata built by
+    :func:`zcad_core.metadata.build_record.build_part_record`. Publication is
+    approved only when the promotion decision is explicit and the automated
+    and physical evidence backing it is complete; there is no path to
+    approval by editing a Boolean directly.
+    """
+
+    if promotion_record.decision is not PromotionDecision.PROMOTED:
+        raise ValueError(
+            "Metadata publication requires an explicit PROMOTED decision, "
+            f"got {promotion_record.decision.value}"
+        )
+
+    if not eligibility.eligible:
+        failures = ", ".join(eligibility.failures)
+
+        raise ValueError(f"Metadata publication blocked by evidence gaps: {failures}")
+
+    return {
+        **part_record,
+        "publication": {
+            "approved": True,
+            "candidate_id": promotion_record.candidate_id,
+            "target_id": promotion_record.target_id,
+            "reviewer": promotion_record.reviewer,
+            "promoted_at_utc": promotion_record.created_at_utc,
+        },
+    }
