@@ -7,12 +7,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from .revision_history import (
-    RevisionRelationship,
-    RevisionRelationshipType,
-    write_revision_relationship,
-)
-
 
 class PromotionDecision(str, Enum):
     PROMOTED = "promoted"
@@ -48,6 +42,7 @@ class PromotionRecord:
     parameter_delta_path: str
     physical_trial_path: str
     created_at_utc: str
+    supersedes_candidate_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.schema_version != "1.0.0":
@@ -85,6 +80,9 @@ class PromotionRecord:
 
             if not self.physical_validation_passed:
                 raise ValueError("Promoted candidate requires physical validation")
+
+        if self.supersedes_candidate_id == self.candidate_id:
+            raise ValueError("A promotion cannot supersede its own candidate")
 
 
 def evaluate_publication_eligibility(
@@ -191,15 +189,21 @@ def select_preferred_revision(
     *,
     target_id: str,
     promotion_records: Sequence[PromotionRecord],
-    relationships: Sequence[RevisionRelationship] = (),
 ) -> PromotionRecord | None:
     """Return the currently preferred candidate for one target, if any.
 
-    A candidate is preferred when it is PROMOTED and no ``supersedes``
-    relationship names it as the target for this ``target_id``. Promotion
-    records themselves are never rewritten when superseded; supersession is
-    expressed only through :class:`RevisionRelationship`, so each historical
-    promotion decision remains intact.
+    A candidate is preferred when it is PROMOTED and no other PROMOTED
+    record for the same target names it via ``supersedes_candidate_id``.
+    Promotion records are never rewritten when superseded — supersession is
+    expressed only by the superseding record's own field — so each
+    historical promotion decision remains intact.
+
+    Deliberately independent of :class:`RevisionRelationship`: a
+    ``supersedes`` relationship written by candidate derivation records
+    revision *lineage* ("this candidate was derived from that one"), which
+    is unrelated to which candidate is currently *preferred*. Conflating
+    the two would make every candidate except the newest derived one look
+    superseded, regardless of promotion history.
     """
 
     promoted = tuple(
@@ -210,10 +214,9 @@ def select_preferred_revision(
     )
 
     superseded_candidate_ids = {
-        relationship.target_candidate_id
-        for relationship in relationships
-        if relationship.target_id == target_id
-        and relationship.relationship is RevisionRelationshipType.SUPERSEDES
+        record.supersedes_candidate_id
+        for record in promoted
+        if record.supersedes_candidate_id is not None
     }
 
     preferred = tuple(
@@ -237,50 +240,28 @@ def promote_preferred_revision(
     record: PromotionRecord,
     output_path: Path,
     existing_promotion_records: Sequence[PromotionRecord] = (),
-    existing_relationships: Sequence[RevisionRelationship] = (),
-    supersession_relationship: RevisionRelationship | None = None,
-    supersession_output_path: Path | None = None,
 ) -> PromotionRecord:
     """Register a candidate as the preferred revision for its target.
 
-    When a different candidate is already preferred, the caller must supply
-    a ``supersedes`` relationship naming the new candidate as source and the
-    previously preferred candidate as target; the prior promotion record is
-    left untouched, preserving its historical decision.
+    When a different candidate is already preferred, ``record`` must set
+    ``supersedes_candidate_id`` to that candidate's id; the prior promotion
+    record is left untouched, preserving its historical decision.
     """
 
     current_preferred = select_preferred_revision(
         target_id=record.target_id,
         promotion_records=existing_promotion_records,
-        relationships=existing_relationships,
     )
 
     if (
         current_preferred is not None
         and current_preferred.candidate_id != record.candidate_id
+        and record.supersedes_candidate_id != current_preferred.candidate_id
     ):
-        if supersession_relationship is None or supersession_output_path is None:
-            raise ValueError(
-                "Promoting a new preferred revision requires a supersession "
-                f"relationship for the currently preferred candidate: "
-                f"{current_preferred.candidate_id}"
-            )
-
-        if (
-            supersession_relationship.relationship
-            is not RevisionRelationshipType.SUPERSEDES
-            or supersession_relationship.source_candidate_id != record.candidate_id
-            or supersession_relationship.target_candidate_id
-            != current_preferred.candidate_id
-        ):
-            raise ValueError(
-                "Supersession relationship must link the new candidate as "
-                "superseding the currently preferred candidate"
-            )
-
-        write_revision_relationship(
-            supersession_relationship,
-            output_path=supersession_output_path,
+        raise ValueError(
+            "Promoting a new preferred revision requires supersedes_candidate_id "
+            f"to reference the currently preferred candidate: "
+            f"{current_preferred.candidate_id}"
         )
 
     return register_candidate_promotion(

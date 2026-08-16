@@ -1,0 +1,654 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from zcad_core.cli import main
+
+
+def run(
+    capsys: pytest.CaptureFixture[str],
+    *args: str,
+) -> tuple[int, dict[str, object]]:
+    exit_code = main(list(args))
+    output = json.loads(capsys.readouterr().out)
+
+    return exit_code, output
+
+
+def register_target(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> Path:
+    source_model = tmp_path / "board.step"
+    source_model.write_bytes(b"synthetic step contents")
+
+    output = tmp_path / "target.json"
+
+    exit_code, _ = run(
+        capsys,
+        "target",
+        "register",
+        "--target-id",
+        "synthetic-target",
+        "--display-name",
+        "Synthetic Target",
+        "--manufacturer",
+        "Acme",
+        "--product-family",
+        "Widgets",
+        "--source-model-path",
+        str(source_model),
+        "--pcb-solid-index",
+        "1",
+        "--output",
+        str(output),
+    )
+
+    assert exit_code == 0
+
+    return output
+
+
+def register_candidate(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    target_manifest: Path,
+    *,
+    revision: str = "r001",
+) -> Path:
+    evidence = tmp_path / "automated-validation.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "policy": {
+                    "arm_width_mm": 3.0,
+                    "board_clearance_mm": 0.25,
+                    "engagement_depth_mm": 2.0,
+                    "minimum_wall_mm": 1.2,
+                    "vertical_overlap_mm": 0.6,
+                },
+                "pcb": {"z_length_mm": 1.6},
+                "selected_corners": [
+                    "negative_x_negative_y",
+                    "positive_x_positive_y",
+                ],
+                "decision": "verified_candidate",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    retention_step = tmp_path / "retention.step"
+    retention_step.write_bytes(b"synthetic retention step")
+
+    fixture = tmp_path / "fixture.stl"
+    fixture.write_bytes(b"synthetic fixture")
+
+    output = tmp_path / f"candidates/{revision}/candidate.json"
+
+    exit_code, _ = run(
+        capsys,
+        "candidate",
+        "register",
+        "--target-manifest",
+        str(target_manifest),
+        "--automated-evidence",
+        str(evidence),
+        "--retention-step",
+        str(retention_step),
+        "--fixture",
+        str(fixture),
+        "--revision",
+        revision,
+        "--git-commit",
+        "abc123",
+        "--output",
+        str(output),
+    )
+
+    assert exit_code == 0
+
+    return output
+
+
+def write_observations(tmp_path: Path, *, all_passed: bool = True) -> Path:
+    path = tmp_path / "observations.json"
+    checks = (
+        "print_completed",
+        "no_visible_defects",
+        "board_inserts_without_force",
+        "board_seats_fully",
+        "board_retains_when_inverted",
+        "connectors_remain_accessible",
+        "components_remain_clear",
+        "board_removes_without_damage",
+    )
+    path.write_text(
+        json.dumps({check: {"passed": all_passed} for check in checks}),
+        encoding="utf-8",
+    )
+
+    return path
+
+
+def register_trial(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    candidate_manifest: Path,
+    *,
+    revision: str,
+    passed: bool = True,
+) -> Path:
+    fixture = tmp_path / "fixture.stl"
+
+    if not fixture.exists():
+        fixture.write_bytes(b"synthetic fixture")
+
+    physical_record = tmp_path / f"candidates/{revision}/trials/trial-001/physical.json"
+
+    exit_code, _ = run(
+        capsys,
+        "trial",
+        "complete",
+        "--candidate-report",
+        str(candidate_manifest),
+        "--fixture-stl",
+        str(fixture),
+        "--printer-profile",
+        "bambu-lab-a1-mini",
+        "--material-profile",
+        "petg",
+        "--slicer-profile",
+        "bambu-studio-a1-mini-petg-validation",
+        "--observations",
+        str(write_observations(tmp_path, all_passed=passed)),
+        "--disposition",
+        ("pass" if passed else "revise"),
+        "--output",
+        str(physical_record),
+    )
+    assert exit_code == 0
+
+    trial_manifest = tmp_path / f"candidates/{revision}/trials/trial-001/trial.json"
+
+    exit_code, _ = run(
+        capsys,
+        "trial",
+        "register",
+        "--candidate-manifest",
+        str(candidate_manifest),
+        "--physical-validation-record",
+        str(physical_record),
+        "--fixture",
+        str(fixture),
+        "--trial-id",
+        "trial-001",
+        "--output",
+        str(trial_manifest),
+    )
+    assert exit_code == 0
+
+    return trial_manifest
+
+
+def test_target_register_writes_manifest(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest = register_target(tmp_path, capsys)
+
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+
+    assert payload["target_id"] == "synthetic-target"
+    assert len(payload["source_model_sha256"]) == 64
+
+
+def test_candidate_register_bootstraps_root_candidate(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    payload = json.loads(candidate_manifest.read_text(encoding="utf-8"))
+
+    assert payload["candidate_id"] == "synthetic-target-corner-capture-r001"
+    assert payload["automated_decision"] == "verified_candidate"
+
+
+def test_candidate_derive_registers_child_revision(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    parent_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    exit_code, output = run(
+        capsys,
+        "candidate",
+        "derive",
+        "--parent",
+        str(parent_manifest),
+        "--revision",
+        "r002",
+        "--set",
+        "board_clearance_mm=0.30",
+        "--relationship",
+        "supersedes",
+        "--reason",
+        "Increase clearance.",
+        "--automated-decision",
+        "synthetic_revision_candidate",
+        "--output-directory",
+        str(tmp_path / "candidates/r002"),
+    )
+
+    assert exit_code == 0
+    assert output["candidate_id"] == "synthetic-target-corner-capture-r002"
+    assert output["changed_parameters"] == ["board_clearance_mm"]
+
+
+def test_candidate_derive_rejects_malformed_set(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    parent_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    exit_code = main(
+        [
+            "candidate",
+            "derive",
+            "--parent",
+            str(parent_manifest),
+            "--revision",
+            "r002",
+            "--set",
+            "board_clearance_mm",
+            "--relationship",
+            "supersedes",
+            "--reason",
+            "Increase clearance.",
+            "--automated-decision",
+            "synthetic_revision_candidate",
+            "--output-directory",
+            str(tmp_path / "candidates/r002"),
+        ]
+    )
+
+    assert exit_code == 1
+
+
+def test_candidate_inspect_prints_manifest_contents(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+
+    exit_code = main(["candidate", "inspect", "--manifest", str(target_manifest)])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["target_id"] == "synthetic-target"
+
+
+def test_candidate_inspect_fails_closed_on_missing_file(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = main(
+        ["candidate", "inspect", "--manifest", str(tmp_path / "missing.json")]
+    )
+    stderr = capsys.readouterr().err
+
+    assert exit_code == 1
+    assert "error:" in stderr
+
+
+def test_trial_start_creates_pending_record(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    candidate_report = tmp_path / "candidate.json"
+    candidate_report.write_text("{}", encoding="utf-8")
+    fixture = tmp_path / "fixture.stl"
+    fixture.write_bytes(b"synthetic fixture")
+    output = tmp_path / "physical-validation.json"
+
+    exit_code, result = run(
+        capsys,
+        "trial",
+        "start",
+        "--candidate-report",
+        str(candidate_report),
+        "--fixture-stl",
+        str(fixture),
+        "--printer-profile",
+        "bambu-lab-a1-mini",
+        "--material-profile",
+        "petg",
+        "--slicer-profile",
+        "bambu-studio-a1-mini-petg-validation",
+        "--output",
+        str(output),
+    )
+
+    assert exit_code == 0
+    assert result["disposition"] == "revise"
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["passed"] is False
+
+
+def test_trial_complete_and_register_produce_passing_trial(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    trial_manifest = register_trial(
+        tmp_path,
+        capsys,
+        candidate_manifest,
+        revision="r001",
+        passed=True,
+    )
+
+    payload = json.loads(trial_manifest.read_text(encoding="utf-8"))
+
+    assert payload["passed"] is True
+    assert payload["complete"] is True
+
+
+def test_revision_compare_flags_missing_trial_evidence(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    source_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    exit_code, source_source_trial = run(
+        capsys,
+        "candidate",
+        "derive",
+        "--parent",
+        str(source_manifest),
+        "--revision",
+        "r002",
+        "--set",
+        "board_clearance_mm=0.30",
+        "--relationship",
+        "supersedes",
+        "--reason",
+        "Increase clearance.",
+        "--automated-decision",
+        "synthetic_revision_candidate",
+        "--output-directory",
+        str(tmp_path / "candidates/r002"),
+    )
+    assert exit_code == 0
+    target_manifest_path = Path(source_source_trial["candidate_manifest"])
+
+    exit_code, comparison = run(
+        capsys,
+        "revision",
+        "compare",
+        "--source-candidate",
+        str(source_manifest),
+        "--target-candidate",
+        str(target_manifest_path),
+        "--report-output",
+        str(tmp_path / "comparison.json"),
+        "--recommendation-output",
+        str(tmp_path / "recommendation.json"),
+    )
+
+    assert exit_code == 0
+    assert comparison["decision"] == "insufficient_evidence"
+
+
+def test_candidate_promote_and_status_report_preferred_revision(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    exit_code, derive_result = run(
+        capsys,
+        "candidate",
+        "derive",
+        "--parent",
+        str(candidate_manifest),
+        "--revision",
+        "r002",
+        "--set",
+        "board_clearance_mm=0.30",
+        "--relationship",
+        "supersedes",
+        "--reason",
+        "Increase clearance.",
+        "--automated-decision",
+        "verified_candidate",
+        "--output-directory",
+        str(tmp_path / "candidates/r002"),
+    )
+    assert exit_code == 0
+
+    child_manifest = Path(derive_result["candidate_manifest"])
+    relationship_manifest = Path(derive_result["relationship_manifest"])
+    parameter_delta_manifest = Path(derive_result["parameter_delta_report"])
+
+    trial_manifest = register_trial(
+        tmp_path,
+        capsys,
+        child_manifest,
+        revision="r002",
+        passed=True,
+    )
+
+    exit_code, promotion = run(
+        capsys,
+        "candidate",
+        "promote",
+        "--candidate-manifest",
+        str(child_manifest),
+        "--relationship-path",
+        str(relationship_manifest),
+        "--parameter-delta-path",
+        str(parameter_delta_manifest),
+        "--physical-trial-path",
+        str(trial_manifest),
+        "--target-root",
+        str(tmp_path),
+        "--reviewer",
+        "operator",
+        "--reason",
+        "Passed automated and physical validation.",
+        "--automated-validation-passed",
+        "--physical-validation-passed",
+        "--output",
+        str(tmp_path / "candidates/r002/promotion.json"),
+    )
+
+    assert exit_code == 0
+    assert promotion["decision"] == "promoted"
+
+    exit_code, status = run(
+        capsys,
+        "status",
+        "--target-root",
+        str(tmp_path),
+    )
+
+    assert exit_code == 0
+    assert status["preferred_candidate_id"] == "synthetic-target-corner-capture-r002"
+    assert status["publication_eligible"] is True
+
+
+def test_candidate_promote_requires_supersession_for_new_preferred(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    r001 = register_candidate(tmp_path, capsys, target_manifest)
+
+    exit_code, derive_result = run(
+        capsys,
+        "candidate",
+        "derive",
+        "--parent",
+        str(r001),
+        "--revision",
+        "r002",
+        "--set",
+        "board_clearance_mm=0.30",
+        "--relationship",
+        "supersedes",
+        "--reason",
+        "Increase clearance.",
+        "--automated-decision",
+        "verified_candidate",
+        "--output-directory",
+        str(tmp_path / "candidates/r002"),
+    )
+    assert exit_code == 0
+    r002 = Path(derive_result["candidate_manifest"])
+    r002_relationship = Path(derive_result["relationship_manifest"])
+    r002_delta = Path(derive_result["parameter_delta_report"])
+
+    exit_code, derive_result_2 = run(
+        capsys,
+        "candidate",
+        "derive",
+        "--parent",
+        str(r002),
+        "--revision",
+        "r003",
+        "--set",
+        "board_clearance_mm=0.35",
+        "--relationship",
+        "supersedes",
+        "--reason",
+        "Increase clearance further.",
+        "--automated-decision",
+        "verified_candidate",
+        "--output-directory",
+        str(tmp_path / "candidates/r003"),
+    )
+    assert exit_code == 0
+    r003 = Path(derive_result_2["candidate_manifest"])
+    r003_relationship = Path(derive_result_2["relationship_manifest"])
+    r003_delta = Path(derive_result_2["parameter_delta_report"])
+
+    r002_trial = register_trial(
+        tmp_path,
+        capsys,
+        r002,
+        revision="r002",
+        passed=True,
+    )
+    r003_trial = register_trial(
+        tmp_path,
+        capsys,
+        r003,
+        revision="r003",
+        passed=True,
+    )
+
+    exit_code, _ = run(
+        capsys,
+        "candidate",
+        "promote",
+        "--candidate-manifest",
+        str(r002),
+        "--relationship-path",
+        str(r002_relationship),
+        "--parameter-delta-path",
+        str(r002_delta),
+        "--physical-trial-path",
+        str(r002_trial),
+        "--target-root",
+        str(tmp_path),
+        "--reviewer",
+        "operator",
+        "--reason",
+        "First preferred revision.",
+        "--automated-validation-passed",
+        "--physical-validation-passed",
+        "--output",
+        str(tmp_path / "candidates/r002/promotion.json"),
+    )
+    assert exit_code == 0
+
+    exit_code = main(
+        [
+            "candidate",
+            "promote",
+            "--candidate-manifest",
+            str(r003),
+            "--relationship-path",
+            str(r003_relationship),
+            "--parameter-delta-path",
+            str(r003_delta),
+            "--physical-trial-path",
+            str(r003_trial),
+            "--target-root",
+            str(tmp_path),
+            "--reviewer",
+            "operator",
+            "--reason",
+            "Further improvement.",
+            "--automated-validation-passed",
+            "--physical-validation-passed",
+            "--output",
+            str(tmp_path / "candidates/r003/promotion.json"),
+        ]
+    )
+    stderr = capsys.readouterr().err
+
+    assert exit_code == 1
+    assert "requires supersedes_candidate_id" in stderr
+
+    exit_code, promotion = run(
+        capsys,
+        "candidate",
+        "promote",
+        "--candidate-manifest",
+        str(r003),
+        "--relationship-path",
+        str(r003_relationship),
+        "--parameter-delta-path",
+        str(r003_delta),
+        "--physical-trial-path",
+        str(r003_trial),
+        "--target-root",
+        str(tmp_path),
+        "--reviewer",
+        "operator",
+        "--reason",
+        "Further improvement.",
+        "--automated-validation-passed",
+        "--physical-validation-passed",
+        "--supersedes-candidate-id",
+        "synthetic-target-corner-capture-r002",
+        "--output",
+        str(tmp_path / "candidates/r003/promotion.json"),
+    )
+
+    assert exit_code == 0
+    assert promotion["decision"] == "promoted"
+    assert promotion["superseded"] == "synthetic-target-corner-capture-r002"
+
+    exit_code, status = run(
+        capsys,
+        "status",
+        "--target-root",
+        str(tmp_path),
+    )
+
+    assert status["preferred_candidate_id"] == "synthetic-target-corner-capture-r003"

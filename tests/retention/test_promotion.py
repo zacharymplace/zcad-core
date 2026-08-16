@@ -9,8 +9,6 @@ from zcad_core.retention import (
     PromotionDecision,
     PromotionRecord,
     PublicationEligibility,
-    RevisionRelationship,
-    RevisionRelationshipType,
     build_publication_record,
     evaluate_publication_eligibility,
     promote_preferred_revision,
@@ -37,23 +35,6 @@ def valid_promotion_record(
         parameter_delta_path=(f"candidates/{revision}/parameter-delta.json"),
         physical_trial_path=(f"candidates/{revision}/trials/trial-001/trial.json"),
         created_at_utc=("2026-01-01T00:00:00+00:00"),
-    )
-
-
-def supersedes_relationship(
-    *,
-    target_id: str,
-    source_candidate_id: str,
-    target_candidate_id: str,
-) -> RevisionRelationship:
-    return RevisionRelationship(
-        schema_version="1.0.0",
-        target_id=target_id,
-        source_candidate_id=source_candidate_id,
-        target_candidate_id=target_candidate_id,
-        relationship=RevisionRelationshipType.SUPERSEDES,
-        reason="Newer revision supersedes an earlier promotion.",
-        created_at_utc="2026-01-02T00:00:00+00:00",
     )
 
 
@@ -302,17 +283,16 @@ def test_select_preferred_revision_ignores_other_targets() -> None:
 
 def test_select_preferred_revision_excludes_superseded_candidate() -> None:
     superseded = valid_promotion_record(revision="r001")
-    preferred = valid_promotion_record(revision="r002")
-    relationship = supersedes_relationship(
-        target_id="synthetic-target",
-        source_candidate_id=preferred.candidate_id,
-        target_candidate_id=superseded.candidate_id,
+    preferred = PromotionRecord(
+        **{
+            **valid_promotion_record(revision="r002").__dict__,
+            "supersedes_candidate_id": superseded.candidate_id,
+        }
     )
 
     result = select_preferred_revision(
         target_id="synthetic-target",
         promotion_records=(superseded, preferred),
-        relationships=(relationship,),
     )
 
     assert result == preferred
@@ -391,7 +371,7 @@ def test_promote_preferred_revision_requires_supersession_for_new_preferred(
 
     with pytest.raises(
         ValueError,
-        match="requires a supersession relationship",
+        match="requires supersedes_candidate_id",
     ):
         promote_preferred_revision(
             record=incoming,
@@ -412,27 +392,22 @@ def test_promote_preferred_revision_rejects_mismatched_supersession(
         output_path=existing_path,
     )
 
-    incoming = _write_promotion_artifacts(tmp_path, "r002")
-    incoming_path = tmp_path / "candidates" / "r002" / "promotion.json"
-
-    wrong_relationship = supersedes_relationship(
-        target_id="synthetic-target",
-        source_candidate_id="some-other-candidate",
-        target_candidate_id=existing.candidate_id,
+    incoming = PromotionRecord(
+        **{
+            **_write_promotion_artifacts(tmp_path, "r002").__dict__,
+            "supersedes_candidate_id": "some-other-candidate",
+        }
     )
+    incoming_path = tmp_path / "candidates" / "r002" / "promotion.json"
 
     with pytest.raises(
         ValueError,
-        match="must link the new candidate as superseding",
+        match="requires supersedes_candidate_id",
     ):
         promote_preferred_revision(
             record=incoming,
             output_path=incoming_path,
             existing_promotion_records=(existing,),
-            supersession_relationship=wrong_relationship,
-            supersession_output_path=(
-                tmp_path / "candidates" / "r002" / "relationship-to-r001.json"
-            ),
         )
 
     assert not incoming_path.exists()
@@ -448,32 +423,26 @@ def test_promote_preferred_revision_supersedes_prior_preferred_candidate(
         output_path=existing_path,
     )
 
-    incoming = _write_promotion_artifacts(tmp_path, "r002")
-    incoming_path = tmp_path / "candidates" / "r002" / "promotion.json"
-    relationship_path = tmp_path / "candidates" / "r002" / "relationship-to-r001.json"
-
-    relationship = supersedes_relationship(
-        target_id="synthetic-target",
-        source_candidate_id=incoming.candidate_id,
-        target_candidate_id=existing.candidate_id,
+    incoming = PromotionRecord(
+        **{
+            **_write_promotion_artifacts(tmp_path, "r002").__dict__,
+            "supersedes_candidate_id": existing.candidate_id,
+        }
     )
+    incoming_path = tmp_path / "candidates" / "r002" / "promotion.json"
 
     result = promote_preferred_revision(
         record=incoming,
         output_path=incoming_path,
         existing_promotion_records=(existing,),
-        supersession_relationship=relationship,
-        supersession_output_path=relationship_path,
     )
 
     assert result == incoming
     assert incoming_path.is_file()
-    assert relationship_path.is_file()
 
     preferred = select_preferred_revision(
         target_id="synthetic-target",
         promotion_records=(existing, incoming),
-        relationships=(relationship,),
     )
 
     assert preferred == incoming
@@ -482,6 +451,47 @@ def test_promote_preferred_revision_supersedes_prior_preferred_candidate(
     original_payload = json.loads(existing_path.read_text(encoding="utf-8"))
     assert original_payload["decision"] == "promoted"
     assert original_payload["candidate_id"] == existing.candidate_id
+
+
+def test_promote_preferred_revision_rejects_three_generation_relationship_confusion(
+    tmp_path: Path,
+) -> None:
+    """Regression test: derive-time lineage must not imply promotion supersession.
+
+    r001 -> r002 -> r003 are all linked by derive-time ``supersedes``
+    relationships regardless of promotion. If r002 is the preferred
+    candidate, promoting r003 without an explicit
+    ``supersedes_candidate_id=r002`` must still fail closed even though a
+    RevisionRelationship already says "r003 supersedes r002" for lineage.
+    """
+
+    r001 = _write_promotion_artifacts(tmp_path, "r001")
+    r002 = PromotionRecord(
+        **{
+            **_write_promotion_artifacts(tmp_path, "r002").__dict__,
+            "supersedes_candidate_id": r001.candidate_id,
+        }
+    )
+    promote_preferred_revision(
+        record=r002,
+        output_path=(tmp_path / "candidates" / "r002" / "promotion.json"),
+        existing_promotion_records=(r001,),
+    )
+
+    r003 = _write_promotion_artifacts(tmp_path, "r003")
+    r003_path = tmp_path / "candidates" / "r003" / "promotion.json"
+
+    with pytest.raises(
+        ValueError,
+        match="requires supersedes_candidate_id",
+    ):
+        promote_preferred_revision(
+            record=r003,
+            output_path=r003_path,
+            existing_promotion_records=(r001, r002),
+        )
+
+    assert not r003_path.exists()
 
 
 def test_build_publication_record_approves_eligible_promoted_candidate() -> None:

@@ -11,6 +11,9 @@ dependencies = [
   "cadquery>=2.8,<3",
 ]
 
+[project.scripts]
+zcad-validation = "zcad_core.cli:main"
+
 [project.optional-dependencies]
 dev = [
   "mypy>=1.10,<2",
