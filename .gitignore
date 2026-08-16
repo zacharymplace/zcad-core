@@ -12,3 +12,6 @@ exports/
 
 # Local Validation Lab source and generated evidence
 evidence/
+
+# Generated documentation output
+site/
