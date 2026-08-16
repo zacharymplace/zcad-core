@@ -38,7 +38,7 @@ def export_clear_board(
         pcb,
         name="pcb",
     )
-    assembly.save(
+    assembly.export(
         str(path),
         exportType="STEP",
     )
@@ -102,7 +102,7 @@ def export_blocked_board(
             name=f"component-{index}",
         )
 
-    assembly.save(
+    assembly.export(
         str(path),
         exportType="STEP",
     )

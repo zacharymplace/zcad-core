@@ -23,7 +23,7 @@ def production_execution(
     source_step = tmp_path / "board.step"
     assembly = cq.Assembly()
     assembly.add(pcb, name="pcb")
-    assembly.save(
+    assembly.export(
         str(source_step),
         exportType="STEP",
     )

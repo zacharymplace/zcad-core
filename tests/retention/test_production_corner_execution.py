@@ -90,7 +90,7 @@ def export_board_fixture(
             name=f"component-{index}",
         )
 
-    assembly.save(
+    assembly.export(
         str(path),
         exportType="STEP",
     )

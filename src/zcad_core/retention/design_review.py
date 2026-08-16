@@ -211,8 +211,8 @@ def export_design_review_package(
             color=cq.Color(0.68, 0.70, 0.74),
         )
 
-    assembly.save(str(glb_path))
-    assembly.save(str(step_path))
+    assembly.export(str(glb_path))
+    assembly.export(str(step_path))
 
     cq.exporters.export(
         shapes,

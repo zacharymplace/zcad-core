@@ -52,7 +52,7 @@ def export_clear_board(
     assembly = cq.Assembly()
     assembly.add(marker, name="marker")
     assembly.add(pcb, name="pcb")
-    assembly.save(
+    assembly.export(
         str(path),
         exportType="STEP",
     )

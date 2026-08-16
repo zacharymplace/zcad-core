@@ -39,7 +39,7 @@ def export_clear_board(
         pcb,
         name="pcb",
     )
-    assembly.save(
+    assembly.export(
         str(path),
         exportType="STEP",
     )
