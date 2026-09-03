@@ -82,6 +82,13 @@ def export_parts(
     for part_name, model in request.parts.items():
         solid = workplane_shape(model)
         bounds = solid.BoundingBox()
+        bounds_mm = (
+            bounds.xlen,
+            bounds.ylen,
+            bounds.zlen,
+        )
+        volume_mm3 = solid.Volume()
+        valid_solid = solid.isValid()
 
         stem = _output_stem(
             design_name=request.design_name,
@@ -106,7 +113,9 @@ def export_parts(
             design_name=request.design_name,
             design_type=request.design_type,
             part_name=part_name,
-            model=model,
+            valid_solid=valid_solid,
+            volume_mm3=volume_mm3,
+            bounds_mm=bounds_mm,
             step_path=step_path,
             stl_path=stl_path,
             printer_profile=(request.printer_profile),
@@ -130,12 +139,8 @@ def export_parts(
                 step_path=step_path,
                 stl_path=stl_path,
                 metadata_path=metadata_path,
-                volume_mm3=solid.Volume(),
-                bounds_mm=(
-                    bounds.xlen,
-                    bounds.ylen,
-                    bounds.zlen,
-                ),
+                volume_mm3=volume_mm3,
+                bounds_mm=bounds_mm,
             )
         )
 

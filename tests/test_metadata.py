@@ -3,7 +3,6 @@
 import json
 from pathlib import Path
 
-import cadquery as cq
 import pytest
 
 from zcad_core.metadata.build_record import (
@@ -32,17 +31,13 @@ def test_mass_estimation() -> None:
 
 
 def test_build_part_record() -> None:
-    model = cq.Workplane("XY").box(
-        10,
-        10,
-        10,
-    )
-
     record = build_part_record(
         design_name="test-cube",
         design_type="cube",
         part_name="main",
-        model=model,
+        valid_solid=True,
+        volume_mm3=1000,
+        bounds_mm=(10, 10, 10),
         step_path=Path("exports/test-cube.step"),
         stl_path=Path("exports/test-cube.stl"),
         printer_profile={
@@ -58,6 +53,11 @@ def test_build_part_record() -> None:
     assert record["part"]["volume_mm3"] == pytest.approx(1000)
     assert record["part"]["estimated_mass_g"] == pytest.approx(1)
     assert record["part"]["valid_solid"]
+    assert record["part"]["bounding_box_mm"] == {
+        "x": 10,
+        "y": 10,
+        "z": 10,
+    }
 
 
 def test_profiles_are_valid_json() -> None:

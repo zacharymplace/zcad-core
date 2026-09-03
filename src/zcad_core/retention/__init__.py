@@ -137,8 +137,26 @@ from zcad_core.retention.slicing_readiness import (
     evaluate_slicing_readiness,
     write_slicing_readiness_report,
 )
+from zcad_core.retention.snap_shell import (
+    SnapShellLocation,
+    SnapShellParameters,
+    SnapShellPolicy,
+    as_snap_shell_parameters,
+    derive_snap_shell_parameters,
+)
+from zcad_core.retention.snap_shell_backend import (
+    SnapShellBackend,
+    SnapShellFitCheck,
+    SnapShellFitReport,
+    SnapShellFitResult,
+    SnapShellRequest,
+    as_snap_shell_fit_report,
+)
 from zcad_core.retention.synthetic_backend import SyntheticCornerCaptureBackend
 from zcad_core.retention.synthetic_edge_backend import SyntheticEdgeCaptureBackend
+from zcad_core.retention.synthetic_snap_shell_backend import (
+    SyntheticSnapShellBackend,
+)
 from zcad_core.retention.validation_fixture import (
     ValidationFixtureArtifact,
     ValidationFixturePolicy,
@@ -234,8 +252,17 @@ __all__ = [
     "SlicingReadinessCheck",
     "SlicingReadinessReport",
     "SlicingReadinessResult",
+    "SnapShellBackend",
+    "SnapShellFitCheck",
+    "SnapShellFitReport",
+    "SnapShellFitResult",
+    "SnapShellLocation",
+    "SnapShellParameters",
+    "SnapShellPolicy",
+    "SnapShellRequest",
     "SyntheticCornerCaptureBackend",
     "SyntheticEdgeCaptureBackend",
+    "SyntheticSnapShellBackend",
     "TrialOutcomeComparison",
     "ValidationFixtureArtifact",
     "ValidationFixturePolicy",
@@ -251,6 +278,8 @@ __all__ = [
     "as_corner_capture_parameters",
     "as_edge_capture_fit_report",
     "as_edge_capture_parameters",
+    "as_snap_shell_fit_report",
+    "as_snap_shell_parameters",
     "build_edge_evidence_report",
     "build_edge_validation_fixture",
     "build_evidence_report",
@@ -269,6 +298,7 @@ __all__ = [
     "derive_candidate_revision",
     "derive_corner_capture_parameters",
     "derive_edge_capture_parameters",
+    "derive_snap_shell_parameters",
     "evaluate_publication_eligibility",
     "evaluate_slicing_readiness",
     "execute_production_corner_capture",

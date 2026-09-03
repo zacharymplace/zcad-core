@@ -10,6 +10,7 @@ class RetentionStrategy(str, Enum):
 
     CORNER_CAPTURE = "corner_capture"
     EDGE_CLIP = "edge_clip"
+    SNAP_SHELL = "snap_shell"
 
 
 @runtime_checkable

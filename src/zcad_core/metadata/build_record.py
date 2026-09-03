@@ -5,10 +5,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import cadquery as cq
-
-from zcad_core.geometry.cadquery_support import workplane_shape
-
 
 def current_git_commit(
     repository_root: Path,
@@ -53,17 +49,26 @@ def build_part_record(
     design_name: str,
     design_type: str,
     part_name: str,
-    model: cq.Workplane,
+    valid_solid: bool,
+    volume_mm3: float,
+    bounds_mm: tuple[float, float, float],
     step_path: Path,
     stl_path: Path,
     printer_profile: dict[str, Any] | None,
     material_profile: dict[str, Any] | None,
     repository_root: Path,
 ) -> dict[str, Any]:
-    """Build metadata for one exported part."""
-    solid = workplane_shape(model)
-    bounds = solid.BoundingBox()
-    volume_mm3 = solid.Volume()
+    """Build metadata for one exported part.
+
+    ``valid_solid``, ``volume_mm3``, and ``bounds_mm`` must come from the
+    same solid measurement the caller already took (typically before
+    triangulating the shape for STL export). Re-deriving them here from the
+    ``cq.Workplane`` after export side effects has previously produced a
+    stale, mesh-polluted bounding box even though the solid itself was
+    valid, so this function trusts the caller's single measurement instead
+    of taking its own.
+    """
+    bounds_x, bounds_y, bounds_z = bounds_mm
 
     density = None
     estimated_mass = None
@@ -85,22 +90,22 @@ def build_part_record(
         },
         "part": {
             "name": part_name,
-            "valid_solid": solid.isValid(),
+            "valid_solid": valid_solid,
             "volume_mm3": round(
                 volume_mm3,
                 3,
             ),
             "bounding_box_mm": {
                 "x": round(
-                    bounds.xlen,
+                    bounds_x,
                     3,
                 ),
                 "y": round(
-                    bounds.ylen,
+                    bounds_y,
                     3,
                 ),
                 "z": round(
-                    bounds.zlen,
+                    bounds_z,
                     3,
                 ),
             },
