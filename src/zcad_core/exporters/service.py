@@ -7,6 +7,7 @@ import tempfile
 from pathlib import Path
 
 import cadquery as cq
+
 from zcad_core.exporters.models import (
     ExportedPart,
     ExportRequest,
@@ -22,6 +23,7 @@ from zcad_core.validation.export_geometry import (
     InspectedGeometry,
     inspect_export_geometry,
 )
+from zcad_core.validation.stl_mesh import read_stl
 
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
@@ -188,6 +190,83 @@ def _prepare_exports(
     exported: list[ExportedPart] = []
     part_count = len(request.parts)
 
+    meshes, mesh_checks, mesh_hashes = {}, [], {}
+    for name, geometry in inspected.items():
+        stem = _output_stem(
+            design_name=request.design_name, part_name=name, part_count=part_count
+        )
+        path = staging / f"{stem}.stl"
+        cq.exporters.export(geometry.shape, str(path))
+        data = path.read_bytes()
+        mesh_hashes[name] = hashlib.sha256(data).hexdigest()
+        try:
+            meshes[name], check = read_stl(data)
+            mesh_checks.append({**check, "part_name": name})
+        except Exception as error:
+            mesh_checks.append(
+                {
+                    "code": "stl_topology",
+                    "status": "FAIL",
+                    "part_name": name,
+                    "message": str(error),
+                }
+            )
+    if not any(c["status"] == "FAIL" for c in mesh_checks):
+        if request.stl_feature_validator is None:
+            mesh_checks.append(
+                {
+                    "code": "stl_features",
+                    "status": "NOT_CHECKED",
+                    "message": "No STL feature validator registered",
+                }
+            )
+        else:
+            try:
+                checks = request.stl_feature_validator(
+                    design_type=request.design_type,
+                    parts=meshes,
+                    parameters=request.parameters or {},
+                )
+                if (
+                    not isinstance(checks, list)
+                    or not checks
+                    or any(
+                        not isinstance(c, dict)
+                        or c.get("status") not in {"PASS", "FAIL", "NOT_CHECKED"}
+                        or not isinstance(c.get("code"), str)
+                        or not isinstance(c.get("message"), str)
+                        for c in checks
+                    )
+                ):
+                    raise ValueError("Invalid STL feature checks")
+                json.dumps(checks, allow_nan=False)
+                mesh_checks.extend(checks)
+            except Exception as error:
+                mesh_checks.append(
+                    {"code": "stl_features", "status": "FAIL", "message": str(error)}
+                )
+    failed = any(c["status"] == "FAIL" for c in mesh_checks)
+    validation_report["stl_round_trip"] = {
+        "status": "FAIL" if failed else "PASS",
+        "coverage": "PARTIAL",
+        "scope": (
+            "Binary mesh topology plus registered feature probes; "
+            "see individual coverage"
+        ),
+        "checks": mesh_checks,
+        "stl_sha256_by_part": mesh_hashes,
+    }
+    if failed:
+        validation_report["evaluated_status"] = "FAIL"
+        validation_report["checks"].append(
+            {
+                "code": "stl_round_trip",
+                "status": "FAIL",
+                "message": "STL round-trip checks failed",
+            }
+        )
+        raise DesignValidationError(validation_report)
+
     for part_name, geometry in inspected.items():
         bounds_mm = geometry.bounds_mm
         volume_mm3 = geometry.volume_mm3
@@ -203,17 +282,12 @@ def _prepare_exports(
         stl_path = request.output_directory / f"{stem}.stl"
         metadata_path = request.output_directory / f"{stem}.metadata.json"
         staged_step = staging / step_path.name
-        staged_stl = staging / stl_path.name
         staged_metadata = staging / metadata_path.name
 
         if part_name in staged_steps:
             staged_step.write_bytes(staged_steps[part_name])
         else:
             cq.exporters.export(geometry.shape, str(staged_step))
-        cq.exporters.export(
-            geometry.shape,
-            str(staged_stl),
-        )
 
         record = build_part_record(
             design_name=request.design_name,

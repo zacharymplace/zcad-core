@@ -21,6 +21,7 @@ class ExportRequest:
     material_profile: dict[str, Any] | None = None
     parameters: dict[str, Any] | None = None
     feature_validator: Callable[..., list[dict[str, Any]]] | None = None
+    stl_feature_validator: Callable[..., list[dict[str, Any]]] | None = None
 
 
 @dataclass(frozen=True)
