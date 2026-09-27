@@ -131,6 +131,16 @@ def snap_shell_locations() -> tuple[SnapShellLocation, ...]:
 
 
 def main() -> None:
+    # Check before exporting anything: the STEP files and report below are
+    # written before the immutable manifests, so a rerun against an existing
+    # revision would clobber its pinned artifacts and only then fail.
+    existing = [path for path in (TARGET_MANIFEST, CANDIDATE_MANIFEST) if path.exists()]
+    if existing:
+        raise SystemExit(
+            "Refusing to regenerate over immutable manifests: "
+            + ", ".join(str(path.relative_to(ROOT)) for path in existing)
+        )
+
     spec = get_tandem_mobi()
 
     envelope = build_placeholder_envelope()
