@@ -10,8 +10,11 @@ from zcad_core.exporters.models import (
     ExportRequest,
     ExportResult,
 )
-from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.metadata.build_record import build_part_record
+from zcad_core.validation.export_geometry import (
+    InspectedGeometry,
+    inspect_export_geometry,
+)
 
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 
@@ -41,20 +44,19 @@ def _output_stem(
 
 def _validate_parts(
     parts: dict[str, cq.Workplane],
-) -> None:
+) -> dict[str, InspectedGeometry]:
     if not parts:
         raise ValueError("Export request contains no parts")
 
+    inspected = {}
     for part_name, model in parts.items():
         _validate_name(
             field="part_name",
             value=part_name,
         )
 
-        solid = workplane_shape(model)
-
-        if not solid.isValid():
-            raise ValueError(f"Part is not a valid solid: {part_name}")
+        inspected[part_name] = inspect_export_geometry(model, part_name)
+    return inspected
 
 
 def export_parts(
@@ -69,7 +71,7 @@ def export_parts(
         field="design_type",
         value=request.design_type,
     )
-    _validate_parts(request.parts)
+    inspected = _validate_parts(request.parts)
 
     request.output_directory.mkdir(
         parents=True,
@@ -79,16 +81,10 @@ def export_parts(
     exported: list[ExportedPart] = []
     part_count = len(request.parts)
 
-    for part_name, model in request.parts.items():
-        solid = workplane_shape(model)
-        bounds = solid.BoundingBox()
-        bounds_mm = (
-            bounds.xlen,
-            bounds.ylen,
-            bounds.zlen,
-        )
-        volume_mm3 = solid.Volume()
-        valid_solid = solid.isValid()
+    for part_name, geometry in inspected.items():
+        bounds_mm = geometry.bounds_mm
+        volume_mm3 = geometry.volume_mm3
+        valid_solid = True
 
         stem = _output_stem(
             design_name=request.design_name,
@@ -101,11 +97,11 @@ def export_parts(
         metadata_path = request.output_directory / f"{stem}.metadata.json"
 
         cq.exporters.export(
-            model,
+            geometry.shape,
             str(step_path),
         )
         cq.exporters.export(
-            model,
+            geometry.shape,
             str(stl_path),
         )
 
@@ -123,6 +119,7 @@ def export_parts(
             repository_root=(request.repository_root),
         )
 
+        record["validation"] = geometry.report
         metadata_path.write_text(
             json.dumps(
                 record,

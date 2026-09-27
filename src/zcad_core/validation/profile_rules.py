@@ -5,7 +5,7 @@ from typing import Any
 
 import cadquery as cq
 
-from zcad_core.geometry.cadquery_support import workplane_shape
+from zcad_core.validation.export_geometry import inspect_export_geometry
 
 
 @dataclass(frozen=True)
@@ -73,14 +73,14 @@ def validate_build_volume(
         key="z",
     )
 
-    bounds = workplane_shape(model).BoundingBox()
+    bounds = inspect_export_geometry(model, part_name).bounds_mm
 
     issues: list[ValidationIssue] = []
 
     dimensions = {
-        "x": (bounds.xlen, build_x),
-        "y": (bounds.ylen, build_y),
-        "z": (bounds.zlen, build_z),
+        "x": (bounds[0], build_x),
+        "y": (bounds[1], build_y),
+        "z": (bounds[2], build_z),
     }
 
     for axis, (
