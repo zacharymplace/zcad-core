@@ -2,13 +2,13 @@
   "schema_version": "systems-builder-lifecycle-v1",
   "system_id": "zcad-core",
   "display_name": "ZCAD Core",
-  "phase": "operate",
-  "condition": "held",
+  "phase": "build",
+  "condition": "active",
   "source": {
     "repository": "zacharymplace/zcad-core",
     "path": ".",
     "branch": "main",
-    "commit": "e31d42b"
+    "commit": "ec7bd03"
   },
   "evidence": [
     {
@@ -27,26 +27,44 @@
       "result": "pass"
     },
     {
+      "kind": "capability",
+      "reference": "src/zcad_core/retention/edge_installation_path.py",
+      "result": "pass"
+    },
+    {
+      "kind": "format",
+      "reference": "python -m ruff format --check src tests",
+      "result": "pass"
+    },
+    {
       "kind": "roadmap",
       "reference": "docs/roadmaps/validation-lab.md",
       "result": "informational"
     },
     {
+      "kind": "roadmap",
+      "reference": "docs/roadmaps/next-phases.md",
+      "result": "informational"
+    },
+    {
       "kind": "capability",
-      "reference": "src/zcad_core/retention/edge_installation_path.py",
+      "reference": "src/zcad_core/exporters/service.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/validation/stl_mesh.py",
       "result": "pass"
     }
   ],
-  "last_verified_at": "2026-08-21T04:02:00Z",
+  "last_verified_at": "2026-09-27T23:10:51Z",
   "next_action": {
-    "description": "Hold ZCAD Core as the validated parametric CAD and Validation Lab platform. Resume development only when a concrete new retention strategy, hardware target, validation workflow, publication objective, or production integration is explicitly approved.",
-    "command": "source .venv/bin/activate && python -m pytest -q && python -m ruff check src tests && python -m mypy src"
+    "description": "Phase 1 of docs/roadmaps/next-phases.md: route Validation Lab fixture, retention STEP, and design-review exports through the validated export pipeline and require export validation for promotion.",
+    "command": "source .venv/bin/activate && python -m ruff format --check src tests && python -m ruff check src tests && python -m mypy src && python -m pytest -q"
   },
   "blockers": [
-    "No current bounded software implementation objective remains open.",
-    "Physical trials are required for candidate promotion and publication, not for repository-wide software completion.",
-    "Installation-path analysis is a validated module-level capability; CLI or production-pipeline integration is future scope unless explicitly adopted.",
-    "Additional hardware targets, retention strategies, and publication work require explicit new scope."
+    "Validation Lab evidence is exported with raw cq.exporters and bypasses export validation (Phase 1).",
+    "All recorded physical trials are 'revise' with pending printer and material profiles; no candidate is promoted (Phase 2)."
   ],
   "capabilities": [
     "parametric-cad-engine",
@@ -64,6 +82,12 @@
     "installation-path-analysis",
     "edge-installation-path-analysis",
     "generated-api-documentation",
-    "typed-python-api"
+    "typed-python-api",
+    "snap-shell-retention",
+    "validated-export-pipeline",
+    "design-validation-reports",
+    "step-roundtrip-validation",
+    "staged-export-publication",
+    "stl-mesh-validation"
   ]
 }
