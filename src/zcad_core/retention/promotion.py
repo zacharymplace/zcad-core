@@ -162,24 +162,56 @@ def register_candidate_promotion(
     record: PromotionRecord,
     output_path: Path,
 ) -> PromotionRecord:
-    eligibility = evaluate_publication_eligibility(
-        automated_validation_passed=(record.automated_validation_passed),
-        physical_validation_passed=(record.physical_validation_passed),
-        candidate_manifest_exists=Path(record.candidate_manifest_path).is_file(),
-        relationship_exists=(
-            record.relationship_path is None or Path(record.relationship_path).is_file()
-        ),
-        parameter_delta_exists=(
-            record.parameter_delta_path is None
-            or Path(record.parameter_delta_path).is_file()
-        ),
-        physical_trial_exists=Path(record.physical_trial_path).is_file(),
+    """Write an immutable promotion decision for one candidate.
+
+    PROMOTED decisions must pass the full publication-eligibility gate.
+    REJECTED and REQUIRES_REVISION decisions record failed or incomplete
+    trials, so they are not gated on passing validation; they must still
+    cite a candidate manifest and physical trial that exist, so the
+    rejection stays traceable to real evidence.
+    """
+
+    relationship_exists = (
+        record.relationship_path is None or Path(record.relationship_path).is_file()
+    )
+    parameter_delta_exists = (
+        record.parameter_delta_path is None
+        or Path(record.parameter_delta_path).is_file()
     )
 
-    if not eligibility.eligible:
-        failures = ", ".join(eligibility.failures)
+    if record.decision is PromotionDecision.PROMOTED:
+        eligibility = evaluate_publication_eligibility(
+            automated_validation_passed=(record.automated_validation_passed),
+            physical_validation_passed=(record.physical_validation_passed),
+            candidate_manifest_exists=Path(record.candidate_manifest_path).is_file(),
+            relationship_exists=relationship_exists,
+            parameter_delta_exists=parameter_delta_exists,
+            physical_trial_exists=Path(record.physical_trial_path).is_file(),
+        )
 
-        raise ValueError(f"Candidate is not eligible for promotion: {failures}")
+        if not eligibility.eligible:
+            failures = ", ".join(eligibility.failures)
+
+            raise ValueError(f"Candidate is not eligible for promotion: {failures}")
+    else:
+        missing: list[str] = []
+
+        if not Path(record.candidate_manifest_path).is_file():
+            missing.append("candidate_manifest_missing")
+
+        if not relationship_exists:
+            missing.append("relationship_record_missing")
+
+        if not parameter_delta_exists:
+            missing.append("parameter_delta_missing")
+
+        if not Path(record.physical_trial_path).is_file():
+            missing.append("physical_trial_missing")
+
+        if missing:
+            raise ValueError(
+                f"Cannot record {record.decision.value} decision: {', '.join(missing)}"
+            )
 
     write_promotion_record(
         record,
@@ -250,6 +282,8 @@ def promote_preferred_revision(
     When a different candidate is already preferred, ``record`` must set
     ``supersedes_candidate_id`` to that candidate's id; the prior promotion
     record is left untouched, preserving its historical decision.
+    Non-PROMOTED decisions never change the preferred revision, so they are
+    recorded without a supersession requirement.
     """
 
     current_preferred = select_preferred_revision(
@@ -258,7 +292,8 @@ def promote_preferred_revision(
     )
 
     if (
-        current_preferred is not None
+        record.decision is PromotionDecision.PROMOTED
+        and current_preferred is not None
         and current_preferred.candidate_id != record.candidate_id
         and record.supersedes_candidate_id != current_preferred.candidate_id
     ):

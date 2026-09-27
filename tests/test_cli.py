@@ -547,6 +547,62 @@ def test_candidate_promote_and_status_report_preferred_revision(
     assert status["publication_eligible"] is True
 
 
+def test_candidate_promote_records_rejected_decision_without_passing_evidence(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    trial_manifest = register_trial(
+        tmp_path,
+        capsys,
+        candidate_manifest,
+        revision="r001",
+        passed=False,
+    )
+
+    promotion_path = tmp_path / "candidates/r001/promotion.json"
+
+    exit_code, promotion = run(
+        capsys,
+        "candidate",
+        "promote",
+        "--candidate-manifest",
+        str(candidate_manifest),
+        "--physical-trial-path",
+        str(trial_manifest),
+        "--target-root",
+        str(tmp_path),
+        "--reviewer",
+        "operator",
+        "--reason",
+        "Physical trial failed fit check.",
+        "--decision",
+        "rejected",
+        "--output",
+        str(promotion_path),
+    )
+
+    assert exit_code == 0
+    assert promotion["decision"] == "rejected"
+
+    payload = json.loads(promotion_path.read_text(encoding="utf-8"))
+    assert payload["decision"] == "rejected"
+    assert payload["automated_validation_passed"] is False
+    assert payload["physical_validation_passed"] is False
+
+    exit_code, status = run(
+        capsys,
+        "status",
+        "--target-root",
+        str(tmp_path),
+    )
+
+    assert exit_code == 0
+    assert status["preferred_candidate_id"] is None
+
+
 def test_candidate_promote_requires_supersession_for_new_preferred(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
