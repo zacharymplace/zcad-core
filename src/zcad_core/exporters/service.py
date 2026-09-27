@@ -4,7 +4,9 @@ import hashlib
 import json
 import re
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import cadquery as cq
 
@@ -68,9 +70,13 @@ def _validate_parts(
     return inspected
 
 
-def _feature_checks(request, inspected):
+def _feature_checks(
+    request: ExportRequest,
+    validator: Callable[..., list[dict[str, Any]]],
+    inspected: dict[str, InspectedGeometry],
+) -> list[dict[str, Any]]:
     try:
-        checks = request.feature_validator(
+        checks = validator(
             design_type=request.design_type,
             parts={
                 name: cq.Workplane().newObject([geometry.shape.copy()])
@@ -91,7 +97,8 @@ def _feature_checks(request, inspected):
         ):
             raise ValueError("Invalid feature-check results")
         json.dumps(checks, allow_nan=False)
-    except Exception as error:
+    # Application validators are arbitrary code; any failure must fail closed.
+    except Exception as error:  # noqa: BLE001
         checks = [
             {
                 "code": "feature_validation",
@@ -126,7 +133,7 @@ def _prepare_exports(
         parameters=request.parameters,
     )
     if request.feature_validator is not None:
-        checks = _feature_checks(request, inspected)
+        checks = _feature_checks(request, request.feature_validator, inspected)
         validation_report["checks"].extend(checks)
         validation_report["scope"] += "; application feature checks (see check details)"
         if any(check["status"] == "FAIL" for check in checks):
@@ -146,8 +153,11 @@ def _prepare_exports(
                     imported[name] = inspect_export_geometry(
                         cq.importers.importStep(str(path)), name
                     )
-                roundtrip_checks = _feature_checks(request, imported)
-        except Exception as error:
+                roundtrip_checks = _feature_checks(
+                    request, request.feature_validator, imported
+                )
+        # OCC export/import failures surface as varied exception types.
+        except Exception as error:  # noqa: BLE001
             roundtrip_checks = [
                 {
                     "code": "step_reimport",
@@ -202,7 +212,7 @@ def _prepare_exports(
         try:
             meshes[name], check = read_stl(data)
             mesh_checks.append({**check, "part_name": name})
-        except Exception as error:
+        except ValueError as error:
             mesh_checks.append(
                 {
                     "code": "stl_topology",
@@ -241,7 +251,8 @@ def _prepare_exports(
                     raise ValueError("Invalid STL feature checks")
                 json.dumps(checks, allow_nan=False)
                 mesh_checks.extend(checks)
-            except Exception as error:
+            # Application validators are arbitrary code; any failure must fail closed.
+            except Exception as error:  # noqa: BLE001
                 mesh_checks.append(
                     {"code": "stl_features", "status": "FAIL", "message": str(error)}
                 )

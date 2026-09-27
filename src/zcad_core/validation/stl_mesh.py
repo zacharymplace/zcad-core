@@ -5,17 +5,26 @@ import struct
 from collections import Counter
 from dataclasses import dataclass
 from functools import cached_property
+from typing import Any
+
+Vector = tuple[float, float, float]
+Triangle = tuple[Vector, Vector, Vector]
+PreparedRay = tuple[Vector, Vector, Vector, Vector]
 
 
-def sub(a, b):
-    return tuple(x - y for x, y in zip(a, b, strict=True))
+def sub(a: Vector, b: Vector) -> Vector:
+    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
 
 
-def dot(a, b):
+def dot(a: Vector, b: Vector) -> float:
     return sum(x * y for x, y in zip(a, b, strict=True))
 
 
-def cross(a, b):
+def scale(a: Vector, divisor: float) -> Vector:
+    return (a[0] / divisor, a[1] / divisor, a[2] / divisor)
+
+
+def cross(a: Vector, b: Vector) -> Vector:
     return (
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -27,14 +36,16 @@ def cross(a, b):
 class STLMesh:
     """Exact float32 vertices welded by equality, without tolerance repair."""
 
-    triangles: tuple
+    triangles: tuple[Triangle, ...]
 
-    def _vertical_contacts(self, x, y, z_min, z_max):
+    def _vertical_contacts(
+        self, x: float, y: float, z_min: float, z_max: float
+    ) -> tuple[list[dict[str, Any]], float]:
         """Collect all surface contacts without truncating decision evidence."""
         tolerance = 1e-7
         if not all(math.isfinite(v) for v in (x, y, z_min, z_max)) or z_min >= z_max:
             raise ValueError("Expected finite XY and increasing finite Z interval")
-        contacts = []
+        contacts: list[dict[str, Any]] = []
         for a, b, c in self.triangles:
             if (
                 x < min(a[0], b[0], c[0]) - tolerance
@@ -83,7 +94,9 @@ class STLMesh:
                 contacts.append({"kind": "surface", "z_mm": z})
         return contacts, tolerance
 
-    def vertical_clearance(self, x, y, z_min, z_max):
+    def vertical_clearance(
+        self, x: float, y: float, z_min: float, z_max: float
+    ) -> dict[str, Any]:
         """Reject surface contact or solid occupancy on a closed segment."""
         contacts, tolerance = self._vertical_contacts(x, y, z_min, z_max)
         occupied = None if contacts else self.contains((x, y, (z_min + z_max) / 2))
@@ -96,7 +109,9 @@ class STLMesh:
             "coordinate_tolerance_mm": tolerance,
         }
 
-    def vertical_material(self, x, y, z_min, z_max):
+    def vertical_material(
+        self, x: float, y: float, z_min: float, z_max: float
+    ) -> dict[str, Any]:
         """Require interior material continuously; allow end-face contacts only.
 
         Internal or coplanar contact fails conservatively. With no internal
@@ -125,10 +140,10 @@ class STLMesh:
         }
 
     @cached_property
-    def rays(self):
-        prepared = []
+    def rays(self) -> list[list[PreparedRay]]:
+        prepared: list[list[PreparedRay]] = []
         for direction in ((0.137, 0.319, 1.0), (0.271, 1.0, 0.173)):
-            rows = []
+            rows: list[PreparedRay] = []
             for a, b, c in self.triangles:
                 e1, e2 = sub(b, a), sub(c, a)
                 h = cross(direction, e2)
@@ -137,15 +152,15 @@ class STLMesh:
                     rows.append(
                         (
                             a,
-                            tuple(v / d for v in h),
-                            tuple(v / d for v in cross(e1, direction)),
-                            tuple(v / d for v in cross(e1, e2)),
+                            scale(h, d),
+                            scale(cross(e1, direction), d),
+                            scale(cross(e1, e2), d),
                         )
                     )
             prepared.append(rows)
         return prepared
 
-    def contains(self, point):
+    def contains(self, point: Vector) -> bool:
         """Ray parity with deterministic alternate rays for edge ambiguity."""
         answers = []
         for rows in self.rays:
@@ -171,24 +186,27 @@ class STLMesh:
         return answers[0]
 
 
-def read_stl(data):
+def read_stl(data: bytes) -> tuple[STLMesh, dict[str, Any]]:
     """Reject malformed, open, degenerate or inconsistently wound binary STL."""
     if len(data) < 84:
         raise ValueError("Truncated binary STL")
     count = struct.unpack_from("<I", data, 80)[0]
     if count == 0 or len(data) != 84 + count * 50:
         raise ValueError("Invalid binary STL triangle count or length")
-    triangles, edges, faces = [], Counter(), set()
+    triangles: list[Triangle] = []
+    edges: Counter[tuple[Vector, Vector]] = Counter()
+    faces: set[Triangle] = set()
     volume = 0.0
     for i in range(count):
         values = struct.unpack_from("<12fH", data, 84 + i * 50)
         if not all(math.isfinite(v) for v in values[:12]):
             raise ValueError("Nonfinite STL coordinates or normals")
-        a, b, c = (tuple(values[j : j + 3]) for j in (3, 6, 9))
+        a, b, c = ((values[j], values[j + 1], values[j + 2]) for j in (3, 6, 9))
         normal = cross(sub(b, a), sub(c, a))
         if dot(normal, normal) <= 0:
             raise ValueError("Degenerate STL triangle")
-        face = tuple(sorted((a, b, c)))
+        low, middle, high = sorted((a, b, c))
+        face = (low, middle, high)
         if face in faces:
             raise ValueError("Duplicate STL triangle")
         faces.add(face)

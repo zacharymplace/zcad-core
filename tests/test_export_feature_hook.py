@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import cadquery as cq
 import pytest
+
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.validation.design_report import DesignValidationError
 

@@ -51,7 +51,8 @@ def publish_files(staged: Path, output: Path) -> None:
                         os.replace(backup / name, output / name)
                     else:
                         (output / name).unlink()
-                except BaseException as rollback_error:
+                # Keep restoring remaining files; every failure is reported below.
+                except BaseException as rollback_error:  # noqa: BLE001
                     failures.append(f"{name}: {rollback_error}")
             if created:
                 try:
