@@ -29,6 +29,72 @@ class STLMesh:
 
     triangles: tuple
 
+    def vertical_clearance(self, x, y, z_min, z_max):
+        """Check a closed vertical segment for surface contact or solid occupancy.
+
+        No lateral displacement or repair. Contact, including coplanar contact,
+        is conservative failure. Midpoint occupancy detects a fully buried line.
+        """
+        tolerance = 1e-7
+        if not all(math.isfinite(v) for v in (x, y, z_min, z_max)) or z_min >= z_max:
+            raise ValueError("Expected finite XY and increasing finite Z interval")
+        contacts = []
+        for a, b, c in self.triangles:
+            if (
+                x < min(a[0], b[0], c[0]) - tolerance
+                or x > max(a[0], b[0], c[0]) + tolerance
+                or y < min(a[1], b[1], c[1]) - tolerance
+                or y > max(a[1], b[1], c[1]) + tolerance
+                or z_min > max(a[2], b[2], c[2]) + tolerance
+                or z_max < min(a[2], b[2], c[2]) - tolerance
+            ):
+                continue
+            ex, ey = b[0] - a[0], b[1] - a[1]
+            fx, fy = c[0] - a[0], c[1] - a[1]
+            determinant = ex * fy - ey * fx
+            if determinant == 0:
+                # A vertical facet projects to a segment. Reject
+                # possible contact conservatively using its projected edges.
+                near = False
+                for start, end in ((a, b), (b, c), (c, a)):
+                    dx, dy = end[0] - start[0], end[1] - start[1]
+                    length2 = dx * dx + dy * dy
+                    t = (
+                        0
+                        if length2 == 0
+                        else max(
+                            0,
+                            min(
+                                1, ((x - start[0]) * dx + (y - start[1]) * dy) / length2
+                            ),
+                        )
+                    )
+                    if (
+                        math.hypot(x - start[0] - t * dx, y - start[1] - t * dy)
+                        <= tolerance
+                    ):
+                        near = True
+                        break
+                if near:
+                    contacts.append({"kind": "coplanar"})
+                continue
+            u = ((x - a[0]) * fy - (y - a[1]) * fx) / determinant
+            v = (ex * (y - a[1]) - ey * (x - a[0])) / determinant
+            if min(u, v, 1 - u - v) < -1e-9:
+                continue
+            z = a[2] + u * (b[2] - a[2]) + v * (c[2] - a[2])
+            if z_min - tolerance <= z <= z_max + tolerance:
+                contacts.append({"kind": "surface", "z_mm": z})
+        occupied = None if contacts else self.contains((x, y, (z_min + z_max) / 2))
+        return {
+            "clear": not contacts and not occupied,
+            "surface_contact_count": len(contacts),
+            "contacts": contacts[:16],
+            "contacts_truncated": len(contacts) > 16,
+            "midpoint_occupied": occupied,
+            "coordinate_tolerance_mm": tolerance,
+        }
+
     @cached_property
     def rays(self):
         prepared = []
