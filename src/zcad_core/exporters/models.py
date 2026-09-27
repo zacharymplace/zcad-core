@@ -18,6 +18,7 @@ class ExportRequest:
     repository_root: Path
     printer_profile: dict[str, Any] | None = None
     material_profile: dict[str, Any] | None = None
+    parameters: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -39,3 +40,4 @@ class ExportResult:
 
     design_name: str
     parts: tuple[ExportedPart, ...]
+    validation_report: dict[str, Any] | None = None

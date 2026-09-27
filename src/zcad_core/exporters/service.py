@@ -11,6 +11,10 @@ from zcad_core.exporters.models import (
     ExportResult,
 )
 from zcad_core.metadata.build_record import build_part_record
+from zcad_core.validation.design_report import (
+    DesignValidationError,
+    report_from_geometry,
+)
 from zcad_core.validation.export_geometry import (
     InspectedGeometry,
     inspect_export_geometry,
@@ -72,6 +76,15 @@ def export_parts(
         value=request.design_type,
     )
     inspected = _validate_parts(request.parts)
+    validation_report = report_from_geometry(
+        design_name=request.design_name,
+        design_type=request.design_type,
+        geometry=inspected,
+        printer_profile=request.printer_profile,
+        parameters=request.parameters,
+    )
+    if validation_report["evaluated_status"] == "FAIL":
+        raise DesignValidationError(validation_report)
 
     request.output_directory.mkdir(
         parents=True,
@@ -120,6 +133,7 @@ def export_parts(
         )
 
         record["validation"] = geometry.report
+        record["design_validation"] = validation_report
         metadata_path.write_text(
             json.dumps(
                 record,
@@ -144,4 +158,5 @@ def export_parts(
     return ExportResult(
         design_name=request.design_name,
         parts=tuple(exported),
+        validation_report=validation_report,
     )
