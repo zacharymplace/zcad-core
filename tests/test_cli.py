@@ -8,6 +8,10 @@ import pytest
 
 from zcad_core.cli import main
 
+PRINTER_PROFILE = (
+    Path(__file__).resolve().parents[1] / "profiles/printers/bambu-lab-a1-mini.json"
+)
+
 
 def run(
     capsys: pytest.CaptureFixture[str],
@@ -113,11 +117,13 @@ def register_candidate(
         encoding="utf-8",
     )
 
+    # Real geometry so candidates can pass 'candidate revalidate'.
+    part = cq.Workplane("XY").box(20.0, 10.0, 5.0)
     retention_step = tmp_path / "retention.step"
-    retention_step.write_bytes(b"synthetic retention step")
+    cq.exporters.export(part, str(retention_step))
 
     fixture = tmp_path / "fixture.stl"
-    fixture.write_bytes(b"synthetic fixture")
+    cq.exporters.export(part, str(fixture))
 
     output = tmp_path / f"candidates/{revision}/candidate.json"
 
@@ -146,6 +152,33 @@ def register_candidate(
     assert exit_code == 0
 
     return output
+
+
+def revalidate(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    candidate_manifest: Path,
+) -> Path:
+    exit_code, result = run(
+        capsys,
+        "candidate",
+        "revalidate",
+        "--candidate-manifest",
+        str(candidate_manifest),
+        "--retention-step",
+        str(tmp_path / "retention.step"),
+        "--printer-profile",
+        str(PRINTER_PROFILE),
+        "--validation-root",
+        str(candidate_manifest.parent / "export-validation"),
+        "--repository-root",
+        str(tmp_path),
+    )
+
+    assert exit_code == 0
+    assert result["evaluated_status"] == "PASS"
+
+    return Path(str(result["export_validation_record"]))
 
 
 def write_observations(tmp_path: Path, *, all_passed: bool = True) -> Path:
@@ -507,6 +540,7 @@ def test_candidate_promote_and_status_report_preferred_revision(
         revision="r002",
         passed=True,
     )
+    child_export = revalidate(tmp_path, capsys, child_manifest)
 
     exit_code, promotion = run(
         capsys,
@@ -526,7 +560,8 @@ def test_candidate_promote_and_status_report_preferred_revision(
         "operator",
         "--reason",
         "Passed automated and physical validation.",
-        "--automated-validation-passed",
+        "--export-validation",
+        str(child_export),
         "--physical-validation-passed",
         "--output",
         str(tmp_path / "candidates/r002/promotion.json"),
@@ -589,7 +624,6 @@ def test_candidate_promote_records_rejected_decision_without_passing_evidence(
 
     payload = json.loads(promotion_path.read_text(encoding="utf-8"))
     assert payload["decision"] == "rejected"
-    assert payload["automated_validation_passed"] is False
     assert payload["physical_validation_passed"] is False
 
     exit_code, status = run(
@@ -672,6 +706,8 @@ def test_candidate_promote_requires_supersession_for_new_preferred(
         revision="r003",
         passed=True,
     )
+    r002_export = revalidate(tmp_path, capsys, r002)
+    r003_export = revalidate(tmp_path, capsys, r003)
 
     exit_code, _ = run(
         capsys,
@@ -691,7 +727,8 @@ def test_candidate_promote_requires_supersession_for_new_preferred(
         "operator",
         "--reason",
         "First preferred revision.",
-        "--automated-validation-passed",
+        "--export-validation",
+        str(r002_export),
         "--physical-validation-passed",
         "--output",
         str(tmp_path / "candidates/r002/promotion.json"),
@@ -716,7 +753,8 @@ def test_candidate_promote_requires_supersession_for_new_preferred(
             "operator",
             "--reason",
             "Further improvement.",
-            "--automated-validation-passed",
+            "--export-validation",
+            str(r003_export),
             "--physical-validation-passed",
             "--output",
             str(tmp_path / "candidates/r003/promotion.json"),
@@ -745,7 +783,8 @@ def test_candidate_promote_requires_supersession_for_new_preferred(
         "operator",
         "--reason",
         "Further improvement.",
-        "--automated-validation-passed",
+        "--export-validation",
+        str(r003_export),
         "--physical-validation-passed",
         "--supersedes-candidate-id",
         "synthetic-target-corner-capture-r002",
@@ -939,6 +978,7 @@ def test_report_aggregates_candidates_trials_and_promotion(
         revision="r001",
         passed=True,
     )
+    r001_export = revalidate(tmp_path, capsys, candidate_manifest)
 
     exit_code, promotion = run(
         capsys,
@@ -954,7 +994,8 @@ def test_report_aggregates_candidates_trials_and_promotion(
         "operator",
         "--reason",
         "First verified candidate with a passing physical trial.",
-        "--automated-validation-passed",
+        "--export-validation",
+        str(r001_export),
         "--physical-validation-passed",
         "--output",
         str(tmp_path / "candidates/r001/promotion.json"),
@@ -981,3 +1022,70 @@ def test_report_aggregates_candidates_trials_and_promotion(
     assert candidate_report["trials_passed"] == 1
     assert candidate_report["promotion"]["decision"] == "promoted"
     assert candidate_report["promotion"]["reviewer"] == "operator"
+
+
+def test_candidate_promote_requires_export_validation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+    trial_manifest = register_trial(
+        tmp_path,
+        capsys,
+        candidate_manifest,
+        revision="r001",
+        passed=True,
+    )
+
+    exit_code = main(
+        [
+            "candidate",
+            "promote",
+            "--candidate-manifest",
+            str(candidate_manifest),
+            "--physical-trial-path",
+            str(trial_manifest),
+            "--target-root",
+            str(tmp_path),
+            "--reviewer",
+            "operator",
+            "--reason",
+            "Missing export validation.",
+            "--physical-validation-passed",
+            "--output",
+            str(tmp_path / "candidates/r001/promotion.json"),
+        ]
+    )
+
+    assert exit_code == 1
+    assert "export_validation_missing" in capsys.readouterr().err
+    assert not (tmp_path / "candidates/r001/promotion.json").exists()
+
+
+def test_candidate_revalidate_rejects_unregistered_retention_step(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+    other_step = tmp_path / "other.step"
+    cq.exporters.export(cq.Workplane("XY").box(5.0, 5.0, 5.0), str(other_step))
+
+    exit_code = main(
+        [
+            "candidate",
+            "revalidate",
+            "--candidate-manifest",
+            str(candidate_manifest),
+            "--retention-step",
+            str(other_step),
+            "--printer-profile",
+            str(PRINTER_PROFILE),
+            "--validation-root",
+            str(tmp_path / "export-validation"),
+        ]
+    )
+
+    assert exit_code == 1
+    assert "does not match candidate output_sha256" in capsys.readouterr().err

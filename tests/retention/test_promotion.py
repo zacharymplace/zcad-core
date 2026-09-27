@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
 
 from zcad_core.retention import (
+    CandidateRevision,
+    ExportValidationArtifact,
+    ExportValidationRecord,
     PromotionDecision,
     PromotionRecord,
     PublicationEligibility,
@@ -15,6 +19,7 @@ from zcad_core.retention import (
     select_preferred_revision,
     write_promotion_record,
 )
+from zcad_core.retention.validation_lab import sha256_file, write_immutable_manifest
 
 
 def valid_promotion_record(
@@ -38,9 +43,68 @@ def valid_promotion_record(
     )
 
 
+def write_verified_candidate(
+    directory: Path,
+    *,
+    revision: str,
+) -> tuple[Path, Path]:
+    """Write a candidate manifest and a passing export-validation record."""
+
+    directory.mkdir(parents=True, exist_ok=True)
+    retention_step = directory / "retention.step"
+    retention_step.write_bytes(f"retention {revision}".encode())
+    digest = sha256_file(retention_step)
+
+    candidate_path = directory / "candidate.json"
+    write_immutable_manifest(
+        CandidateRevision(
+            schema_version="1.0.0",
+            candidate_id=f"synthetic-target-corner-capture-{revision}",
+            target_id="synthetic-target",
+            revision=revision,
+            source_sha256="0" * 64,
+            output_sha256=digest,
+            git_commit="abc123",
+            generator_version="1.0.0",
+            retention_policy={"board_clearance_mm": 0.25},
+            derived_parameters={"board_clearance_mm": 0.25},
+            selected_corners=("negative_x_negative_y",),
+            automated_decision="verified_candidate",
+            automated_evidence_path="automated-validation.json",
+            fixture_artifact_path="fixture.stl",
+            created_at_utc="2026-01-01T00:00:00+00:00",
+        ),
+        output_path=candidate_path,
+    )
+
+    record = ExportValidationRecord(
+        schema_version="1.0.0",
+        candidate_id=f"synthetic-target-corner-capture-{revision}",
+        run_id="v001",
+        printer_profile_id="bambu-lab-a1-mini",
+        validated_at_utc="2026-01-01T00:00:00+00:00",
+        evaluated_status="PASS",
+        artifacts=(
+            ExportValidationArtifact(
+                role="retention",
+                source_path=str(retention_step),
+                source_sha256=digest,
+                evaluated_status="PASS",
+                report={"evaluated_status": "PASS", "checks": []},
+                outputs={},
+            ),
+        ),
+    )
+    record_path = directory / "export-validation.json"
+    record_path.write_text(json.dumps(asdict(record)), encoding="utf-8")
+
+    return candidate_path, record_path
+
+
 def test_publication_eligibility_passes() -> None:
     result = evaluate_publication_eligibility(
         automated_validation_passed=True,
+        export_validation_failures=(),
         physical_validation_passed=True,
         candidate_manifest_exists=True,
         relationship_exists=True,
@@ -57,6 +121,7 @@ def test_publication_eligibility_passes() -> None:
 def test_publication_eligibility_reports_failures() -> None:
     result = evaluate_publication_eligibility(
         automated_validation_passed=False,
+        export_validation_failures=("export_validation_missing",),
         physical_validation_passed=False,
         candidate_manifest_exists=True,
         relationship_exists=False,
@@ -67,6 +132,7 @@ def test_publication_eligibility_reports_failures() -> None:
     assert result.eligible is False
     assert result.failures == (
         "automated_validation_not_passed",
+        "export_validation_missing",
         "physical_validation_not_passed",
         "relationship_record_missing",
         "physical_trial_missing",
@@ -181,13 +247,12 @@ def test_register_candidate_promotion_is_idempotent(
         register_candidate_promotion,
     )
 
-    candidate = tmp_path / "candidate.json"
+    candidate, export_validation = write_verified_candidate(tmp_path, revision="r002")
     relationship = tmp_path / "relationship.json"
     delta = tmp_path / "parameter-delta.json"
     trial = tmp_path / "trial.json"
 
     for path in (
-        candidate,
         relationship,
         delta,
         trial,
@@ -206,6 +271,7 @@ def test_register_candidate_promotion_is_idempotent(
             "relationship_path": str(relationship),
             "parameter_delta_path": str(delta),
             "physical_trial_path": str(trial),
+            "export_validation_path": str(export_validation),
         }
     )
 
@@ -233,11 +299,9 @@ def test_register_candidate_promotion_accepts_root_candidate_without_lineage(
         register_candidate_promotion,
     )
 
-    candidate = tmp_path / "candidate.json"
+    candidate, export_validation = write_verified_candidate(tmp_path, revision="r001")
     trial = tmp_path / "trial.json"
-
-    for path in (candidate, trial):
-        path.write_text("{}\n", encoding="utf-8")
+    trial.write_text("{}\n", encoding="utf-8")
 
     promotion_path = tmp_path / "promotion.json"
 
@@ -248,6 +312,7 @@ def test_register_candidate_promotion_accepts_root_candidate_without_lineage(
             "relationship_path": None,
             "parameter_delta_path": None,
             "physical_trial_path": str(trial),
+            "export_validation_path": str(export_validation),
         }
     )
 
@@ -513,8 +578,9 @@ def _write_promotion_artifacts(
     directory = tmp_path / "candidates" / revision
     directory.mkdir(parents=True)
 
+    _, export_validation = write_verified_candidate(directory, revision=revision)
+
     for name in (
-        "candidate.json",
         "relationship.json",
         "parameter-delta.json",
     ):
@@ -531,6 +597,7 @@ def _write_promotion_artifacts(
             "relationship_path": str(directory / "relationship.json"),
             "parameter_delta_path": str(directory / "parameter-delta.json"),
             "physical_trial_path": str(trial_directory / "trial.json"),
+            "export_validation_path": str(export_validation),
         }
     )
 
@@ -746,4 +813,64 @@ def test_build_publication_record_rejects_incomplete_evidence() -> None:
             part_record={},
             promotion_record=record,
             eligibility=eligibility,
+        )
+
+
+def test_register_candidate_promotion_requires_export_validation(
+    tmp_path: Path,
+) -> None:
+    record = _write_promotion_artifacts(tmp_path, "r001")
+    record = PromotionRecord(**{**record.__dict__, "export_validation_path": None})
+
+    with pytest.raises(ValueError, match="export_validation_missing"):
+        promote_preferred_revision(
+            record=record,
+            output_path=tmp_path / "promotion.json",
+        )
+
+    assert not (tmp_path / "promotion.json").exists()
+
+
+def test_register_candidate_promotion_rejects_changed_retention_step(
+    tmp_path: Path,
+) -> None:
+    record = _write_promotion_artifacts(tmp_path, "r001")
+    (tmp_path / "candidates/r001/retention.step").write_bytes(b"edited later")
+
+    with pytest.raises(
+        ValueError,
+        match="export_validation_source_changed:retention",
+    ):
+        promote_preferred_revision(
+            record=record,
+            output_path=tmp_path / "promotion.json",
+        )
+
+
+def test_register_candidate_promotion_rejects_other_candidates_evidence(
+    tmp_path: Path,
+) -> None:
+    record = _write_promotion_artifacts(tmp_path, "r001")
+    _, other_export = write_verified_candidate(tmp_path / "other", revision="r002")
+    record = PromotionRecord(
+        **{**record.__dict__, "export_validation_path": str(other_export)}
+    )
+
+    with pytest.raises(ValueError, match="export_validation_candidate_mismatch"):
+        promote_preferred_revision(
+            record=record,
+            output_path=tmp_path / "promotion.json",
+        )
+
+
+def test_register_candidate_promotion_rejects_unverifiable_evidence(
+    tmp_path: Path,
+) -> None:
+    record = _write_promotion_artifacts(tmp_path, "r001")
+    Path(record.candidate_manifest_path).write_text("{}\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="export_validation_unverifiable"):
+        promote_preferred_revision(
+            record=record,
+            output_path=tmp_path / "promotion.json",
         )

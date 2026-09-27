@@ -47,6 +47,7 @@ from zcad_core.retention import (
     promote_preferred_revision,
     recommend_revision,
     register_candidate_revision,
+    run_candidate_export_validation,
     select_preferred_revision,
     sha256_file,
     write_immutable_manifest,
@@ -125,6 +126,7 @@ def _load_promotion_record(path: Path) -> PromotionRecord:
         relationship_path=_optional_str(payload, "relationship_path"),
         parameter_delta_path=_optional_str(payload, "parameter_delta_path"),
         supersedes_candidate_id=_optional_str(payload, "supersedes_candidate_id"),
+        export_validation_path=_optional_str(payload, "export_validation_path"),
     )
 
 
@@ -376,6 +378,36 @@ def _candidate_inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def _candidate_revalidate(args: argparse.Namespace) -> int:
+    """Run the export pipeline on a candidate without altering prior evidence."""
+
+    candidate = load_candidate_revision(args.candidate_manifest)
+
+    record, record_path = run_candidate_export_validation(
+        candidate=candidate,
+        retention_step=args.retention_step,
+        validation_root=args.validation_root,
+        printer_profile=load_manifest(args.printer_profile),
+        repository_root=args.repository_root,
+        validated_at_utc=_now(),
+    )
+
+    _emit(
+        {
+            "candidate_id": record.candidate_id,
+            "run_id": record.run_id,
+            "evaluated_status": record.evaluated_status,
+            "artifacts": {
+                artifact.role: artifact.evaluated_status
+                for artifact in record.artifacts
+            },
+            "export_validation_record": str(record_path),
+        }
+    )
+
+    return 0 if record.evaluated_status == "PASS" else 1
+
+
 def _candidate_promote(args: argparse.Namespace) -> int:
     existing_promotions = _scan_target_promotions(args.target_root)
 
@@ -388,7 +420,11 @@ def _candidate_promote(args: argparse.Namespace) -> int:
         decision=PromotionDecision(args.decision),
         reason=args.reason,
         reviewer=args.reviewer,
-        automated_validation_passed=args.automated_validation_passed,
+        # Derived from recorded evidence, never asserted by the operator; the
+        # export-validation record is verified separately at registration.
+        automated_validation_passed=(
+            candidate.automated_decision == "verified_candidate"
+        ),
         physical_validation_passed=args.physical_validation_passed,
         candidate_manifest_path=str(args.candidate_manifest),
         relationship_path=(
@@ -402,6 +438,9 @@ def _candidate_promote(args: argparse.Namespace) -> int:
         physical_trial_path=str(args.physical_trial_path),
         created_at_utc=_now(),
         supersedes_candidate_id=args.supersedes_candidate_id,
+        export_validation_path=(
+            str(args.export_validation) if args.export_validation is not None else None
+        ),
     )
 
     result = promote_preferred_revision(
@@ -857,6 +896,24 @@ def build_parser() -> argparse.ArgumentParser:
     candidate_inspect.add_argument("--manifest", required=True, type=Path)
     candidate_inspect.set_defaults(handler=_candidate_inspect)
 
+    candidate_revalidate = candidate_commands.add_parser("revalidate")
+    candidate_revalidate.add_argument("--candidate-manifest", required=True, type=Path)
+    candidate_revalidate.add_argument(
+        "--retention-step",
+        required=True,
+        type=Path,
+        help="Must match the candidate's output_sha256.",
+    )
+    candidate_revalidate.add_argument("--printer-profile", required=True, type=Path)
+    candidate_revalidate.add_argument(
+        "--validation-root",
+        required=True,
+        type=Path,
+        help="Directory receiving a new vNNN run; existing runs are never modified.",
+    )
+    candidate_revalidate.add_argument("--repository-root", default=Path("."), type=Path)
+    candidate_revalidate.set_defaults(handler=_candidate_revalidate)
+
     candidate_promote = candidate_commands.add_parser("promote")
     candidate_promote.add_argument("--candidate-manifest", required=True, type=Path)
     candidate_promote.add_argument(
@@ -878,7 +935,11 @@ def build_parser() -> argparse.ArgumentParser:
         default="promoted",
         choices=[member.value for member in PromotionDecision],
     )
-    candidate_promote.add_argument("--automated-validation-passed", action="store_true")
+    candidate_promote.add_argument(
+        "--export-validation",
+        type=Path,
+        help="Passing export-validation record from 'candidate revalidate'.",
+    )
     candidate_promote.add_argument("--physical-validation-passed", action="store_true")
     candidate_promote.add_argument(
         "--supersedes-candidate-id",

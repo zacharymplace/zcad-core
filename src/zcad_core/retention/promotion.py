@@ -7,6 +7,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from .export_validation import load_export_validation_record, verify_export_validation
+from .revision_registration import load_candidate_revision
+
 
 class PromotionDecision(str, Enum):
     PROMOTED = "promoted"
@@ -43,6 +46,7 @@ class PromotionRecord:
     relationship_path: str | None = None
     parameter_delta_path: str | None = None
     supersedes_candidate_id: str | None = None
+    export_validation_path: str | None = None
 
     def __post_init__(self) -> None:
         if self.schema_version != "1.0.0":
@@ -69,6 +73,7 @@ class PromotionRecord:
         for optional_field_name, optional_value in (
             ("relationship_path", self.relationship_path),
             ("parameter_delta_path", self.parameter_delta_path),
+            ("export_validation_path", self.export_validation_path),
         ):
             if optional_value is not None and not optional_value.strip():
                 raise ValueError(f"{optional_field_name} cannot be empty")
@@ -87,6 +92,7 @@ class PromotionRecord:
 def evaluate_publication_eligibility(
     *,
     automated_validation_passed: bool,
+    export_validation_failures: Sequence[str],
     physical_validation_passed: bool,
     candidate_manifest_exists: bool,
     relationship_exists: bool,
@@ -97,6 +103,8 @@ def evaluate_publication_eligibility(
 
     if not automated_validation_passed:
         failures.append("automated_validation_not_passed")
+
+    failures.extend(export_validation_failures)
 
     if not physical_validation_passed:
         failures.append("physical_validation_not_passed")
@@ -157,6 +165,21 @@ def write_promotion_record(
     )
 
 
+def export_validation_failures(record: PromotionRecord) -> tuple[str, ...]:
+    """Verify the export-validation evidence a promotion record cites."""
+
+    if record.export_validation_path is None:
+        return ("export_validation_missing",)
+
+    try:
+        return verify_export_validation(
+            load_export_validation_record(Path(record.export_validation_path)),
+            candidate=load_candidate_revision(Path(record.candidate_manifest_path)),
+        )
+    except (FileNotFoundError, KeyError, TypeError, ValueError):
+        return ("export_validation_unverifiable",)
+
+
 def register_candidate_promotion(
     *,
     record: PromotionRecord,
@@ -182,6 +205,7 @@ def register_candidate_promotion(
     if record.decision is PromotionDecision.PROMOTED:
         eligibility = evaluate_publication_eligibility(
             automated_validation_passed=(record.automated_validation_passed),
+            export_validation_failures=export_validation_failures(record),
             physical_validation_passed=(record.physical_validation_passed),
             candidate_manifest_exists=Path(record.candidate_manifest_path).is_file(),
             relationship_exists=relationship_exists,

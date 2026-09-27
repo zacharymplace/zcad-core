@@ -91,6 +91,28 @@ Give every candidate the same automated guarantees as any other export.
 - `zcad-validation candidate revalidate` producing an append-only
   re-validation record for existing candidates
 
+### Status
+
+Slice 1 complete:
+
+- `ExportValidationRecord` contract with append-only `vNNN` runs, bound to
+  the candidate's `output_sha256`
+- `zcad-validation candidate revalidate`
+- promotion requires a verified export-validation record; sources and
+  outputs are re-hashed at promotion time
+- `candidate promote` derives automated validation from the candidate's
+  recorded decision; `--automated-validation-passed` is removed
+
+Revalidating the existing candidates against the A1 mini profile passes all
+of them except `seeed-xiao-esp32s3-corner-capture-r001`. Two of its retention
+solids share a 0.01 mm edge, so its STL is non-manifold.
+
+Remaining:
+
+- run export validation automatically when candidates are generated or
+  derived
+- retention-specific feature and STL validators
+
 ### Exit criteria
 
 - New candidates carry export-validation evidence.
