@@ -29,12 +29,8 @@ class STLMesh:
 
     triangles: tuple
 
-    def vertical_clearance(self, x, y, z_min, z_max):
-        """Check a closed vertical segment for surface contact or solid occupancy.
-
-        No lateral displacement or repair. Contact, including coplanar contact,
-        is conservative failure. Midpoint occupancy detects a fully buried line.
-        """
+    def _vertical_contacts(self, x, y, z_min, z_max):
+        """Collect all surface contacts without truncating decision evidence."""
         tolerance = 1e-7
         if not all(math.isfinite(v) for v in (x, y, z_min, z_max)) or z_min >= z_max:
             raise ValueError("Expected finite XY and increasing finite Z interval")
@@ -85,6 +81,11 @@ class STLMesh:
             z = a[2] + u * (b[2] - a[2]) + v * (c[2] - a[2])
             if z_min - tolerance <= z <= z_max + tolerance:
                 contacts.append({"kind": "surface", "z_mm": z})
+        return contacts, tolerance
+
+    def vertical_clearance(self, x, y, z_min, z_max):
+        """Reject surface contact or solid occupancy on a closed segment."""
+        contacts, tolerance = self._vertical_contacts(x, y, z_min, z_max)
         occupied = None if contacts else self.contains((x, y, (z_min + z_max) / 2))
         return {
             "clear": not contacts and not occupied,
@@ -93,6 +94,34 @@ class STLMesh:
             "contacts_truncated": len(contacts) > 16,
             "midpoint_occupied": occupied,
             "coordinate_tolerance_mm": tolerance,
+        }
+
+    def vertical_material(self, x, y, z_min, z_max):
+        """Require interior material continuously; allow end-face contacts only.
+
+        Internal or coplanar contact fails conservatively. With no internal
+        surface, midpoint occupancy establishes the segment's interior state.
+        End-face tolerance bands are explicitly excluded from the guarantee.
+        """
+        contacts, tolerance = self._vertical_contacts(x, y, z_min, z_max)
+        if z_max - z_min <= 2 * tolerance:
+            raise ValueError("Material interval must exceed two endpoint tolerances")
+        interior = [
+            c
+            for c in contacts
+            if c["kind"] == "coplanar"
+            or z_min + tolerance < c["z_mm"] < z_max - tolerance
+        ]
+        occupied = None if interior else self.contains((x, y, (z_min + z_max) / 2))
+        return {
+            "covered": not interior and occupied is True,
+            "interior_contact_count": len(interior),
+            "contacts": interior[:16],
+            "contacts_truncated": len(interior) > 16,
+            "endpoint_contact_count": len(contacts) - len(interior),
+            "midpoint_occupied": occupied,
+            "endpoint_tolerance_mm": tolerance,
+            "verified_interior_z_mm": [z_min + tolerance, z_max - tolerance],
         }
 
     @cached_property
