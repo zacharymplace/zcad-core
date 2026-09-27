@@ -1,7 +1,10 @@
 """Product-agnostic STEP, STL, and metadata export service."""
 
+import hashlib
 import json
 import re
+import tempfile
+from pathlib import Path
 
 import cadquery as cq
 from zcad_core.exporters.models import (
@@ -62,6 +65,42 @@ def _validate_parts(
     return inspected
 
 
+def _feature_checks(request, inspected):
+    try:
+        checks = request.feature_validator(
+            design_type=request.design_type,
+            parts={
+                name: cq.Workplane().newObject([geometry.shape.copy()])
+                for name, geometry in inspected.items()
+            },
+            parameters=request.parameters or {},
+        )
+        if (
+            not isinstance(checks, list)
+            or not checks
+            or any(
+                not isinstance(check, dict)
+                or not isinstance(check.get("code"), str)
+                or not isinstance(check.get("message"), str)
+                or check.get("status") not in {"PASS", "FAIL", "NOT_CHECKED"}
+                for check in checks
+            )
+        ):
+            raise ValueError("Invalid feature-check results")
+        json.dumps(checks, allow_nan=False)
+    except Exception as error:
+        checks = [
+            {
+                "code": "feature_validation",
+                "status": "FAIL",
+                "message": (
+                    f"Feature validation error: {type(error).__name__}: {error}"
+                ),
+            }
+        ]
+    return checks
+
+
 def export_parts(
     request: ExportRequest,
 ) -> ExportResult:
@@ -83,44 +122,66 @@ def export_parts(
         parameters=request.parameters,
     )
     if request.feature_validator is not None:
-        try:
-            checks = request.feature_validator(
-                design_type=request.design_type,
-                parts={
-                    name: cq.Workplane().newObject([geometry.shape.copy()])
-                    for name, geometry in inspected.items()
-                },
-                parameters=request.parameters or {},
-            )
-            if (
-                not isinstance(checks, list)
-                or not checks
-                or any(
-                    not isinstance(check, dict)
-                    or not isinstance(check.get("code"), str)
-                    or not isinstance(check.get("message"), str)
-                    or check.get("status") not in {"PASS", "FAIL", "NOT_CHECKED"}
-                    for check in checks
-                )
-            ):
-                raise ValueError("Invalid feature-check results")
-            json.dumps(checks, allow_nan=False)
-        except Exception as error:
-            checks = [
-                {
-                    "code": "feature_validation",
-                    "status": "FAIL",
-                    "message": (
-                        f"Feature validation error: {type(error).__name__}: {error}"
-                    ),
-                }
-            ]
+        checks = _feature_checks(request, inspected)
         validation_report["checks"].extend(checks)
         validation_report["scope"] += "; application feature checks (see check details)"
         if any(check["status"] == "FAIL" for check in checks):
             validation_report["evaluated_status"] = "FAIL"
     if validation_report["evaluated_status"] == "FAIL":
         raise DesignValidationError(validation_report)
+
+    staged_steps = {}
+    if request.feature_validator is not None:
+        try:
+            with tempfile.TemporaryDirectory(prefix="zcad-step-check-") as folder:
+                imported = {}
+                for index, (name, geometry) in enumerate(inspected.items()):
+                    path = Path(folder) / f"part-{index}.step"
+                    cq.exporters.export(geometry.shape, str(path))
+                    staged_steps[name] = path.read_bytes()
+                    imported[name] = inspect_export_geometry(
+                        cq.importers.importStep(str(path)), name
+                    )
+                roundtrip_checks = _feature_checks(request, imported)
+        except Exception as error:
+            roundtrip_checks = [
+                {
+                    "code": "step_reimport",
+                    "status": "FAIL",
+                    "message": (
+                        f"STEP round-trip error: {type(error).__name__}: {error}"
+                    ),
+                }
+            ]
+        failed = any(c["status"] == "FAIL" for c in roundtrip_checks)
+        status = (
+            "FAIL"
+            if failed
+            else (
+                "PASS"
+                if any(c["status"] == "PASS" for c in roundtrip_checks)
+                else "NOT_CHECKED"
+            )
+        )
+        validation_report["step_round_trip"] = {
+            "status": status,
+            "scope": "Reimported STEP features; not STL or full shape equivalence",
+            "checks": roundtrip_checks,
+            "step_sha256_by_part": {
+                name: hashlib.sha256(data).hexdigest()
+                for name, data in staged_steps.items()
+            },
+        }
+        if failed:
+            validation_report["evaluated_status"] = "FAIL"
+            validation_report["checks"].append(
+                {
+                    "code": "step_round_trip",
+                    "status": "FAIL",
+                    "message": "Reimported STEP failed validation; see step_round_trip",
+                }
+            )
+            raise DesignValidationError(validation_report)
 
     request.output_directory.mkdir(
         parents=True,
@@ -145,10 +206,10 @@ def export_parts(
         stl_path = request.output_directory / f"{stem}.stl"
         metadata_path = request.output_directory / f"{stem}.metadata.json"
 
-        cq.exporters.export(
-            geometry.shape,
-            str(step_path),
-        )
+        if part_name in staged_steps:
+            step_path.write_bytes(staged_steps[part_name])
+        else:
+            cq.exporters.export(geometry.shape, str(step_path))
         cq.exporters.export(
             geometry.shape,
             str(stl_path),
