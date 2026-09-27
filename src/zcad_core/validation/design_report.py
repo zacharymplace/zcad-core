@@ -36,8 +36,11 @@ def report_from_geometry(
     printer_profile: dict[str, Any] | None,
     parameters: dict[str, Any] | None,
     failures: dict[str, dict[str, Any]] | None = None,
+    build_volume_orientation: str = "generated",
 ) -> dict[str, Any]:
     """Combine owned geometry measurements and actual profile checks."""
+    if build_volume_orientation not in ("generated", "xy_90"):
+        raise ValueError("Unsupported build_volume_orientation")
     checks: list[dict[str, Any]] = []
 
     def add(code: str, status: str, message: str, **details: Any) -> None:
@@ -74,16 +77,31 @@ def report_from_geometry(
                 "NOT_CHECKED",
                 "Printer limits or valid geometry unavailable",
                 part_name=name,
+                orientation_policy=build_volume_orientation,
             )
         else:
             actual = geometry[name].bounds_mm
+            generated_fits = all(a <= b for a, b in zip(actual, limits))
+            rotated = (actual[1], actual[0], actual[2])
+            rotated_fits = all(a <= b for a, b in zip(rotated, limits))
+            fits = generated_fits or (
+                build_volume_orientation == "xy_90" and rotated_fits
+            )
             add(
                 "build_volume",
-                "PASS" if all(a <= b for a, b in zip(actual, limits)) else "FAIL",
-                "Axis-aligned dimensions in generated orientation; no packing or rotation search",
+                "PASS" if fits else "FAIL",
+                "Per-part bounding-box fit under explicit orientation policy; "
+                "no packing, brim, support or printability assessment",
                 part_name=name,
                 actual_mm=list(actual),
                 limits_mm=list(limits),
+                orientation_policy=build_volume_orientation,
+                generated_status="PASS" if generated_fits else "FAIL",
+                xy_90_status="PASS" if rotated_fits else "FAIL",
+                xy_90_bounds_mm=list(rotated),
+                selected_rotation_z_degrees=(
+                    0 if generated_fits else 90 if fits else None
+                ),
             )
     applicable = {"wall", "floor", "label_height", "label_size", "lid_clearance"}
     if printer_profile is None or parameters is None:
@@ -173,6 +191,7 @@ def validate_design(
     parts: dict[str, cq.Workplane],
     printer_profile: dict[str, Any] | None = None,
     parameters: dict[str, Any] | None = None,
+    build_volume_orientation: str = "generated",
 ) -> dict[str, Any]:
     """Read-only assessment, including known geometry failures; writes no artifacts."""
     geometry = {}
@@ -189,4 +208,5 @@ def validate_design(
         failures=failures,
         printer_profile=printer_profile,
         parameters=parameters,
+        build_volume_orientation=build_volume_orientation,
     )
