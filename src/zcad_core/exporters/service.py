@@ -12,6 +12,7 @@ from zcad_core.exporters.models import (
     ExportRequest,
     ExportResult,
 )
+from zcad_core.exporters.publication import publish_files
 from zcad_core.metadata.build_record import build_part_record
 from zcad_core.validation.design_report import (
     DesignValidationError,
@@ -101,8 +102,9 @@ def _feature_checks(request, inspected):
     return checks
 
 
-def export_parts(
+def _prepare_exports(
     request: ExportRequest,
+    staging: Path,
 ) -> ExportResult:
     """Export all requested parts and their metadata."""
     _validate_name(
@@ -183,11 +185,6 @@ def export_parts(
             )
             raise DesignValidationError(validation_report)
 
-    request.output_directory.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
     exported: list[ExportedPart] = []
     part_count = len(request.parts)
 
@@ -205,14 +202,17 @@ def export_parts(
         step_path = request.output_directory / f"{stem}.step"
         stl_path = request.output_directory / f"{stem}.stl"
         metadata_path = request.output_directory / f"{stem}.metadata.json"
+        staged_step = staging / step_path.name
+        staged_stl = staging / stl_path.name
+        staged_metadata = staging / metadata_path.name
 
         if part_name in staged_steps:
-            step_path.write_bytes(staged_steps[part_name])
+            staged_step.write_bytes(staged_steps[part_name])
         else:
-            cq.exporters.export(geometry.shape, str(step_path))
+            cq.exporters.export(geometry.shape, str(staged_step))
         cq.exporters.export(
             geometry.shape,
-            str(stl_path),
+            str(staged_stl),
         )
 
         record = build_part_record(
@@ -231,7 +231,7 @@ def export_parts(
 
         record["validation"] = geometry.report
         record["design_validation"] = validation_report
-        metadata_path.write_text(
+        staged_metadata.write_text(
             json.dumps(
                 record,
                 indent=2,
@@ -257,3 +257,12 @@ def export_parts(
         parts=tuple(exported),
         validation_report=validation_report,
     )
+
+
+def export_parts(request: ExportRequest) -> ExportResult:
+    """Prepare all artifacts before publishing with caught-failure rollback."""
+    with tempfile.TemporaryDirectory(prefix="zcad-export-stage-") as folder:
+        staging = Path(folder)
+        result = _prepare_exports(request, staging)
+        publish_files(staging, request.output_directory)
+        return result
