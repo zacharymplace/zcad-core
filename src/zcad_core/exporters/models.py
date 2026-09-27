@@ -1,5 +1,6 @@
 """Data models for reusable CAD exports."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,7 @@ class ExportRequest:
     printer_profile: dict[str, Any] | None = None
     material_profile: dict[str, Any] | None = None
     parameters: dict[str, Any] | None = None
+    feature_validator: Callable[..., list[dict[str, Any]]] | None = None
 
 
 @dataclass(frozen=True)

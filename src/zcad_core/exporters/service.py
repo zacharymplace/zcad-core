@@ -4,7 +4,6 @@ import json
 import re
 
 import cadquery as cq
-
 from zcad_core.exporters.models import (
     ExportedPart,
     ExportRequest,
@@ -83,6 +82,43 @@ def export_parts(
         printer_profile=request.printer_profile,
         parameters=request.parameters,
     )
+    if request.feature_validator is not None:
+        try:
+            checks = request.feature_validator(
+                design_type=request.design_type,
+                parts={
+                    name: cq.Workplane().newObject([geometry.shape.copy()])
+                    for name, geometry in inspected.items()
+                },
+                parameters=request.parameters or {},
+            )
+            if (
+                not isinstance(checks, list)
+                or not checks
+                or any(
+                    not isinstance(check, dict)
+                    or not isinstance(check.get("code"), str)
+                    or not isinstance(check.get("message"), str)
+                    or check.get("status") not in {"PASS", "FAIL", "NOT_CHECKED"}
+                    for check in checks
+                )
+            ):
+                raise ValueError("Invalid feature-check results")
+            json.dumps(checks, allow_nan=False)
+        except Exception as error:
+            checks = [
+                {
+                    "code": "feature_validation",
+                    "status": "FAIL",
+                    "message": (
+                        f"Feature validation error: {type(error).__name__}: {error}"
+                    ),
+                }
+            ]
+        validation_report["checks"].extend(checks)
+        validation_report["scope"] += "; application feature checks (see check details)"
+        if any(check["status"] == "FAIL" for check in checks):
+            validation_report["evaluated_status"] = "FAIL"
     if validation_report["evaluated_status"] == "FAIL":
         raise DesignValidationError(validation_report)
 
