@@ -390,6 +390,11 @@ def _candidate_revalidate(args: argparse.Namespace) -> int:
         printer_profile=load_manifest(args.printer_profile),
         repository_root=args.repository_root,
         validated_at_utc=_now(),
+        target=(
+            _load_validation_target(args.target_manifest)
+            if args.target_manifest is not None
+            else None
+        ),
     )
 
     _emit(
@@ -401,6 +406,9 @@ def _candidate_revalidate(args: argparse.Namespace) -> int:
                 artifact.role: artifact.evaluated_status
                 for artifact in record.artifacts
             },
+            "non_gating_roles": [
+                artifact.role for artifact in record.artifacts if not artifact.gating
+            ],
             "export_validation_record": str(record_path),
         }
     )
@@ -905,6 +913,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Must match the candidate's output_sha256.",
     )
     candidate_revalidate.add_argument("--printer-profile", required=True, type=Path)
+    candidate_revalidate.add_argument(
+        "--target-manifest",
+        type=Path,
+        help=(
+            "Separate the embedded target PCB from generated retention geometry; "
+            "the board is reported but does not gate the record."
+        ),
+    )
     candidate_revalidate.add_argument(
         "--validation-root",
         required=True,

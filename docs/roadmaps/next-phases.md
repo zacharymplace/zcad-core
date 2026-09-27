@@ -104,8 +104,19 @@ Slice 1 complete:
   recorded decision; `--automated-validation-passed` is removed
 
 Revalidating the existing candidates against the A1 mini profile passes all
-of them except `seeed-xiao-esp32s3-corner-capture-r001`. Two of its retention
-solids share a 0.01 mm edge, so its STL is non-manifold.
+of them except `seeed-xiao-esp32s3-corner-capture-r001`. The failure comes
+from the vendor board, not the generated arms. Retention STEPs embed the PCB
+solid from the source model. Seeed's XIAO PCB solid has six shells and a
+0.01 mm sliver face beside a plated hole, so it meshes non-manifold. The
+generated retention solids and the printable fixture both pass.
+
+Slice 2 complete: `candidate revalidate --target-manifest` separates the
+embedded PCB from the generated geometry by matching its volume and
+bounding box. Face counts are not compared, because generation merges
+coplanar board faces. The board is recorded as a non-gating
+`reference_board` artifact (record schema 1.1.0; 1.0.0 records still load).
+With the target supplied, all six board-embedding candidates pass, and
+XIAO's board defect remains visible as a non-gating failure.
 
 Remaining:
 

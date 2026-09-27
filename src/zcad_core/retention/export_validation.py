@@ -5,6 +5,11 @@ An export-validation run re-exports a candidate's retention STEP through
 producing an append-only record bound to the candidate's ``output_sha256``.
 Earlier candidate evidence is never modified: each run gets its own
 ``vNNN`` directory, and a failing run is recorded rather than discarded.
+
+Retention STEPs embed the target's PCB solid for fit reference. When the
+validation target is supplied, that board is separated out: the generated
+geometry gates the record, while the vendor board is reported as a
+non-gating ``reference_board`` artifact.
 """
 
 from __future__ import annotations
@@ -21,18 +26,23 @@ from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.validation.design_report import DesignValidationError
 from zcad_core.validation.stl_mesh import read_stl
 
+from .production_board import import_production_board_model
 from .validation_lab import (
     CandidateRevision,
+    ValidationTarget,
     _validate_sha256,
     load_manifest,
     sha256_file,
 )
 
-EXPORT_VALIDATION_SCHEMA_VERSION = "1.0.0"
+EXPORT_VALIDATION_SCHEMA_VERSION = "1.1.0"
+_SUPPORTED_SCHEMA_VERSIONS = ("1.0.0", EXPORT_VALIDATION_SCHEMA_VERSION)
 EXPORT_VALIDATION_RECORD_NAME = "export-validation.json"
 
 _RUN_PATTERN = re.compile(r"^v[0-9]{3}$")
-_ROLES = ("retention", "fixture")
+_GATING_ROLES = ("retention", "fixture")
+_REFERENCE_ROLES = ("reference_board",)
+_BOARD_MATCH_TOLERANCE_MM = 1e-6
 _STATUSES = ("PASS", "FAIL")
 _STEP_SUFFIXES = (".step", ".stp")
 
@@ -47,9 +57,16 @@ class ExportValidationArtifact:
     evaluated_status: str
     report: dict[str, Any]
     outputs: dict[str, str]
+    gating: bool = True
 
     def __post_init__(self) -> None:
-        if self.role not in _ROLES:
+        if self.role in _GATING_ROLES:
+            if not self.gating:
+                raise ValueError(f"{self.role} artifacts must gate the record")
+        elif self.role in _REFERENCE_ROLES:
+            if self.gating:
+                raise ValueError(f"{self.role} artifacts cannot gate the record")
+        else:
             raise ValueError(f"Unsupported export-validation role: {self.role}")
 
         if self.evaluated_status not in _STATUSES:
@@ -82,7 +99,7 @@ class ExportValidationRecord:
     artifacts: tuple[ExportValidationArtifact, ...]
 
     def __post_init__(self) -> None:
-        if self.schema_version != EXPORT_VALIDATION_SCHEMA_VERSION:
+        if self.schema_version not in _SUPPORTED_SCHEMA_VERSIONS:
             raise ValueError("Unsupported export-validation schema")
 
         if not _RUN_PATTERN.fullmatch(self.run_id):
@@ -106,7 +123,7 @@ class ExportValidationRecord:
 
         expected = (
             "PASS"
-            if all(a.evaluated_status == "PASS" for a in self.artifacts)
+            if all(a.evaluated_status == "PASS" for a in self.artifacts if a.gating)
             else "FAIL"
         )
 
@@ -141,15 +158,26 @@ def _validate_step_artifact(
     output_directory: Path,
     repository_root: Path,
     printer_profile: dict[str, Any],
+    solids: list[cq.Solid] | None = None,
+    source_sha256: str | None = None,
+    gating: bool = True,
 ) -> ExportValidationArtifact:
-    source_sha256 = sha256_file(path)
+    """Export ``path`` (or the given ``solids`` taken from it) and record it."""
+
+    if source_sha256 is None:
+        source_sha256 = sha256_file(path)
 
     try:
+        model = (
+            cq.importers.importStep(str(path))
+            if solids is None
+            else cq.Workplane("XY").newObject(solids)
+        )
         result = export_parts(
             ExportRequest(
                 design_name=role,
                 design_type="retention-candidate",
-                parts={"main": cq.importers.importStep(str(path))},
+                parts={"main": model},
                 output_directory=output_directory,
                 repository_root=repository_root,
                 printer_profile=printer_profile,
@@ -179,7 +207,58 @@ def _validate_step_artifact(
         ),
         report=report,
         outputs=outputs,
+        gating=gating,
     )
+
+
+def _matches_board(solid: cq.Solid, board: cq.Solid) -> bool:
+    """Match on volume and bounds; generation merges coplanar board faces."""
+
+    a, b = solid.BoundingBox(), board.BoundingBox()
+    bounds_match = all(
+        abs(x - y) <= _BOARD_MATCH_TOLERANCE_MM
+        for x, y in zip(
+            (a.xmin, a.ymin, a.zmin, a.xmax, a.ymax, a.zmax),
+            (b.xmin, b.ymin, b.zmin, b.xmax, b.ymax, b.zmax),
+            strict=True,
+        )
+    )
+    volume_tolerance = _BOARD_MATCH_TOLERANCE_MM * max(1.0, abs(board.Volume()))
+
+    return bounds_match and abs(solid.Volume() - board.Volume()) <= volume_tolerance
+
+
+def _separate_reference_board(
+    *,
+    retention_step: Path,
+    target: ValidationTarget,
+) -> tuple[list[cq.Solid], cq.Solid]:
+    """Split the embedded target PCB from generated retention solids."""
+
+    board = import_production_board_model(
+        source_step=Path(target.source_model_path),
+        pcb_solid_index=target.pcb_solid_index,
+    ).pcb
+    solids = [
+        solid
+        for solid in cq.importers.importStep(str(retention_step)).solids().vals()
+        if isinstance(solid, cq.Solid)
+    ]
+    matches = [solid for solid in solids if _matches_board(solid, board)]
+
+    if len(matches) != 1:
+        raise ValueError(
+            f"Expected one embedded reference board in {retention_step}, "
+            f"found {len(matches)}; omit the target for candidates that do "
+            "not embed their board"
+        )
+
+    generated = [solid for solid in solids if solid is not matches[0]]
+
+    if not generated:
+        raise ValueError(f"No generated retention geometry in {retention_step}")
+
+    return generated, board
 
 
 def _validate_stl_artifact(*, role: str, path: Path) -> ExportValidationArtifact:
@@ -231,11 +310,14 @@ def run_candidate_export_validation(
     printer_profile: dict[str, Any],
     repository_root: Path,
     validated_at_utc: str,
+    target: ValidationTarget | None = None,
 ) -> tuple[ExportValidationRecord, Path]:
     """Validate a candidate's artifacts and write a new, immutable run record.
 
     The retention STEP must be the exact file the candidate was registered
     with. Failing runs are still written, so rejected evidence stays visible.
+    With ``target``, the embedded board is validated separately and does
+    not gate the record; without it, the whole retention STEP must pass.
     """
 
     if sha256_file(retention_step) != candidate.output_sha256:
@@ -248,6 +330,26 @@ def run_candidate_export_validation(
     if not isinstance(profile_id, str) or not profile_id.strip():
         raise ValueError("Printer profile requires a profile_id")
 
+    generated: list[cq.Solid] | None = None
+    board: cq.Solid | None = None
+
+    if target is not None:
+        if target.target_id != candidate.target_id:
+            raise ValueError("Validation target does not match candidate target_id")
+
+        if target.source_model_sha256 != candidate.source_sha256:
+            raise ValueError("Validation target source does not match candidate")
+
+        if sha256_file(Path(target.source_model_path)) != candidate.source_sha256:
+            raise ValueError(
+                f"Source model changed since registration: {target.source_model_path}"
+            )
+
+        generated, board = _separate_reference_board(
+            retention_step=retention_step,
+            target=target,
+        )
+
     fixture = Path(candidate.fixture_artifact_path)
     run_id, run_directory = _allocate_run_directory(validation_root)
 
@@ -258,8 +360,23 @@ def run_candidate_export_validation(
             output_directory=run_directory,
             repository_root=repository_root,
             printer_profile=printer_profile,
+            solids=generated,
         )
     ]
+
+    if target is not None and board is not None:
+        artifacts.append(
+            _validate_step_artifact(
+                role="reference_board",
+                path=Path(target.source_model_path),
+                output_directory=run_directory,
+                repository_root=repository_root,
+                printer_profile=printer_profile,
+                solids=[board],
+                source_sha256=target.source_model_sha256,
+                gating=False,
+            )
+        )
 
     if fixture.suffix.lower() == ".stl":
         artifacts.append(_validate_stl_artifact(role="fixture", path=fixture))
@@ -295,7 +412,9 @@ def run_candidate_export_validation(
         printer_profile_id=profile_id,
         validated_at_utc=validated_at_utc,
         evaluated_status=(
-            "PASS" if all(a.evaluated_status == "PASS" for a in artifacts) else "FAIL"
+            "PASS"
+            if all(a.evaluated_status == "PASS" for a in artifacts if a.gating)
+            else "FAIL"
         ),
         artifacts=tuple(artifacts),
     )
@@ -333,6 +452,7 @@ def load_export_validation_record(path: Path) -> ExportValidationRecord:
                     str(path): str(digest)
                     for path, digest in dict(artifact["outputs"]).items()
                 },
+                gating=bool(artifact.get("gating", True)),
             )
             for artifact in artifacts
         ),

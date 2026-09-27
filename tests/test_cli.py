@@ -56,9 +56,15 @@ def export_synthetic_board(path: Path) -> None:
 def register_target(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    *,
+    board: cq.Workplane | None = None,
 ) -> Path:
     source_model = tmp_path / "board.step"
-    source_model.write_bytes(b"synthetic step contents")
+
+    if board is None:
+        source_model.write_bytes(b"synthetic step contents")
+    else:
+        cq.exporters.export(board, str(source_model))
 
     output = tmp_path / "target.json"
 
@@ -94,6 +100,7 @@ def register_candidate(
     *,
     revision: str = "r001",
     strategy: str = "corner-capture",
+    retention_part: cq.Workplane | None = None,
 ) -> Path:
     evidence = tmp_path / "automated-validation.json"
     evidence.write_text(
@@ -120,7 +127,9 @@ def register_candidate(
     # Real geometry so candidates can pass 'candidate revalidate'.
     part = cq.Workplane("XY").box(20.0, 10.0, 5.0)
     retention_step = tmp_path / "retention.step"
-    cq.exporters.export(part, str(retention_step))
+    cq.exporters.export(
+        part if retention_part is None else retention_part, str(retention_step)
+    )
 
     fixture = tmp_path / "fixture.stl"
     cq.exporters.export(part, str(fixture))
@@ -1089,3 +1098,43 @@ def test_candidate_revalidate_rejects_unregistered_retention_step(
 
     assert exit_code == 1
     assert "does not match candidate output_sha256" in capsys.readouterr().err
+
+
+def test_candidate_revalidate_reports_embedded_board_as_non_gating(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    board = cq.Workplane("XY").box(40.0, 30.0, 1.6).translate((0.0, 0.0, 0.8))
+    arm = cq.Workplane("XY").box(2.0, 5.0, 3.0).translate((25.0, 0.0, 1.5))
+    target_manifest = register_target(tmp_path, capsys, board=board)
+    candidate_manifest = register_candidate(
+        tmp_path,
+        capsys,
+        target_manifest,
+        retention_part=cq.Workplane("XY").newObject([board.val(), arm.val()]),
+    )
+
+    exit_code, result = run(
+        capsys,
+        "candidate",
+        "revalidate",
+        "--candidate-manifest",
+        str(candidate_manifest),
+        "--retention-step",
+        str(tmp_path / "retention.step"),
+        "--printer-profile",
+        str(PRINTER_PROFILE),
+        "--target-manifest",
+        str(target_manifest),
+        "--validation-root",
+        str(tmp_path / "export-validation"),
+    )
+
+    assert exit_code == 0
+    assert result["evaluated_status"] == "PASS"
+    assert result["artifacts"] == {
+        "retention": "PASS",
+        "reference_board": "PASS",
+        "fixture": "PASS",
+    }
+    assert result["non_gating_roles"] == ["reference_board"]
