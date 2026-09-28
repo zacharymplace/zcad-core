@@ -8,13 +8,40 @@ from typing import Any
 import cadquery as cq
 
 from zcad_core.geometry.cadquery_support import workplane_shape
+from zcad_core.retention.production_edge_execution import (
+    ProductionEdgeExecutionResult,
+)
 from zcad_core.retention.production_execution import (
     ProductionCornerExecutionResult,
 )
 from zcad_core.retention.validation_fixture import (
     ValidationFixturePolicy,
+    build_edge_validation_fixture,
     build_validation_fixture,
 )
+
+_SEATING_EPSILON_MM = 1e-6
+
+ProductionExecutionResult = (
+    ProductionCornerExecutionResult | ProductionEdgeExecutionResult
+)
+
+
+def _selected_locations(execution: ProductionExecutionResult) -> list[str]:
+    if isinstance(execution, ProductionEdgeExecutionResult):
+        return [execution.derivation.selected_edge.value]
+
+    return [corner.value for corner in execution.derivation.selected_corners]
+
+
+def _build_fixture(
+    execution: ProductionExecutionResult,
+    policy: ValidationFixturePolicy,
+) -> cq.Workplane:
+    if isinstance(execution, ProductionEdgeExecutionResult):
+        return build_edge_validation_fixture(execution, policy=policy)
+
+    return build_validation_fixture(execution, policy=policy)
 
 
 @dataclass(frozen=True)
@@ -47,23 +74,77 @@ def _bounds_payload(
     }
 
 
+def _overlap_box(first: cq.Shape, second: cq.Shape) -> cq.Shape | None:
+    a, b = first.BoundingBox(), second.BoundingBox()
+    low = (max(a.xmin, b.xmin), max(a.ymin, b.ymin), max(a.zmin, b.zmin))
+    high = (min(a.xmax, b.xmax), min(a.ymax, b.ymax), min(a.zmax, b.zmax))
+
+    if any(h <= lo for lo, h in zip(low, high, strict=True)):
+        return None
+
+    return cq.Solid.makeBox(
+        high[0] - low[0],
+        high[1] - low[1],
+        high[2] - low[2],
+        pnt=cq.Vector(*low),
+    )
+
+
+def _intersection(first: cq.Shape, second: cq.Shape) -> cq.Shape | None:
+    """Largest of several boolean formulations, so a silent failure cannot pass.
+
+    OCC can return an empty intersection for defective vendor solids (for
+    example, multi-shell PCBs) while a clipped formulation finds the overlap.
+    Interference must fail closed, so the largest result wins.
+    """
+
+    box = _overlap_box(first, second)
+
+    if box is None:
+        return None
+
+    candidates = []
+
+    for chain in (
+        (first, second),
+        (second, first),
+        (first, box, second),
+        (second, box, first),
+    ):
+        shape: cq.Shape | None = chain[0]
+
+        for other in chain[1:]:
+            try:
+                shape = shape.intersect(other) if shape is not None else None
+            except ValueError:
+                # cadquery raises on a null boolean result: no overlap here.
+                shape = None
+
+            if shape is None or shape.isNull():
+                shape = None
+                break
+
+        if shape is not None and shape.Volume() > 0:
+            candidates.append(shape)
+
+    return max(candidates, key=lambda shape: shape.Volume(), default=None)
+
+
 def _intersection_volume(
     first: cq.Shape,
     second: cq.Shape,
 ) -> float:
-    intersection = first.intersect(second)
+    intersection = _intersection(first, second)
 
-    if intersection.isNull():
-        return 0.0
-
-    return float(intersection.Volume())
+    return 0.0 if intersection is None else float(intersection.Volume())
 
 
 def _review_report(
     *,
-    execution: ProductionCornerExecutionResult,
+    execution: ProductionExecutionResult,
     fixture: cq.Shape,
     tolerance_mm3: float,
+    seating_contact_mm: float,
     paths: dict[str, Path],
 ) -> dict[str, Any]:
     pcb = execution.board_model.pcb
@@ -74,23 +155,34 @@ def _review_report(
         pcb,
     )
 
-    component_intersections = tuple(
-        {
+    pcb_bottom = pcb.BoundingBox().zmin
+    component_intersections = []
+    seating_contacts = []
+
+    for index, component in enumerate(components, start=1):
+        intersection = _intersection(fixture, component)
+
+        if intersection is None or intersection.Volume() <= tolerance_mm3:
+            continue
+
+        box = intersection.BoundingBox()
+        entry = {
             "component_index": index,
-            "intersection_mm3": round(volume, 6),
+            "intersection_mm3": round(float(intersection.Volume()), 6),
         }
-        for index, component in enumerate(
-            components,
-            start=1,
-        )
+
+        # Bottom-side pads proud of the PCB rest on the base: accepted as
+        # seating contact when the overlap lies wholly under the board and
+        # is no deeper than seating_contact_mm.
         if (
-            volume := _intersection_volume(
-                fixture,
-                component,
+            box.zmax <= pcb_bottom + _SEATING_EPSILON_MM
+            and pcb_bottom - box.zmin <= seating_contact_mm + _SEATING_EPSILON_MM
+        ):
+            seating_contacts.append(
+                {**entry, "depth_mm": round(pcb_bottom - box.zmin, 6)}
             )
-        )
-        > tolerance_mm3
-    )
+        else:
+            component_intersections.append(entry)
 
     passed = pcb_intersection_mm3 <= tolerance_mm3 and not component_intersections
 
@@ -103,16 +195,18 @@ def _review_report(
             "fixture_bounds": _bounds_payload(fixture),
             "pcb_bounds": _bounds_payload(pcb),
             "component_count": len(components),
-            "selected_corners": [
-                corner.value for corner in (execution.derivation.selected_corners)
-            ],
+            # Edge-clip candidates list their selected edge here, as their
+            # candidate manifests do.
+            "selected_corners": _selected_locations(execution),
         },
         "interference": {
             "pcb_fixture_intersection_mm3": round(
                 pcb_intersection_mm3,
                 6,
             ),
-            "component_fixture_intersections": list(component_intersections),
+            "component_fixture_intersections": component_intersections,
+            "seating_contact_mm": seating_contact_mm,
+            "underside_seating_contacts": seating_contacts,
         },
         "artifacts": {name: str(path) for name, path in paths.items()},
         "review_status": {
@@ -124,16 +218,20 @@ def _review_report(
 
 
 def export_design_review_package(
-    execution: ProductionCornerExecutionResult,
+    execution: ProductionExecutionResult,
     *,
     output_directory: Path,
     fixture_policy: ValidationFixturePolicy,
     tolerance_mm3: float = 1e-6,
+    seating_contact_mm: float = 0.05,
 ) -> DesignReviewArtifact:
     """Export a multi-format production design-review package."""
 
     if tolerance_mm3 < 0:
         raise ValueError("tolerance_mm3 cannot be negative")
+
+    if seating_contact_mm < 0:
+        raise ValueError("seating_contact_mm cannot be negative")
 
     glb_path = output_directory / "design-review.glb"
     step_path = output_directory / "design-review.step"
@@ -165,10 +263,7 @@ def export_design_review_package(
             f"Refusing to overwrite design-review artifacts: {rendered}"
         )
 
-    fixture_workplane = build_validation_fixture(
-        execution,
-        policy=fixture_policy,
-    )
+    fixture_workplane = _build_fixture(execution, fixture_policy)
     fixture = workplane_shape(fixture_workplane)
 
     if fixture.isNull():
@@ -267,6 +362,7 @@ def export_design_review_package(
         execution=execution,
         fixture=fixture,
         tolerance_mm3=tolerance_mm3,
+        seating_contact_mm=seating_contact_mm,
         paths=artifact_paths,
     )
 
