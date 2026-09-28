@@ -8,6 +8,7 @@ import cadquery as cq
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention.corner_capture import as_corner_capture_parameters
 from zcad_core.retention.edge_capture import as_edge_capture_parameters
+from zcad_core.retention.production_board import ProductionBoardModel
 from zcad_core.retention.production_edge_execution import (
     ProductionEdgeExecutionResult,
 )
@@ -28,6 +29,11 @@ class ValidationFixturePolicy:
 
     base_thickness_mm: float = 2.0
     perimeter_margin_mm: float = 2.0
+    # Parts reaching further below the PCB than this (through-hole pins,
+    # jacks) get a clearance hole through the base; shallower bottom-side
+    # pads rest on it, matching the design review's seating allowance.
+    underside_seating_mm: float = 0.05
+    underside_clearance_mm: float = 0.5
 
     def __post_init__(self) -> None:
         if self.base_thickness_mm <= 0:
@@ -35,6 +41,62 @@ class ValidationFixturePolicy:
 
         if self.perimeter_margin_mm <= 0:
             raise ValueError("perimeter_margin_mm must be positive")
+
+        if self.underside_seating_mm < 0:
+            raise ValueError("underside_seating_mm cannot be negative")
+
+        if self.underside_clearance_mm < 0:
+            raise ValueError("underside_clearance_mm cannot be negative")
+
+
+def _build_base(
+    board_model: ProductionBoardModel,
+    policy: ValidationFixturePolicy,
+) -> cq.Workplane:
+    """Base plate whose top is the PCB's underside, with clearance holes."""
+
+    pcb_bounds = board_model.pcb.BoundingBox()
+    bottom = pcb_bounds.zmin
+    thickness = policy.base_thickness_mm
+
+    base = (
+        cq.Workplane("XY")
+        .box(
+            pcb_bounds.xlen + 2.0 * policy.perimeter_margin_mm,
+            pcb_bounds.ylen + 2.0 * policy.perimeter_margin_mm,
+            thickness,
+        )
+        .translate(
+            (
+                (pcb_bounds.xmin + pcb_bounds.xmax) / 2.0,
+                (pcb_bounds.ymin + pcb_bounds.ymax) / 2.0,
+                bottom - thickness / 2.0,
+            )
+        )
+    )
+
+    clearance = policy.underside_clearance_mm
+
+    for component in board_model.component_solids:
+        bounds = component.BoundingBox()
+
+        if bounds.zmin >= bottom - policy.underside_seating_mm:
+            continue
+
+        # Cut straight through the base under the part's footprint.
+        hole = cq.Solid.makeBox(
+            bounds.xlen + 2.0 * clearance,
+            bounds.ylen + 2.0 * clearance,
+            thickness + 2.0,
+            pnt=cq.Vector(
+                bounds.xmin - clearance,
+                bounds.ymin - clearance,
+                bottom - thickness - 1.0,
+            ),
+        )
+        base = base.cut(hole)
+
+    return base
 
 
 @dataclass(frozen=True)
@@ -52,29 +114,7 @@ def build_validation_fixture(
 ) -> cq.Workplane:
     """Build a connected base-down validation fixture."""
 
-    pcb_bounds = execution.board_model.pcb.BoundingBox()
-
-    base_x_mm = pcb_bounds.xlen + 2.0 * policy.perimeter_margin_mm
-    base_y_mm = pcb_bounds.ylen + 2.0 * policy.perimeter_margin_mm
-
-    center_x_mm = (pcb_bounds.xmin + pcb_bounds.xmax) / 2.0
-    center_y_mm = (pcb_bounds.ymin + pcb_bounds.ymax) / 2.0
-
-    base = (
-        cq.Workplane("XY")
-        .box(
-            base_x_mm,
-            base_y_mm,
-            policy.base_thickness_mm,
-        )
-        .translate(
-            (
-                center_x_mm,
-                center_y_mm,
-                pcb_bounds.zmin - policy.base_thickness_mm / 2.0,
-            )
-        )
-    )
+    base = _build_base(execution.board_model, policy)
 
     parameters = as_corner_capture_parameters(execution.execution.parameters)
     capture_geometry = SyntheticCornerCaptureBackend().build_geometry(parameters)
@@ -127,29 +167,7 @@ def build_edge_validation_fixture(
 ) -> cq.Workplane:
     """Build a connected base-down edge-capture validation fixture."""
 
-    pcb_bounds = execution.board_model.pcb.BoundingBox()
-
-    base_x_mm = pcb_bounds.xlen + 2.0 * policy.perimeter_margin_mm
-    base_y_mm = pcb_bounds.ylen + 2.0 * policy.perimeter_margin_mm
-
-    center_x_mm = (pcb_bounds.xmin + pcb_bounds.xmax) / 2.0
-    center_y_mm = (pcb_bounds.ymin + pcb_bounds.ymax) / 2.0
-
-    base = (
-        cq.Workplane("XY")
-        .box(
-            base_x_mm,
-            base_y_mm,
-            policy.base_thickness_mm,
-        )
-        .translate(
-            (
-                center_x_mm,
-                center_y_mm,
-                pcb_bounds.zmin - policy.base_thickness_mm / 2.0,
-            )
-        )
-    )
+    base = _build_base(execution.board_model, policy)
 
     parameters = as_edge_capture_parameters(execution.execution.parameters)
     capture_geometry = SyntheticEdgeCaptureBackend().build_geometry(parameters)

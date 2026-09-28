@@ -184,7 +184,11 @@ def board_with_underside_part(
     assembly.export(str(path), exportType="STEP")
 
 
-def review_board(tmp_path: Path, **board: float) -> dict[str, object]:
+def review_board(
+    tmp_path: Path,
+    fixture_policy: ValidationFixturePolicy | None = None,
+    **board: float,
+) -> dict[str, object]:
     source_step = tmp_path / "board.step"
     board_with_underside_part(source_step, **board)
     execution = execute_production_corner_capture(
@@ -198,7 +202,7 @@ def review_board(tmp_path: Path, **board: float) -> dict[str, object]:
     artifact = export_design_review_package(
         execution,
         output_directory=tmp_path / "review",
-        fixture_policy=ValidationFixturePolicy(),
+        fixture_policy=fixture_policy or ValidationFixturePolicy(),
     )
     report = json.loads(artifact.report_path.read_text(encoding="utf-8"))
     assert report["passed"] is artifact.passed
@@ -218,8 +222,20 @@ def test_shallow_underside_pads_are_seating_contact(tmp_path: Path) -> None:
     )
 
 
-def test_deep_underside_parts_block_review(tmp_path: Path) -> None:
+def test_deep_underside_parts_get_clearance_holes(tmp_path: Path) -> None:
     report = review_board(tmp_path, depth_mm=0.3)
+
+    assert report["passed"] is True
+    assert report["interference"]["component_fixture_intersections"] == []
+    assert report["interference"]["underside_seating_contacts"] == []
+
+
+def test_deep_underside_parts_block_review_without_holes(tmp_path: Path) -> None:
+    report = review_board(
+        tmp_path,
+        fixture_policy=ValidationFixturePolicy(underside_seating_mm=10.0),
+        depth_mm=0.3,
+    )
 
     assert report["passed"] is False
     assert len(report["interference"]["component_fixture_intersections"]) == 1
