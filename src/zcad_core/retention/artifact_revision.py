@@ -2,11 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
 
 from .corner_capture import CornerCapturePolicy, as_corner_capture_parameters
 from .evidence_artifact import (
     ProductionEvidenceArtifact,
     generate_production_evidence_artifact,
+)
+from .export_validation import (
+    ExportValidationRecord,
+    ReferenceBoard,
+    run_candidate_export_validation,
 )
 from .production_execution import (
     ProductionCornerExecutionRequest,
@@ -37,6 +43,8 @@ class ArtifactBackedRevisionResult:
     registration: RevisionRegistrationResult
     evidence_artifact: ProductionEvidenceArtifact
     fixture_artifact: ValidationFixtureArtifact
+    export_validation: ExportValidationRecord
+    export_validation_path: Path
 
     @property
     def candidate(self) -> CandidateRevision:
@@ -56,11 +64,18 @@ def register_artifact_backed_revision(
     git_commit: str,
     generator_version: str,
     created_at_utc: str,
+    printer_profile: dict[str, Any],
+    repository_root: Path = Path("."),
     fixture_policy: (ValidationFixturePolicy | None) = None,
     corner_keepout_mm: float = 4.0,
     vertical_margin_mm: float = 0.10,
 ) -> ArtifactBackedRevisionResult:
-    """Generate and register one evidence-backed revision."""
+    """Generate and register one evidence-backed revision.
+
+    The new candidate is export-validated immediately, with the embedded
+    source board reported separately; a failing run is recorded and blocks
+    promotion, not registration.
+    """
 
     planned_candidate = derive_candidate_revision(
         parent_candidate=parent_candidate,
@@ -72,6 +87,7 @@ def register_artifact_backed_revision(
     retention_step = output_directory / "retention.step"
     evidence_path = output_directory / "automated-validation.json"
     fixture_path = output_directory / "fixture.stl"
+    validation_root = output_directory / "export-validation"
     manifest_paths = (
         output_directory / "candidate.json",
         output_directory / "relationship.json",
@@ -82,6 +98,7 @@ def register_artifact_backed_revision(
         retention_step,
         evidence_path,
         fixture_path,
+        validation_root,
         *manifest_paths,
     )
 
@@ -168,8 +185,23 @@ def register_artifact_backed_revision(
         output_directory=output_directory,
     )
 
+    export_validation, export_validation_path = run_candidate_export_validation(
+        candidate=registration.candidate,
+        retention_step=retention_step,
+        validation_root=validation_root,
+        printer_profile=printer_profile,
+        repository_root=repository_root,
+        validated_at_utc=created_at_utc,
+        reference_board=ReferenceBoard(
+            source_step=source_step,
+            pcb_solid_index=pcb_solid_index,
+        ),
+    )
+
     return ArtifactBackedRevisionResult(
         registration=registration,
         evidence_artifact=evidence_artifact,
         fixture_artifact=fixture_artifact,
+        export_validation=export_validation,
+        export_validation_path=export_validation_path,
     )

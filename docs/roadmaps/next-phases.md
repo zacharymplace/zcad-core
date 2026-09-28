@@ -118,10 +118,23 @@ coplanar board faces. The board is recorded as a non-gating
 With the target supplied, all six board-embedding candidates pass, and
 XIAO's board defect remains visible as a non-gating failure.
 
+Slice 3 complete: export validation runs automatically when a candidate is
+created, with its run written to `export-validation/` beside the manifest:
+
+- `candidate register` now requires `--printer-profile`. The embedded
+  board is separated out unless `--no-embedded-board` is passed.
+- `register_artifact_backed_revision` requires `printer_profile` and returns
+  the record.
+- The wearable snap-shell build scripts validate the candidates they
+  register.
+
+A failing run blocks promotion, not registration.
+
 Remaining:
 
-- run export validation automatically when candidates are generated or
-  derived
+- `candidate derive` creates metadata-only revisions that reuse the
+  parent's STEP but do not record its path, so derived candidates still
+  need a manual `candidate revalidate`
 - retention-specific feature and STL validators
 
 ### Exit criteria

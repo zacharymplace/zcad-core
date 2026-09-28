@@ -12,6 +12,13 @@ from zcad_core.retention import (
     load_candidate_revision,
     register_artifact_backed_revision,
     sha256_file,
+    verify_export_validation,
+)
+
+PRINTER_PROFILE = json.loads(
+    (
+        Path(__file__).resolve().parents[2] / "profiles/printers/bambu-lab-a1-mini.json"
+    ).read_text(encoding="utf-8")
 )
 
 
@@ -103,6 +110,8 @@ def test_registers_artifact_backed_revision(
         git_commit="d" * 40,
         generator_version="1.1.0",
         created_at_utc=("2026-01-02T00:00:00+00:00"),
+        printer_profile=PRINTER_PROFILE,
+        repository_root=tmp_path,
     )
 
     candidate = result.candidate
@@ -140,6 +149,14 @@ def test_registers_artifact_backed_revision(
     assert report["decision"] == ("verified_candidate")
     assert report["policy"]["board_clearance_mm"] == 0.30
 
+    assert result.export_validation.evaluated_status == "PASS"
+    assert result.export_validation.candidate_id == candidate.candidate_id
+    assert result.export_validation.artifact("reference_board").gating is False
+    assert result.export_validation_path == (
+        output_directory / "export-validation/v001/export-validation.json"
+    )
+    assert verify_export_validation(result.export_validation, candidate=candidate) == ()
+
 
 def test_refuses_existing_revision_outputs(
     tmp_path: Path,
@@ -173,6 +190,7 @@ def test_refuses_existing_revision_outputs(
             git_commit="d" * 40,
             generator_version="1.1.0",
             created_at_utc=("2026-01-02T00:00:00+00:00"),
+            printer_profile=PRINTER_PROFILE,
         )
 
     assert (

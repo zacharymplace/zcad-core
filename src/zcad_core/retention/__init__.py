@@ -240,6 +240,7 @@ __all__ = [
     "PromotionRecord",
     "PublicationEligibility",
     "RecommendationDecision",
+    "ReferenceBoard",
     "RetentionBackend",
     "RetentionEngine",
     "RetentionExecution",
@@ -341,6 +342,7 @@ __all__ = [
 from .export_validation import (
     ExportValidationArtifact,
     ExportValidationRecord,
+    ReferenceBoard,
     load_export_validation_record,
     run_candidate_export_validation,
     verify_export_validation,

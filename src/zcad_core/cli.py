@@ -4,7 +4,9 @@ Thin argparse wrapper over the already-tested ``zcad_core.retention``
 lifecycle functions. Every command reads and writes explicit file paths;
 none of them infer a directory layout beyond what a caller passes in,
 except ``status`` and ``candidate promote``, which read (never write) a
-``--target-root`` to discover existing candidates and promotions.
+``--target-root`` to discover existing candidates and promotions, and
+``candidate register``, which writes its export-validation run beside the
+candidate manifest in ``export-validation/``.
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from zcad_core.retention import (
     ProductionEdgeExecutionRequest,
     PromotionDecision,
     PromotionRecord,
+    ReferenceBoard,
     RevisionRelationshipType,
     ValidationFixturePolicy,
     ValidationTarget,
@@ -320,15 +323,31 @@ def _candidate_register(args: argparse.Namespace) -> int:
         output_path=args.output,
     )
 
+    # Every registered candidate carries export-validation evidence; a failing
+    # run is still recorded and blocks promotion rather than registration.
+    record, record_path = run_candidate_export_validation(
+        candidate=candidate,
+        retention_step=args.retention_step,
+        validation_root=args.output.parent / "export-validation",
+        printer_profile=load_manifest(args.printer_profile),
+        repository_root=args.repository_root,
+        validated_at_utc=_now(),
+        reference_board=(
+            None if args.no_embedded_board else ReferenceBoard.from_target(target)
+        ),
+    )
+
     _emit(
         {
             "candidate_id": candidate.candidate_id,
             "automated_decision": candidate.automated_decision,
             "manifest": str(args.output),
+            "export_validation_status": record.evaluated_status,
+            "export_validation_record": str(record_path),
         }
     )
 
-    return 0
+    return 0 if record.evaluated_status == "PASS" else 1
 
 
 def _candidate_derive(args: argparse.Namespace) -> int:
@@ -378,6 +397,21 @@ def _candidate_inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def _reference_board(
+    target_manifest: Path | None,
+    candidate: CandidateRevision,
+) -> ReferenceBoard | None:
+    if target_manifest is None:
+        return None
+
+    target = _load_validation_target(target_manifest)
+
+    if target.target_id != candidate.target_id:
+        raise ValueError("Target manifest does not match candidate target_id")
+
+    return ReferenceBoard.from_target(target)
+
+
 def _candidate_revalidate(args: argparse.Namespace) -> int:
     """Run the export pipeline on a candidate without altering prior evidence."""
 
@@ -390,11 +424,7 @@ def _candidate_revalidate(args: argparse.Namespace) -> int:
         printer_profile=load_manifest(args.printer_profile),
         repository_root=args.repository_root,
         validated_at_utc=_now(),
-        target=(
-            _load_validation_target(args.target_manifest)
-            if args.target_manifest is not None
-            else None
-        ),
+        reference_board=_reference_board(args.target_manifest, candidate),
     )
 
     _emit(
@@ -877,6 +907,16 @@ def build_parser() -> argparse.ArgumentParser:
     candidate_register.add_argument("--git-commit", required=True)
     candidate_register.add_argument("--generator-version", default="1.0.0")
     candidate_register.add_argument("--created-at-utc")
+    candidate_register.add_argument("--printer-profile", required=True, type=Path)
+    candidate_register.add_argument(
+        "--no-embedded-board",
+        action="store_true",
+        help=(
+            "The retention STEP does not embed the target PCB (e.g. snap-shell "
+            "wearables), so all of its geometry gates export validation."
+        ),
+    )
+    candidate_register.add_argument("--repository-root", default=Path("."), type=Path)
     candidate_register.add_argument("--output", required=True, type=Path)
     candidate_register.set_defaults(handler=_candidate_register)
 

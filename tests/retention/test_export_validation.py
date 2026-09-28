@@ -13,6 +13,7 @@ from zcad_core.retention import (
     CandidateRevision,
     ExportValidationArtifact,
     ExportValidationRecord,
+    ReferenceBoard,
     ValidationTarget,
     export_validation,
     load_export_validation_record,
@@ -87,7 +88,9 @@ def run(
         printer_profile=PRINTER_PROFILE,
         repository_root=tmp_path,
         validated_at_utc="2026-01-01T00:00:00+00:00",
-        target=target,
+        reference_board=(
+            None if target is None else ReferenceBoard.from_target(target)
+        ),
     )
 
 
@@ -343,12 +346,14 @@ def test_target_requires_exactly_one_embedded_board(tmp_path: Path) -> None:
     assert not (tmp_path / "export-validation").exists()
 
 
-def test_target_must_match_candidate_source(tmp_path: Path) -> None:
+def test_reference_board_must_match_candidate_source(tmp_path: Path) -> None:
     candidate, retention_step, target = make_board_candidate(tmp_path)
-    other = ValidationTarget(**{**target.__dict__, "source_model_sha256": "1" * 64})
+    other = CandidateRevision(**{**candidate.__dict__, "source_sha256": "1" * 64})
 
     with pytest.raises(ValueError, match="source does not match candidate"):
-        run(tmp_path, candidate, retention_step, other)
+        run(tmp_path, other, retention_step, target)
+
+    assert not (tmp_path / "export-validation").exists()
 
 
 def test_loads_records_written_before_reference_boards(tmp_path: Path) -> None:

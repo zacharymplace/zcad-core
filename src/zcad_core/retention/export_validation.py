@@ -6,8 +6,8 @@ producing an append-only record bound to the candidate's ``output_sha256``.
 Earlier candidate evidence is never modified: each run gets its own
 ``vNNN`` directory, and a failing run is recorded rather than discarded.
 
-Retention STEPs embed the target's PCB solid for fit reference. When the
-validation target is supplied, that board is separated out: the generated
+Retention STEPs embed the target's PCB solid for fit reference. When a
+reference board is supplied, it is separated out: the generated
 geometry gates the record, while the vendor board is reported as a
 non-gating ``reference_board`` artifact.
 """
@@ -45,6 +45,21 @@ _REFERENCE_ROLES = ("reference_board",)
 _BOARD_MATCH_TOLERANCE_MM = 1e-6
 _STATUSES = ("PASS", "FAIL")
 _STEP_SUFFIXES = (".step", ".stp")
+
+
+@dataclass(frozen=True)
+class ReferenceBoard:
+    """Source model and PCB solid embedded in a candidate's retention STEP."""
+
+    source_step: Path
+    pcb_solid_index: int
+
+    @classmethod
+    def from_target(cls, target: ValidationTarget) -> ReferenceBoard:
+        return cls(
+            source_step=Path(target.source_model_path),
+            pcb_solid_index=target.pcb_solid_index,
+        )
 
 
 @dataclass(frozen=True)
@@ -231,13 +246,13 @@ def _matches_board(solid: cq.Solid, board: cq.Solid) -> bool:
 def _separate_reference_board(
     *,
     retention_step: Path,
-    target: ValidationTarget,
+    reference_board: ReferenceBoard,
 ) -> tuple[list[cq.Solid], cq.Solid]:
     """Split the embedded target PCB from generated retention solids."""
 
     board = import_production_board_model(
-        source_step=Path(target.source_model_path),
-        pcb_solid_index=target.pcb_solid_index,
+        source_step=reference_board.source_step,
+        pcb_solid_index=reference_board.pcb_solid_index,
     ).pcb
     solids = [
         solid
@@ -249,8 +264,8 @@ def _separate_reference_board(
     if len(matches) != 1:
         raise ValueError(
             f"Expected one embedded reference board in {retention_step}, "
-            f"found {len(matches)}; omit the target for candidates that do "
-            "not embed their board"
+            f"found {len(matches)}; omit the reference board for candidates "
+            "that do not embed one"
         )
 
     generated = [solid for solid in solids if solid is not matches[0]]
@@ -310,14 +325,14 @@ def run_candidate_export_validation(
     printer_profile: dict[str, Any],
     repository_root: Path,
     validated_at_utc: str,
-    target: ValidationTarget | None = None,
+    reference_board: ReferenceBoard | None = None,
 ) -> tuple[ExportValidationRecord, Path]:
     """Validate a candidate's artifacts and write a new, immutable run record.
 
     The retention STEP must be the exact file the candidate was registered
     with. Failing runs are still written, so rejected evidence stays visible.
-    With ``target``, the embedded board is validated separately and does
-    not gate the record; without it, the whole retention STEP must pass.
+    With ``reference_board``, the embedded board is validated separately and
+    does not gate the record; without it, the whole retention STEP must pass.
     """
 
     if sha256_file(retention_step) != candidate.output_sha256:
@@ -333,21 +348,16 @@ def run_candidate_export_validation(
     generated: list[cq.Solid] | None = None
     board: cq.Solid | None = None
 
-    if target is not None:
-        if target.target_id != candidate.target_id:
-            raise ValueError("Validation target does not match candidate target_id")
-
-        if target.source_model_sha256 != candidate.source_sha256:
-            raise ValueError("Validation target source does not match candidate")
-
-        if sha256_file(Path(target.source_model_path)) != candidate.source_sha256:
+    if reference_board is not None:
+        if sha256_file(reference_board.source_step) != candidate.source_sha256:
             raise ValueError(
-                f"Source model changed since registration: {target.source_model_path}"
+                "Reference board source does not match candidate source_sha256: "
+                f"{reference_board.source_step}"
             )
 
         generated, board = _separate_reference_board(
             retention_step=retention_step,
-            target=target,
+            reference_board=reference_board,
         )
 
     fixture = Path(candidate.fixture_artifact_path)
@@ -364,16 +374,16 @@ def run_candidate_export_validation(
         )
     ]
 
-    if target is not None and board is not None:
+    if reference_board is not None and board is not None:
         artifacts.append(
             _validate_step_artifact(
                 role="reference_board",
-                path=Path(target.source_model_path),
+                path=reference_board.source_step,
                 output_directory=run_directory,
                 repository_root=repository_root,
                 printer_profile=printer_profile,
                 solids=[board],
-                source_sha256=target.source_model_sha256,
+                source_sha256=candidate.source_sha256,
                 gating=False,
             )
         )

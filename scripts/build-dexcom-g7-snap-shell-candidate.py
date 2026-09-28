@@ -30,6 +30,8 @@ from zcad_core.retention import (
     SyntheticSnapShellBackend,
     ValidationTarget,
     candidate_identifier,
+    load_manifest,
+    run_candidate_export_validation,
     sha256_file,
     write_immutable_manifest,
 )
@@ -55,6 +57,8 @@ AUTOMATED_REPORT = CANDIDATE_ROOT / "automated-validation.json"
 RETENTION_STEP = CANDIDATE_ROOT / "retention.step"
 
 CANDIDATE_MANIFEST = CANDIDATE_ROOT / "candidate.json"
+
+PRINTER_PROFILE = ROOT / "profiles" / "printers" / "bambu-lab-a1-mini.json"
 
 
 def git_commit() -> str:
@@ -267,6 +271,16 @@ def main() -> None:
     )
     write_immutable_manifest(candidate, output_path=CANDIDATE_MANIFEST)
 
+    # The shell does not embed the placeholder envelope, so no reference board.
+    export_validation, export_validation_path = run_candidate_export_validation(
+        candidate=candidate,
+        retention_step=RETENTION_STEP,
+        validation_root=CANDIDATE_ROOT / "export-validation",
+        printer_profile=load_manifest(PRINTER_PROFILE),
+        repository_root=ROOT,
+        validated_at_utc=created_at,
+    )
+
     print("=== DEXCOM G7 SNAP-SHELL CANDIDATE (synthetic, placeholder geometry) ===")
     print(f"Passed: {execution.passed}")
     print(f"Decision: {decision}")
@@ -274,6 +288,8 @@ def main() -> None:
     print(f"Target manifest: {TARGET_MANIFEST}")
     print(f"Candidate manifest: {CANDIDATE_MANIFEST}")
     print(f"Retention STEP: {RETENTION_STEP}")
+    print(f"Export validation: {export_validation.evaluated_status}")
+    print(f"Export-validation record: {export_validation_path}")
 
     if not execution.passed:
         failed = ", ".join(

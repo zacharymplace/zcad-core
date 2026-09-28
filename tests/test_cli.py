@@ -7,6 +7,7 @@ import cadquery as cq
 import pytest
 
 from zcad_core.cli import main
+from zcad_core.retention import load_export_validation_record
 
 PRINTER_PROFILE = (
     Path(__file__).resolve().parents[1] / "profiles/printers/bambu-lab-a1-mini.json"
@@ -101,6 +102,7 @@ def register_candidate(
     revision: str = "r001",
     strategy: str = "corner-capture",
     retention_part: cq.Workplane | None = None,
+    embedded_board: bool = False,
 ) -> Path:
     evidence = tmp_path / "automated-validation.json"
     evidence.write_text(
@@ -154,6 +156,9 @@ def register_candidate(
         strategy,
         "--git-commit",
         "abc123",
+        "--printer-profile",
+        str(PRINTER_PROFILE),
+        *(() if embedded_board else ("--no-embedded-board",)),
         "--output",
         str(output),
     )
@@ -1112,7 +1117,14 @@ def test_candidate_revalidate_reports_embedded_board_as_non_gating(
         capsys,
         target_manifest,
         retention_part=cq.Workplane("XY").newObject([board.val(), arm.val()]),
+        embedded_board=True,
     )
+
+    registered = load_export_validation_record(
+        candidate_manifest.parent / "export-validation/v001/export-validation.json"
+    )
+    assert registered.evaluated_status == "PASS"
+    assert registered.artifact("reference_board").gating is False
 
     exit_code, result = run(
         capsys,
@@ -1138,3 +1150,56 @@ def test_candidate_revalidate_reports_embedded_board_as_non_gating(
         "fixture": "PASS",
     }
     assert result["non_gating_roles"] == ["reference_board"]
+
+
+def test_candidate_register_records_failing_export_validation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Oversized geometry still registers, but its failing run blocks promotion."""
+
+    target_manifest = register_target(tmp_path, capsys)
+    oversized = cq.Workplane("XY").box(300.0, 10.0, 5.0)
+    cq.exporters.export(oversized, str(tmp_path / "retention.step"))
+    cq.exporters.export(oversized, str(tmp_path / "fixture.stl"))
+    evidence = tmp_path / "automated-validation.json"
+    evidence.write_text(
+        json.dumps(
+            {
+                "policy": {"board_clearance_mm": 0.25},
+                "pcb": {"z_length_mm": 1.6},
+                "selected_corners": ["negative_x_negative_y"],
+                "decision": "verified_candidate",
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "candidates/r001/candidate.json"
+
+    exit_code, result = run(
+        capsys,
+        "candidate",
+        "register",
+        "--target-manifest",
+        str(target_manifest),
+        "--automated-evidence",
+        str(evidence),
+        "--retention-step",
+        str(tmp_path / "retention.step"),
+        "--fixture",
+        str(tmp_path / "fixture.stl"),
+        "--revision",
+        "r001",
+        "--git-commit",
+        "abc123",
+        "--printer-profile",
+        str(PRINTER_PROFILE),
+        "--no-embedded-board",
+        "--output",
+        str(output),
+    )
+
+    assert exit_code == 1
+    assert output.is_file()
+    assert result["export_validation_status"] == "FAIL"
+    assert Path(str(result["export_validation_record"])).is_file()
