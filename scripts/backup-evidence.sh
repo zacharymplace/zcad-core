@@ -3,6 +3,10 @@
 # (zacharymplace/zcad-core-evidence). Does nothing when evidence is unchanged.
 set -euo pipefail
 
+# Resolve the repository from this script's location, not the caller's working
+# directory, which may be evidence/ itself (a separate repository).
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
 # evidence/ lives only in the main checkout, which sits next to the shared git
 # directory, so linked worktrees back up the same copy.
 main_checkout="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
