@@ -8,32 +8,12 @@
     "repository": "zacharymplace/zcad-core",
     "path": ".",
     "branch": "main",
-    "commit": "ec7bd03"
+    "commit": "13820ab"
   },
   "evidence": [
     {
       "kind": "validation",
-      "reference": "python -m pytest -q",
-      "result": "pass"
-    },
-    {
-      "kind": "lint",
-      "reference": "python -m ruff check src tests",
-      "result": "pass"
-    },
-    {
-      "kind": "typing",
-      "reference": "python -m mypy src",
-      "result": "pass"
-    },
-    {
-      "kind": "capability",
-      "reference": "src/zcad_core/retention/edge_installation_path.py",
-      "result": "pass"
-    },
-    {
-      "kind": "format",
-      "reference": "python -m ruff format --check src tests",
+      "reference": "scripts/check.sh (ruff format, ruff check, mypy, pytest; run by .githooks/pre-push)",
       "result": "pass"
     },
     {
@@ -48,23 +28,38 @@
     },
     {
       "kind": "capability",
-      "reference": "src/zcad_core/exporters/service.py",
+      "reference": "src/zcad_core/retention/export_validation.py",
       "result": "pass"
     },
     {
       "kind": "capability",
-      "reference": "src/zcad_core/validation/stl_mesh.py",
+      "reference": "src/zcad_core/retention/export_checks.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/retention/design_review.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "scripts/prepare-candidate-for-print.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "scripts/slice-candidate-fixture.py",
       "result": "pass"
     }
   ],
-  "last_verified_at": "2026-09-27T23:10:51Z",
+  "last_verified_at": "2026-09-28T04:55:07Z",
   "next_action": {
-    "description": "Phase 1 of docs/roadmaps/next-phases.md: route Validation Lab fixture, retention STEP, and design-review exports through the validated export pipeline and require export validation for promotion.",
-    "command": "source .venv/bin/activate && python -m ruff format --check src tests && python -m ruff check src tests && python -m mypy src && python -m pytest -q"
+    "description": "Phase 2 of docs/roadmaps/next-phases.md: print and test-fit the four print-ready candidates (Feather RP2040 r004, Pico 2 r002, XIAO ESP32-S3 r003, UNO R4 WiFi r004), record each trial with `zcad-validation trial complete`, then register and promote passing candidates.",
+    "command": "scripts/check.sh"
   },
   "blockers": [
-    "Validation Lab evidence is exported with raw cq.exporters and bypasses export validation (Phase 1).",
-    "All recorded physical trials are 'revise' with pending printer and material profiles; no candidate is promoted (Phase 2)."
+    "No printer access: physical trials for the four print-ready candidates are open but unprinted, so no candidate can be promoted (Phase 2).",
+    "GitHub Actions is disabled for the account, so CI never runs on GitHub; gates run locally through the .githooks/pre-push hook."
   ],
   "capabilities": [
     "parametric-cad-engine",
@@ -88,6 +83,14 @@
     "design-validation-reports",
     "step-roundtrip-validation",
     "staged-export-publication",
-    "stl-mesh-validation"
+    "stl-mesh-validation",
+    "export-validation-records",
+    "export-validation-promotion-gate",
+    "retention-mesh-checks",
+    "fail-closed-design-review",
+    "underside-clearance-fixtures",
+    "bambu-studio-slicing",
+    "pre-print-candidate-preparation",
+    "local-ci-gate"
   ]
 }
