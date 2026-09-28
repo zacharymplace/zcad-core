@@ -168,20 +168,34 @@ wearables pass.
 
 Produce the first promoted, publication-eligible candidate.
 
-### Prerequisite
+### Prerequisite (met)
 
-- Fix the corner-capture and edge-clip generators so ledges and clips are
-  fused to their walls, then regenerate candidates that pass
-  `retention_supported_bodies`. Do not print existing candidates first:
-  their ledges are unsupported islands.
+The corner-capture and edge-clip generators (1.1.0) now fuse ledges and
+clips to their walls. Each corner capture is a single L-shaped body resting
+on the build plane. The following candidates regenerate their parents'
+policies unchanged, pass export validation including
+`retention_supported_bodies`, and pass slicing readiness:
+
+| Candidate | Supersedes | Ledge overhang past wall face | Vertical play |
+|---|---|---|---|
+| `adafruit-feather-rp2040-corner-capture-r004` | r003 | 3.45 mm | 0.90 mm |
+| `raspberry-pi-pico-2-corner-capture-r002` | r001 | 3.38 mm | 0.85 mm |
+| `seeed-xiao-esp32s3-corner-capture-r002` | r001 | 2.17 mm | 1.10 mm |
+| `arduino-uno-r4-wifi-edge-clip-r002` | r001 | 2.75 mm | 2.46 mm |
+
+Do not print the superseded candidates, because their ledges are
+unsupported islands. The ledges are unsupported horizontal overhangs
+(corner ledges are carried on two sides), and slicing readiness does not
+assess overhang. Check them in the Bambu Studio preview with supports
+disabled before the first print.
 
 ### Deliverables
 
 - selected printer and material profiles replacing `pending-selection`
   (Bambu A1 mini slicing readiness already exists)
-- Feather RP2040 r003 printed and recorded through `trial start` and
+- Feather RP2040 r004 printed and recorded through `trial start` and
   `trial complete` with dimensional measurements
-- a pass promotes r003; a revise derives r004 from measured deltas
+- a pass promotes r004; a revise derives r005 from measured deltas
 
 ### Exit criteria
 
