@@ -27,7 +27,7 @@
     "name": "Bambu Studio",
     "version": "pending"
   },
-  "source_artifact_path": "evidence/adafruit-feather-rp2040/validation-lab/candidates/r003/fixture.stl",
+  "source_artifact_path": "evidence/adafruit-feather-rp2040/validation-lab/candidates/r004/fixture.stl",
   "status": "planned",
   "supports": {
     "enabled": false,
