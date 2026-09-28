@@ -69,6 +69,18 @@ def test_failed_observation_blocks_pass() -> None:
         for check in PhysicalValidationCheck
     )
 
+    with pytest.raises(ValueError, match="failed: \\['board_seats_fully'\\]"):
+        complete_physical_validation_record(
+            candidate_report_path=Path("candidate.json"),
+            fixture_stl_path=Path("fixture.stl"),
+            printer_profile="test-printer",
+            material_profile="test-material",
+            slicer_profile="test-slicer",
+            observations=observations,
+            disposition=(PhysicalValidationDisposition.PASS),
+            operator_notes="Board did not seat.",
+        )
+
     record = complete_physical_validation_record(
         candidate_report_path=Path("candidate.json"),
         fixture_stl_path=Path("fixture.stl"),
@@ -76,7 +88,7 @@ def test_failed_observation_blocks_pass() -> None:
         material_profile="test-material",
         slicer_profile="test-slicer",
         observations=observations,
-        disposition=(PhysicalValidationDisposition.PASS),
+        disposition=(PhysicalValidationDisposition.REVISE),
         operator_notes="Board did not seat.",
     )
 
@@ -93,6 +105,20 @@ def test_incomplete_record_fails_closed() -> None:
         for check in tuple(PhysicalValidationCheck)[:-1]
     )
 
+    with pytest.raises(
+        ValueError, match="missing: \\['board_removes_without_damage'\\]"
+    ):
+        complete_physical_validation_record(
+            candidate_report_path=Path("candidate.json"),
+            fixture_stl_path=Path("fixture.stl"),
+            printer_profile="test-printer",
+            material_profile="test-material",
+            slicer_profile="test-slicer",
+            observations=observations,
+            disposition=(PhysicalValidationDisposition.PASS),
+            operator_notes="Incomplete.",
+        )
+
     record = complete_physical_validation_record(
         candidate_report_path=Path("candidate.json"),
         fixture_stl_path=Path("fixture.stl"),
@@ -100,7 +126,7 @@ def test_incomplete_record_fails_closed() -> None:
         material_profile="test-material",
         slicer_profile="test-slicer",
         observations=observations,
-        disposition=(PhysicalValidationDisposition.PASS),
+        disposition=(PhysicalValidationDisposition.REVISE),
         operator_notes="Incomplete.",
     )
 

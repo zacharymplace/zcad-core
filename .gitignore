@@ -15,3 +15,6 @@ evidence/
 
 # Generated documentation output
 site/
+
+# Bambu Studio CLI writes its slice summary to the working directory
+/result.json

@@ -1543,3 +1543,41 @@ def test_candidate_derive_rejects_step_other_than_parents(
     assert exit_code == 1
     assert "does not match candidate output_sha256" in capsys.readouterr().err
     assert not (tmp_path / "candidates/r002").exists()
+
+
+def test_trial_complete_refuses_pass_with_failed_checks(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    fixture = tmp_path / "fixture.stl"
+    fixture.write_bytes(b"synthetic fixture")
+    output = tmp_path / "physical.json"
+
+    exit_code = main(
+        [
+            "trial",
+            "complete",
+            "--candidate-report",
+            str(tmp_path / "automated-validation.json"),
+            "--fixture-stl",
+            str(fixture),
+            "--printer-profile",
+            "bambu-lab-a1-mini",
+            "--material-profile",
+            "petg",
+            "--slicer-profile",
+            "bambu-studio-a1-mini-petg-validation",
+            "--observations",
+            str(write_observations(tmp_path, all_passed=False)),
+            "--disposition",
+            "pass",
+            "--output",
+            str(output),
+        ]
+    )
+
+    assert exit_code == 1
+    assert "A pass disposition requires every check to pass" in (
+        capsys.readouterr().err
+    )
+    assert not output.exists()

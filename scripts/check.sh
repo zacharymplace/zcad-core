@@ -4,8 +4,14 @@ set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
+# Linked worktrees have no .venv of their own, so fall back to the main
+# checkout's, which sits next to the shared git directory.
+main_checkout="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+
 if [[ -x .venv/bin/python ]]; then
   python=.venv/bin/python
+elif [[ -x "$main_checkout/.venv/bin/python" ]]; then
+  python="$main_checkout/.venv/bin/python"
 else
   python=python3
 fi
