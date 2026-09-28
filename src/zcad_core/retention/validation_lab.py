@@ -189,8 +189,17 @@ class PhysicalTrialManifest:
         if self.passed and not self.complete:
             raise ValueError("Incomplete physical trial cannot pass")
 
+        if self.pending and self.complete:
+            raise ValueError("Pending physical trial cannot be complete")
+
         if self.passed and self.disposition != "pass":
             raise ValueError("Passing physical trial requires pass disposition")
+
+    @property
+    def pending(self) -> bool:
+        """Whether the trial has not yet been printed and inspected."""
+
+        return self.disposition == "pending"
 
 
 def candidate_identifier(

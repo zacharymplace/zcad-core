@@ -48,6 +48,7 @@ from zcad_core.retention import (
     generate_production_evidence_artifact,
     load_candidate_revision,
     load_manifest,
+    load_physical_validation_record,
     promote_preferred_revision,
     recommend_revision,
     register_candidate_revision,
@@ -90,6 +91,24 @@ def _load_validation_target(path: Path) -> ValidationTarget:
 def _load_physical_trial_manifest(path: Path) -> PhysicalTrialManifest:
     payload = load_manifest(path)
 
+    disposition = str(payload["disposition"])
+    complete = bool(payload["complete"])
+    passed = bool(payload["passed"])
+
+    # Trials registered before the explicit pending disposition copied a
+    # placeholder "revise" from an unprinted record. The manifest is
+    # immutable, so read the referenced record to tell them apart.
+    if (
+        disposition == PhysicalValidationDisposition.REVISE.value
+        and _references_pending_record(
+            manifest_path=path,
+            record_path=Path(str(payload["physical_validation_path"])),
+        )
+    ):
+        disposition = PhysicalValidationDisposition.PENDING.value
+        complete = False
+        passed = False
+
     return PhysicalTrialManifest(
         schema_version=str(payload["schema_version"]),
         trial_id=str(payload["trial_id"]),
@@ -99,11 +118,33 @@ def _load_physical_trial_manifest(path: Path) -> PhysicalTrialManifest:
         printer_profile=str(payload["printer_profile"]),
         material_profile=str(payload["material_profile"]),
         slicer_profile=str(payload["slicer_profile"]),
-        disposition=str(payload["disposition"]),
-        complete=bool(payload["complete"]),
-        passed=bool(payload["passed"]),
+        disposition=disposition,
+        complete=complete,
+        passed=passed,
         created_at_utc=str(payload["created_at_utc"]),
     )
+
+
+def _references_pending_record(*, manifest_path: Path, record_path: Path) -> bool:
+    """Whether a trial manifest points at a still-pending validation record.
+
+    Recorded paths are repository-relative, so when the working directory
+    is not the repository root, resolve against the manifest's ancestors.
+    A record that cannot be found leaves the manifest as recorded.
+    """
+
+    candidates = [record_path]
+
+    if not record_path.is_absolute():
+        candidates.extend(
+            parent / record_path for parent in manifest_path.resolve().parents
+        )
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return load_physical_validation_record(candidate).pending
+
+    return False
 
 
 def _optional_str(payload: dict[str, Any], key: str) -> str | None:
@@ -602,6 +643,7 @@ def _trial_start(args: argparse.Namespace) -> int:
     _emit(
         {
             "disposition": record.disposition.value,
+            "pending": record.pending,
             "complete": record.complete,
             "record": str(args.output),
         }
@@ -655,7 +697,7 @@ def _trial_complete(args: argparse.Namespace) -> int:
 
 def _trial_register(args: argparse.Namespace) -> int:
     candidate = load_candidate_revision(args.candidate_manifest)
-    physical = load_manifest(args.physical_validation_record)
+    physical = load_physical_validation_record(args.physical_validation_record)
 
     trial = PhysicalTrialManifest(
         schema_version="1.0.0",
@@ -663,13 +705,13 @@ def _trial_register(args: argparse.Namespace) -> int:
         candidate_id=candidate.candidate_id,
         physical_validation_path=str(args.physical_validation_record),
         fixture_artifact_path=str(args.fixture),
-        printer_profile=str(physical["printer_profile"]),
-        material_profile=str(physical["material_profile"]),
-        slicer_profile=str(physical["slicer_profile"]),
-        disposition=str(physical["disposition"]),
-        complete=bool(physical["complete"]),
-        passed=bool(physical["passed"]),
-        created_at_utc=(str(physical.get("completed_at_utc") or "").strip() or _now()),
+        printer_profile=physical.printer_profile,
+        material_profile=physical.material_profile,
+        slicer_profile=physical.slicer_profile,
+        disposition=physical.disposition.value,
+        complete=physical.complete,
+        passed=physical.passed,
+        created_at_utc=physical.completed_at_utc.strip() or _now(),
     )
 
     write_immutable_manifest(
@@ -681,6 +723,7 @@ def _trial_register(args: argparse.Namespace) -> int:
         {
             "trial_id": trial.trial_id,
             "candidate_id": trial.candidate_id,
+            "pending": trial.pending,
             "passed": trial.passed,
             "manifest": str(args.output),
         }
@@ -816,6 +859,8 @@ def _report(args: argparse.Namespace) -> int:
     for candidate in candidates:
         candidate_trials = trials_by_candidate.get(candidate.candidate_id, [])
         promotion = promotion_by_candidate.get(candidate.candidate_id)
+        # Pending trials have no outcome yet; only completed trials count.
+        completed_trials = [trial for trial in candidate_trials if trial.complete]
 
         candidate_reports.append(
             {
@@ -824,7 +869,18 @@ def _report(args: argparse.Namespace) -> int:
                 "strategy": candidate.strategy,
                 "automated_decision": candidate.automated_decision,
                 "trial_count": len(candidate_trials),
-                "trials_passed": sum(1 for trial in candidate_trials if trial.passed),
+                "trials_pending": sum(1 for trial in candidate_trials if trial.pending),
+                "trials_completed": len(completed_trials),
+                "trials_passed": sum(1 for trial in completed_trials if trial.passed),
+                "trial_outcomes": {
+                    disposition.value: sum(
+                        1
+                        for trial in completed_trials
+                        if trial.disposition == disposition.value
+                    )
+                    for disposition in PhysicalValidationDisposition
+                    if disposition is not PhysicalValidationDisposition.PENDING
+                },
                 "promotion": (
                     None
                     if promotion is None
@@ -1075,7 +1131,11 @@ def build_parser() -> argparse.ArgumentParser:
     trial_complete.add_argument(
         "--disposition",
         required=True,
-        choices=[member.value for member in PhysicalValidationDisposition],
+        choices=[
+            member.value
+            for member in PhysicalValidationDisposition
+            if member is not PhysicalValidationDisposition.PENDING
+        ],
     )
     trial_complete.add_argument("--operator-notes", default="")
     trial_complete.add_argument("--output", required=True, type=Path)

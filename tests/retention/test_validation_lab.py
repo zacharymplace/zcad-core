@@ -216,6 +216,23 @@ def test_passing_trial_requires_pass_disposition() -> None:
         )
 
 
+def test_pending_trial_cannot_be_complete() -> None:
+    with pytest.raises(
+        ValueError,
+        match="Pending physical trial cannot be complete",
+    ):
+        replace(
+            valid_trial(),
+            disposition="pending",
+            complete=True,
+        )
+
+    pending = replace(valid_trial(), disposition="pending", complete=False)
+
+    assert pending.pending is True
+    assert pending.passed is False
+
+
 def test_manifest_write_is_idempotent(
     tmp_path: Path,
 ) -> None:
