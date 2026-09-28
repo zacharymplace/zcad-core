@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from zcad_core.retention import (
+    UNRECORDED_SLICER_PROFILE,
     CandidateRevision,
     CornerCapturePolicy,
     EdgeCapturePolicy,
@@ -117,7 +118,7 @@ def _load_physical_trial_manifest(path: Path) -> PhysicalTrialManifest:
         fixture_artifact_path=str(payload["fixture_artifact_path"]),
         printer_profile=str(payload["printer_profile"]),
         material_profile=str(payload["material_profile"]),
-        slicer_profile=str(payload["slicer_profile"]),
+        slicer_profile=str(payload.get("slicer_profile", UNRECORDED_SLICER_PROFILE)),
         disposition=disposition,
         complete=complete,
         passed=passed,

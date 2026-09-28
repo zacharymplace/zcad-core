@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from zcad_core.retention import (
+    UNRECORDED_SLICER_PROFILE,
     PhysicalValidationCheck,
     PhysicalValidationDisposition,
     PhysicalValidationObservation,
@@ -258,3 +259,29 @@ def test_legacy_pending_record_loads_as_pending(
     assert record.pending is True
     assert record.complete is False
     assert record.passed is False
+
+
+def test_record_without_slicer_profile_loads_as_unrecorded(
+    tmp_path: Path,
+) -> None:
+    # Records written before the slicer profile was tracked omit the key.
+    path = tmp_path / "record.json"
+
+    write_physical_validation_record(
+        create_pending_physical_validation_record(
+            candidate_report_path=Path("candidate.json"),
+            fixture_stl_path=Path("fixture.stl"),
+            printer_profile="pending-selection",
+            material_profile="pending-selection",
+            slicer_profile="pending-selection",
+        ),
+        output_path=path,
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    del payload["slicer_profile"]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    record = load_physical_validation_record(path)
+
+    assert record.slicer_profile == UNRECORDED_SLICER_PROFILE
+    assert record.pending is True

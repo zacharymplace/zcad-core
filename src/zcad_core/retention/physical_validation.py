@@ -7,6 +7,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+# Records and trial manifests written before the slicer profile was tracked
+# carry no ``slicer_profile``; they load with this value rather than failing.
+UNRECORDED_SLICER_PROFILE = "unrecorded"
+
 
 class PhysicalValidationCheck(str, Enum):
     """Required physical-validation observations."""
@@ -231,7 +235,7 @@ def physical_validation_record_from_payload(
         fixture_stl_path=str(payload["fixture_stl_path"]),
         printer_profile=str(payload["printer_profile"]),
         material_profile=str(payload["material_profile"]),
-        slicer_profile=str(payload["slicer_profile"]),
+        slicer_profile=str(payload.get("slicer_profile", UNRECORDED_SLICER_PROFILE)),
         observations=observations,
         disposition=disposition,
         operator_notes=str(payload.get("operator_notes", "")),

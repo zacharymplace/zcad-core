@@ -713,11 +713,17 @@ def test_trial_complete_rejects_pending_disposition(
         )
 
 
+@pytest.mark.parametrize("records_slicer_profile", [True, False])
 def test_legacy_pending_trial_reads_as_pending(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    records_slicer_profile: bool,
 ) -> None:
-    """Trials registered before the pending disposition existed stay loadable."""
+    """Trials registered before the pending disposition existed stay loadable.
+
+    The oldest evidence (adafruit-feather-rp2040 r001) also predates the
+    slicer profile, so neither its record nor its manifest carries one.
+    """
 
     target_manifest = register_target(tmp_path, capsys)
     candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
@@ -730,52 +736,52 @@ def test_legacy_pending_trial_reads_as_pending(
     # path is repository-relative, as in evidence/.
     legacy_record = tmp_path / "evidence/legacy-physical-validation.json"
     legacy_record.parent.mkdir(parents=True)
-    legacy_record.write_text(
-        json.dumps(
+    legacy_record_payload: dict[str, object] = {
+        "candidate_report_path": "candidate.json",
+        "complete": True,
+        "completed_at_utc": "",
+        "disposition": "revise",
+        "fixture_stl_path": "fixture.stl",
+        "material_profile": "pending-selection",
+        "observations": [
             {
-                "candidate_report_path": "candidate.json",
-                "complete": True,
-                "completed_at_utc": "",
-                "disposition": "revise",
-                "fixture_stl_path": "fixture.stl",
-                "material_profile": "pending-selection",
-                "observations": [
-                    {
-                        "check": check,
-                        "notes": "Pending physical validation.",
-                        "passed": False,
-                    }
-                    for check in json.loads(
-                        write_observations(tmp_path).read_text(encoding="utf-8")
-                    )
-                ],
-                "operator_notes": "Pending print, inspection, and board-fit trial.",
+                "check": check,
+                "notes": "Pending physical validation.",
                 "passed": False,
-                "printer_profile": "pending-selection",
-                "schema_version": "1.0.0",
-                "slicer_profile": "pending-selection",
             }
-        ),
-        encoding="utf-8",
-    )
+            for check in json.loads(
+                write_observations(tmp_path).read_text(encoding="utf-8")
+            )
+        ],
+        "operator_notes": "Pending print, inspection, and board-fit trial.",
+        "passed": False,
+        "printer_profile": "pending-selection",
+        "schema_version": "1.0.0",
+        "slicer_profile": "pending-selection",
+    }
+    legacy_trial_payload: dict[str, object] = {
+        "candidate_id": candidate_id,
+        "complete": True,
+        "created_at_utc": "2026-08-16T19:48:21.132957+00:00",
+        "disposition": "revise",
+        "fixture_artifact_path": "fixture.stl",
+        "material_profile": "pending-selection",
+        "passed": False,
+        "physical_validation_path": "evidence/legacy-physical-validation.json",
+        "printer_profile": "pending-selection",
+        "schema_version": "1.0.0",
+        "slicer_profile": "pending-selection",
+        "trial_id": "trial-001",
+    }
+
+    if not records_slicer_profile:
+        del legacy_record_payload["slicer_profile"]
+        del legacy_trial_payload["slicer_profile"]
+
+    legacy_record.write_text(json.dumps(legacy_record_payload), encoding="utf-8")
     legacy_trial = tmp_path / "candidates/r001/trials/trial-001/trial.json"
     legacy_trial.parent.mkdir(parents=True)
-    legacy_trial_text = json.dumps(
-        {
-            "candidate_id": candidate_id,
-            "complete": True,
-            "created_at_utc": "2026-08-16T19:48:21.132957+00:00",
-            "disposition": "revise",
-            "fixture_artifact_path": "fixture.stl",
-            "material_profile": "pending-selection",
-            "passed": False,
-            "physical_validation_path": "evidence/legacy-physical-validation.json",
-            "printer_profile": "pending-selection",
-            "schema_version": "1.0.0",
-            "slicer_profile": "pending-selection",
-            "trial_id": "trial-001",
-        }
-    )
+    legacy_trial_text = json.dumps(legacy_trial_payload)
     legacy_trial.write_text(legacy_trial_text, encoding="utf-8")
 
     exit_code, report = run(capsys, "report", "--target-root", str(tmp_path))
