@@ -286,6 +286,159 @@ def test_register_candidate_promotion_rejects_missing_artifacts(
     assert not promotion_path.exists()
 
 
+@pytest.mark.parametrize(
+    "decision",
+    [PromotionDecision.REJECTED, PromotionDecision.REQUIRES_REVISION],
+)
+def test_register_candidate_promotion_records_non_promoted_without_passing_evidence(
+    tmp_path: Path,
+    decision: PromotionDecision,
+) -> None:
+    """Failed and rejected trials remain visible: a non-promoted decision
+    must be recordable even when validation did not pass."""
+
+    from zcad_core.retention import (
+        register_candidate_promotion,
+    )
+
+    candidate = tmp_path / "candidate.json"
+    trial = tmp_path / "trial.json"
+
+    for path in (candidate, trial):
+        path.write_text("{}\n", encoding="utf-8")
+
+    promotion_path = tmp_path / "promotion.json"
+
+    record = PromotionRecord(
+        **{
+            **valid_promotion_record().__dict__,
+            "decision": decision,
+            "reason": "Physical trial failed fit check.",
+            "automated_validation_passed": False,
+            "physical_validation_passed": False,
+            "candidate_manifest_path": str(candidate),
+            "relationship_path": None,
+            "parameter_delta_path": None,
+            "physical_trial_path": str(trial),
+        }
+    )
+
+    result = register_candidate_promotion(
+        record=record,
+        output_path=promotion_path,
+    )
+
+    assert result == record
+
+    payload = json.loads(promotion_path.read_text(encoding="utf-8"))
+    assert payload["decision"] == decision.value
+    assert payload["automated_validation_passed"] is False
+    assert payload["physical_validation_passed"] is False
+
+
+@pytest.mark.parametrize(
+    ("missing_name", "failure"),
+    [
+        ("candidate.json", "candidate_manifest_missing"),
+        ("trial.json", "physical_trial_missing"),
+    ],
+)
+def test_register_candidate_promotion_rejected_requires_cited_artifacts(
+    tmp_path: Path,
+    missing_name: str,
+    failure: str,
+) -> None:
+    from zcad_core.retention import (
+        register_candidate_promotion,
+    )
+
+    candidate = tmp_path / "candidate.json"
+    trial = tmp_path / "trial.json"
+
+    for path in (candidate, trial):
+        if path.name != missing_name:
+            path.write_text("{}\n", encoding="utf-8")
+
+    promotion_path = tmp_path / "promotion.json"
+
+    record = PromotionRecord(
+        **{
+            **valid_promotion_record().__dict__,
+            "decision": PromotionDecision.REJECTED,
+            "automated_validation_passed": False,
+            "physical_validation_passed": False,
+            "candidate_manifest_path": str(candidate),
+            "relationship_path": None,
+            "parameter_delta_path": None,
+            "physical_trial_path": str(trial),
+        }
+    )
+
+    with pytest.raises(ValueError, match=failure):
+        register_candidate_promotion(
+            record=record,
+            output_path=promotion_path,
+        )
+
+    assert not promotion_path.exists()
+
+
+def test_rejected_record_does_not_become_preferred(
+    tmp_path: Path,
+) -> None:
+    record = PromotionRecord(
+        **{
+            **_write_promotion_artifacts(tmp_path, "r001").__dict__,
+            "decision": PromotionDecision.REJECTED,
+            "automated_validation_passed": False,
+            "physical_validation_passed": False,
+        }
+    )
+
+    promote_preferred_revision(
+        record=record,
+        output_path=tmp_path / "candidates" / "r001" / "promotion.json",
+    )
+
+    assert (
+        select_preferred_revision(
+            target_id=record.target_id,
+            promotion_records=(record,),
+        )
+        is None
+    )
+
+
+def test_promote_preferred_revision_records_rejection_without_supersession(
+    tmp_path: Path,
+) -> None:
+    preferred = _write_promotion_artifacts(tmp_path, "r001")
+    rejected = PromotionRecord(
+        **{
+            **_write_promotion_artifacts(tmp_path, "r002").__dict__,
+            "decision": PromotionDecision.REJECTED,
+            "physical_validation_passed": False,
+        }
+    )
+    rejection_path = tmp_path / "candidates" / "r002" / "promotion.json"
+
+    result = promote_preferred_revision(
+        record=rejected,
+        output_path=rejection_path,
+        existing_promotion_records=(preferred,),
+    )
+
+    assert result == rejected
+    assert rejection_path.is_file()
+    assert (
+        select_preferred_revision(
+            target_id=preferred.target_id,
+            promotion_records=(preferred, rejected),
+        )
+        == preferred
+    )
+
+
 def test_select_preferred_revision_returns_none_without_promotions() -> None:
     result = select_preferred_revision(
         target_id="synthetic-target",
