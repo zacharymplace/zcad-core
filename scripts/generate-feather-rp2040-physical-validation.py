@@ -48,6 +48,7 @@ def main() -> None:
         fixture_stl_path=(fixture.stl_path),
         printer_profile=("pending-selection"),
         material_profile=("pending-selection"),
+        slicer_profile=("pending-selection"),
     )
 
     write_physical_validation_record(

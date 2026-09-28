@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from zcad_core.retention import (
+    UNRECORDED_SLICER_PROFILE,
     CandidateRevision,
     PhysicalTrialManifest,
     ValidationTarget,
@@ -183,6 +184,7 @@ def build_trial(
         fixture_artifact_path=str(FIXTURE_STL.relative_to(ROOT)),
         printer_profile=str(physical["printer_profile"]),
         material_profile=str(physical["material_profile"]),
+        slicer_profile=str(physical.get("slicer_profile", UNRECORDED_SLICER_PROFILE)),
         disposition=str(physical["disposition"]),
         complete=bool(physical["complete"]),
         passed=bool(physical["passed"]),

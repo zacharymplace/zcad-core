@@ -35,9 +35,9 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
 fi
 
 # git diff misses new files, but the gates still lint and test them.
-if [[ -n "$(git ls-files --others --exclude-standard -- src tests)" ]]; then
-  echo "pre-push: untracked files under src/ or tests/ would be checked but" >&2
-  echo "not pushed; commit, stash, or remove them first." >&2
+if [[ -n "$(git ls-files --others --exclude-standard -- src tests scripts)" ]]; then
+  echo "pre-push: untracked files under src/, tests/, or scripts/ would be" >&2
+  echo "checked but not pushed; commit, stash, or remove them first." >&2
   exit 1
 fi
 

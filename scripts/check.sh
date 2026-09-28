@@ -17,13 +17,13 @@ else
 fi
 
 echo "==> ruff format --check"
-"$python" -m ruff format --check src tests
+"$python" -m ruff format --check src tests scripts
 
 echo "==> ruff check"
-"$python" -m ruff check src tests
+"$python" -m ruff check src tests scripts
 
 echo "==> mypy"
-"$python" -m mypy src
+"$python" -m mypy src scripts
 
 echo "==> pytest"
 "$python" -m pytest -q

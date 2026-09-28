@@ -31,6 +31,7 @@ from zcad_core.retention import (
     SnapShellRequest,
     SyntheticSnapShellBackend,
     ValidationTarget,
+    as_snap_shell_fit_report,
     candidate_identifier,
     load_manifest,
     run_candidate_export_validation,
@@ -173,6 +174,8 @@ def main() -> None:
     if not isinstance(execution.model, cq.Workplane):
         raise TypeError("Retention execution did not produce a cadquery Workplane")
 
+    fit_report = as_snap_shell_fit_report(execution.report)
+
     RETENTION_STEP.parent.mkdir(parents=True, exist_ok=True)
     cq.exporters.export(execution.model, str(RETENTION_STEP))
 
@@ -180,15 +183,11 @@ def main() -> None:
     source_sha256 = sha256_file(SOURCE_STEP)
     output_sha256 = sha256_file(RETENTION_STEP)
 
-    decision = (
-        "provisional_synthetic_candidate"
-        if execution.passed
-        else "rejected"
-    )
+    decision = "provisional_synthetic_candidate" if execution.passed else "rejected"
 
     fit_results = {
         result.check.value: {"passed": result.passed, "detail": result.detail}
-        for result in execution.report.results
+        for result in fit_report.results
     }
 
     report: dict[str, object] = {
@@ -319,9 +318,7 @@ def main() -> None:
 
     if not execution.passed:
         failed = ", ".join(
-            result.check.value
-            for result in execution.report.results
-            if not result.passed
+            result.check.value for result in fit_report.results if not result.passed
         )
         raise SystemExit(f"Snap-shell verification failed: {failed}")
 
