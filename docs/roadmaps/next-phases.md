@@ -6,49 +6,71 @@ This roadmap sequences work after the completed Validation Lab phases and the
 September 2026 export-validation work. It builds on both tracks rather than
 adding new retention strategies or hardware families.
 
-## Current position (2026-09-27)
+## Current position (2026-09-28)
 
-### Track 1 — Validation Lab (complete in software)
+| Phase | Status |
+|---|---|
+| 0 — Restore the gate | Complete |
+| 1 — Route Validation Lab through the export pipeline | Complete |
+| 2 — Close the physical loop | Pre-print complete for four candidates; blocked on printer access |
+| 3 — Measurement feedback | Not started; needs Phase 2 trial data |
+| 4 — Retention-strategy breadth | Pre-print complete for Pico 2, XIAO, and UNO R4; prints pending |
+| 5 — Publication and downstream integration | Not started |
 
-- Target registry, immutable candidate revisions, and physical trials
-- Revision lineage, comparison, and recommendation
-- Promotion and publication gate
-- `zcad-validation` CLI
-- Corner-capture and edge-clip retention with installation-path analysis
-- Snap-shell retention for wearables
-- Targets: Feather RP2040, Pico 2, UNO R4 WiFi, XIAO ESP32-S3,
-  Dexcom G7 (synthetic), Tandem Mobi (synthetic)
+Four candidates are ready to print. Each has passing export validation, a
+passing design review, slicing readiness, a Bambu Studio slice, and an open
+pending trial (see Phase 2):
 
-### Track 2 — Validated export pipeline
+- `adafruit-feather-rp2040-corner-capture-r004`
+- `raspberry-pi-pico-2-corner-capture-r002`
+- `seeed-xiao-esp32s3-corner-capture-r003`
+- `arduino-uno-r4-wifi-edge-clip-r004`
 
-- Complete export-geometry inspection with structured checks
-- Unified design validation reports, including XY build-volume orientation
-- Application feature-check hook run before export
-- STEP re-import with feature checks re-run on the imported geometry
-- Whole-set staging with rollback on failed publication
-- Strict binary STL topology validation
-- STL vertical clearance and continuous material-coverage probes
+No candidate has been printed or promoted yet, and nothing is
+publication-eligible.
 
-### Gaps
+### Blockers and open items
 
-1. **Physical evidence is the bottleneck.** All four recorded physical trials
-   are `revise` with `pending-selection` printer and material profiles. No
-   candidate has been promoted, so nothing is publication-eligible. Feather
-   r003 has a complete design-review and slicing-readiness package but no
-   trial.
-2. **The tracks are disconnected.** Validation Lab fixture, retention STEP,
-   and design-review outputs are written directly with `cq.exporters`, so
-   candidate evidence does not receive the export pipeline's geometry, STEP
-   round-trip, or STL checks.
-3. **Gate drift.** Track 2 landed with ruff format, lint, and mypy failures,
-   and `metadata/systems-builder-lifecycle.json` still describes the project
-   as held at an earlier commit. Phase 0 resolves this.
+1. **No printer access.** Phase 2 needs a print and test fit of each
+   candidate, recorded with `zcad-validation trial complete`.
+2. **Human visual reviews are outstanding** for all four candidates. The
+   review of Feather r003 passed geometry whose ledges were floating, so these
+   reviews should examine the fused ledges specifically.
+3. **GitHub Actions is disabled for the account**, so CI never runs on
+   GitHub. The same gates run locally: `scripts/check.sh`, enforced by the
+   `.githooks/pre-push` hook (enable per checkout with
+   `git config core.hooksPath .githooks`).
+
+### Tracks
+
+- **Validation Lab** (complete in software): target registry, immutable
+  candidate revisions, physical trials with an explicit pending state,
+  lineage, comparison, promotion and publication gating, and the
+  `zcad-validation` CLI. It covers corner-capture, edge-clip, and snap-shell
+  retention across the Feather RP2040, Pico 2, UNO R4 WiFi, XIAO ESP32-S3,
+  Dexcom G7 (synthetic), and Tandem Mobi (synthetic) targets.
+- **Validated export pipeline**: geometry inspection, design validation
+  reports, STEP round-trip and STL topology checks, staged publication with
+  rollback, and STL clearance and material probes. As of Phase 1, every
+  Validation Lab candidate passes through it.
+
+### Gaps closed since 2026-09-27
+
+- The gate is green again, and a pre-push hook keeps it that way (Phase 0).
+- Candidate evidence goes through the export pipeline, and promotion depends
+  on a verified export-validation record rather than a CLI flag (Phase 1).
+- Export validation and the design review found three fixture defects that
+  would have failed on the first print: floating ledges, geometry built from
+  the wrong board height, and through-hole pins passing into the fixture
+  base. All three are fixed, and the candidates were regenerated (Phase 2
+  prerequisite).
 
 ## Operating principles
 
 The Validation Lab principles continue to apply. In addition:
 
-1. `main` stays green on format, lint, types, and tests.
+1. `main` stays green on format, lint, types, and tests, enforced by the
+   local pre-push hook while GitHub Actions is unavailable.
 2. Every artifact that becomes candidate evidence passes through the
    validated export pipeline.
 3. New validation rules never rewrite historical evidence; they produce new,
@@ -68,6 +90,10 @@ Return `main` to a fully passing CI state and record the current lifecycle.
 - mypy clean for `validation/stl_mesh.py` and `exporters/service.py`
 - lifecycle metadata updated to the current commit with export-validation
   capabilities
+
+### Status
+
+Complete. The lifecycle metadata was last updated for Phase 2.
 
 ### Exit criteria
 
@@ -92,6 +118,9 @@ Give every candidate the same automated guarantees as any other export.
   re-validation record for existing candidates
 
 ### Status
+
+Complete. All three exit criteria are met. The slice notes below record what
+was found at each step.
 
 Slice 1 complete:
 
@@ -153,7 +182,8 @@ both the retention STEP and the printable fixture the ledges float
 1.8–2.5 mm above the base. None of the recorded trials were printed, so no
 physical run has hit this yet. Measured vertical play is 0.85–1.1 mm for
 corner capture and 2.46 mm for the UNO R4 edge clip. The snap-shell
-wearables pass.
+wearables pass. The floating ledges, and the board-height bug behind the
+larger play values, were fixed under the Phase 2 prerequisite.
 
 ### Exit criteria
 
@@ -203,11 +233,18 @@ trial was removed.
 
 ### Deliverables
 
-- selected printer and material profiles replacing `pending-selection`
-  (Bambu A1 mini slicing readiness already exists)
-- Feather RP2040 r004 printed and recorded through `trial start` and
-  `trial complete` with dimensional measurements
-- a pass promotes r004; a revise derives r005 from measured deltas
+- [x] Printer and material profiles selected in place of `pending-selection`.
+  Trials record `bambu-lab-a1-mini`, `petg`, and
+  `bambu-studio-a1-mini-petg-validation`.
+- [x] Pre-print packages from `scripts/prepare-candidate-for-print.py` and
+  slices from `scripts/slice-candidate-fixture.py`
+- [x] Trial records that cannot mislead: pending trials have an explicit
+  pending state, and `trial complete` refuses a `pass` disposition unless
+  every check passed.
+- [ ] Human visual review of each candidate's design-review package
+- [ ] Feather RP2040 r004 printed and recorded through `trial complete`,
+  with dimensional measurements
+- [ ] A pass promotes r004; a revise derives r005 from measured deltas.
 
 ### Exit criteria
 
@@ -242,7 +279,9 @@ Prove the physical loop for each retention strategy.
 ### Deliverables
 
 - Phase 2 repeated for Pico 2 (corner capture), UNO R4 WiFi (edge clip),
-  and XIAO ESP32-S3
+  and XIAO ESP32-S3. Their pre-print packages are complete (Pico 2 r002,
+  UNO R4 r004, and XIAO r003), so they can be printed in the same session as
+  Feather r004.
 - wearable targets moved from synthetic to measured or official models when
   source data is available
 
@@ -272,7 +311,8 @@ Make promoted candidates consumable by product repositories.
 
 - additional retention strategies
 - finite-element analysis
-- automatic slicer integration
+- automatic slicer integration in the generation pipeline
+  (`scripts/slice-candidate-fixture.py` is run by hand)
 - image or photo analysis
 - web dashboards
 
