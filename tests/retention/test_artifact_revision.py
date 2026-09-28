@@ -209,3 +209,79 @@ def test_refuses_existing_revision_outputs(
         == "{}\n"
     )
     assert not (output_directory / "retention.step").exists()
+
+
+def regenerate(
+    tmp_path: Path,
+    parent: CandidateRevision,
+    *,
+    generator_version: str,
+) -> object:
+    source_step = tmp_path / "board.step"
+    export_clear_board(source_step)
+
+    return register_artifact_backed_revision(
+        parent_candidate=parent,
+        revision="r002",
+        parameter_updates={},
+        relationship=RevisionRelationshipType.SUPERSEDES,
+        reason="Regenerate with fused ledges.",
+        output_directory=tmp_path / "r002",
+        source_step=source_step,
+        pcb_solid_index=1,
+        git_commit="d" * 40,
+        generator_version=generator_version,
+        created_at_utc="2026-01-02T00:00:00+00:00",
+        printer_profile=PRINTER_PROFILE,
+        repository_root=tmp_path,
+    )
+
+
+def test_regenerates_same_policy_under_new_generator(tmp_path: Path) -> None:
+    result = regenerate(tmp_path, parent_candidate(), generator_version="1.1.0")
+
+    assert result.candidate.generator_version == "1.1.0"
+    assert result.candidate.retention_policy == parent_candidate().retention_policy
+    assert result.registration.delta_report.changes == ()
+    assert result.export_validation.evaluated_status == "PASS"
+
+
+def test_empty_updates_require_generator_change(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="unless generator_version changes"):
+        regenerate(tmp_path, parent_candidate(), generator_version="1.0.0")
+
+    assert not (tmp_path / "r002").exists()
+
+
+def test_registers_edge_clip_revision(tmp_path: Path) -> None:
+    parent = CandidateRevision(
+        **{
+            **parent_candidate().__dict__,
+            "candidate_id": "synthetic-target-edge-clip-r001",
+            "strategy": "edge-clip",
+            "retention_policy": {
+                "arm_width_mm": 5.0,
+                "board_clearance_mm": 0.25,
+                "engagement_depth_mm": 2.5,
+                "minimum_wall_mm": 1.2,
+                "vertical_overlap_mm": 0.6,
+            },
+            "derived_parameters": {
+                "arm_width_mm": 5.0,
+                "board_clearance_mm": 0.25,
+                "board_thickness_mm": 1.6,
+                "engagement_depth_mm": 2.5,
+                "minimum_wall_mm": 1.2,
+                "vertical_overlap_mm": 0.6,
+            },
+            "selected_corners": ("negative_y",),
+        }
+    )
+
+    result = regenerate(tmp_path, parent, generator_version="1.1.0")
+
+    candidate = result.candidate
+    assert candidate.candidate_id == "synthetic-target-edge-clip-r002"
+    assert len(candidate.selected_corners) == 1
+    assert result.export_validation.evaluated_status == "PASS"
+    assert load_candidate_revision(tmp_path / "r002/candidate.json") == candidate

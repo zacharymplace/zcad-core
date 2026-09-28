@@ -4,7 +4,20 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from .corner_capture import CornerCapturePolicy, as_corner_capture_parameters
+from .corner_capture import (
+    CornerCaptureParameters,
+    CornerCapturePolicy,
+    as_corner_capture_parameters,
+)
+from .edge_capture import (
+    EdgeCaptureParameters,
+    EdgeCapturePolicy,
+    as_edge_capture_parameters,
+)
+from .edge_evidence_artifact import (
+    ProductionEdgeEvidenceArtifact,
+    generate_production_edge_evidence_artifact,
+)
 from .evidence_artifact import (
     ProductionEvidenceArtifact,
     generate_production_evidence_artifact,
@@ -14,6 +27,7 @@ from .export_validation import (
     ReferenceBoard,
     run_candidate_export_validation,
 )
+from .production_edge_execution import ProductionEdgeExecutionRequest
 from .production_execution import (
     ProductionCornerExecutionRequest,
 )
@@ -28,11 +42,21 @@ from .revision_registration import (
 from .validation_fixture import (
     ValidationFixtureArtifact,
     ValidationFixturePolicy,
+    export_edge_validation_fixture,
     export_validation_fixture,
 )
 from .validation_lab import (
     CandidateRevision,
+    candidate_identifier,
     sha256_file,
+)
+
+_POLICY_FIELDS = (
+    "arm_width_mm",
+    "board_clearance_mm",
+    "engagement_depth_mm",
+    "minimum_wall_mm",
+    "vertical_overlap_mm",
 )
 
 
@@ -41,7 +65,7 @@ class ArtifactBackedRevisionResult:
     """Generated artifacts and immutable revision records."""
 
     registration: RevisionRegistrationResult
-    evidence_artifact: ProductionEvidenceArtifact
+    evidence_artifact: ProductionEvidenceArtifact | ProductionEdgeEvidenceArtifact
     fixture_artifact: ValidationFixtureArtifact
     export_validation: ExportValidationRecord
     export_validation_path: Path
@@ -72,17 +96,39 @@ def register_artifact_backed_revision(
 ) -> ArtifactBackedRevisionResult:
     """Generate and register one evidence-backed revision.
 
+    Supports corner-capture and edge-clip parents. ``parameter_updates`` may
+    be empty only when ``generator_version`` differs from the parent's, which
+    regenerates the same policy with changed geometry code.
+
     The new candidate is export-validated immediately, with the embedded
     source board reported separately; a failing run is recorded and blocks
     promotion, not registration.
     """
 
-    planned_candidate = derive_candidate_revision(
-        parent_candidate=parent_candidate,
-        revision=revision,
-        parameter_updates=parameter_updates,
-        automated_decision="artifact_generation_pending",
-    )
+    if parameter_updates:
+        planned_candidate = derive_candidate_revision(
+            parent_candidate=parent_candidate,
+            revision=revision,
+            parameter_updates=parameter_updates,
+            automated_decision="artifact_generation_pending",
+        )
+    elif generator_version != parent_candidate.generator_version:
+        # Regenerating the same policy with a changed generator is a real
+        # revision: the geometry differs even though no parameter does.
+        planned_candidate = replace(
+            parent_candidate,
+            candidate_id=candidate_identifier(
+                target_id=parent_candidate.target_id,
+                strategy=parent_candidate.strategy,
+                revision=revision,
+            ),
+            revision=revision,
+            automated_decision="artifact_generation_pending",
+        )
+    else:
+        raise ValueError(
+            "parameter_updates cannot be empty unless generator_version changes"
+        )
 
     retention_step = output_directory / "retention.step"
     evidence_path = output_directory / "automated-validation.json"
@@ -110,41 +156,68 @@ def register_artifact_backed_revision(
             f"Refusing to overwrite artifact-backed revision outputs: {names}"
         )
 
-    policy = CornerCapturePolicy(
-        arm_width_mm=float(planned_candidate.retention_policy["arm_width_mm"]),
-        engagement_depth_mm=float(
-            planned_candidate.retention_policy["engagement_depth_mm"]
-        ),
-        board_clearance_mm=float(
-            planned_candidate.retention_policy["board_clearance_mm"]
-        ),
-        vertical_overlap_mm=float(
-            planned_candidate.retention_policy["vertical_overlap_mm"]
-        ),
-        minimum_wall_mm=float(planned_candidate.retention_policy["minimum_wall_mm"]),
-    )
+    policy_fields = {
+        name: float(planned_candidate.retention_policy[name]) for name in _POLICY_FIELDS
+    }
+    fixture_policy = fixture_policy or ValidationFixturePolicy()
 
-    evidence_artifact = generate_production_evidence_artifact(
-        ProductionCornerExecutionRequest(
-            source_step=source_step,
-            pcb_solid_index=pcb_solid_index,
-            output_step=retention_step,
-            policy=policy,
-            corner_keepout_mm=corner_keepout_mm,
-            vertical_margin_mm=vertical_margin_mm,
-        ),
-        report_path=evidence_path,
-    )
+    evidence_artifact: ProductionEvidenceArtifact | ProductionEdgeEvidenceArtifact
+    parameters: CornerCaptureParameters | EdgeCaptureParameters
 
-    fixture_artifact = export_validation_fixture(
-        evidence_artifact.execution,
-        output_path=fixture_path,
-        policy=(fixture_policy or ValidationFixturePolicy()),
-    )
+    if planned_candidate.strategy == "corner-capture":
+        evidence_artifact = generate_production_evidence_artifact(
+            ProductionCornerExecutionRequest(
+                source_step=source_step,
+                pcb_solid_index=pcb_solid_index,
+                output_step=retention_step,
+                policy=CornerCapturePolicy(**policy_fields),
+                corner_keepout_mm=corner_keepout_mm,
+                vertical_margin_mm=vertical_margin_mm,
+            ),
+            report_path=evidence_path,
+        )
+        fixture_artifact = export_validation_fixture(
+            evidence_artifact.execution,
+            output_path=fixture_path,
+            policy=fixture_policy,
+        )
+        parameters = as_corner_capture_parameters(
+            evidence_artifact.execution.execution.parameters
+        )
+        selected = tuple(
+            corner.value
+            for corner in evidence_artifact.execution.derivation.selected_corners
+        )
+    elif planned_candidate.strategy == "edge-clip":
+        edge_policy = EdgeCapturePolicy(**policy_fields)
+        edge_artifact = generate_production_edge_evidence_artifact(
+            ProductionEdgeExecutionRequest(
+                source_step=source_step,
+                pcb_solid_index=pcb_solid_index,
+                output_step=retention_step,
+                policy=edge_policy,
+                engagement_depth_mm=edge_policy.engagement_depth_mm,
+                vertical_margin_mm=vertical_margin_mm,
+            ),
+            report_path=evidence_path,
+        )
+        evidence_artifact = edge_artifact
+        fixture_artifact = export_edge_validation_fixture(
+            edge_artifact.execution,
+            output_path=fixture_path,
+            policy=fixture_policy,
+        )
+        parameters = as_edge_capture_parameters(
+            edge_artifact.execution.execution.parameters
+        )
+        selected = (edge_artifact.execution.derivation.selected_edge.value,)
+    else:
+        raise ValueError(
+            f"Artifact-backed revisions do not support strategy: "
+            f"{planned_candidate.strategy}"
+        )
 
-    parameters = as_corner_capture_parameters(
-        evidence_artifact.execution.execution.parameters
-    )
+    retention_policy = {name: getattr(parameters, name) for name in _POLICY_FIELDS}
 
     candidate = replace(
         planned_candidate,
@@ -152,25 +225,12 @@ def register_artifact_backed_revision(
         output_sha256=sha256_file(retention_step),
         git_commit=git_commit,
         generator_version=generator_version,
-        retention_policy={
-            "arm_width_mm": parameters.arm_width_mm,
-            "board_clearance_mm": (parameters.board_clearance_mm),
-            "engagement_depth_mm": (parameters.engagement_depth_mm),
-            "minimum_wall_mm": (parameters.minimum_wall_mm),
-            "vertical_overlap_mm": (parameters.vertical_overlap_mm),
-        },
+        retention_policy=retention_policy,
         derived_parameters={
-            "arm_width_mm": parameters.arm_width_mm,
-            "board_clearance_mm": (parameters.board_clearance_mm),
-            "board_thickness_mm": (parameters.board_thickness_mm),
-            "engagement_depth_mm": (parameters.engagement_depth_mm),
-            "minimum_wall_mm": (parameters.minimum_wall_mm),
-            "vertical_overlap_mm": (parameters.vertical_overlap_mm),
+            **retention_policy,
+            "board_thickness_mm": parameters.board_thickness_mm,
         },
-        selected_corners=tuple(
-            corner.value
-            for corner in (evidence_artifact.execution.derivation.selected_corners)
-        ),
+        selected_corners=selected,
         automated_decision="verified_candidate",
         automated_evidence_path=str(evidence_path),
         fixture_artifact_path=str(fixture_path),
