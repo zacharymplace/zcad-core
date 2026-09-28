@@ -57,3 +57,28 @@ def test_all_part_metadata_contains_complete_mesh_report(tmp_path):
             json.loads(part.metadata_path.read_text())["design_validation"]
             == result.validation_report
         )
+
+
+def test_body_bounds_separates_disconnected_bodies(tmp_path):
+    shape = (
+        cq.Workplane()
+        .box(10, 10, 2)
+        .union(cq.Workplane().box(2, 2, 1).translate((0, 0, 3)))
+    )
+    path = tmp_path / "bodies.stl"
+    cq.exporters.export(shape, str(path))
+    bodies = read_stl(path.read_bytes())[0].body_bounds()
+    assert len(bodies) == 2
+    assert bodies[0][0][2] == pytest.approx(-1)
+    assert bodies[1][0][2] == pytest.approx(2.5)
+
+
+def test_body_bounds_joins_fused_solids(tmp_path):
+    shape = (
+        cq.Workplane()
+        .box(10, 10, 2)
+        .union(cq.Workplane().box(2, 2, 2).translate((0, 0, 2)))
+    )
+    path = tmp_path / "fused.stl"
+    cq.exporters.export(shape, str(path))
+    assert len(read_stl(path.read_bytes())[0].body_bounds()) == 1

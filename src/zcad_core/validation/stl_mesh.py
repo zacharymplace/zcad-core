@@ -160,6 +160,44 @@ class STLMesh:
             prepared.append(rows)
         return prepared
 
+    def body_bounds(self) -> list[tuple[Vector, Vector]]:
+        """Bounds of each edge-connected body, ordered by minimum Z.
+
+        Bodies are joined through shared (exactly welded) vertices, so solids
+        touching only across coplanar faces count separately.
+        """
+        parent: dict[Vector, Vector] = {}
+
+        def find(vertex: Vector) -> Vector:
+            root = parent.setdefault(vertex, vertex)
+            while root != parent[root]:
+                root = parent[root]
+            while vertex != root:
+                parent[vertex], vertex = root, parent[vertex]
+            return root
+
+        for a, b, c in self.triangles:
+            root = find(a)
+            parent[find(b)] = root
+            parent[find(c)] = find(root)
+
+        bounds: dict[Vector, tuple[list[float], list[float]]] = {}
+        for triangle in self.triangles:
+            low, high = bounds.setdefault(
+                find(triangle[0]), ([math.inf] * 3, [-math.inf] * 3)
+            )
+            for vertex in triangle:
+                for axis in range(3):
+                    low[axis] = min(low[axis], vertex[axis])
+                    high[axis] = max(high[axis], vertex[axis])
+        return sorted(
+            (
+                ((low[0], low[1], low[2]), (high[0], high[1], high[2]))
+                for low, high in bounds.values()
+            ),
+            key=lambda item: item[0][2],
+        )
+
     def contains(self, point: Vector) -> bool:
         """Ray parity with deterministic alternate rays for edge ambiguity."""
         answers = []

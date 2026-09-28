@@ -31,7 +31,14 @@ PRINTER_PROFILE = json.loads(
 
 
 BOARD = cq.Workplane("XY").box(40.0, 30.0, 1.6).translate((0.0, 0.0, 0.8)).val()
-ARM = cq.Workplane("XY").box(2.0, 5.0, 3.0).translate((25.0, 0.0, 1.5)).val()
+# A wall beside the board fused to a ledge 0.4 mm above its top.
+ARM = (
+    cq.Workplane("XY")
+    .box(2.0, 5.0, 3.0)
+    .translate((22.0, 0.0, 1.5))
+    .union(cq.Workplane("XY").box(5.0, 5.0, 1.0).translate((19.5, 0.0, 2.5)))
+    .val()
+)
 COMPONENT = cq.Workplane("XY").box(4.0, 4.0, 2.0).translate((0.0, 0.0, 2.6)).val()
 
 
@@ -50,7 +57,7 @@ def make_candidate(
     fixture = tmp_path / f"fixture{fixture_suffix}"
 
     if fixture_bytes is None:
-        cq.exporters.export(part, str(fixture))
+        cq.exporters.export(part if retention is None else retention, str(fixture))
     else:
         fixture.write_bytes(fixture_bytes)
 

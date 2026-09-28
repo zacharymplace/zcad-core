@@ -134,7 +134,9 @@ def register_candidate(
     )
 
     fixture = tmp_path / "fixture.stl"
-    cq.exporters.export(part, str(fixture))
+    cq.exporters.export(
+        part if retention_part is None else retention_part, str(fixture)
+    )
 
     output = tmp_path / f"candidates/{revision}/candidate.json"
 
@@ -1134,7 +1136,12 @@ def test_candidate_revalidate_reports_embedded_board_as_non_gating(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     board = cq.Workplane("XY").box(40.0, 30.0, 1.6).translate((0.0, 0.0, 0.8))
-    arm = cq.Workplane("XY").box(2.0, 5.0, 3.0).translate((25.0, 0.0, 1.5))
+    arm = (
+        cq.Workplane("XY")
+        .box(2.0, 5.0, 3.0)
+        .translate((22.0, 0.0, 1.5))
+        .union(cq.Workplane("XY").box(5.0, 5.0, 1.0).translate((19.5, 0.0, 2.5)))
+    )
     target_manifest = register_target(tmp_path, capsys, board=board)
     candidate_manifest = register_candidate(
         tmp_path,

@@ -26,6 +26,11 @@ from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.validation.design_report import DesignValidationError
 from zcad_core.validation.stl_mesh import read_stl
 
+from .export_checks import (
+    BOARD_BOUNDS_PARAMETER,
+    BOARD_CLEARANCE_PARAMETER,
+    retention_stl_checks,
+)
 from .production_board import import_production_board_model
 from .validation_lab import (
     CandidateRevision,
@@ -176,8 +181,12 @@ def _validate_step_artifact(
     solids: list[cq.Solid] | None = None,
     source_sha256: str | None = None,
     gating: bool = True,
+    check_parameters: dict[str, Any] | None = None,
 ) -> ExportValidationArtifact:
-    """Export ``path`` (or the given ``solids`` taken from it) and record it."""
+    """Export ``path`` (or the given ``solids`` taken from it) and record it.
+
+    With ``check_parameters``, retention mesh probes run on the exported STL.
+    """
 
     if source_sha256 is None:
         source_sha256 = sha256_file(path)
@@ -196,6 +205,10 @@ def _validate_step_artifact(
                 output_directory=output_directory,
                 repository_root=repository_root,
                 printer_profile=printer_profile,
+                parameters=check_parameters,
+                stl_feature_validator=(
+                    None if check_parameters is None else retention_stl_checks
+                ),
             )
         )
     except DesignValidationError as error:
@@ -276,14 +289,32 @@ def _separate_reference_board(
     return generated, board
 
 
-def _validate_stl_artifact(*, role: str, path: Path) -> ExportValidationArtifact:
+def _validate_stl_artifact(
+    *,
+    role: str,
+    path: Path,
+    check_parameters: dict[str, Any],
+) -> ExportValidationArtifact:
     source_sha256 = sha256_file(path)
 
     report: dict[str, Any]
 
     try:
-        _, check = read_stl(path.read_bytes())
-        report = {"evaluated_status": "PASS", "checks": [check]}
+        mesh, check = read_stl(path.read_bytes())
+        checks = [
+            check,
+            *retention_stl_checks(
+                design_type="retention-candidate",
+                parts={"main": mesh},
+                parameters=check_parameters,
+            ),
+        ]
+        report = {
+            "evaluated_status": (
+                "FAIL" if any(c["status"] == "FAIL" for c in checks) else "PASS"
+            ),
+            "checks": checks,
+        }
     except ValueError as error:
         report = _failure_report("stl_topology", error)
 
@@ -360,6 +391,19 @@ def run_candidate_export_validation(
             reference_board=reference_board,
         )
 
+    check_parameters: dict[str, Any] = {
+        BOARD_CLEARANCE_PARAMETER: candidate.derived_parameters.get(
+            BOARD_CLEARANCE_PARAMETER
+        )
+    }
+
+    if board is not None:
+        box = board.BoundingBox()
+        check_parameters[BOARD_BOUNDS_PARAMETER] = [
+            [box.xmin, box.ymin, box.zmin],
+            [box.xmax, box.ymax, box.zmax],
+        ]
+
     fixture = Path(candidate.fixture_artifact_path)
     run_id, run_directory = _allocate_run_directory(validation_root)
 
@@ -371,6 +415,7 @@ def run_candidate_export_validation(
             repository_root=repository_root,
             printer_profile=printer_profile,
             solids=generated,
+            check_parameters=check_parameters,
         )
     ]
 
@@ -389,7 +434,13 @@ def run_candidate_export_validation(
         )
 
     if fixture.suffix.lower() == ".stl":
-        artifacts.append(_validate_stl_artifact(role="fixture", path=fixture))
+        artifacts.append(
+            _validate_stl_artifact(
+                role="fixture",
+                path=fixture,
+                check_parameters=check_parameters,
+            )
+        )
     elif fixture.suffix.lower() in _STEP_SUFFIXES:
         artifacts.append(
             _validate_step_artifact(
@@ -398,6 +449,7 @@ def run_candidate_export_validation(
                 output_directory=run_directory,
                 repository_root=repository_root,
                 printer_profile=printer_profile,
+                check_parameters=check_parameters,
             )
         )
     else:

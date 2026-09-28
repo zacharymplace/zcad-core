@@ -133,9 +133,27 @@ created, with its run written to `export-validation/` beside the manifest:
 
 A failing run blocks promotion, not registration.
 
-Remaining:
+Slice 4 complete: retention mesh probes run on every gating artifact's
+exported STL:
 
-- retention-specific feature and STL validators
+- `retention_supported_bodies`: every connected body rests on the build
+  plane
+- `retention_board_top_clearance`: nothing within `board_clearance_mm`
+  above the reference board's footprint
+- `retention_board_capture`: some material lies above the board footprint,
+  and the smallest vertical play is recorded
+
+When no reference board is supplied, the two board checks report
+`NOT_CHECKED`.
+
+Finding: every corner-capture and edge-clip candidate fails
+`retention_supported_bodies`. The generators build each ledge or clip as a
+separate body that stops `board_clearance_mm / 2` short of its walls, so in
+both the retention STEP and the printable fixture the ledges float
+1.8–2.5 mm above the base. None of the recorded trials were printed, so no
+physical run has hit this yet. Measured vertical play is 0.85–1.1 mm for
+corner capture and 2.46 mm for the UNO R4 edge clip. The snap-shell
+wearables pass.
 
 ### Exit criteria
 
@@ -149,6 +167,13 @@ Remaining:
 ### Goal
 
 Produce the first promoted, publication-eligible candidate.
+
+### Prerequisite
+
+- Fix the corner-capture and edge-clip generators so ledges and clips are
+  fused to their walls, then regenerate candidates that pass
+  `retention_supported_bodies`. Do not print existing candidates first:
+  their ledges are unsupported islands.
 
 ### Deliverables
 
