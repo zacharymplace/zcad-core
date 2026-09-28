@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Block pushes that would fail CI. GitHub Actions is disabled for this
+# account, so these gates run locally instead. Enable once per checkout with:
+#   git config core.hooksPath .githooks
+# Bypass in an emergency with: git push --no-verify
+set -euo pipefail
+
+pushes_commits=false
+head_sha="$(git rev-parse HEAD)"
+
+while read -r local_ref local_sha _remote_ref _remote_sha; do
+  # An all-zero local SHA is a branch deletion, which needs no checks.
+  if [[ "$local_sha" =~ ^0+$ ]]; then
+    continue
+  fi
+
+  # The gates check the working tree, so they only vouch for HEAD.
+  if [[ "$local_sha" != "$head_sha" ]]; then
+    echo "pre-push: $local_ref is not the checked-out commit; check it out" >&2
+    echo "and push again so the gates run against it." >&2
+    exit 1
+  fi
+
+  pushes_commits=true
+done
+
+if [[ "$pushes_commits" == false ]]; then
+  exit 0
+fi
+
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "pre-push: uncommitted changes would be checked instead of the pushed" >&2
+  echo "commits; commit or stash them first." >&2
+  exit 1
+fi
+
+echo "pre-push: running CI gates (scripts/check.sh)"
+
+if ! "$(git rev-parse --show-toplevel)/scripts/check.sh"; then
+  echo "pre-push: gates failed; push blocked." >&2
+  exit 1
+fi
