@@ -149,17 +149,14 @@ def test_registers_artifact_backed_revision(
     assert report["decision"] == ("verified_candidate")
     assert report["policy"]["board_clearance_mm"] == 0.30
 
-    # Corner-capture ledges are generated as separate bodies clear of their
-    # walls, so they float; export validation records the failure without
-    # blocking registration (see docs/roadmaps/next-phases.md).
-    assert result.export_validation.evaluated_status == "FAIL"
+    assert result.export_validation.evaluated_status == "PASS"
     retention_checks = {
         check["code"]: check["status"]
         for check in result.export_validation.artifact("retention").report[
             "stl_round_trip"
         ]["checks"]
     }
-    assert retention_checks["retention_supported_bodies"] == "FAIL"
+    assert retention_checks["retention_supported_bodies"] == "PASS"
     assert retention_checks["retention_board_top_clearance"] == "PASS"
     assert retention_checks["retention_board_capture"] == "PASS"
     assert result.export_validation.candidate_id == candidate.candidate_id
@@ -167,9 +164,7 @@ def test_registers_artifact_backed_revision(
     assert result.export_validation_path == (
         output_directory / "export-validation/v001/export-validation.json"
     )
-    assert verify_export_validation(result.export_validation, candidate=candidate) == (
-        "export_validation_failed",
-    )
+    assert verify_export_validation(result.export_validation, candidate=candidate) == ()
 
 
 def test_refuses_existing_revision_outputs(

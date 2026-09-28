@@ -206,8 +206,11 @@ class SyntheticEdgeCaptureBackend:
         wall_perpendicular_center = location.edge_coordinate_mm + outward * (
             clearance + wall / 2.0
         )
-        ledge_perpendicular_center = location.edge_coordinate_mm - outward * (
-            engagement / 2.0
+        # The ledge reaches engagement_depth_mm over the board and extends
+        # outward through the wall, so it is fused to it rather than floating.
+        ledge_length = engagement + clearance + wall
+        ledge_perpendicular_center = location.edge_coordinate_mm + outward * (
+            (clearance + wall - engagement) / 2.0
         )
 
         if location.edge in _Y_EDGES:
@@ -216,7 +219,7 @@ class SyntheticEdgeCaptureBackend:
                 location.position_mm,
                 wall_perpendicular_center,
             )
-            ledge_x_length, ledge_y_length = arm_width, engagement
+            ledge_x_length, ledge_y_length = arm_width, ledge_length
             ledge_x_center, ledge_y_center = (
                 location.position_mm,
                 ledge_perpendicular_center,
@@ -227,7 +230,7 @@ class SyntheticEdgeCaptureBackend:
                 wall_perpendicular_center,
                 location.position_mm,
             )
-            ledge_x_length, ledge_y_length = engagement, arm_width
+            ledge_x_length, ledge_y_length = ledge_length, arm_width
             ledge_x_center, ledge_y_center = (
                 ledge_perpendicular_center,
                 location.position_mm,

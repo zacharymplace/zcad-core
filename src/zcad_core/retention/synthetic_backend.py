@@ -176,8 +176,14 @@ class SyntheticCornerCaptureBackend:
             + wall
         )
 
+        # Outer faces of the walls, measured from the board corner.
+        outer = clearance + wall
+
+        # The x-wall also spans the outer corner square so both walls fuse
+        # into one L-shaped body.
+        x_wall_length = arm_width + engagement + outer
         x_wall_center_x = x_mm + x_sign * (clearance + wall / 2.0)
-        x_wall_center_y = y_mm - y_sign * (arm_width + engagement) / 2.0
+        x_wall_center_y = y_mm + y_sign * (outer - arm_width - engagement) / 2.0
 
         y_wall_center_x = x_mm - x_sign * (arm_width + engagement) / 2.0
         y_wall_center_y = y_mm + y_sign * (clearance + wall / 2.0)
@@ -186,7 +192,7 @@ class SyntheticCornerCaptureBackend:
             cq.Workplane("XY")
             .box(
                 wall,
-                arm_width + engagement,
+                x_wall_length,
                 wall_height,
             )
             .translate(
@@ -214,8 +220,13 @@ class SyntheticCornerCaptureBackend:
             )
         )
 
-        ledge_center_x = x_mm - x_sign * arm_width / 2.0
-        ledge_center_y = y_mm - y_sign * arm_width / 2.0
+        # The ledge keeps its reach of arm_width + clearance / 2 over the
+        # board and extends outward through both walls, so it is fused to
+        # them and prints as an overhang rather than a floating island.
+        ledge_inner = arm_width + clearance / 2.0
+        ledge_length = ledge_inner + outer
+        ledge_center_x = x_mm + x_sign * (outer - ledge_inner) / 2.0
+        ledge_center_y = y_mm + y_sign * (outer - ledge_inner) / 2.0
         ledge_center_z = (
             parameters.board_thickness_mm
             + clearance
@@ -226,8 +237,8 @@ class SyntheticCornerCaptureBackend:
         ledge = (
             cq.Workplane("XY")
             .box(
-                arm_width + clearance,
-                arm_width + clearance,
+                ledge_length,
+                ledge_length,
                 wall,
             )
             .translate(
