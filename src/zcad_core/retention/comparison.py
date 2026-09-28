@@ -46,6 +46,14 @@ class TrialOutcomeComparison:
         return self.target_trial is not None and self.target_trial.passed
 
     @property
+    def source_pending(self) -> bool:
+        return self.source_trial is not None and self.source_trial.pending
+
+    @property
+    def target_pending(self) -> bool:
+        return self.target_trial is not None and self.target_trial.pending
+
+    @property
     def evidence_complete(self) -> bool:
         """Whether both candidates have a complete physical trial record."""
 
@@ -222,23 +230,20 @@ def recommend_revision(
     policy judgment this function does not make.
     """
 
-    missing_evidence: list[str] = []
-
-    if (
-        comparison.trials.source_trial is None
-        or not comparison.trials.source_trial.complete
-    ):
-        missing_evidence.append(
-            f"{comparison.source_candidate_id} has no complete physical trial"
+    missing_evidence = [
+        message
+        for message in (
+            _missing_trial_evidence(
+                comparison.source_candidate_id,
+                comparison.trials.source_trial,
+            ),
+            _missing_trial_evidence(
+                comparison.target_candidate_id,
+                comparison.trials.target_trial,
+            ),
         )
-
-    if (
-        comparison.trials.target_trial is None
-        or not comparison.trials.target_trial.complete
-    ):
-        missing_evidence.append(
-            f"{comparison.target_candidate_id} has no complete physical trial"
-        )
+        if message is not None
+    ]
 
     if missing_evidence:
         return RevisionRecommendation(
@@ -330,6 +335,25 @@ def recommend_revision(
     )
 
 
+def _missing_trial_evidence(
+    candidate_id: str,
+    trial: PhysicalTrialManifest | None,
+) -> str | None:
+    """Describe why a candidate's trial cannot back a recommendation.
+
+    A pending trial has not been printed, so it is missing evidence rather
+    than a revise outcome.
+    """
+
+    if trial is not None and trial.pending:
+        return f"{candidate_id} physical trial {trial.trial_id} is still pending"
+
+    if trial is None or not trial.complete:
+        return f"{candidate_id} has no complete physical trial"
+
+    return None
+
+
 def write_revision_comparison_report(
     report: RevisionComparisonReport,
     *,
@@ -350,6 +374,8 @@ def write_revision_comparison_report(
         "trials": {
             "source_passed": report.trials.source_passed,
             "target_passed": report.trials.target_passed,
+            "source_pending": report.trials.source_pending,
+            "target_pending": report.trials.target_pending,
             "evidence_complete": report.trials.evidence_complete,
         },
         "parameters": {

@@ -176,6 +176,37 @@ def test_recommend_revision_flags_missing_physical_trial() -> None:
     assert recommendation.measured_facts == ()
 
 
+def test_pending_trial_is_not_a_revise_outcome() -> None:
+    source = candidate(revision="r001")
+    target = candidate(revision="r002")
+    pending_trial = replace(
+        trial(candidate_id=source.candidate_id, passed=False),
+        disposition="pending",
+        complete=False,
+    )
+
+    report = compare_candidate_revisions(
+        source=source,
+        target=target,
+        source_trial=pending_trial,
+        target_trial=trial(candidate_id=target.candidate_id, passed=False),
+    )
+
+    assert report.trials.source_pending is True
+    assert report.trials.target_pending is False
+    assert report.trials.evidence_complete is False
+
+    recommendation = recommend_revision(report)
+
+    # A completed revise on both sides would be NO_PREFERENCE; a pending
+    # trial must instead leave the comparison short of evidence.
+    assert recommendation.decision is RecommendationDecision.INSUFFICIENT_EVIDENCE
+    assert recommendation.missing_evidence == (
+        f"{source.candidate_id} physical trial trial-001 is still pending",
+    )
+    assert recommendation.measured_facts == ()
+
+
 def test_recommend_revision_prefers_the_only_fully_passing_candidate() -> None:
     source = candidate(revision="r001", automated_decision="rejected")
     target = candidate(revision="r002", automated_decision="verified_candidate")

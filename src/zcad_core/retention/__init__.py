@@ -92,12 +92,15 @@ from zcad_core.retention.manufacturing import (
     validate_edge_capture_manufacturing,
 )
 from zcad_core.retention.physical_validation import (
+    UNRECORDED_SLICER_PROFILE,
     PhysicalValidationCheck,
     PhysicalValidationDisposition,
     PhysicalValidationObservation,
     PhysicalValidationRecord,
     complete_physical_validation_record,
     create_pending_physical_validation_record,
+    load_physical_validation_record,
+    physical_validation_record_from_payload,
     write_physical_validation_record,
 )
 from zcad_core.retention.production_board import (
@@ -184,6 +187,7 @@ from zcad_core.retention.visual_review import (
 )
 
 __all__ = [
+    "UNRECORDED_SLICER_PROFILE",
     "ArtifactBackedRevisionResult",
     "AutomatedGateComparison",
     "BoardCorner",
@@ -315,7 +319,9 @@ __all__ = [
     "load_candidate_revision",
     "load_export_validation_record",
     "load_manifest",
+    "load_physical_validation_record",
     "persist_candidate_revision",
+    "physical_validation_record_from_payload",
     "promote_preferred_revision",
     "recommend_revision",
     "register_artifact_backed_revision",

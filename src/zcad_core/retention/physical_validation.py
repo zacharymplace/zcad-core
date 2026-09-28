@@ -5,6 +5,11 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
+from typing import Any
+
+# Records and trial manifests written before the slicer profile was tracked
+# carry no ``slicer_profile``; they load with this value rather than failing.
+UNRECORDED_SLICER_PROFILE = "unrecorded"
 
 
 class PhysicalValidationCheck(str, Enum):
@@ -21,8 +26,13 @@ class PhysicalValidationCheck(str, Enum):
 
 
 class PhysicalValidationDisposition(str, Enum):
-    """Operator disposition for one physical trial."""
+    """Operator disposition for one physical trial.
 
+    ``PENDING`` marks a trial that has been started but not yet printed and
+    inspected; it is never an outcome and never counts as a complete trial.
+    """
+
+    PENDING = "pending"
     PASS = "pass"
     REVISE = "revise"
     REJECT = "reject"
@@ -52,9 +62,36 @@ class PhysicalValidationRecord:
     operator_notes: str
     completed_at_utc: str
 
+    def __post_init__(self) -> None:
+        if self.disposition is PhysicalValidationDisposition.PENDING:
+            if self.completed_at_utc.strip():
+                raise ValueError("Pending physical validation cannot be completed")
+
+            if any(observation.passed for observation in self.observations):
+                raise ValueError(
+                    "Pending physical validation cannot record passing observations"
+                )
+
+    @property
+    def pending(self) -> bool:
+        """Whether the trial is still awaiting print and inspection.
+
+        Records written before the explicit ``pending`` disposition existed
+        carried a placeholder ``revise`` disposition with no completion
+        timestamp; an empty ``completed_at_utc`` identifies them as pending.
+        """
+
+        return (
+            self.disposition is PhysicalValidationDisposition.PENDING
+            or not self.completed_at_utc.strip()
+        )
+
     @property
     def complete(self) -> bool:
-        """Whether every required observation is present once."""
+        """Whether the trial was performed and every observation is present once."""
+
+        if self.pending:
+            return False
 
         observed = {observation.check for observation in self.observations}
 
@@ -98,7 +135,7 @@ def create_pending_physical_validation_record(
             )
             for check in PhysicalValidationCheck
         ),
-        disposition=(PhysicalValidationDisposition.REVISE),
+        disposition=PhysicalValidationDisposition.PENDING,
         operator_notes=("Pending print, inspection, and board-fit trial."),
         completed_at_utc="",
     )
@@ -117,6 +154,7 @@ def write_physical_validation_record(
     )
 
     payload = asdict(record)
+    payload["pending"] = record.pending
     payload["complete"] = record.complete
     payload["passed"] = record.passed
 
@@ -165,6 +203,9 @@ def complete_physical_validation_record(
                 f"missing: {missing or 'none'}, failed: {failed or 'none'}"
             )
 
+    if disposition is PhysicalValidationDisposition.PENDING:
+        raise ValueError("A completed physical validation cannot be pending")
+
     return PhysicalValidationRecord(
         schema_version="1.0.0",
         candidate_report_path=str(candidate_report_path),
@@ -177,3 +218,63 @@ def complete_physical_validation_record(
         operator_notes=operator_notes.strip(),
         completed_at_utc=(datetime.now(UTC).isoformat()),
     )
+
+
+def physical_validation_record_from_payload(
+    payload: dict[str, Any],
+) -> PhysicalValidationRecord:
+    """Parse a physical-validation record written to disk.
+
+    Legacy pending records (placeholder ``revise`` disposition, empty
+    ``completed_at_utc``) load with the explicit ``pending`` disposition so
+    they can never be read as a revise outcome. Derived keys stored beside
+    the record (``complete``, ``passed``, ``pending``) are recomputed rather
+    than trusted.
+    """
+
+    completed_at_utc = str(payload.get("completed_at_utc") or "")
+    disposition = PhysicalValidationDisposition(str(payload["disposition"]))
+
+    if not completed_at_utc.strip():
+        disposition = PhysicalValidationDisposition.PENDING
+
+    observations = tuple(
+        PhysicalValidationObservation(
+            check=PhysicalValidationCheck(str(observation["check"])),
+            passed=(
+                bool(observation["passed"])
+                and disposition is not PhysicalValidationDisposition.PENDING
+            ),
+            notes=str(observation.get("notes", "")),
+        )
+        for observation in payload["observations"]
+    )
+
+    return PhysicalValidationRecord(
+        schema_version=str(payload["schema_version"]),
+        candidate_report_path=str(payload["candidate_report_path"]),
+        fixture_stl_path=str(payload["fixture_stl_path"]),
+        printer_profile=str(payload["printer_profile"]),
+        material_profile=str(payload["material_profile"]),
+        slicer_profile=str(payload.get("slicer_profile", UNRECORDED_SLICER_PROFILE)),
+        observations=observations,
+        disposition=disposition,
+        operator_notes=str(payload.get("operator_notes", "")),
+        completed_at_utc=completed_at_utc,
+    )
+
+
+def load_physical_validation_record(
+    path: Path,
+) -> PhysicalValidationRecord:
+    """Load a physical-validation record, reading legacy pending records as pending."""
+
+    if not path.is_file():
+        raise FileNotFoundError(path)
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    if not isinstance(payload, dict):
+        raise TypeError("Physical validation record root must be an object")
+
+    return physical_validation_record_from_payload(payload)

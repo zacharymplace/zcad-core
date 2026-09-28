@@ -451,9 +451,12 @@ def test_trial_start_creates_pending_record(
     )
 
     assert exit_code == 0
-    assert result["disposition"] == "revise"
+    assert result["disposition"] == "pending"
+    assert result["pending"] is True
+    assert result["complete"] is False
 
     payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["complete"] is False
     assert payload["passed"] is False
 
 
@@ -527,6 +530,270 @@ def test_revision_compare_flags_missing_trial_evidence(
 
     assert exit_code == 0
     assert comparison["decision"] == "insufficient_evidence"
+
+
+def start_and_register_pending_trial(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    candidate_manifest: Path,
+    *,
+    trial_id: str,
+) -> Path:
+    fixture = tmp_path / "fixture.stl"
+
+    if not fixture.exists():
+        fixture.write_bytes(b"synthetic fixture")
+
+    trial_root = tmp_path / f"candidates/r001/trials/{trial_id}"
+    physical_record = trial_root / "physical.json"
+
+    exit_code, _ = run(
+        capsys,
+        "trial",
+        "start",
+        "--candidate-report",
+        str(candidate_manifest),
+        "--fixture-stl",
+        str(fixture),
+        "--printer-profile",
+        "bambu-lab-a1-mini",
+        "--material-profile",
+        "petg",
+        "--slicer-profile",
+        "bambu-studio-a1-mini-petg-validation",
+        "--output",
+        str(physical_record),
+    )
+    assert exit_code == 0
+
+    trial_manifest = trial_root / "trial.json"
+
+    exit_code, registered = run(
+        capsys,
+        "trial",
+        "register",
+        "--candidate-manifest",
+        str(candidate_manifest),
+        "--physical-validation-record",
+        str(physical_record),
+        "--fixture",
+        str(fixture),
+        "--trial-id",
+        trial_id,
+        "--output",
+        str(trial_manifest),
+    )
+    assert exit_code == 0
+    assert registered["pending"] is True
+    assert registered["passed"] is False
+
+    return trial_manifest
+
+
+def test_pending_trial_is_excluded_from_report_outcomes(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    pending_manifest = start_and_register_pending_trial(
+        tmp_path,
+        capsys,
+        candidate_manifest,
+        trial_id="trial-001",
+    )
+
+    payload = json.loads(pending_manifest.read_text(encoding="utf-8"))
+    assert payload["disposition"] == "pending"
+    assert payload["complete"] is False
+
+    exit_code, report = run(capsys, "report", "--target-root", str(tmp_path))
+    assert exit_code == 0
+
+    candidate_report = report["candidates"][0]
+    assert candidate_report["trial_count"] == 1
+    assert candidate_report["trials_pending"] == 1
+    assert candidate_report["trials_completed"] == 0
+    assert candidate_report["trial_outcomes"] == {"pass": 0, "revise": 0, "reject": 0}
+
+
+def test_pending_trial_completes_into_a_counted_outcome(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    start_and_register_pending_trial(
+        tmp_path,
+        capsys,
+        candidate_manifest,
+        trial_id="trial-001",
+    )
+
+    # The immutable trial-001 manifest stays pending; the printed trial's
+    # completed record is registered as trial-002.
+    exit_code, completed = run(
+        capsys,
+        "trial",
+        "complete",
+        "--candidate-report",
+        str(candidate_manifest),
+        "--fixture-stl",
+        str(tmp_path / "fixture.stl"),
+        "--printer-profile",
+        "bambu-lab-a1-mini",
+        "--material-profile",
+        "petg",
+        "--slicer-profile",
+        "bambu-studio-a1-mini-petg-validation",
+        "--observations",
+        str(write_observations(tmp_path, all_passed=False)),
+        "--disposition",
+        "revise",
+        "--output",
+        str(tmp_path / "candidates/r001/trials/trial-002/physical.json"),
+    )
+    assert exit_code == 0
+    assert completed["complete"] is True
+
+    exit_code, _ = run(
+        capsys,
+        "trial",
+        "register",
+        "--candidate-manifest",
+        str(candidate_manifest),
+        "--physical-validation-record",
+        str(tmp_path / "candidates/r001/trials/trial-002/physical.json"),
+        "--fixture",
+        str(tmp_path / "fixture.stl"),
+        "--trial-id",
+        "trial-002",
+        "--output",
+        str(tmp_path / "candidates/r001/trials/trial-002/trial.json"),
+    )
+    assert exit_code == 0
+
+    exit_code, report = run(capsys, "report", "--target-root", str(tmp_path))
+    assert exit_code == 0
+
+    candidate_report = report["candidates"][0]
+    assert candidate_report["trial_count"] == 2
+    assert candidate_report["trials_pending"] == 1
+    assert candidate_report["trials_completed"] == 1
+    assert candidate_report["trial_outcomes"] == {"pass": 0, "revise": 1, "reject": 0}
+
+
+def test_trial_complete_rejects_pending_disposition(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "trial",
+                "complete",
+                "--candidate-report",
+                "candidate.json",
+                "--fixture-stl",
+                "fixture.stl",
+                "--printer-profile",
+                "p",
+                "--material-profile",
+                "m",
+                "--slicer-profile",
+                "s",
+                "--observations",
+                str(write_observations(tmp_path)),
+                "--disposition",
+                "pending",
+                "--output",
+                str(tmp_path / "physical.json"),
+            ]
+        )
+
+
+@pytest.mark.parametrize("records_slicer_profile", [True, False])
+def test_legacy_pending_trial_reads_as_pending(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    records_slicer_profile: bool,
+) -> None:
+    """Trials registered before the pending disposition existed stay loadable.
+
+    The oldest evidence (adafruit-feather-rp2040 r001) also predates the
+    slicer profile, so neither its record nor its manifest carries one.
+    """
+
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+    candidate_id = json.loads(candidate_manifest.read_text(encoding="utf-8"))[
+        "candidate_id"
+    ]
+
+    # Legacy shapes: a placeholder "revise" record with no completion time,
+    # and a trial manifest that copied complete=true from it. The record
+    # path is repository-relative, as in evidence/.
+    legacy_record = tmp_path / "evidence/legacy-physical-validation.json"
+    legacy_record.parent.mkdir(parents=True)
+    legacy_record_payload: dict[str, object] = {
+        "candidate_report_path": "candidate.json",
+        "complete": True,
+        "completed_at_utc": "",
+        "disposition": "revise",
+        "fixture_stl_path": "fixture.stl",
+        "material_profile": "pending-selection",
+        "observations": [
+            {
+                "check": check,
+                "notes": "Pending physical validation.",
+                "passed": False,
+            }
+            for check in json.loads(
+                write_observations(tmp_path).read_text(encoding="utf-8")
+            )
+        ],
+        "operator_notes": "Pending print, inspection, and board-fit trial.",
+        "passed": False,
+        "printer_profile": "pending-selection",
+        "schema_version": "1.0.0",
+        "slicer_profile": "pending-selection",
+    }
+    legacy_trial_payload: dict[str, object] = {
+        "candidate_id": candidate_id,
+        "complete": True,
+        "created_at_utc": "2026-08-16T19:48:21.132957+00:00",
+        "disposition": "revise",
+        "fixture_artifact_path": "fixture.stl",
+        "material_profile": "pending-selection",
+        "passed": False,
+        "physical_validation_path": "evidence/legacy-physical-validation.json",
+        "printer_profile": "pending-selection",
+        "schema_version": "1.0.0",
+        "slicer_profile": "pending-selection",
+        "trial_id": "trial-001",
+    }
+
+    if not records_slicer_profile:
+        del legacy_record_payload["slicer_profile"]
+        del legacy_trial_payload["slicer_profile"]
+
+    legacy_record.write_text(json.dumps(legacy_record_payload), encoding="utf-8")
+    legacy_trial = tmp_path / "candidates/r001/trials/trial-001/trial.json"
+    legacy_trial.parent.mkdir(parents=True)
+    legacy_trial_text = json.dumps(legacy_trial_payload)
+    legacy_trial.write_text(legacy_trial_text, encoding="utf-8")
+
+    exit_code, report = run(capsys, "report", "--target-root", str(tmp_path))
+    assert exit_code == 0
+
+    candidate_report = report["candidates"][0]
+    assert candidate_report["trials_pending"] == 1
+    assert candidate_report["trials_completed"] == 0
+    assert candidate_report["trial_outcomes"]["revise"] == 0
+
+    # Loading reinterprets; it never rewrites evidence on disk.
+    assert legacy_trial.read_text(encoding="utf-8") == legacy_trial_text
 
 
 def test_candidate_promote_and_status_report_preferred_revision(
@@ -1059,7 +1326,10 @@ def test_report_aggregates_candidates_trials_and_promotion(
     candidate_report = report["candidates"][0]
     assert candidate_report["strategy"] == "corner-capture"
     assert candidate_report["trial_count"] == 1
+    assert candidate_report["trials_pending"] == 0
+    assert candidate_report["trials_completed"] == 1
     assert candidate_report["trials_passed"] == 1
+    assert candidate_report["trial_outcomes"] == {"pass": 1, "revise": 0, "reject": 0}
     assert candidate_report["promotion"]["decision"] == "promoted"
     assert candidate_report["promotion"]["reviewer"] == "operator"
 
