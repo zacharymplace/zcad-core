@@ -334,6 +334,10 @@ def test_candidate_derive_registers_child_revision(
         capsys,
         "candidate",
         "derive",
+        "--retention-step",
+        str(tmp_path / "retention.step"),
+        "--printer-profile",
+        str(PRINTER_PROFILE),
         "--parent",
         str(parent_manifest),
         "--revision",
@@ -366,6 +370,10 @@ def test_candidate_derive_rejects_malformed_set(
         [
             "candidate",
             "derive",
+            "--retention-step",
+            str(tmp_path / "retention.step"),
+            "--printer-profile",
+            str(PRINTER_PROFILE),
             "--parent",
             str(parent_manifest),
             "--revision",
@@ -479,6 +487,10 @@ def test_revision_compare_flags_missing_trial_evidence(
         capsys,
         "candidate",
         "derive",
+        "--retention-step",
+        str(tmp_path / "retention.step"),
+        "--printer-profile",
+        str(PRINTER_PROFILE),
         "--parent",
         str(source_manifest),
         "--revision",
@@ -526,6 +538,10 @@ def test_candidate_promote_and_status_report_preferred_revision(
         capsys,
         "candidate",
         "derive",
+        "--retention-step",
+        str(tmp_path / "retention.step"),
+        "--printer-profile",
+        str(PRINTER_PROFILE),
         "--parent",
         str(candidate_manifest),
         "--revision",
@@ -554,7 +570,7 @@ def test_candidate_promote_and_status_report_preferred_revision(
         revision="r002",
         passed=True,
     )
-    child_export = revalidate(tmp_path, capsys, child_manifest)
+    child_export = Path(str(derive_result["export_validation_record"]))
 
     exit_code, promotion = run(
         capsys,
@@ -662,6 +678,10 @@ def test_candidate_promote_requires_supersession_for_new_preferred(
         capsys,
         "candidate",
         "derive",
+        "--retention-step",
+        str(tmp_path / "retention.step"),
+        "--printer-profile",
+        str(PRINTER_PROFILE),
         "--parent",
         str(r001),
         "--revision",
@@ -686,6 +706,10 @@ def test_candidate_promote_requires_supersession_for_new_preferred(
         capsys,
         "candidate",
         "derive",
+        "--retention-step",
+        str(tmp_path / "retention.step"),
+        "--printer-profile",
+        str(PRINTER_PROFILE),
         "--parent",
         str(r002),
         "--revision",
@@ -720,8 +744,8 @@ def test_candidate_promote_requires_supersession_for_new_preferred(
         revision="r003",
         passed=True,
     )
-    r002_export = revalidate(tmp_path, capsys, r002)
-    r003_export = revalidate(tmp_path, capsys, r003)
+    r002_export = Path(str(derive_result["export_validation_record"]))
+    r003_export = Path(str(derive_result_2["export_validation_record"]))
 
     exit_code, _ = run(
         capsys,
@@ -1203,3 +1227,42 @@ def test_candidate_register_records_failing_export_validation(
     assert output.is_file()
     assert result["export_validation_status"] == "FAIL"
     assert Path(str(result["export_validation_record"])).is_file()
+
+
+def test_candidate_derive_rejects_step_other_than_parents(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    parent = register_candidate(tmp_path, capsys, target_manifest)
+    other_step = tmp_path / "other.step"
+    cq.exporters.export(cq.Workplane("XY").box(5.0, 5.0, 5.0), str(other_step))
+
+    exit_code = main(
+        [
+            "candidate",
+            "derive",
+            "--parent",
+            str(parent),
+            "--revision",
+            "r002",
+            "--set",
+            "board_clearance_mm=0.30",
+            "--relationship",
+            "supersedes",
+            "--reason",
+            "Increase clearance.",
+            "--automated-decision",
+            "verified_candidate",
+            "--output-directory",
+            str(tmp_path / "candidates/r002"),
+            "--retention-step",
+            str(other_step),
+            "--printer-profile",
+            str(PRINTER_PROFILE),
+        ]
+    )
+
+    assert exit_code == 1
+    assert "does not match candidate output_sha256" in capsys.readouterr().err
+    assert not (tmp_path / "candidates/r002").exists()

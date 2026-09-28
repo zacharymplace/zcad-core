@@ -127,14 +127,14 @@ created, with its run written to `export-validation/` beside the manifest:
   the record.
 - The wearable snap-shell build scripts validate the candidates they
   register.
+- `candidate derive` requires the parent's `--retention-step` (checked
+  against its hash before anything is written) and `--printer-profile`.
+  It accepts `--target-manifest` to separate the embedded board.
 
 A failing run blocks promotion, not registration.
 
 Remaining:
 
-- `candidate derive` creates metadata-only revisions that reuse the
-  parent's STEP but do not record its path, so derived candidates still
-  need a manual `candidate revalidate`
 - retention-specific feature and STL validators
 
 ### Exit criteria

@@ -6,7 +6,8 @@ none of them infer a directory layout beyond what a caller passes in,
 except ``status`` and ``candidate promote``, which read (never write) a
 ``--target-root`` to discover existing candidates and promotions, and
 ``candidate register``, which writes its export-validation run beside the
-candidate manifest in ``export-validation/``.
+candidate manifest in ``export-validation/``; ``candidate derive`` does the
+same inside ``--output-directory``.
 """
 
 from __future__ import annotations
@@ -363,6 +364,13 @@ def _candidate_derive(args: argparse.Namespace) -> int:
 
         parameter_updates[key] = float(value)
 
+    # Check before registering so a wrong STEP leaves no unvalidated candidate.
+    if sha256_file(args.retention_step) != parent.output_sha256:
+        raise ValueError(
+            "Retention STEP does not match candidate output_sha256: "
+            f"{args.retention_step}"
+        )
+
     result = register_candidate_revision(
         parent_candidate=parent,
         revision=args.revision,
@@ -371,6 +379,18 @@ def _candidate_derive(args: argparse.Namespace) -> int:
         reason=args.reason,
         output_directory=args.output_directory,
         automated_decision=args.automated_decision,
+    )
+
+    # Derived revisions reuse the parent's retention STEP; the hash check in
+    # export validation confirms it is that exact file.
+    record, record_path = run_candidate_export_validation(
+        candidate=result.candidate,
+        retention_step=args.retention_step,
+        validation_root=args.output_directory / "export-validation",
+        printer_profile=load_manifest(args.printer_profile),
+        repository_root=args.repository_root,
+        validated_at_utc=_now(),
+        reference_board=_reference_board(args.target_manifest, result.candidate),
     )
 
     _emit(
@@ -383,10 +403,12 @@ def _candidate_derive(args: argparse.Namespace) -> int:
             "candidate_manifest": str(result.candidate_path),
             "relationship_manifest": str(result.relationship_path),
             "parameter_delta_report": str(result.delta_report_path),
+            "export_validation_status": record.evaluated_status,
+            "export_validation_record": str(record_path),
         }
     )
 
-    return 0
+    return 0 if record.evaluated_status == "PASS" else 1
 
 
 def _candidate_inspect(args: argparse.Namespace) -> int:
@@ -938,6 +960,19 @@ def build_parser() -> argparse.ArgumentParser:
     candidate_derive.add_argument("--reason", required=True)
     candidate_derive.add_argument("--automated-decision", required=True)
     candidate_derive.add_argument("--output-directory", required=True, type=Path)
+    candidate_derive.add_argument(
+        "--retention-step",
+        required=True,
+        type=Path,
+        help="The parent's retention STEP; must match its output_sha256.",
+    )
+    candidate_derive.add_argument("--printer-profile", required=True, type=Path)
+    candidate_derive.add_argument(
+        "--target-manifest",
+        type=Path,
+        help="Separate the embedded target PCB, as in 'candidate revalidate'.",
+    )
+    candidate_derive.add_argument("--repository-root", default=Path("."), type=Path)
     candidate_derive.set_defaults(handler=_candidate_derive)
 
     candidate_inspect = candidate_commands.add_parser("inspect")
