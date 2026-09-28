@@ -142,7 +142,28 @@ def complete_physical_validation_record(
     disposition: PhysicalValidationDisposition,
     operator_notes: str,
 ) -> PhysicalValidationRecord:
-    """Create a completed operator validation record."""
+    """Create a completed operator validation record.
+
+    A ``pass`` disposition is refused unless every required check is observed
+    once and passed, so a record cannot claim a pass its observations deny.
+    """
+
+    if disposition is PhysicalValidationDisposition.PASS:
+        observed = [observation.check for observation in observations]
+        missing = sorted(
+            check.value for check in PhysicalValidationCheck if check not in observed
+        )
+        failed = [
+            observation.check.value
+            for observation in observations
+            if not observation.passed
+        ]
+
+        if missing or failed or len(observed) != len(set(observed)):
+            raise ValueError(
+                "A pass disposition requires every check to pass once; "
+                f"missing: {missing or 'none'}, failed: {failed or 'none'}"
+            )
 
     return PhysicalValidationRecord(
         schema_version="1.0.0",
