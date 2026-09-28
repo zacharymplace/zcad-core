@@ -170,24 +170,36 @@ Produce the first promoted, publication-eligible candidate.
 
 ### Prerequisite (met)
 
-The corner-capture and edge-clip generators (1.1.0) now fuse ledges and
-clips to their walls. Each corner capture is a single L-shaped body resting
-on the build plane. The following candidates regenerate their parents'
-policies unchanged, pass export validation including
-`retention_supported_bodies`, and pass slicing readiness:
+Generators 1.1.0–1.3.0 fixed three fixture defects found by export
+validation and the design review:
 
-| Candidate | Supersedes | Ledge overhang past wall face | Vertical play |
-|---|---|---|---|
-| `adafruit-feather-rp2040-corner-capture-r004` | r003 | 3.45 mm | 0.90 mm |
-| `raspberry-pi-pico-2-corner-capture-r002` | r001 | 3.38 mm | 0.85 mm |
-| `seeed-xiao-esp32s3-corner-capture-r002` | r001 | 2.17 mm | 1.10 mm |
-| `arduino-uno-r4-wifi-edge-clip-r002` | r001 | 2.75 mm | 2.46 mm |
+- 1.1.0 fuses ledges and clips to their walls, so they no longer print as
+  floating islands.
+- 1.2.0 builds capture geometry and the fixture base up from the PCB's
+  underside. Vendor models place boards away from z = 0: the UNO R4 at
+  z −1.6..0 and the XIAO at −0.25..1.0.
+- 1.3.0 cuts clearance holes through the base under parts that reach more
+  than 0.05 mm below the PCB, such as the UNO R4's through-hole headers and
+  power jack.
 
-Do not print the superseded candidates, because their ledges are
-unsupported islands. The ledges are unsupported horizontal overhangs
-(corner ledges are carried on two sides), and slicing readiness does not
-assess overhang. Check them in the Bambu Studio preview with supports
-disabled before the first print.
+The design review's interference check now fails closed: it takes the
+largest overlap across several boolean formulations. The old check reported
+0 mm³ for the XIAO's multi-shell vendor PCB, which actually overlapped its
+base by 88.7 mm³. The review accepts bottom-side pads up to 0.05 mm proud of
+the PCB as seating contact.
+
+Print-ready candidates, each with passing export validation, design review,
+and slicing readiness, a Bambu Studio slice, and an open trial-001:
+
+| Candidate | Slice (A1 mini, PETG) | Vertical play |
+|---|---|---|
+| `adafruit-feather-rp2040-corner-capture-r004` | 9 min, 3.70 g | 0.90 mm |
+| `raspberry-pi-pico-2-corner-capture-r002` | 8 min, 3.45 g | 0.85 mm |
+| `seeed-xiao-esp32s3-corner-capture-r003` | 5 min, 1.44 g | 0.85 mm |
+| `arduino-uno-r4-wifi-edge-clip-r004` | 17 min, 8.61 g | 0.85 mm |
+
+Do not print superseded candidates. XIAO r002's unregistered placeholder
+trial was removed.
 
 ### Deliverables
 
