@@ -33,6 +33,7 @@ class SyntheticCornerCaptureBackend:
             board_thickness_mm=(request.board_thickness_mm),
             locations=request.locations,
             policy=request.policy,
+            board_bottom_z_mm=request.board_bottom_z_mm,
         )
 
     def apply(
@@ -168,6 +169,9 @@ class SyntheticCornerCaptureBackend:
         engagement = parameters.engagement_depth_mm
         clearance = parameters.board_clearance_mm
         wall = parameters.minimum_wall_mm
+        # Build up from the PCB's underside, which vendor models may place
+        # anywhere on Z.
+        bottom = parameters.board_bottom_z_mm
 
         wall_height = (
             parameters.board_thickness_mm
@@ -199,7 +203,7 @@ class SyntheticCornerCaptureBackend:
                 (
                     x_wall_center_x,
                     x_wall_center_y,
-                    wall_height / 2.0,
+                    bottom + wall_height / 2.0,
                 )
             )
         )
@@ -215,7 +219,7 @@ class SyntheticCornerCaptureBackend:
                 (
                     y_wall_center_x,
                     y_wall_center_y,
-                    wall_height / 2.0,
+                    bottom + wall_height / 2.0,
                 )
             )
         )
@@ -228,7 +232,8 @@ class SyntheticCornerCaptureBackend:
         ledge_center_x = x_mm + x_sign * (outer - ledge_inner) / 2.0
         ledge_center_y = y_mm + y_sign * (outer - ledge_inner) / 2.0
         ledge_center_z = (
-            parameters.board_thickness_mm
+            bottom
+            + parameters.board_thickness_mm
             + clearance
             + parameters.vertical_overlap_mm
             + wall / 2.0

@@ -194,6 +194,7 @@ class ProductionBoardEdgeAdapter:
                 board_thickness_mm=bounds.zlen,
                 locations=locations,
                 policy=policy,
+                board_bottom_z_mm=bounds.zmin,
             ),
             clearances=clearances,
             selected_edge=edge,

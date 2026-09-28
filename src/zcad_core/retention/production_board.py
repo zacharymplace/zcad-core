@@ -207,6 +207,7 @@ class ProductionBoardCornerAdapter:
                 board_thickness_mm=(bounds.zlen),
                 locations=locations,
                 policy=policy,
+                board_bottom_z_mm=bounds.zmin,
             ),
             clearances=clearances,
             selected_corners=selected,

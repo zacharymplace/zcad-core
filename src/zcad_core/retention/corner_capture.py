@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -64,8 +65,12 @@ class CornerCaptureParameters:
     board_clearance_mm: float
     vertical_overlap_mm: float
     minimum_wall_mm: float
+    board_bottom_z_mm: float = 0.0
 
     def __post_init__(self) -> None:
+        if not math.isfinite(self.board_bottom_z_mm):
+            raise ValueError("board_bottom_z_mm must be finite")
+
         if self.board_thickness_mm <= 0:
             raise ValueError("board_thickness_mm must be positive")
 
@@ -99,6 +104,7 @@ def derive_corner_capture_parameters(
     board_thickness_mm: float,
     locations: tuple[CornerCaptureLocation, ...],
     policy: CornerCapturePolicy,
+    board_bottom_z_mm: float = 0.0,
 ) -> CornerCaptureParameters:
     """Derive a validated corner-capture geometry artifact."""
 
@@ -110,6 +116,7 @@ def derive_corner_capture_parameters(
         board_clearance_mm=policy.board_clearance_mm,
         vertical_overlap_mm=policy.vertical_overlap_mm,
         minimum_wall_mm=policy.minimum_wall_mm,
+        board_bottom_z_mm=board_bottom_z_mm,
     )
 
 

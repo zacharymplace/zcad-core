@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import cadquery as cq
+import pytest
 
 from zcad_core.retention import (
     CornerCapturePolicy,
@@ -92,8 +93,11 @@ def test_fixture_is_connected_to_base(
 
     bounds = shape.BoundingBox()
 
-    assert bounds.zmin == -2.0
-    assert bounds.zmax > 0.0
+    pcb_bottom = execution.board_model.pcb.BoundingBox().zmin
+
+    # The base's top sits at the PCB's underside, wherever the model puts it.
+    assert bounds.zmin == pytest.approx(pcb_bottom - 2.0)
+    assert bounds.zmax > pcb_bottom
     assert shape.Volume() > 0.0
 
 

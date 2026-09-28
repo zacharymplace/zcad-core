@@ -71,7 +71,7 @@ def build_validation_fixture(
             (
                 center_x_mm,
                 center_y_mm,
-                -policy.base_thickness_mm / 2.0,
+                pcb_bounds.zmin - policy.base_thickness_mm / 2.0,
             )
         )
     )
@@ -146,7 +146,7 @@ def build_edge_validation_fixture(
             (
                 center_x_mm,
                 center_y_mm,
-                -policy.base_thickness_mm / 2.0,
+                pcb_bounds.zmin - policy.base_thickness_mm / 2.0,
             )
         )
     )

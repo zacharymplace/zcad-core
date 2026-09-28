@@ -18,6 +18,8 @@ class CornerCaptureRequest:
     board_thickness_mm: float
     locations: tuple[CornerCaptureLocation, ...]
     policy: CornerCapturePolicy
+    # Z of the PCB's underside; generated geometry is built up from here.
+    board_bottom_z_mm: float = 0.0
 
     def __post_init__(self) -> None:
         if self.board_thickness_mm <= 0:

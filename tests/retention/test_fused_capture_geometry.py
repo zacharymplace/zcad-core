@@ -29,7 +29,7 @@ SHAPE = {
 }
 
 
-def corner_geometry() -> cq.Workplane:
+def corner_geometry(bottom: float = 0.0) -> cq.Workplane:
     return SyntheticCornerCaptureBackend().build_geometry(
         CornerCaptureParameters(
             board_thickness_mm=THICKNESS_MM,
@@ -44,11 +44,12 @@ def corner_geometry() -> cq.Workplane:
                 ),
             ),
             **SHAPE,
+            board_bottom_z_mm=bottom,
         )
     )
 
 
-def edge_geometry() -> cq.Workplane:
+def edge_geometry(bottom: float = 0.0) -> cq.Workplane:
     return SyntheticEdgeCaptureBackend().build_geometry(
         EdgeCaptureParameters(
             board_thickness_mm=THICKNESS_MM,
@@ -63,41 +64,50 @@ def edge_geometry() -> cq.Workplane:
                 ),
             ),
             **SHAPE,
+            board_bottom_z_mm=bottom,
         )
     )
 
 
+BOTTOMS = pytest.mark.parametrize("bottom", [0.0, -1.6])
+
+
+@BOTTOMS
 @pytest.mark.parametrize("build", [corner_geometry, edge_geometry])
-def test_each_capture_is_one_grounded_body(build) -> None:  # type: ignore[no-untyped-def]
-    solids = build().solids().vals()
+def test_each_capture_is_one_grounded_body(build, bottom: float) -> None:  # type: ignore[no-untyped-def]
+    solids = build(bottom).solids().vals()
 
     assert len(solids) == 2
     for solid in solids:
-        assert solid.BoundingBox().zmin == pytest.approx(0.0)
+        assert solid.BoundingBox().zmin == pytest.approx(bottom)
 
 
+@BOTTOMS
 @pytest.mark.parametrize("build", [corner_geometry, edge_geometry])
-def test_captures_keep_board_clearance(build) -> None:  # type: ignore[no-untyped-def]
+def test_captures_keep_board_clearance(build, bottom: float) -> None:  # type: ignore[no-untyped-def]
     # The board plus its clearance envelope, stopping just short of the
     # clearance so touching the envelope boundary is allowed.
     margin = CLEARANCE_MM - 1e-3
     envelope = (
         cq.Workplane("XY")
         .box(BOARD_X_MM + 2 * margin, BOARD_Y_MM + 2 * margin, THICKNESS_MM + margin)
-        .translate((BOARD_X_MM / 2, BOARD_Y_MM / 2, (THICKNESS_MM + margin) / 2))
+        .translate(
+            (BOARD_X_MM / 2, BOARD_Y_MM / 2, bottom + (THICKNESS_MM + margin) / 2)
+        )
     )
 
-    intersection = build().intersect(envelope)
+    intersection = build(bottom).intersect(envelope)
 
     assert intersection.solids().size() == 0 or intersection.val().Volume() < 1e-9
 
 
+@BOTTOMS
 @pytest.mark.parametrize("build", [corner_geometry, edge_geometry])
-def test_captures_still_reach_over_board(build) -> None:  # type: ignore[no-untyped-def]
+def test_captures_still_reach_over_board(build, bottom: float) -> None:  # type: ignore[no-untyped-def]
     above_board = (
         cq.Workplane("XY")
         .box(BOARD_X_MM, BOARD_Y_MM, 10.0)
-        .translate((BOARD_X_MM / 2, BOARD_Y_MM / 2, THICKNESS_MM + 5.0))
+        .translate((BOARD_X_MM / 2, BOARD_Y_MM / 2, bottom + THICKNESS_MM + 5.0))
     )
 
-    assert build().intersect(above_board).val().Volume() > 0
+    assert build(bottom).intersect(above_board).val().Volume() > 0
