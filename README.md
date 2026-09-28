@@ -11,8 +11,8 @@ Responsibilities:
 - Manufacturing profiles
 - Metadata
 - Export pipeline
-- Rendering
 - Hardware abstractions
+- Board-retention strategies and the Validation Lab
 
 This repository intentionally contains no product-specific models.
 

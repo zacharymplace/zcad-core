@@ -4,13 +4,12 @@ zcad-core/
 ├── assemblies
 ├── exporters
 ├── features
-├── generators
+├── geometry
 ├── hardware
-├── materials
 ├── metadata
 ├── profiles
-├── rendering
-├── utils
-└── validation
+├── retention
+├── validation
+└── cli.py
 
 Product libraries live outside this repository.
