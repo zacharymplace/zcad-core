@@ -20,7 +20,9 @@ from zcad_core.retention.validation_fixture import (
     build_validation_fixture,
 )
 
-_SEATING_EPSILON_MM = 1e-6
+# Bounding boxes of meshed shapes (the review exports meshes before measuring)
+# read up to ~0.3 um loose, so seating comparisons allow 1 um.
+_SEATING_EPSILON_MM = 1e-3
 
 ProductionExecutionResult = (
     ProductionCornerExecutionResult | ProductionEdgeExecutionResult
