@@ -95,9 +95,7 @@ class SyntheticSnapShellBackend:
         placeholders.
         """
 
-        engagement_passed = (
-            parameters.overhang_mm > 0 and parameters.clip_height_mm > 0
-        )
+        engagement_passed = parameters.overhang_mm > 0 and parameters.clip_height_mm > 0
 
         manufacturing_passed = (
             parameters.clearance_mm >= 0.10
