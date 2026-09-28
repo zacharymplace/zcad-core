@@ -10,11 +10,12 @@ def test_tandem_mobi_dimensions() -> None:
 
     assert pump.identifier == "TANDEM_MOBI"
     assert pump.geometry_evidence_status == "manufacturer-published"
+    assert "PMC13089864" in pump.geometry_source
     assert "diabetesnet.com" in pump.geometry_source
 
-    assert pump.body_length_mm == 50.8
-    assert pump.body_width_mm == 49.5
-    assert pump.body_thickness_mm == 14.5
+    assert pump.body_length_mm == 51.3
+    assert pump.body_width_mm == 37.3
+    assert pump.body_thickness_mm == 14.2
 
     assert pump.recommended_clip_clearance_mm == 0.5
 
