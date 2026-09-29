@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -24,7 +25,14 @@ from zcad_core.retention.validation_fixture import (
 # read up to ~0.3 um loose, so seating comparisons allow 1 um.
 _SEATING_EPSILON_MM = 1e-3
 
-DESIGN_REVIEW_SCHEMA_VERSION = "1.1.0"
+DESIGN_REVIEW_SCHEMA_VERSION = "1.2.0"
+
+# How many nearest parts the clearance section lists, and how close (by
+# bounding box) a part must be to a capture before its exact gap is measured.
+_CLOSEST_LISTED = 5
+_CAPTURE_SEARCH_MM = 3.0
+# A part overhangs an edge when it extends this far past the PCB outline.
+_OVERHANG_MM = 0.2
 
 ProductionExecutionResult = (
     ProductionCornerExecutionResult | ProductionEdgeExecutionResult
@@ -158,6 +166,182 @@ def _rests_under_board(component: cq.Shape, pcb_bounds: cq.BoundBox) -> bool:
     )
 
 
+def _round(value: float) -> float:
+    return round(value, 3)
+
+
+def _part_entry(index: int, component: cq.Shape, gap: float) -> dict[str, Any]:
+    bounds = component.BoundingBox()
+
+    return {
+        "component_index": index,
+        "gap_mm": _round(gap),
+        "center_mm": [_round(bounds.center.x), _round(bounds.center.y)],
+        "size_mm": [_round(bounds.xlen), _round(bounds.ylen), _round(bounds.zlen)],
+        "z_range_mm": [_round(bounds.zmin), _round(bounds.zmax)],
+    }
+
+
+def _within(first: cq.BoundBox, second: cq.BoundBox, margin: float) -> bool:
+    return (
+        first.xmin <= second.xmax + margin
+        and second.xmin <= first.xmax + margin
+        and first.ymin <= second.ymax + margin
+        and second.ymin <= first.ymax + margin
+        and first.zmin <= second.zmax + margin
+        and second.zmin <= first.zmax + margin
+    )
+
+
+def _edge_overhangs(
+    components: Sequence[cq.Shape],
+    *,
+    pcb_bounds: cq.BoundBox,
+    fixture_bounds: cq.BoundBox,
+    gaps: dict[int, float],
+) -> list[dict[str, Any]]:
+    """Parts that overhang the PCB edge, and how far the base runs past them.
+
+    A positive ``base_lip_mm`` is fixture extending beyond the part's outer
+    face; with a small ``height_above_base_mm`` a cable plug seated in the
+    part can bind on it.
+    """
+
+    overhangs = []
+
+    for index, component in enumerate(components, start=1):
+        bounds = component.BoundingBox()
+        faces = (
+            (
+                "negative_x",
+                pcb_bounds.xmin - bounds.xmin,
+                bounds.xmin - fixture_bounds.xmin,
+            ),
+            (
+                "positive_x",
+                bounds.xmax - pcb_bounds.xmax,
+                fixture_bounds.xmax - bounds.xmax,
+            ),
+            (
+                "negative_y",
+                pcb_bounds.ymin - bounds.ymin,
+                bounds.ymin - fixture_bounds.ymin,
+            ),
+            (
+                "positive_y",
+                bounds.ymax - pcb_bounds.ymax,
+                fixture_bounds.ymax - bounds.ymax,
+            ),
+        )
+
+        for edge, overhang, lip in faces:
+            if overhang > _OVERHANG_MM:
+                overhangs.append(
+                    {
+                        "component_index": index,
+                        "edge": edge,
+                        "overhang_mm": _round(overhang),
+                        "base_lip_mm": _round(lip),
+                        "height_above_base_mm": _round(bounds.zmin - pcb_bounds.zmin),
+                        "gap_mm": _round(gaps.get(index, 0.0)),
+                        "size_mm": [
+                            _round(bounds.xlen),
+                            _round(bounds.ylen),
+                            _round(bounds.zlen),
+                        ],
+                    }
+                )
+
+    return overhangs
+
+
+def _clearance_report(
+    *,
+    fixture: cq.Shape,
+    pcb: cq.Shape,
+    components: Sequence[cq.Shape],
+    gaps: dict[int, float],
+    seating_indices: set[int],
+    seating_contact_mm: float,
+) -> dict[str, Any]:
+    """Measured clearances a human reviewer needs, beyond pass or fail.
+
+    ``gaps`` holds the exact fixture distance of every part that does not
+    overlap it. Captures are the fixture above the PCB's underside; the
+    base is everything below.
+    """
+
+    pcb_bounds = pcb.BoundingBox()
+    fixture_bounds = fixture.BoundingBox()
+
+    closest = sorted(
+        (gap, index) for index, gap in gaps.items() if index not in seating_indices
+    )[:_CLOSEST_LISTED]
+
+    lift = pcb_bounds.zmin + _SEATING_EPSILON_MM
+    above = cq.Solid.makeBox(
+        fixture_bounds.xlen + 2.0,
+        fixture_bounds.ylen + 2.0,
+        max(fixture_bounds.zmax - lift, 0.0) + 1.0,
+        pnt=cq.Vector(fixture_bounds.xmin - 1.0, fixture_bounds.ymin - 1.0, lift),
+    )
+    captures = _intersection(fixture, above)
+    capture_gaps: list[tuple[float, int]] = []
+
+    if captures is not None:
+        # Filter per capture: the captures sit at opposite corners or ends,
+        # so their combined bounding box would cover the whole board.
+        capture_bounds = [solid.BoundingBox() for solid in captures.Solids()]
+
+        for index, component in enumerate(components, start=1):
+            bounds = component.BoundingBox()
+
+            if index in seating_indices or not any(
+                _within(bounds, capture, _CAPTURE_SEARCH_MM)
+                for capture in capture_bounds
+            ):
+                continue
+
+            capture_gaps.append((captures.distance(component), index))
+
+    underside = []
+
+    for index, component in enumerate(components, start=1):
+        depth = pcb_bounds.zmin - component.BoundingBox().zmin
+
+        if depth > seating_contact_mm + _SEATING_EPSILON_MM:
+            underside.append(
+                {
+                    "component_index": index,
+                    "depth_below_pcb_mm": _round(depth),
+                    "hole_clearance_mm": _round(gaps.get(index, 0.0)),
+                }
+            )
+
+    return {
+        "closest_components": [
+            _part_entry(index, components[index - 1], gap) for gap, index in closest
+        ],
+        "capture_volume_mm3": (
+            None if captures is None else _round(float(captures.Volume()))
+        ),
+        "pcb_to_capture_gap_mm": (
+            None if captures is None else _round(captures.distance(pcb))
+        ),
+        "closest_to_captures": [
+            _part_entry(index, components[index - 1], gap)
+            for gap, index in sorted(capture_gaps)[:_CLOSEST_LISTED]
+        ],
+        "edge_overhangs": _edge_overhangs(
+            components,
+            pcb_bounds=pcb_bounds,
+            fixture_bounds=fixture_bounds,
+            gaps=gaps,
+        ),
+        "underside_passthroughs": underside,
+    }
+
+
 def _review_report(
     *,
     execution: ProductionExecutionResult,
@@ -180,29 +364,30 @@ def _review_report(
     component_intersections = []
     clearance_violations = []
     seating_contacts = []
+    gaps: dict[int, float] = {}
 
     for index, component in enumerate(components, start=1):
         intersection = _intersection(fixture, component)
 
         if intersection is None or intersection.Volume() <= tolerance_mm3:
+            gap = fixture.distance(component)
+            gaps[index] = gap
+
             # No overlapping volume, but flush or near-flush faces still clash
             # once printed: UNO R4 r004's clip ended flush against a header.
-            if minimum_component_gap_mm > 0:
-                gap = fixture.distance(component)
-
-                if gap < minimum_component_gap_mm:
-                    if _rests_under_board(component, pcb_bounds):
-                        seating_contacts.append(
-                            {
-                                "component_index": index,
-                                "intersection_mm3": 0.0,
-                                "depth_mm": 0.0,
-                            }
-                        )
-                    else:
-                        clearance_violations.append(
-                            {"component_index": index, "gap_mm": round(gap, 6)}
-                        )
+            if gap < minimum_component_gap_mm:
+                if _rests_under_board(component, pcb_bounds):
+                    seating_contacts.append(
+                        {
+                            "component_index": index,
+                            "intersection_mm3": 0.0,
+                            "depth_mm": 0.0,
+                        }
+                    )
+                else:
+                    clearance_violations.append(
+                        {"component_index": index, "gap_mm": round(gap, 6)}
+                    )
 
             continue
 
@@ -255,6 +440,16 @@ def _review_report(
             "seating_contact_mm": seating_contact_mm,
             "underside_seating_contacts": seating_contacts,
         },
+        "clearance": _clearance_report(
+            fixture=fixture,
+            pcb=pcb,
+            components=components,
+            gaps=gaps,
+            seating_indices={
+                int(contact["component_index"]) for contact in seating_contacts
+            },
+            seating_contact_mm=seating_contact_mm,
+        ),
         "artifacts": {name: str(path) for name, path in paths.items()},
         "review_status": {
             "automated_geometry_complete": True,

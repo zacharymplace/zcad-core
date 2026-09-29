@@ -285,6 +285,11 @@ base by 88.7 mm³. The review accepts bottom-side pads up to 0.05 mm proud of
 the PCB as seating contact. Since design-review schema 1.1.0 it also blocks
 any component closer to the fixture than 0.1 mm, which catches faces that
 touch with zero overlapping volume.
+Schema 1.2.0 adds a `clearance` section with the measurements the first
+visual reviews had to take by hand: the parts nearest the fixture and the
+captures, the board-to-capture gap, the base lip under each part that
+overhangs the PCB edge, and the hole clearance of parts reaching through
+the base. Candidates reviewed before 1.2.0 do not carry it.
 
 Print-ready candidates, each with passing export validation, design review,
 and slicing readiness, a Bambu Studio slice, and an open trial-001:

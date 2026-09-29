@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import cadquery as cq
 import pytest
@@ -301,7 +302,7 @@ def test_component_beyond_minimum_gap_passes(tmp_path: Path) -> None:
     report = review_board_with_top_part(tmp_path, minimum_component_gap_mm=0.1)
 
     assert report["passed"] is True
-    assert report["schema_version"] == "1.1.0"
+    assert report["schema_version"] == "1.2.0"
     assert report["interference"]["minimum_component_gap_mm"] == 0.1
     assert report["interference"]["component_clearance_violations"] == []
 
@@ -327,3 +328,103 @@ def test_rejects_negative_minimum_component_gap(tmp_path: Path) -> None:
             fixture_policy=ValidationFixturePolicy(),
             minimum_component_gap_mm=-0.1,
         )
+
+
+def review_clearance(
+    tmp_path: Path,
+    parts: tuple[tuple[tuple[float, float, float], tuple[float, float, float]], ...],
+) -> dict[str, Any]:
+    """Review a 40 x 30 mm board carrying boxes given as (size, center)."""
+
+    source_step = tmp_path / "board.step"
+    assembly = cq.Assembly()
+    assembly.add(
+        cq.Workplane("XY").box(40.0, 30.0, 1.6).translate((0.0, 0.0, 0.8)),
+        name="pcb",
+    )
+
+    for index, (size, center) in enumerate(parts):
+        assembly.add(
+            cq.Workplane("XY").box(*size).translate(center), name=f"part-{index}"
+        )
+
+    assembly.export(str(source_step), exportType="STEP")
+    execution = execute_production_corner_capture(
+        ProductionCornerExecutionRequest(
+            source_step=source_step,
+            pcb_solid_index=1,
+            output_step=tmp_path / "retention.step",
+            policy=CornerCapturePolicy(),
+        )
+    )
+    artifact = export_design_review_package(
+        execution,
+        output_directory=tmp_path / "review",
+        fixture_policy=ValidationFixturePolicy(),
+    )
+    report = json.loads(artifact.report_path.read_text(encoding="utf-8"))
+    assert report["geometry"]["selected_corners"] == [
+        "negative_x_negative_y",
+        "positive_x_positive_y",
+    ]
+
+    return dict(report["clearance"])
+
+
+CENTER_PART = ((4.0, 4.0, 2.0), (0.0, 0.0, 2.6))
+EDGE_PART = ((3.0, 4.0, 2.0), (-20.0, 5.0, 2.6))
+CORNER_PART = ((1.0, 1.0, 2.0), (-15.0, -13.5, 2.6))
+
+
+def test_clearance_lists_closest_parts_and_capture_gaps(tmp_path: Path) -> None:
+    clearance = review_clearance(tmp_path, (CENTER_PART, EDGE_PART, CORNER_PART))
+
+    closest = [
+        (entry["component_index"], entry["gap_mm"])
+        for entry in clearance["closest_components"]
+    ]
+    assert closest == [(3, 1.25), (1, 1.6), (2, 1.6)]
+
+    # Only the part beside a capture is measured against the captures.
+    assert [
+        (entry["component_index"], entry["gap_mm"])
+        for entry in clearance["closest_to_captures"]
+    ] == [(3, 1.25)]
+    assert clearance["closest_to_captures"][0]["center_mm"] == [-15.0, -13.5]
+    assert clearance["pcb_to_capture_gap_mm"] == pytest.approx(0.25)
+    assert clearance["capture_volume_mm3"] > 0
+
+
+def test_clearance_measures_base_lip_under_an_overhanging_part(tmp_path: Path) -> None:
+    """The fixture's 2 mm margin runs 0.5 mm past a part overhanging by 1.5 mm."""
+
+    clearance = review_clearance(tmp_path, (EDGE_PART,))
+
+    assert clearance["edge_overhangs"] == [
+        {
+            "component_index": 1,
+            "edge": "negative_x",
+            "overhang_mm": 1.5,
+            "base_lip_mm": 0.5,
+            "height_above_base_mm": 1.6,
+            "gap_mm": 1.6,
+            "size_mm": [3.0, 4.0, 2.0],
+        }
+    ]
+
+
+def test_clearance_reports_parts_through_base_holes(tmp_path: Path) -> None:
+    report = review_board(tmp_path, depth_mm=0.3)
+    passthroughs = report["clearance"]["underside_passthroughs"]
+
+    assert len(passthroughs) == 1
+    assert passthroughs[0]["depth_below_pcb_mm"] == pytest.approx(0.3)
+    assert passthroughs[0]["hole_clearance_mm"] == pytest.approx(0.5, abs=1e-3)
+    # Shallow seating pads rest on the base; they are not pass-throughs.
+    (tmp_path / "shallow").mkdir()
+    assert (
+        review_board(tmp_path / "shallow", depth_mm=0.04)["clearance"][
+            "underside_passthroughs"
+        ]
+        == []
+    )
