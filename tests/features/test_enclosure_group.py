@@ -47,6 +47,50 @@ def test_pi5_spec_matches_the_published_board() -> None:
     assert {port.edge for port in pi.ports} == {"positive_y", "negative_x"}
 
 
+def test_pi5_ports_sit_where_raspberry_pis_drawing_dimensions_them() -> None:
+    # RP-008347, landscape, from the bottom-left corner: the Ethernet, and each
+    # USB pair, are 10.2, 29.1, and 47 mm up the 56 mm edge; USB-C and the two
+    # micro-HDMI ports are 11.2, 25.8, and 39.2 mm along the 85 mm edge. The
+    # spec is portrait about the board centre: the short edge runs along X,
+    # the long edge along Y.
+    pi = get_raspberry_pi5()
+    centres = {port.identifier: port.center_mm for port in pi.ports}
+    half_width, half_length = pi.board_width_mm / 2, pi.board_length_mm / 2
+
+    assert centres["ETHERNET"] == pytest.approx(10.2 - half_width, abs=0.1)
+    assert centres["USB3_PAIR"] == pytest.approx(29.1 - half_width, abs=0.1)
+    assert centres["USB2_PAIR"] == pytest.approx(47.0 - half_width, abs=0.1)
+    assert centres["USB_C_POWER"] == pytest.approx(11.2 - half_length, abs=0.1)
+    assert centres["MICRO_HDMI_0"] == pytest.approx(25.8 - half_length, abs=0.1)
+    assert centres["MICRO_HDMI_1"] == pytest.approx(39.2 - half_length, abs=0.1)
+
+
+def test_pi5_connector_blocks_overhang_the_board_edge_by_the_drawings_3_mm() -> None:
+    pi = get_raspberry_pi5()
+
+    for port in pi.ports:
+        if port.edge == "positive_y":
+            assert port.overhang_mm == pytest.approx(3.0, abs=0.2)
+
+
+def test_pi5_active_cooler_is_the_drawings_63_5_by_42_5_mm_over_the_board() -> None:
+    # RP-008187: 63.5 x 42.5 mm, with a 30 x 30 mm fan; its push pins meet the
+    # board's two cooler holes. The box starts above the connectors.
+    pi = get_raspberry_pi5()
+
+    assert (pi.cooler_length_mm, pi.cooler_width_mm) == (63.5, 42.5)
+    assert pi.cooler_bottom_above_board_mm > max(
+        port.height_mm for port in pi.ports if port.edge == "negative_x"
+    )
+    # Its box stays over the board.
+    low = pi.cooler_center_y_mm - pi.cooler_length_mm / 2
+    high = pi.cooler_center_y_mm + pi.cooler_length_mm / 2
+
+    assert low > -pi.board_length_mm / 2
+    assert high < pi.board_length_mm / 2
+    assert abs(pi.cooler_center_x_mm) + pi.cooler_width_mm / 2 < pi.board_width_mm / 2
+
+
 def test_a_pair_passes_every_check_and_fits_the_a1_mini_bed(
     pair: GroupEnclosure,
 ) -> None:
@@ -120,13 +164,13 @@ def test_without_join_bolts_the_walls_are_plain() -> None:
     )
 
 
-def test_the_lid_has_vents_over_each_soc(pair: GroupEnclosure) -> None:
+def test_the_lid_has_vents_over_each_fan(pair: GroupEnclosure) -> None:
     pi = get_raspberry_pi5()
     top = pair.cavity_top_z_mm + pair.design.lid_mm / 2
 
     for bay in pair.bays:
-        x = pair.design.wall_mm + bay.center_x_mm
-        y = pair.pi_center_y_mm + pi.cooler_center_y_mm
+        x = pair.design.wall_mm + bay.center_x_mm + pi.fan_center_x_mm
+        y = pair.pi_center_y_mm + pi.fan_center_y_mm
 
         assert not has_material(pair.lid, x, y, top)
         assert has_material(pair.lid, x, y + 2.5, top)
