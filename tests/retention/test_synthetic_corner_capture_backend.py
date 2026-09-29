@@ -3,6 +3,7 @@ from __future__ import annotations
 import cadquery as cq
 import pytest
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention import (
     BoardCorner,
     CornerCaptureBackend,
@@ -116,7 +117,7 @@ def test_apply_adds_corner_capture_geometry() -> None:
         )
     )
 
-    base_volume = base.val().Volume()
+    base_volume = workplane_shape(base).Volume()
 
     result = backend.apply(
         base,
@@ -127,7 +128,7 @@ def test_apply_adds_corner_capture_geometry() -> None:
         result,
         cq.Workplane,
     )
-    assert result.val().Volume() > base_volume
+    assert workplane_shape(result).Volume() > base_volume
 
 
 def test_apply_is_deterministic() -> None:
@@ -148,15 +149,17 @@ def test_apply_is_deterministic() -> None:
         parameters,
     )
 
-    assert first.val().Volume() == pytest.approx(second.val().Volume())
-    assert first.val().BoundingBox().xlen == pytest.approx(
-        second.val().BoundingBox().xlen
+    assert workplane_shape(first).Volume() == pytest.approx(
+        workplane_shape(second).Volume()
     )
-    assert first.val().BoundingBox().ylen == pytest.approx(
-        second.val().BoundingBox().ylen
+    assert workplane_shape(first).BoundingBox().xlen == pytest.approx(
+        workplane_shape(second).BoundingBox().xlen
     )
-    assert first.val().BoundingBox().zlen == pytest.approx(
-        second.val().BoundingBox().zlen
+    assert workplane_shape(first).BoundingBox().ylen == pytest.approx(
+        workplane_shape(second).BoundingBox().ylen
+    )
+    assert workplane_shape(first).BoundingBox().zlen == pytest.approx(
+        workplane_shape(second).BoundingBox().zlen
     )
 
 
@@ -266,7 +269,7 @@ def test_capture_geometry_does_not_intersect_board() -> None:
     backend = SyntheticCornerCaptureBackend()
     parameters = backend.derive(valid_request())
 
-    pcb = (
+    pcb = workplane_shape(
         cq.Workplane("XY")
         .box(
             40.0,
@@ -280,10 +283,9 @@ def test_capture_geometry_does_not_intersect_board() -> None:
                 0.8,
             )
         )
-        .val()
     )
 
-    capture = backend.build_geometry(parameters).val()
+    capture = workplane_shape(backend.build_geometry(parameters))
 
     intersection = capture.intersect(pcb)
 

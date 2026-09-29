@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import cadquery as cq
 import pytest
@@ -25,7 +26,7 @@ def fixture_model() -> cq.Workplane:
     )
 
 
-def profiles():
+def profiles() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     return (
         load_printer_profile(Path("profiles/printers/bambu-lab-a1-mini.json")),
         load_material_profile(Path("profiles/materials/petg.json")),

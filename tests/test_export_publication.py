@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 import cadquery as cq
 import pytest
@@ -9,11 +10,11 @@ import pytest
 from zcad_core.exporters import ExportRequest, export_parts, publication
 
 
-def snapshot(path):
+def snapshot(path: Path) -> dict[str, bytes] | None:
     return {p.name: p.read_bytes() for p in path.iterdir()} if path.exists() else None
 
 
-def setup_request(tmp_path, existing):
+def setup_request(tmp_path: Path, existing: bool) -> ExportRequest:
     output = tmp_path / "out"
     if existing:
         output.mkdir()
@@ -31,31 +32,31 @@ def setup_request(tmp_path, existing):
 @pytest.mark.parametrize("existing", [False, True])
 @pytest.mark.parametrize("failure", ["stl", "metadata"])
 def test_preparation_failure_leaves_destination_untouched(
-    tmp_path,
-    monkeypatch,
-    existing,
-    failure,
-):
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    existing: bool,
+    failure: str,
+) -> None:
     req = setup_request(tmp_path, existing)
     before = snapshot(req.output_directory)
     if failure == "stl":
-        original = cq.exporters.export
+        original_export = cq.exporters.export
 
-        def broken(model, filename, *args, **kwargs):
+        def broken_export(model: Any, filename: str, *args: Any, **kwargs: Any) -> Any:
             if filename.endswith("box-b.stl"):
                 raise OSError("STL write failed")
-            return original(model, filename, *args, **kwargs)
+            return original_export(model, filename, *args, **kwargs)
 
-        monkeypatch.setattr(cq.exporters, "export", broken)
+        monkeypatch.setattr(cq.exporters, "export", broken_export)
     else:
-        original = Path.write_text
+        original_write = Path.write_text
 
-        def broken(path, *args, **kwargs):
+        def broken_write(path: Path, *args: Any, **kwargs: Any) -> int:
             if path.name == "box-b.metadata.json":
                 raise OSError("metadata write failed")
-            return original(path, *args, **kwargs)
+            return original_write(path, *args, **kwargs)
 
-        monkeypatch.setattr(Path, "write_text", broken)
+        monkeypatch.setattr(Path, "write_text", broken_write)
     with pytest.raises(OSError):
         export_parts(req)
     assert snapshot(req.output_directory) == before
@@ -64,14 +65,17 @@ def test_preparation_failure_leaves_destination_untouched(
 @pytest.mark.parametrize("existing", [False, True])
 @pytest.mark.parametrize("failed_replace", [1, 2, 4, 6])
 def test_publication_failure_rolls_back(
-    tmp_path, monkeypatch, existing, failed_replace
-):
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    existing: bool,
+    failed_replace: int,
+) -> None:
     req = setup_request(tmp_path, existing)
     before = snapshot(req.output_directory)
     original = publication.os.replace
     count = 0
 
-    def broken(src, dst):
+    def broken(src: str | Path, dst: str | Path) -> None:
         nonlocal count
         if Path(src).parent.name == "incoming":
             count += 1
@@ -86,7 +90,7 @@ def test_publication_failure_rolls_back(
     assert not list(tmp_path.glob(".zcad-publish-*"))
 
 
-def test_success_preserves_unrelated_files_and_final_paths(tmp_path):
+def test_success_preserves_unrelated_files_and_final_paths(tmp_path: Path) -> None:
     req = setup_request(tmp_path, True)
     result = export_parts(req)
     assert (req.output_directory / "other.txt").read_bytes() == b"old other.txt"
@@ -98,7 +102,9 @@ def test_success_preserves_unrelated_files_and_final_paths(tmp_path):
         assert part.step_path.parent == req.output_directory
 
 
-def test_rollback_failure_retains_recovery_files(tmp_path, monkeypatch):
+def test_rollback_failure_retains_recovery_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     staged = tmp_path / "staged"
     staged.mkdir()
     output = tmp_path / "out"
@@ -108,7 +114,7 @@ def test_rollback_failure_retains_recovery_files(tmp_path, monkeypatch):
         (output / name).write_bytes(b"old")
     original = publication.os.replace
 
-    def broken(src, dst):
+    def broken(src: str | Path, dst: str | Path) -> None:
         if Path(src).name == "b" or Path(src).parent.name == "backup":
             raise OSError("disk unavailable")
         return original(src, dst)
@@ -121,7 +127,7 @@ def test_rollback_failure_retains_recovery_files(tmp_path, monkeypatch):
     assert (recovery[0] / "backup/a").read_bytes() == b"old"
 
 
-def test_symlink_target_is_rejected(tmp_path):
+def test_symlink_target_is_rejected(tmp_path: Path) -> None:
     staged = tmp_path / "stage"
     staged.mkdir()
     (staged / "a").write_bytes(b"new")

@@ -158,7 +158,7 @@ def main() -> None:
     engine = RetentionEngine()
     engine.register(
         RetentionStrategy.SNAP_SHELL,
-        SyntheticSnapShellBackend(),  # type: ignore[arg-type]
+        SyntheticSnapShellBackend(),
     )
 
     execution = engine.execute(

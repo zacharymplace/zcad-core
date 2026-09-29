@@ -13,7 +13,7 @@
   "evidence": [
     {
       "kind": "validation",
-      "reference": "scripts/check.sh (ruff format and ruff check over src, tests, and scripts; mypy over src and scripts; pytest; run by .githooks/pre-push; --fast skips slow vendor-STEP tests)",
+      "reference": "scripts/check.sh (ruff format and ruff check over src, tests, and scripts; mypy over src, scripts, and tests; pytest; run by .githooks/pre-push; --fast skips slow vendor-STEP tests)",
       "result": "pass"
     },
     {

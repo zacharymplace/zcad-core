@@ -7,6 +7,7 @@ from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware import get_fastener
 
 
@@ -38,7 +39,7 @@ def test_insert_boss_geometry_is_valid() -> None:
         ),
     )
 
-    solid = model.val()
+    solid = workplane_shape(model)
     bounds = solid.BoundingBox()
 
     assert solid.isValid()
@@ -74,7 +75,7 @@ def test_insert_boss_supports_centered_model_coordinates() -> None:
         ),
     )
 
-    solid = model.val()
+    solid = workplane_shape(model)
     bounds = solid.BoundingBox()
 
     assert solid.isValid()

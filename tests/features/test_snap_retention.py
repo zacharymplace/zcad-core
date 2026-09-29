@@ -7,6 +7,7 @@ from zcad_core.features import (
     SnapRetentionClipParameters,
     add_snap_retention_clip,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 
 
 def _parameters(
@@ -90,8 +91,8 @@ def test_snap_retention_clip_adds_geometry() -> None:
         parameters=_parameters(),
     )
 
-    assert result.val().isValid()
-    assert result.val().Volume() > base.val().Volume()
+    assert workplane_shape(result).isValid()
+    assert workplane_shape(result).Volume() > workplane_shape(base).Volume()
 
 
 def test_snap_retention_clip_supports_rotation() -> None:
@@ -113,5 +114,5 @@ def test_snap_retention_clip_supports_rotation() -> None:
         ),
     )
 
-    assert result.val().isValid()
-    assert result.val().Volume() > base.val().Volume()
+    assert workplane_shape(result).isValid()
+    assert workplane_shape(result).Volume() > workplane_shape(base).Volume()

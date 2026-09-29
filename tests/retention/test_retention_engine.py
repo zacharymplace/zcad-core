@@ -3,6 +3,7 @@ from __future__ import annotations
 import cadquery as cq
 import pytest
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention import (
     BoardCorner,
     CornerCaptureLocation,
@@ -141,7 +142,7 @@ def test_invalid_backend_is_rejected() -> None:
     ):
         engine.register(
             RetentionStrategy.CORNER_CAPTURE,
-            object(),
+            object(),  # type: ignore[arg-type]  # the invalid backend under test
         )
 
 
@@ -167,7 +168,7 @@ def test_engine_executes_complete_lifecycle() -> None:
             )
         )
     )
-    base_volume = base.val().Volume()
+    base_volume = workplane_shape(base).Volume()
 
     execution = engine.execute(
         strategy=RetentionStrategy.CORNER_CAPTURE,
@@ -184,7 +185,7 @@ def test_engine_executes_complete_lifecycle() -> None:
         execution.model,
         cq.Workplane,
     )
-    assert execution.model.val().Volume() > base_volume
+    assert workplane_shape(execution.model).Volume() > base_volume
     assert execution.report.passed is True
     assert execution.passed is True
 

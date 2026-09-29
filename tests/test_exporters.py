@@ -10,6 +10,7 @@ from zcad_core.exporters import (
     ExportRequest,
     export_parts,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 
 
 def _tapered_block(
@@ -82,7 +83,7 @@ def test_metadata_bounds_match_freshly_reimported_step(
     metadata = json.loads(exported.metadata_path.read_text(encoding="utf-8"))
 
     reimported = cq.importers.importStep(str(exported.step_path))
-    fresh_bounds = reimported.val().BoundingBox()
+    fresh_bounds = workplane_shape(reimported).BoundingBox()
 
     bounding_box_mm = metadata["part"]["bounding_box_mm"]
 

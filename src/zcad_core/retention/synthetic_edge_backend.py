@@ -52,7 +52,7 @@ class SyntheticEdgeCaptureBackend:
         self,
         model: object,
         parameters: EdgeCaptureParameters,
-    ) -> object:
+    ) -> cq.Workplane:
         """Union synthetic edge-capture geometry into a model."""
 
         if not isinstance(model, cq.Workplane):

@@ -1,10 +1,12 @@
 import json
 from pathlib import Path
+from typing import Any
 
 import cadquery as cq
 import pytest
 
 from zcad_core.exporters import ExportRequest, export_parts
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.validation.export_geometry import (
     GeometryValidationError,
     inspect_export_geometry,
@@ -13,8 +15,8 @@ from zcad_core.validation.profile_rules import validate_build_volume
 
 
 def stack() -> cq.Workplane:
-    a = cq.Workplane().box(10, 10, 10).val()
-    b = cq.Workplane().box(20, 10, 10).translate((150, 0, 0)).val()
+    a = workplane_shape(cq.Workplane().box(10, 10, 10))
+    b = workplane_shape(cq.Workplane().box(20, 10, 10).translate((150, 0, 0)))
     return cq.Workplane().newObject([a, b])
 
 
@@ -28,7 +30,9 @@ def test_complete_stack_matches_step_and_metadata(tmp_path: Path) -> None:
     assert len(imported.solids().vals()) == 2
     assert part.volume_mm3 == pytest.approx(3000)
     assert part.bounds_mm == pytest.approx((165, 10, 10))
-    assert imported.val().BoundingBox().xlen == pytest.approx(part.bounds_mm[0])
+    assert workplane_shape(imported).BoundingBox().xlen == pytest.approx(
+        part.bounds_mm[0]
+    )
     metadata = json.loads(part.metadata_path.read_text())
     assert metadata["part"]["volume_mm3"] == 3000
     report = metadata["validation"]
@@ -51,16 +55,17 @@ def test_printer_bounds_include_later_stack_items() -> None:
 
 @pytest.mark.parametrize("kind", ["empty", "vector", "face", "mixed", "nested"])
 def test_reject_non_solid_topology_before_any_writes(tmp_path: Path, kind: str) -> None:
-    solid = cq.Workplane().box(10, 10, 10).val()
+    solid = workplane_shape(cq.Workplane().box(10, 10, 10))
     face = solid.Faces()[0]
-    values = {
+    # Invalid stack contents are the input under test.
+    options: dict[str, list[Any]] = {
         "empty": [],
         "vector": [cq.Vector(0, 0, 0)],
         "face": [face],
         "mixed": [solid, face],
         "nested": [cq.Compound.makeCompound([solid, cq.Compound.makeCompound([face])])],
-    }[kind]
-    bad = cq.Workplane().newObject(values)
+    }
+    bad = cq.Workplane().newObject(options[kind])
     output = tmp_path / "exports"
     with pytest.raises(GeometryValidationError) as caught:
         export_parts(
@@ -80,7 +85,8 @@ def test_reject_non_solid_topology_before_any_writes(tmp_path: Path, kind: str) 
 
 def test_nested_multisolid_compound_is_allowed() -> None:
     model = stack()
-    nested = cq.Compound.makeCompound([cq.Compound.makeCompound(model.vals())])
+    solids = [value for value in model.vals() if isinstance(value, cq.Shape)]
+    nested = cq.Compound.makeCompound([cq.Compound.makeCompound(solids)])
     result = inspect_export_geometry(cq.Workplane().newObject([nested]), "nested")
     assert result.report["solid_count"] == 2
     assert result.volume_mm3 == pytest.approx(3000)

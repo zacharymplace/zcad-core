@@ -99,7 +99,7 @@ def execute_production_edge_capture(
         # object-typed parameters to EdgeCaptureParameters, which
         # Protocol contravariance cannot express structurally; the
         # engine only ever calls it through this one strategy.
-        SyntheticEdgeCaptureBackend(),  # type: ignore[arg-type]
+        SyntheticEdgeCaptureBackend(),
     )
 
     pcb_workplane = cq.Workplane("XY").newObject([board_model.pcb])

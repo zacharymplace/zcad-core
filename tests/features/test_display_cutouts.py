@@ -9,6 +9,7 @@ from zcad_core.features import (
     add_display_bezel,
     cut_display_window,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware import (
     get_reference_oled_128x64,
 )
@@ -46,8 +47,8 @@ def test_display_window_removes_material() -> None:
         parameters=window,
     )
 
-    assert result.val().isValid()
-    assert result.val().Volume() < panel.val().Volume()
+    assert workplane_shape(result).isValid()
+    assert workplane_shape(result).Volume() < workplane_shape(panel).Volume()
 
 
 def test_display_bezel_adds_material() -> None:
@@ -78,8 +79,8 @@ def test_display_bezel_adds_material() -> None:
         parameters=bezel,
     )
 
-    assert result.val().isValid()
-    assert result.val().Volume() > (cut_panel.val().Volume())
+    assert workplane_shape(result).isValid()
+    assert workplane_shape(result).Volume() > (workplane_shape(cut_panel).Volume())
 
 
 def test_window_rejects_excessive_radius() -> None:

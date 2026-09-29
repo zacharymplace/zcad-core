@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import cadquery as cq
 import pytest
@@ -26,7 +27,7 @@ def checks(
     *,
     bounds: list[list[float]] | None = BOARD_BOUNDS,
     clearance: object = 0.25,
-) -> dict[str, dict[str, object]]:
+) -> dict[str, dict[str, Any]]:
     parameters = {"board_clearance_mm": clearance}
 
     if bounds is not None:

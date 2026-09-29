@@ -1,5 +1,7 @@
 """Tests for reusable rectangular hardware components."""
 
+from typing import Any
+
 import pytest
 
 from zcad_core.assemblies import (
@@ -7,6 +9,7 @@ from zcad_core.assemblies import (
     Placement,
     build_rectangular_hardware_component,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 
 
 def test_rectangular_hardware_component_builds_proxy() -> None:
@@ -24,8 +27,8 @@ def test_rectangular_hardware_component_builds_proxy() -> None:
         ),
     )
 
-    local_bounds = component.geometry.val().BoundingBox()
-    transformed_bounds = component.transformed_geometry().val().BoundingBox()
+    local_bounds = workplane_shape(component.geometry).BoundingBox()
+    transformed_bounds = workplane_shape(component.transformed_geometry()).BoundingBox()
 
     assert local_bounds.xlen == pytest.approx(21.0)
     assert local_bounds.ylen == pytest.approx(51.0)
@@ -123,7 +126,7 @@ def test_rectangular_hardware_component_rejects_invalid_values(
     value: str | float,
     message: str,
 ) -> None:
-    arguments = {
+    arguments: dict[str, Any] = {
         "identifier": "component",
         "hardware_identifier": "TEST",
         "kind": "hardware",

@@ -10,6 +10,8 @@ from zcad_core.assemblies import (
     Placement,
     analyze_boundary_clearance,
 )
+from zcad_core.assemblies.retention import BoardEdge
+from zcad_core.geometry.cadquery_support import workplane_shape
 
 
 def _boundary() -> EnclosureBoundary:
@@ -64,7 +66,7 @@ def _boundary() -> EnclosureBoundary:
     ),
 )
 def test_wall_component_supports_all_lateral_edges(
-    edge: str,
+    edge: BoardEdge,
     expected_center_x_mm: float,
     expected_center_y_mm: float,
     expected_xlen_mm: float,
@@ -74,7 +76,7 @@ def test_wall_component_supports_all_lateral_edges(
         edge=edge,
     )
 
-    bounds = wall.transformed_geometry().val().BoundingBox()
+    bounds = workplane_shape(wall.transformed_geometry()).BoundingBox()
 
     assert wall.identifier == f"{edge}_wall"
     assert wall.metadata["kind"] == ("enclosure_wall")
@@ -217,5 +219,5 @@ def test_wall_component_rejects_unsupported_edge() -> None:
         match="unsupported enclosure boundary edge",
     ):
         _boundary().wall_component(
-            edge="positive_z",
+            edge="positive_z",  # type: ignore[arg-type]  # the invalid edge under test
         )

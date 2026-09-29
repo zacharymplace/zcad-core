@@ -10,6 +10,7 @@ from zcad_core.retention import (
     CornerCapturePolicy,
     InstallationPathPlan,
     ProductionCornerExecutionRequest,
+    ProductionCornerExecutionResult,
     analyze_installation_paths,
     execute_production_corner_capture,
     write_installation_path_report,
@@ -18,7 +19,7 @@ from zcad_core.retention import (
 
 def production_execution(
     tmp_path: Path,
-):
+) -> ProductionCornerExecutionResult:
     pcb = cq.Workplane("XY").box(40.0, 30.0, 1.6).translate((0.0, 0.0, 0.8))
     source_step = tmp_path / "board.step"
     assembly = cq.Assembly()

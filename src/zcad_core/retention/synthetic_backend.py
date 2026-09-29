@@ -40,7 +40,7 @@ class SyntheticCornerCaptureBackend:
         self,
         model: object,
         parameters: CornerCaptureParameters,
-    ) -> object:
+    ) -> cq.Workplane:
         """Union synthetic corner-capture geometry into a model."""
 
         if not isinstance(model, cq.Workplane):

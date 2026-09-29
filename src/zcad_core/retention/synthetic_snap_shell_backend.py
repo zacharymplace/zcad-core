@@ -49,7 +49,7 @@ class SyntheticSnapShellBackend:
         self,
         model: object,
         parameters: SnapShellParameters,
-    ) -> object:
+    ) -> cq.Workplane:
         """Union synthetic snap-shell geometry into a model."""
 
         if not isinstance(model, cq.Workplane):

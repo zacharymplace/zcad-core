@@ -5,10 +5,12 @@ from pathlib import Path
 import cadquery as cq
 import pytest
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention import (
     CornerCaptureFitCheck,
     CornerCapturePolicy,
     ProductionCornerExecutionRequest,
+    as_corner_capture_fit_report,
     execute_production_corner_capture,
 )
 
@@ -42,14 +44,14 @@ def test_pico2_production_execution_exports_step(
 
     component_result = next(
         item
-        for item in result.execution.report.results
+        for item in as_corner_capture_fit_report(result.execution.report).results
         if (item.check is CornerCaptureFitCheck.COMPONENT_CLEARANCE)
     )
 
     assert component_result.passed is True
     assert "Production STEP evidence confirmed" in (component_result.detail)
 
-    exported = cq.importers.importStep(str(output_step)).val()
+    exported = workplane_shape(cq.importers.importStep(str(output_step)))
 
     assert exported is not None
     assert exported.BoundingBox().xlen > result.board_model.pcb.BoundingBox().xlen

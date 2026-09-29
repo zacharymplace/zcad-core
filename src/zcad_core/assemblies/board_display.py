@@ -36,25 +36,35 @@ from zcad_core.hardware.electronics.connectors import (
 class RectangularBoardSpec(Protocol):
     """Structural interface required for a rectangular board."""
 
-    identifier: str
+    @property
+    def identifier(self) -> str: ...
 
-    board_width_mm: float
-    board_length_mm: float
-    board_thickness_mm: float
+    @property
+    def board_width_mm(self) -> float: ...
+    @property
+    def board_length_mm(self) -> float: ...
+    @property
+    def board_thickness_mm(self) -> float: ...
 
-    usb_connector: RectangularConnectorSpec
+    @property
+    def usb_connector(self) -> RectangularConnectorSpec: ...
 
 
 class RectangularDisplaySpec(Protocol):
     """Structural interface required for a rectangular display."""
 
-    identifier: str
+    @property
+    def identifier(self) -> str: ...
 
-    module_width_mm: float
-    module_height_mm: float
-    module_depth_mm: float
+    @property
+    def module_width_mm(self) -> float: ...
+    @property
+    def module_height_mm(self) -> float: ...
+    @property
+    def module_depth_mm(self) -> float: ...
 
-    mount_style: str
+    @property
+    def mount_style(self) -> str: ...
 
 
 def build_board_display_assembly(

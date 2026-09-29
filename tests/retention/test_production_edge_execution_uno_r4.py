@@ -5,7 +5,10 @@ from pathlib import Path
 import pytest
 
 from zcad_core.geometry.types import BoardEdge
-from zcad_core.retention.edge_backend import EdgeCaptureFitCheck
+from zcad_core.retention.edge_backend import (
+    EdgeCaptureFitCheck,
+    as_edge_capture_fit_report,
+)
 from zcad_core.retention.edge_capture import EdgeCapturePolicy
 from zcad_core.retention.edge_evidence_artifact import (
     generate_production_edge_evidence_artifact,
@@ -55,13 +58,15 @@ def test_uno_r4_wifi_edge_capture_finds_a_real_clear_span(
 
     for check in EdgeCaptureFitCheck:
         matching = next(
-            item for item in result.execution.report.results if item.check is check
+            item
+            for item in as_edge_capture_fit_report(result.execution.report).results
+            if item.check is check
         )
         assert matching.passed is True, matching.detail
 
     component_result = next(
         item
-        for item in result.execution.report.results
+        for item in as_edge_capture_fit_report(result.execution.report).results
         if item.check is EdgeCaptureFitCheck.COMPONENT_CLEARANCE
     )
     assert "Production STEP evidence confirmed" in component_result.detail

@@ -9,7 +9,9 @@ import pytest
 from zcad_core.retention import (
     EdgeCapturePolicy,
     InstallationPathPlan,
+    InstallationPathReport,
     ProductionEdgeExecutionRequest,
+    ProductionEdgeExecutionResult,
     analyze_edge_installation_paths,
     execute_production_edge_capture,
     write_installation_path_report,
@@ -18,7 +20,7 @@ from zcad_core.retention import (
 
 def production_execution(
     tmp_path: Path,
-):
+) -> ProductionEdgeExecutionResult:
     pcb = cq.Workplane("XY").box(40.0, 30.0, 1.6).translate((0.0, 0.0, 0.8))
     source_step = tmp_path / "board.step"
     assembly = cq.Assembly()
@@ -118,7 +120,9 @@ def test_writes_immutable_path_report(
         )
 
 
-def edge_execution_with_underside_part(tmp_path: Path, *, depth_mm: float | None):
+def edge_execution_with_underside_part(
+    tmp_path: Path, *, depth_mm: float | None
+) -> ProductionEdgeExecutionResult:
     """A plain board, optionally with a 2 mm square part depth_mm below it."""
 
     source_step = tmp_path / "board.step"
@@ -149,7 +153,7 @@ def edge_execution_with_underside_part(tmp_path: Path, *, depth_mm: float | None
     )
 
 
-def planar_results(report) -> dict[str, tuple[bool, float]]:
+def planar_results(report: InstallationPathReport) -> dict[str, tuple[bool, float]]:
     return {
         result.name: (result.passed, result.maximum_intersection_mm3)
         for result in report.results

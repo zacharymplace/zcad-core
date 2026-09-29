@@ -11,6 +11,7 @@ from zcad_core.retention import (
     CornerCapturePolicy,
     EdgeCapturePolicy,
     ProductionCornerExecutionRequest,
+    ProductionCornerExecutionResult,
     ProductionEdgeExecutionRequest,
     ValidationFixturePolicy,
     execute_production_corner_capture,
@@ -51,7 +52,7 @@ def export_clear_board(
 
 def production_execution(
     tmp_path: Path,
-):
+) -> ProductionCornerExecutionResult:
     source_step = tmp_path / "board.step"
 
     export_clear_board(source_step)
@@ -188,10 +189,12 @@ def board_with_underside_part(
 def review_board(
     tmp_path: Path,
     fixture_policy: ValidationFixturePolicy | None = None,
-    **board: float,
-) -> dict[str, object]:
+    *,
+    depth_mm: float,
+    z_offset: float = 0.0,
+) -> dict[str, Any]:
     source_step = tmp_path / "board.step"
-    board_with_underside_part(source_step, **board)
+    board_with_underside_part(source_step, depth_mm=depth_mm, z_offset=z_offset)
     execution = execute_production_corner_capture(
         ProductionCornerExecutionRequest(
             source_step=source_step,
@@ -252,7 +255,7 @@ def test_board_modelled_below_origin_seats_on_base(tmp_path: Path) -> None:
 
 def review_board_with_top_part(
     tmp_path: Path, *, minimum_component_gap_mm: float
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """A board with one top-side part 1.6 mm (the board) above the base."""
 
     source_step = tmp_path / "board.step"

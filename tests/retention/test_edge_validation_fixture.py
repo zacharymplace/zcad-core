@@ -4,6 +4,7 @@ from pathlib import Path
 
 import cadquery as cq
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention.edge_capture import EdgeCapturePolicy
 from zcad_core.retention.production_edge_execution import (
     ProductionEdgeExecutionRequest,
@@ -94,7 +95,7 @@ def test_fixture_is_connected_to_base(
         policy=ValidationFixturePolicy(),
     )
 
-    shape = fixture.val()
+    shape = workplane_shape(fixture)
 
     assert shape is not None
 

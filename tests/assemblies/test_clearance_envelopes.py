@@ -9,6 +9,7 @@ from zcad_core.assemblies import (
     DeviceAssembly,
     Placement,
 )
+from zcad_core.assemblies.retention import BoardEdge
 
 
 def _box(
@@ -325,7 +326,7 @@ def test_policy_does_not_mutate_component() -> None:
     ),
 )
 def test_for_edge_sets_only_requested_direction(
-    edge: str,
+    edge: BoardEdge,
     expected: dict[str, float],
 ) -> None:
     envelope = ClearanceEnvelope.for_edge(
@@ -383,6 +384,6 @@ def test_for_edge_rejects_unsupported_edge() -> None:
         match="unsupported clearance edge",
     ):
         ClearanceEnvelope.for_edge(
-            edge="positive_z",
+            edge="positive_z",  # type: ignore[arg-type]  # the invalid edge under test
             clearance_mm=1.0,
         )

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 class RetentionStrategy(str, Enum):
@@ -26,11 +26,16 @@ class RetentionFitReport(Protocol):
 
 @runtime_checkable
 class RetentionBackend(Protocol):
-    """Strategy-neutral retention backend lifecycle."""
+    """Strategy-neutral retention backend lifecycle.
+
+    Parameters are ``Any`` because each backend takes its own request and
+    parameter types while the engine dispatches them by strategy; typing
+    them ``object`` would reject every concrete backend.
+    """
 
     def derive(
         self,
-        request: object,
+        request: Any,
     ) -> object:
         """Derive validated strategy parameters."""
 
@@ -38,8 +43,8 @@ class RetentionBackend(Protocol):
 
     def apply(
         self,
-        model: object,
-        parameters: object,
+        model: Any,
+        parameters: Any,
     ) -> object:
         """Apply retention geometry to a model."""
 
@@ -47,7 +52,7 @@ class RetentionBackend(Protocol):
 
     def analyze_fit(
         self,
-        parameters: object,
+        parameters: Any,
     ) -> RetentionFitReport:
         """Verify the derived strategy parameters."""
 

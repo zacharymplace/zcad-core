@@ -12,6 +12,7 @@ from zcad_core.retention import (
     PhysicalValidationCheck,
     PhysicalValidationDisposition,
     PhysicalValidationObservation,
+    PhysicalValidationRecord,
     complete_physical_validation_record,
     create_pending_physical_validation_record,
     load_physical_validation_record,
@@ -480,7 +481,7 @@ def test_pending_record_uses_current_schema(tmp_path: Path) -> None:
 def completed_record(
     disposition: PhysicalValidationDisposition = PhysicalValidationDisposition.PASS,
     notes: str = "Fit accepted.",
-):
+) -> PhysicalValidationRecord:
     return complete_physical_validation_record(
         candidate_report_path=Path("candidate.json"),
         fixture_stl_path=Path("fixture.stl"),

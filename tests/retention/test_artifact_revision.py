@@ -9,6 +9,7 @@ import pytest
 
 from zcad_core.retention import (
     GENERATOR_VERSION,
+    ArtifactBackedRevisionResult,
     CandidateRevision,
     RevisionRelationshipType,
     load_candidate_revision,
@@ -217,7 +218,7 @@ def test_refuses_existing_revision_outputs(
 def regenerate(
     tmp_path: Path,
     parent: CandidateRevision,
-) -> object:
+) -> ArtifactBackedRevisionResult:
     source_step = tmp_path / "board.step"
     export_clear_board(source_step)
 
@@ -294,8 +295,9 @@ def test_registers_edge_clip_revision(tmp_path: Path) -> None:
 def generate_child(
     tmp_path: Path,
     parent: CandidateRevision,
-    **settings: float,
-):
+    *,
+    corner_keepout_mm: float | None = None,
+) -> ArtifactBackedRevisionResult:
     source_step = tmp_path / "board.step"
     export_clear_board(source_step)
 
@@ -312,7 +314,7 @@ def generate_child(
         created_at_utc="2026-01-02T00:00:00+00:00",
         printer_profile=PRINTER_PROFILE,
         repository_root=tmp_path,
-        **settings,
+        corner_keepout_mm=corner_keepout_mm,
     )
 
 

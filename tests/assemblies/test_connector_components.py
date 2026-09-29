@@ -7,6 +7,8 @@ from zcad_core.assemblies import (
     Placement,
     build_board_edge_connector_component,
 )
+from zcad_core.assemblies.retention import BoardEdge
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware import (
     RectangularConnectorSpec,
 )
@@ -52,7 +54,7 @@ from zcad_core.hardware import (
     ),
 )
 def test_connector_component_is_oriented_and_placed_by_edge(
-    edge: str,
+    edge: BoardEdge,
     expected_x_mm: float,
     expected_y_mm: float,
     expected_size_x_mm: float,
@@ -81,7 +83,7 @@ def test_connector_component_is_oriented_and_placed_by_edge(
         ),
     )
 
-    bounds = component.geometry.val().BoundingBox()
+    bounds = workplane_shape(component.geometry).BoundingBox()
 
     assert component.placement.x_mm == pytest.approx(expected_x_mm)
     assert component.placement.y_mm == pytest.approx(expected_y_mm)

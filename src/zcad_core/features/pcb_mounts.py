@@ -9,11 +9,16 @@ import cadquery as cq
 class MountableBoardSpec(Protocol):
     """Mechanical board properties required by PCB mounting features."""
 
-    mounting_hole_diameter_mm: float
-    mounting_hole_spacing_x_mm: float
-    mounting_hole_spacing_y_mm: float
-    recommended_standoff_height_mm: float
-    recommended_clearance_mm: float
+    @property
+    def mounting_hole_diameter_mm(self) -> float: ...
+    @property
+    def mounting_hole_spacing_x_mm(self) -> float: ...
+    @property
+    def mounting_hole_spacing_y_mm(self) -> float: ...
+    @property
+    def recommended_standoff_height_mm(self) -> float: ...
+    @property
+    def recommended_clearance_mm(self) -> float: ...
 
 
 @dataclass(frozen=True)

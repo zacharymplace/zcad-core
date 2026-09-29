@@ -5,6 +5,7 @@ from pathlib import Path
 import cadquery as cq
 import pytest
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.edge_outline import (
     EdgeOutlineAnalyzer,
 )
@@ -51,7 +52,7 @@ def uno_r4_pcb() -> cq.Shape:
     if not STEP_PATH.is_file():
         pytest.skip(f"UNO R4 STEP evidence is unavailable: {STEP_PATH}")
 
-    shape = cq.importers.importStep(str(STEP_PATH)).val()
+    shape = workplane_shape(cq.importers.importStep(str(STEP_PATH)))
 
     if shape is None:
         raise RuntimeError("UNO R4 STEP model contains no shape")

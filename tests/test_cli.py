@@ -8,6 +8,7 @@ import cadquery as cq
 import pytest
 
 from zcad_core.cli import main
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention import load_export_validation_record
 
 PRINTER_PROFILE = (
@@ -18,7 +19,7 @@ PRINTER_PROFILE = (
 def run(
     capsys: pytest.CaptureFixture[str],
     *args: str,
-) -> tuple[int, dict[str, object]]:
+) -> tuple[int, dict[str, Any]]:
     exit_code = main(list(args))
     output = json.loads(capsys.readouterr().out)
 
@@ -1573,7 +1574,9 @@ def test_candidate_revalidate_reports_embedded_board_as_non_gating(
         tmp_path,
         capsys,
         target_manifest,
-        retention_part=cq.Workplane("XY").newObject([board.val(), arm.val()]),
+        retention_part=cq.Workplane("XY").newObject(
+            [workplane_shape(board), workplane_shape(arm)]
+        ),
         embedded_board=True,
     )
 

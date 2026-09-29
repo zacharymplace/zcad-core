@@ -9,6 +9,7 @@ from pathlib import Path
 import cadquery as cq
 import pytest
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention import (
     CandidateRevision,
     ExportValidationArtifact,
@@ -30,16 +31,19 @@ PRINTER_PROFILE = json.loads(
 )
 
 
-BOARD = cq.Workplane("XY").box(40.0, 30.0, 1.6).translate((0.0, 0.0, 0.8)).val()
+BOARD = workplane_shape(
+    cq.Workplane("XY").box(40.0, 30.0, 1.6).translate((0.0, 0.0, 0.8))
+)
 # A wall beside the board fused to a ledge 0.4 mm above its top.
-ARM = (
+ARM = workplane_shape(
     cq.Workplane("XY")
     .box(2.0, 5.0, 3.0)
     .translate((22.0, 0.0, 1.5))
     .union(cq.Workplane("XY").box(5.0, 5.0, 1.0).translate((19.5, 0.0, 2.5)))
-    .val()
 )
-COMPONENT = cq.Workplane("XY").box(4.0, 4.0, 2.0).translate((0.0, 0.0, 2.6)).val()
+COMPONENT = workplane_shape(
+    cq.Workplane("XY").box(4.0, 4.0, 2.0).translate((0.0, 0.0, 2.6))
+)
 
 
 def make_candidate(
@@ -305,7 +309,7 @@ def test_target_separates_embedded_board_from_generated_geometry(
         for path in record.artifact("retention").outputs
         if path.endswith(".step")
     )
-    exported = cq.importers.importStep(str(retention_output)).val()
+    exported = workplane_shape(cq.importers.importStep(str(retention_output)))
     assert exported.Volume() == pytest.approx(ARM.Volume())
 
     assert load_export_validation_record(record_path) == record

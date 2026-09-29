@@ -11,6 +11,7 @@ from zcad_core.features import (
     ConnectorCutoutParameters,
     cut_connector_opening,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware import (
     get_raspberry_pi_pico2,
 )
@@ -51,8 +52,8 @@ def test_cut_connector_opening_removes_material() -> None:
         parameters=parameters,
     )
 
-    assert result.val().isValid()
-    assert result.val().Volume() < enclosure.val().Volume()
+    assert workplane_shape(result).isValid()
+    assert workplane_shape(result).Volume() < workplane_shape(enclosure).Volume()
 
 
 def test_cutout_supports_positive_x_edge() -> None:
@@ -77,8 +78,8 @@ def test_cutout_supports_positive_x_edge() -> None:
         parameters=parameters,
     )
 
-    assert result.val().isValid()
-    assert result.val().Volume() < enclosure.val().Volume()
+    assert workplane_shape(result).isValid()
+    assert workplane_shape(result).Volume() < workplane_shape(enclosure).Volume()
 
 
 def test_cutout_rejects_negative_clearance() -> None:

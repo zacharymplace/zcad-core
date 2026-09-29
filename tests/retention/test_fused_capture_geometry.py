@@ -5,6 +5,7 @@ from __future__ import annotations
 import cadquery as cq
 import pytest
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.types import BoardEdge
 from zcad_core.retention import (
     BoardCorner,
@@ -98,7 +99,10 @@ def test_captures_keep_board_clearance(build, bottom: float) -> None:  # type: i
 
     intersection = build(bottom).intersect(envelope)
 
-    assert intersection.solids().size() == 0 or intersection.val().Volume() < 1e-9
+    assert (
+        intersection.solids().size() == 0
+        or workplane_shape(intersection).Volume() < 1e-9
+    )
 
 
 @BOTTOMS
@@ -110,4 +114,4 @@ def test_captures_still_reach_over_board(build, bottom: float) -> None:  # type:
         .translate((BOARD_X_MM / 2, BOARD_Y_MM / 2, bottom + THICKNESS_MM + 5.0))
     )
 
-    assert build(bottom).intersect(above_board).val().Volume() > 0
+    assert workplane_shape(build(bottom).intersect(above_board)).Volume() > 0

@@ -40,7 +40,7 @@ echo "==> ruff check"
 "$python" -m ruff check src tests scripts
 
 echo "==> mypy"
-"$python" -m mypy src scripts
+"$python" -m mypy src scripts tests
 
 echo "==> pytest ${pytest_args[*]:1}"
 "$python" -m pytest "${pytest_args[@]}"

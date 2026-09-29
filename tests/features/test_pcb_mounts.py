@@ -9,6 +9,7 @@ from zcad_core.features import (
     add_pcb_standoff,
     centered_mounting_hole_positions,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware import (
     get_raspberry_pi_pico2,
 )
@@ -63,7 +64,7 @@ def test_add_pcb_standoff_adds_geometry() -> None:
         parameters=parameters,
     )
 
-    assert result.val().Volume() > base.val().Volume()
+    assert workplane_shape(result).Volume() > workplane_shape(base).Volume()
 
 
 def test_add_board_standoffs_adds_four_mounts() -> None:
@@ -82,7 +83,7 @@ def test_add_board_standoffs_adds_four_mounts() -> None:
         base_height_mm=2.0,
     )
 
-    assert result.val().Volume() > base.val().Volume()
+    assert workplane_shape(result).Volume() > workplane_shape(base).Volume()
 
 
 def test_standoff_rejects_invalid_wall() -> None:

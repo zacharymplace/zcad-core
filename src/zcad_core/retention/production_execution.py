@@ -99,7 +99,7 @@ def execute_production_corner_capture(
         # object-typed parameters to CornerCaptureParameters, which
         # Protocol contravariance cannot express structurally; the
         # engine only ever calls it through this one strategy.
-        SyntheticCornerCaptureBackend(),  # type: ignore[arg-type]
+        SyntheticCornerCaptureBackend(),
     )
 
     pcb_workplane = cq.Workplane("XY").newObject([board_model.pcb])

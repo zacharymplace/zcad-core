@@ -1,18 +1,20 @@
 """Continuous material coverage with explicit endpoint and contact behavior."""
 
+from pathlib import Path
+
 import cadquery as cq
 import pytest
 
-from zcad_core.validation.stl_mesh import read_stl
+from zcad_core.validation.stl_mesh import STLMesh, read_stl
 
 
-def mesh(tmp_path, shape):
+def mesh(tmp_path: Path, shape: cq.Workplane) -> STLMesh:
     path = tmp_path / "material.stl"
     cq.exporters.export(shape, str(path))
     return read_stl(path.read_bytes())[0]
 
 
-def test_solid_end_faces_and_buried_interval(tmp_path):
+def test_solid_end_faces_and_buried_interval(tmp_path: Path) -> None:
     model = mesh(tmp_path, cq.Workplane().box(4, 4, 4))
     for interval in ((-2, 2), (-1, 1)):
         result = model.vertical_material(0, 0, *interval)
@@ -23,7 +25,7 @@ def test_solid_end_faces_and_buried_interval(tmp_path):
 
 
 @pytest.mark.parametrize("height", [-1.9, -0.7, 0.7, 1.9])
-def test_thin_internal_gap_between_old_samples(tmp_path, height):
+def test_thin_internal_gap_between_old_samples(tmp_path: Path, height: float) -> None:
     shape = (
         cq.Workplane()
         .box(4, 4, 4)
@@ -37,18 +39,20 @@ def test_thin_internal_gap_between_old_samples(tmp_path, height):
 
 
 @pytest.mark.parametrize("point", [(3, 0), (2, 0), (2, 2)])
-def test_missing_or_boundary_material_fails(tmp_path, point):
+def test_missing_or_boundary_material_fails(
+    tmp_path: Path, point: tuple[float, float]
+) -> None:
     model = mesh(tmp_path, cq.Workplane().box(4, 4, 4))
     assert not model.vertical_material(*point, -2, 2)["covered"]
 
 
-def test_recessed_end_fails(tmp_path):
+def test_recessed_end_fails(tmp_path: Path) -> None:
     model = mesh(tmp_path, cq.Workplane().box(4, 4, 3.98))
     assert not model.vertical_material(0, 0, -2, 2)["covered"]
 
 
 @pytest.mark.parametrize("interval", [(0, 0), (2, -2), (0, 1e-7), (0, float("nan"))])
-def test_invalid_intervals_fail(tmp_path, interval):
+def test_invalid_intervals_fail(tmp_path: Path, interval: tuple[float, float]) -> None:
     model = mesh(tmp_path, cq.Workplane().box(4, 4, 4))
     with pytest.raises(ValueError):
         model.vertical_material(0, 0, *interval)

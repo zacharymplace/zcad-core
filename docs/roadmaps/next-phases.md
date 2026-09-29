@@ -112,6 +112,13 @@ around it, now closed:
   CI and `requires-python`, instead of 3.14.
 - **mypy 2.3.** `src` and `scripts` type-check under mypy 2.3 with no code
   changes.
+- **Tests are type-checked.** The gate runs mypy over `tests` too. Getting
+  there cleared 354 errors, mostly cadquery's `Workplane.val()` union, now
+  narrowed with `workplane_shape`, and exposed two typing bugs in `src`:
+  the board and display spec protocols declared settable attributes that no
+  frozen spec could satisfy, and the retention backend protocol's `object`
+  parameters rejected every concrete backend, which `src` hid behind
+  `type: ignore`.
 
 ### Pending upgrade: cadquery 2.9 and OCP 8
 

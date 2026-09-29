@@ -8,6 +8,7 @@ from zcad_core.assemblies import (
     DeviceAssembly,
     Placement,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 
 
 def _box(
@@ -38,7 +39,7 @@ def test_placement_translates_geometry() -> None:
         ),
     )
 
-    bounds = component.transformed_geometry().val().BoundingBox()
+    bounds = workplane_shape(component.transformed_geometry()).BoundingBox()
 
     assert bounds.center.x == pytest.approx(15.0)
     assert bounds.center.y == pytest.approx(-4.0)
@@ -58,7 +59,7 @@ def test_rotation_changes_component_bounds() -> None:
         ),
     )
 
-    bounds = component.transformed_geometry().val().BoundingBox()
+    bounds = workplane_shape(component.transformed_geometry()).BoundingBox()
 
     assert bounds.xlen == pytest.approx(10.0)
     assert bounds.ylen == pytest.approx(20.0)
@@ -180,7 +181,7 @@ def test_assembly_compound_contains_all_solids() -> None:
         )
     )
 
-    compound = assembly.compound().val()
+    compound = workplane_shape(assembly.compound())
 
     assert compound.isValid()
     assert len(compound.Solids()) == 2

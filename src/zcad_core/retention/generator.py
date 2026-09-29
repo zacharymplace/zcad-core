@@ -46,7 +46,7 @@ GENERATOR_MODULES = (
 # generator_fingerprint() at GENERATOR_VERSION, computed on Python 3.11 (the
 # AST it hashes can differ between Python versions).
 GENERATOR_FINGERPRINT = (
-    "5717419097a55ba94a0f2d2ee0d5d94cbf28870f548b89bafbc873abcd06ce97"
+    "23f95578e58a02e67420da01dc75d5be304e30562e90d6abad87c9d58a37332e"
 )
 
 

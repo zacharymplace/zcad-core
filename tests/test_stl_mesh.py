@@ -2,6 +2,7 @@
 
 import json
 import struct
+from pathlib import Path
 
 import cadquery as cq
 import pytest
@@ -13,7 +14,7 @@ from zcad_core.validation.stl_mesh import read_stl
 @pytest.mark.parametrize(
     "damage", ["empty", "nonfinite", "duplicate", "degenerate", "inverted"]
 )
-def test_invalid_mesh_rejected(tmp_path, damage):
+def test_invalid_mesh_rejected(tmp_path: Path, damage: str) -> None:
     path = tmp_path / "box.stl"
     cq.exporters.export(cq.Workplane().box(4, 4, 4), str(path))
     data = bytearray(path.read_bytes())
@@ -36,10 +37,10 @@ def test_invalid_mesh_rejected(tmp_path, damage):
                 data[start + 24 : start + 36],
             )
     with pytest.raises(ValueError):
-        read_stl(data)
+        read_stl(bytes(data))
 
 
-def test_all_part_metadata_contains_complete_mesh_report(tmp_path):
+def test_all_part_metadata_contains_complete_mesh_report(tmp_path: Path) -> None:
     result = export_parts(
         ExportRequest(
             design_name="pair",
@@ -49,6 +50,7 @@ def test_all_part_metadata_contains_complete_mesh_report(tmp_path):
             repository_root=tmp_path,
         )
     )
+    assert result.validation_report is not None
     report = result.validation_report["stl_round_trip"]
     assert set(report["stl_sha256_by_part"]) == {"a", "b"}
     assert report["checks"][-1]["status"] == "NOT_CHECKED"
@@ -59,7 +61,7 @@ def test_all_part_metadata_contains_complete_mesh_report(tmp_path):
         )
 
 
-def test_body_bounds_separates_disconnected_bodies(tmp_path):
+def test_body_bounds_separates_disconnected_bodies(tmp_path: Path) -> None:
     shape = (
         cq.Workplane()
         .box(10, 10, 2)
@@ -73,7 +75,7 @@ def test_body_bounds_separates_disconnected_bodies(tmp_path):
     assert bodies[1][0][2] == pytest.approx(2.5)
 
 
-def test_body_bounds_joins_fused_solids(tmp_path):
+def test_body_bounds_joins_fused_solids(tmp_path: Path) -> None:
     shape = (
         cq.Workplane()
         .box(10, 10, 2)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import cadquery as cq
 import pytest
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.types import BoardEdge
 from zcad_core.retention import (
     EdgeCaptureBackend,
@@ -91,7 +92,7 @@ def test_apply_adds_edge_capture_geometry() -> None:
         )
     )
 
-    base_volume = base.val().Volume()
+    base_volume = workplane_shape(base).Volume()
 
     result = backend.apply(
         base,
@@ -102,7 +103,7 @@ def test_apply_adds_edge_capture_geometry() -> None:
         result,
         cq.Workplane,
     )
-    assert result.val().Volume() > base_volume
+    assert workplane_shape(result).Volume() > base_volume
 
 
 def test_apply_is_deterministic() -> None:
@@ -123,7 +124,9 @@ def test_apply_is_deterministic() -> None:
         parameters,
     )
 
-    assert first.val().Volume() == pytest.approx(second.val().Volume())
+    assert workplane_shape(first).Volume() == pytest.approx(
+        workplane_shape(second).Volume()
+    )
 
 
 def test_default_synthetic_fit_report_passes() -> None:
@@ -230,7 +233,7 @@ def test_capture_geometry_does_not_intersect_board(
     backend = SyntheticEdgeCaptureBackend()
 
     board = cq.Workplane("XY").box(40.0, 30.0, 1.6).translate((0.0, 0.0, 0.8))
-    pcb = board.val()
+    pcb = workplane_shape(board)
     bounds = pcb.BoundingBox()
 
     edge_coordinate = {
@@ -267,7 +270,7 @@ def test_capture_geometry_does_not_intersect_board(
         )
     )
 
-    capture = backend.build_geometry(parameters).val()
+    capture = workplane_shape(backend.build_geometry(parameters))
     intersection = capture.intersect(pcb)
     volume = 0.0 if intersection.isNull() else float(intersection.Volume())
 

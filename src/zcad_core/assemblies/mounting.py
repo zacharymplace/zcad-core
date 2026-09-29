@@ -11,11 +11,16 @@ from zcad_core.assemblies.placement import Placement
 class RectangularMountingBoardSpec(Protocol):
     """Optional rectangular mounting properties supplied by a board."""
 
-    mounting_hole_diameter_mm: float
-    mounting_hole_spacing_x_mm: float
-    mounting_hole_spacing_y_mm: float
-    recommended_standoff_height_mm: float
-    recommended_clearance_mm: float
+    @property
+    def mounting_hole_diameter_mm(self) -> float: ...
+    @property
+    def mounting_hole_spacing_x_mm(self) -> float: ...
+    @property
+    def mounting_hole_spacing_y_mm(self) -> float: ...
+    @property
+    def recommended_standoff_height_mm(self) -> float: ...
+    @property
+    def recommended_clearance_mm(self) -> float: ...
 
 
 class RectangularMountingMetadata(TypedDict):

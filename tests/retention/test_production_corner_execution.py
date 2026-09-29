@@ -5,11 +5,13 @@ from pathlib import Path
 import cadquery as cq
 import pytest
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention import (
     BoardCorner,
     CornerCaptureFitCheck,
     CornerCapturePolicy,
     ProductionCornerExecutionRequest,
+    as_corner_capture_fit_report,
     execute_production_corner_capture,
 )
 
@@ -133,7 +135,7 @@ def test_execution_exports_inspectable_step(
     assert output_step.is_file()
     assert output_step.stat().st_size > 0
 
-    exported = cq.importers.importStep(str(output_step)).val()
+    exported = workplane_shape(cq.importers.importStep(str(output_step)))
 
     assert exported is not None
     assert len(exported.Solids()) >= 1
@@ -187,7 +189,7 @@ def test_component_clearance_report_is_evidence_backed(
 
     component_result = next(
         item
-        for item in result.execution.report.results
+        for item in as_corner_capture_fit_report(result.execution.report).results
         if (item.check is CornerCaptureFitCheck.COMPONENT_CLEARANCE)
     )
 

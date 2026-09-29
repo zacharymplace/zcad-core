@@ -7,7 +7,9 @@ import pytest
 
 from zcad_core.assemblies import (
     AssemblyComponent,
+    DeviceAssembly,
     Placement,
+    RectangularBoardSpec,
     assembly_mounting_hole_positions,
     build_board_display_assembly,
     rectangular_board_mounting_metadata,
@@ -50,10 +52,10 @@ class PartialMountingBoard:
 
 
 def _assembly_for_board(
-    board: object,
+    board: RectangularBoardSpec,
     *,
     placement: Placement | None = None,
-):
+) -> DeviceAssembly:
     return build_board_display_assembly(
         board=board,
         display=StubDisplay(),

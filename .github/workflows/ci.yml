@@ -32,7 +32,7 @@ jobs:
 
       - name: Mypy
         run: |
-          mypy src scripts
+          mypy src scripts tests
 
       - name: Pytest
         run: |

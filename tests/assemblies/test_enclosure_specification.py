@@ -1,10 +1,12 @@
 """Tests for assembly-derived enclosure specifications."""
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import pytest
 
 from zcad_core.assemblies import (
+    DeviceAssembly,
     Placement,
     build_board_display_assembly,
     derive_enclosure_specification,
@@ -66,7 +68,7 @@ class FixtureDisplaySpec:
 def _assembly(
     *,
     board: FixtureBoardSpec | PositiveYBoardSpec | None = None,
-):
+) -> DeviceAssembly:
     return build_board_display_assembly(
         board=board if board is not None else FixtureBoardSpec(),
         display=FixtureDisplaySpec(),
@@ -143,10 +145,8 @@ def test_derivation_rejects_negative_clearances(
     message: str,
 ) -> None:
     with pytest.raises(ValueError, match=message):
-        derive_enclosure_specification(
-            _assembly(),
-            **{keyword: value},
-        )
+        overrides: dict[str, Any] = {keyword: value}
+        derive_enclosure_specification(_assembly(), **overrides)
 
 
 def test_derivation_rejects_missing_connector() -> None:

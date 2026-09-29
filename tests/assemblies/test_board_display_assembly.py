@@ -1,6 +1,7 @@
 """Tests for generic rectangular board-display assemblies."""
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import pytest
 
@@ -229,7 +230,7 @@ def test_builder_rejects_invalid_policy(
     value: float | str,
     message: str,
 ) -> None:
-    arguments = {
+    arguments: dict[str, Any] = {
         "board": StubBoard(),
         "display": StubDisplay(),
         "board_placement": Placement(),

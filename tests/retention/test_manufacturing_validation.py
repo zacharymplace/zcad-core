@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any
 
 import pytest
 
@@ -58,7 +59,7 @@ def test_default_policy_is_valid() -> None:
 def test_policy_dimensions_must_be_positive(
     field: str,
 ) -> None:
-    values = {
+    values: dict[str, Any] = {
         "minimum_wall_mm": 1.2,
         "minimum_board_clearance_mm": 0.2,
         "minimum_vertical_overlap_mm": 0.4,

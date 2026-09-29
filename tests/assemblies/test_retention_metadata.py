@@ -5,7 +5,9 @@ from dataclasses import dataclass, field
 import pytest
 
 from zcad_core.assemblies import (
+    DeviceAssembly,
     Placement,
+    RectangularBoardSpec,
     board_retention_metadata,
     build_board_display_assembly,
 )
@@ -200,7 +202,7 @@ class RetentionTestDisplay:
     mount_style: str = "bezel"
 
 
-def _retention_assembly(board: object):
+def _retention_assembly(board: RectangularBoardSpec) -> DeviceAssembly:
     """Build an assembly for one retention metadata fixture."""
     return build_board_display_assembly(
         board=board,

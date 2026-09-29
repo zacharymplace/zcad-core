@@ -1,11 +1,16 @@
+from typing import Any
+
 import cadquery as cq
 import pytest
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.validation.design_report import validate_design
 
 
 @pytest.mark.parametrize("profile", [None, {"build_volume_mm": {"x": 0}}])
-def test_unavailable_limits_never_produce_orientation_pass(profile):
+def test_unavailable_limits_never_produce_orientation_pass(
+    profile: dict[str, Any] | None,
+) -> None:
     report = validate_design(
         design_name="a",
         design_type="test",
@@ -18,9 +23,9 @@ def test_unavailable_limits_never_produce_orientation_pass(profile):
     assert "selected_rotation_z_degrees" not in check
 
 
-def test_each_part_checked_independently_and_input_unchanged():
+def test_each_part_checked_independently_and_input_unchanged() -> None:
     model = cq.Workplane().box(170, 215, 10)
-    before = model.val().BoundingBox().ylen
+    before = workplane_shape(model).BoundingBox().ylen
     report = validate_design(
         design_name="a",
         design_type="test",
@@ -34,10 +39,10 @@ def test_each_part_checked_independently_and_input_unchanged():
     assert checks["fits"]["status"] == "PASS"
     assert checks["too_tall"]["status"] == "FAIL"
     assert report["evaluated_status"] == "FAIL"
-    assert model.val().BoundingBox().ylen == before
+    assert workplane_shape(model).BoundingBox().ylen == before
 
 
-def test_invalid_mode_rejected():
+def test_invalid_mode_rejected() -> None:
     with pytest.raises(ValueError, match="orientation"):
         validate_design(
             design_name="a",

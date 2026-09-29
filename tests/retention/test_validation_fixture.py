@@ -5,9 +5,11 @@ from pathlib import Path
 import cadquery as cq
 import pytest
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention import (
     CornerCapturePolicy,
     ProductionCornerExecutionRequest,
+    ProductionCornerExecutionResult,
     ValidationFixturePolicy,
     build_validation_fixture,
     execute_production_corner_capture,
@@ -61,7 +63,7 @@ def export_clear_board(
 
 def production_execution(
     tmp_path: Path,
-):
+) -> ProductionCornerExecutionResult:
     source_step = tmp_path / "board.step"
     output_step = tmp_path / "capture.step"
 
@@ -87,7 +89,7 @@ def test_fixture_is_connected_to_base(
         policy=ValidationFixturePolicy(),
     )
 
-    shape = fixture.val()
+    shape = workplane_shape(fixture)
 
     assert shape is not None
 

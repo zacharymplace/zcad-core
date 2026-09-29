@@ -23,7 +23,7 @@ FEATHER_R003_REVIEW = Path(
 def observations(
     *,
     passed: bool = True,
-):
+) -> tuple[VisualReviewObservation, ...]:
     return tuple(
         VisualReviewObservation(
             check=check,

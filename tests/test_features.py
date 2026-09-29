@@ -6,6 +6,7 @@ import pytest
 from zcad_core.features.holes import add_through_holes
 from zcad_core.features.labels import add_embossed_label
 from zcad_core.features.slots import cut_through_slot
+from zcad_core.geometry.cadquery_support import workplane_shape
 
 
 def test_through_hole_reduces_volume() -> None:
@@ -21,8 +22,8 @@ def test_through_hole_reduces_volume() -> None:
         diameter=4,
     )
 
-    assert result.val().isValid()
-    assert result.val().Volume() < base.val().Volume()
+    assert workplane_shape(result).isValid()
+    assert workplane_shape(result).Volume() < workplane_shape(base).Volume()
 
 
 @pytest.mark.parametrize(
@@ -68,9 +69,9 @@ def test_embossed_label_increases_height() -> None:
         emboss_height=0.6,
     )
 
-    bounds = result.val().BoundingBox()
+    bounds = workplane_shape(result).BoundingBox()
 
-    assert result.val().isValid()
+    assert workplane_shape(result).isValid()
     assert bounds.zlen > 4
 
 
@@ -123,8 +124,8 @@ def test_through_slot_reduces_volume() -> None:
         base_height=5,
     )
 
-    assert result.val().isValid()
-    assert result.val().Volume() < base.val().Volume()
+    assert workplane_shape(result).isValid()
+    assert workplane_shape(result).Volume() < workplane_shape(base).Volume()
 
 
 @pytest.mark.parametrize(

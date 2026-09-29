@@ -3,6 +3,7 @@ from __future__ import annotations
 import cadquery as cq
 import pytest
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.edge_outline import (
     EdgeOutlineAnalyzer,
 )
@@ -13,7 +14,7 @@ from zcad_core.geometry.types import (
 
 
 def rectangular_board() -> cq.Shape:
-    shape = cq.Workplane("XY").box(40.0, 30.0, 1.6).val()
+    shape = workplane_shape(cq.Workplane("XY").box(40.0, 30.0, 1.6))
 
     assert isinstance(shape, cq.Shape)
     return shape
@@ -21,7 +22,9 @@ def rectangular_board() -> cq.Shape:
 
 def board_with_positive_x_notch() -> cq.Shape:
     board = rectangular_board()
-    cutter = cq.Workplane("XY").box(4.0, 8.0, 4.0).translate((19.0, 0.0, 0.0)).val()
+    cutter = workplane_shape(
+        cq.Workplane("XY").box(4.0, 8.0, 4.0).translate((19.0, 0.0, 0.0))
+    )
 
     assert isinstance(cutter, cq.Shape)
     return board.cut(cutter)
@@ -29,8 +32,8 @@ def board_with_positive_x_notch() -> cq.Shape:
 
 def board_with_positive_x_edge_hole() -> cq.Shape:
     board = rectangular_board()
-    cutter = (
-        cq.Workplane("XY").center(18.5, 0.0).circle(1.5).extrude(4.0, both=True).val()
+    cutter = workplane_shape(
+        cq.Workplane("XY").center(18.5, 0.0).circle(1.5).extrude(4.0, both=True)
     )
 
     assert isinstance(cutter, cq.Shape)
@@ -96,7 +99,7 @@ def test_edge_hole_blocks_engagement_band() -> None:
 
 
 def test_internal_hole_outside_band_is_ignored() -> None:
-    cutter = cq.Workplane("XY").circle(2.0).extrude(4.0, both=True).val()
+    cutter = workplane_shape(cq.Workplane("XY").circle(2.0).extrude(4.0, both=True))
 
     assert isinstance(cutter, cq.Shape)
 

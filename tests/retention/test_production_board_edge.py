@@ -5,6 +5,7 @@ from pathlib import Path
 import cadquery as cq
 import pytest
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.types import BoardEdge
 from zcad_core.retention.edge_capture import EdgeCapturePolicy
 from zcad_core.retention.production_board import ProductionBoardModel
@@ -20,7 +21,7 @@ def _box(
     y_len: float,
     z_len: float,
 ) -> cq.Solid:
-    shape = (
+    shape = workplane_shape(
         cq.Workplane("XY")
         .box(
             x_len,
@@ -34,7 +35,6 @@ def _box(
                 z_center,
             )
         )
-        .val()
     )
 
     assert isinstance(shape, cq.Solid)
