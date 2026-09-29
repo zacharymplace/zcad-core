@@ -8,6 +8,7 @@ import cadquery as cq
 import pytest
 
 from zcad_core.retention import (
+    GENERATOR_VERSION,
     CandidateRevision,
     RevisionRelationshipType,
     load_candidate_revision,
@@ -110,7 +111,6 @@ def test_registers_artifact_backed_revision(
         source_step=source_step,
         pcb_solid_index=1,
         git_commit="d" * 40,
-        generator_version="1.1.0",
         created_at_utc=("2026-01-02T00:00:00+00:00"),
         printer_profile=PRINTER_PROFILE,
         corner_keepout_mm=4.0,
@@ -200,7 +200,6 @@ def test_refuses_existing_revision_outputs(
             source_step=source_step,
             pcb_solid_index=1,
             git_commit="d" * 40,
-            generator_version="1.1.0",
             created_at_utc=("2026-01-02T00:00:00+00:00"),
             printer_profile=PRINTER_PROFILE,
             corner_keepout_mm=4.0,
@@ -218,8 +217,6 @@ def test_refuses_existing_revision_outputs(
 def regenerate(
     tmp_path: Path,
     parent: CandidateRevision,
-    *,
-    generator_version: str,
 ) -> object:
     source_step = tmp_path / "board.step"
     export_clear_board(source_step)
@@ -234,7 +231,6 @@ def regenerate(
         source_step=source_step,
         pcb_solid_index=1,
         git_commit="d" * 40,
-        generator_version=generator_version,
         created_at_utc="2026-01-02T00:00:00+00:00",
         printer_profile=PRINTER_PROFILE,
         corner_keepout_mm=4.0,
@@ -243,9 +239,9 @@ def regenerate(
 
 
 def test_regenerates_same_policy_under_new_generator(tmp_path: Path) -> None:
-    result = regenerate(tmp_path, parent_candidate(), generator_version="1.1.0")
+    result = regenerate(tmp_path, parent_candidate())
 
-    assert result.candidate.generator_version == "1.1.0"
+    assert result.candidate.generator_version == GENERATOR_VERSION
     assert result.candidate.retention_policy == parent_candidate().retention_policy
     assert result.registration.delta_report.changes == ()
     assert result.export_validation.evaluated_status == "PASS"
@@ -253,7 +249,10 @@ def test_regenerates_same_policy_under_new_generator(tmp_path: Path) -> None:
 
 def test_empty_updates_require_generator_change(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="unless generator_version changes"):
-        regenerate(tmp_path, parent_candidate(), generator_version="1.0.0")
+        regenerate(
+            tmp_path,
+            replace(parent_candidate(), generator_version=GENERATOR_VERSION),
+        )
 
     assert not (tmp_path / "r002").exists()
 
@@ -283,7 +282,7 @@ def test_registers_edge_clip_revision(tmp_path: Path) -> None:
         }
     )
 
-    result = regenerate(tmp_path, parent, generator_version="1.1.0")
+    result = regenerate(tmp_path, parent)
 
     candidate = result.candidate
     assert candidate.candidate_id == "synthetic-target-edge-clip-r002"
@@ -310,7 +309,6 @@ def generate_child(
         source_step=source_step,
         pcb_solid_index=1,
         git_commit="d" * 40,
-        generator_version="1.1.0",
         created_at_utc="2026-01-02T00:00:00+00:00",
         printer_profile=PRINTER_PROFILE,
         repository_root=tmp_path,
@@ -367,3 +365,11 @@ def test_recorded_generation_parameters_reads_legacy_and_missing_evidence(
 
     assert recorded_generation_parameters(legacy) == {}
     assert recorded_generation_parameters(tmp_path / "missing.json") == {}
+
+
+def test_new_revisions_record_the_current_generator_version(tmp_path: Path) -> None:
+    result = generate_child(tmp_path, parent_candidate(), corner_keepout_mm=4.0)
+    evidence = json.loads(result.evidence_artifact.report_path.read_text("utf-8"))
+
+    assert evidence["generator_version"] == GENERATOR_VERSION
+    assert result.registration.candidate.generator_version == GENERATOR_VERSION

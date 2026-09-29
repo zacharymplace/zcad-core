@@ -319,6 +319,13 @@ inherits them. Candidates generated before that record do not carry it: a
 corner-capture regeneration from one refuses to guess, so pass
 `--corner-keepout-mm` (4.0 for Feather and Pico 2, 2.1 for XIAO).
 
+The generator version is `GENERATOR_VERSION` in
+`src/zcad_core/retention/generator.py`, not a value typed per run: new
+evidence records it, `candidate register` reads it from the evidence, and
+regeneration always uses it. A test fingerprints the geometry-generating
+modules, ignoring comments and formatting, and fails when their code changes
+without the fingerprint (and, if geometry changed, the version) being updated.
+
 ### Deliverables
 
 - [x] Printer and material profiles selected in place of `pending-selection`.

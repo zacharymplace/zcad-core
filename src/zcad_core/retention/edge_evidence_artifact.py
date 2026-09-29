@@ -14,6 +14,7 @@ from zcad_core.retention.edge_capture import (
     as_edge_capture_parameters,
 )
 from zcad_core.retention.evidence_artifact import GeometryInterferenceResult
+from zcad_core.retention.generator import GENERATOR_VERSION
 from zcad_core.retention.manufacturing import (
     ManufacturingPolicy,
     ManufacturingReport,
@@ -89,6 +90,7 @@ def generate_production_edge_evidence_artifact(
         interference=interference,
         manufacturing=manufacturing,
     )
+    report["generator_version"] = GENERATOR_VERSION
     report["generation"] = {
         "engagement_depth_mm": request.engagement_depth_mm,
         "vertical_margin_mm": request.vertical_margin_mm,

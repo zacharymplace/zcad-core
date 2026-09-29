@@ -122,6 +122,7 @@ def register_candidate(
                     "positive_x_positive_y",
                 ],
                 "decision": "verified_candidate",
+                "generator_version": "1.0.0",
             }
         ),
         encoding="utf-8",
@@ -1626,6 +1627,7 @@ def test_candidate_register_records_failing_export_validation(
                 "pcb": {"z_length_mm": 1.6},
                 "selected_corners": ["negative_x_negative_y"],
                 "decision": "verified_candidate",
+                "generator_version": "1.0.0",
             }
         ),
         encoding="utf-8",
@@ -2054,3 +2056,24 @@ def test_trial_complete_refuses_to_overwrite_a_completed_trial(
     assert exit_code == 1
     assert "Refusing to overwrite" in capsys.readouterr().err
     assert (tmp_path / "physical.json").read_text(encoding="utf-8") == recorded
+
+
+def test_generator_version_comes_from_the_evidence() -> None:
+    from zcad_core.cli import _generator_version
+
+    assert _generator_version(None, {"generator_version": "1.4.0"}) == "1.4.0"
+    assert _generator_version("1.4.0", {"generator_version": "1.4.0"}) == "1.4.0"
+
+    with pytest.raises(ValueError, match="contradicts the evidence"):
+        _generator_version("1.0.0", {"generator_version": "1.4.0"})
+
+
+def test_evidence_without_a_generator_version_needs_the_flag() -> None:
+    """The old default of 1.0.0 would have mislabelled current geometry."""
+
+    from zcad_core.cli import _generator_version
+
+    with pytest.raises(ValueError, match="pass --generator-version"):
+        _generator_version(None, {})
+
+    assert _generator_version("1.3.0", {}) == "1.3.0"

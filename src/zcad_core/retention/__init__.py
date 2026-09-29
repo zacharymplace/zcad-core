@@ -74,6 +74,11 @@ from zcad_core.retention.evidence_artifact import (
     generate_production_evidence_artifact,
     recorded_generation_parameters,
 )
+from zcad_core.retention.generator import (
+    GENERATOR_FINGERPRINT,
+    GENERATOR_VERSION,
+    generator_fingerprint,
+)
 from zcad_core.retention.installation_path import (
     InstallationPathCollision,
     InstallationPathPlan,
@@ -191,6 +196,8 @@ from zcad_core.retention.visual_review import (
 )
 
 __all__ = [
+    "GENERATOR_FINGERPRINT",
+    "GENERATOR_VERSION",
     "PHYSICAL_VALIDATION_SCHEMA_VERSION",
     "UNRECORDED_SLICER_PROFILE",
     "ArtifactBackedRevisionResult",
@@ -322,6 +329,7 @@ __all__ = [
     "export_validation_fixture",
     "generate_production_edge_evidence_artifact",
     "generate_production_evidence_artifact",
+    "generator_fingerprint",
     "load_candidate_revision",
     "load_export_validation_record",
     "load_manifest",

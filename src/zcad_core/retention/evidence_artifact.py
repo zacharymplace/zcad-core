@@ -16,6 +16,7 @@ from zcad_core.retention.backend import (
 from zcad_core.retention.corner_capture import (
     as_corner_capture_parameters,
 )
+from zcad_core.retention.generator import GENERATOR_VERSION
 from zcad_core.retention.manufacturing import (
     ManufacturingPolicy,
     ManufacturingReport,
@@ -109,6 +110,7 @@ def generate_production_evidence_artifact(
     )
     # The adapter settings that chose the capture corners, so the candidate
     # can be regenerated exactly (a board may need a non-default keepout).
+    report["generator_version"] = GENERATOR_VERSION
     report["generation"] = {
         "corner_keepout_mm": request.corner_keepout_mm,
         "vertical_margin_mm": request.vertical_margin_mm,
