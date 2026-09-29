@@ -27,6 +27,7 @@ from zcad_core.retention import (
     CandidateRevision,
     CornerCapturePolicy,
     EdgeCapturePolicy,
+    PhysicalMeasurement,
     PhysicalTrialManifest,
     PhysicalValidationCheck,
     PhysicalValidationDisposition,
@@ -665,20 +666,65 @@ def _trial_start(args: argparse.Namespace) -> int:
     return 0
 
 
-def _trial_complete(args: argparse.Namespace) -> int:
-    observations_payload = json.loads(args.observations.read_text(encoding="utf-8"))
+def _load_measurements(path: Path | None) -> tuple[PhysicalMeasurement, ...]:
+    """Read ``{"<name>": {"value_mm": 0.8, "nominal_mm": 0.85, "notes": ""}}``.
 
-    if not isinstance(observations_payload, dict):
-        raise TypeError("--observations file must contain a JSON object")
+    A template entry left at ``"value_mm": null`` is refused rather than
+    skipped, so an unmeasured quantity cannot pass as recorded.
+    """
 
-    observations = tuple(
-        PhysicalValidationObservation(
-            check=check,
-            passed=bool(observations_payload[check.value]["passed"]),
-            notes=str(observations_payload[check.value].get("notes", "")),
+    if path is None:
+        return ()
+
+    payload = load_manifest(path)
+    measurements = []
+
+    for name, entry in payload.items():
+        if not isinstance(entry, dict) or entry.get("value_mm") is None:
+            raise ValueError(
+                f"Measurement {name} has no value_mm; fill it in or remove it"
+            )
+
+        nominal = entry.get("nominal_mm")
+        measurements.append(
+            PhysicalMeasurement(
+                name=name,
+                value_mm=float(entry["value_mm"]),
+                nominal_mm=None if nominal is None else float(nominal),
+                notes=str(entry.get("notes", "")),
+            )
         )
-        for check in PhysicalValidationCheck
-    )
+
+    return tuple(measurements)
+
+
+def _trial_complete(args: argparse.Namespace) -> int:
+    answers = load_manifest(args.observations)
+    expected = {check.value for check in PhysicalValidationCheck}
+    missing = sorted(expected - set(answers))
+    unknown = sorted(set(answers) - expected)
+
+    if missing or unknown:
+        raise ValueError(
+            "--observations must answer every physical check exactly; "
+            f"missing: {missing or 'none'}, unknown: {unknown or 'none'}"
+        )
+
+    observations = []
+
+    for check in PhysicalValidationCheck:
+        answer = answers[check.value]
+
+        if not isinstance(answer, dict) or not isinstance(answer.get("passed"), bool):
+            raise TypeError(f"{check.value} needs a boolean 'passed' field")
+
+        observations.append(
+            PhysicalValidationObservation(
+                check=check,
+                passed=answer["passed"],
+                notes=str(answer.get("notes", "")),
+            )
+        )
 
     record = complete_physical_validation_record(
         candidate_report_path=args.candidate_report,
@@ -686,9 +732,10 @@ def _trial_complete(args: argparse.Namespace) -> int:
         printer_profile=args.printer_profile,
         material_profile=args.material_profile,
         slicer_profile=args.slicer_profile,
-        observations=observations,
+        observations=tuple(observations),
         disposition=PhysicalValidationDisposition(args.disposition),
         operator_notes=args.operator_notes,
+        measurements=_load_measurements(args.measurements),
     )
 
     write_physical_validation_record(
@@ -701,6 +748,13 @@ def _trial_complete(args: argparse.Namespace) -> int:
             "disposition": record.disposition.value,
             "complete": record.complete,
             "passed": record.passed,
+            "measurements": {
+                measurement.name: {
+                    "value_mm": measurement.value_mm,
+                    "deviation_mm": measurement.deviation_mm,
+                }
+                for measurement in record.measurements
+            },
             "record": str(args.output),
         }
     )
@@ -1261,6 +1315,15 @@ def build_parser() -> argparse.ArgumentParser:
             for member in PhysicalValidationDisposition
             if member is not PhysicalValidationDisposition.PENDING
         ],
+    )
+    trial_complete.add_argument(
+        "--measurements",
+        type=Path,
+        help=(
+            "JSON object of measurements in mm: "
+            '{"<name>": {"value_mm": 0.8, "nominal_mm": 0.85, "notes": "..."}}. '
+            "Required for pass and revise."
+        ),
     )
     trial_complete.add_argument("--operator-notes", default="")
     trial_complete.add_argument("--output", required=True, type=Path)

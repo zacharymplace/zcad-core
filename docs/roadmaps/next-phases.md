@@ -311,6 +311,12 @@ generator version with its policy unchanged, as it did for UNO R4 r005.
 - [x] Trial records that cannot mislead: pending trials have an explicit
   pending state, and `trial complete` refuses a `pass` disposition unless
   every check passed.
+- [x] Trials that measure: physical-validation schema 1.1.0 adds
+  `board_resists_lateral_push` and `cables_seat_fully`, and `trial complete
+  --measurements` records named measurements with their nominal and
+  deviation. `pass` and `revise` need at least one measurement. Each open
+  trial has a `measurements.json` template seeded with the candidate's
+  nominal vertical play and board clearance.
 - [x] Visual reviews that gate promotion: `zcad-validation review complete`
   records them (schema 1.1.0 adds the `retention_features_fused` check and
   refuses a passing disposition when any check failed or the design review's

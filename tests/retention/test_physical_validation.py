@@ -8,6 +8,7 @@ import pytest
 
 from zcad_core.retention import (
     UNRECORDED_SLICER_PROFILE,
+    PhysicalMeasurement,
     PhysicalValidationCheck,
     PhysicalValidationDisposition,
     PhysicalValidationObservation,
@@ -15,6 +16,10 @@ from zcad_core.retention import (
     create_pending_physical_validation_record,
     load_physical_validation_record,
     write_physical_validation_record,
+)
+
+MEASUREMENTS = (
+    PhysicalMeasurement(name="vertical_play", value_mm=0.8, nominal_mm=0.85),
 )
 
 
@@ -51,6 +56,7 @@ def test_complete_passing_record_passes() -> None:
             for check in PhysicalValidationCheck
         ),
         disposition=(PhysicalValidationDisposition.PASS),
+        measurements=MEASUREMENTS,
         operator_notes="Physical fit accepted.",
     )
 
@@ -78,6 +84,7 @@ def test_failed_observation_blocks_pass() -> None:
             slicer_profile="test-slicer",
             observations=observations,
             disposition=(PhysicalValidationDisposition.PASS),
+            measurements=MEASUREMENTS,
             operator_notes="Board did not seat.",
         )
 
@@ -89,6 +96,7 @@ def test_failed_observation_blocks_pass() -> None:
         slicer_profile="test-slicer",
         observations=observations,
         disposition=(PhysicalValidationDisposition.REVISE),
+        measurements=MEASUREMENTS,
         operator_notes="Board did not seat.",
     )
 
@@ -105,9 +113,7 @@ def test_incomplete_record_fails_closed() -> None:
         for check in tuple(PhysicalValidationCheck)[:-1]
     )
 
-    with pytest.raises(
-        ValueError, match="missing: \\['board_removes_without_damage'\\]"
-    ):
+    with pytest.raises(ValueError, match="missing: \\['cables_seat_fully'\\]"):
         complete_physical_validation_record(
             candidate_report_path=Path("candidate.json"),
             fixture_stl_path=Path("fixture.stl"),
@@ -116,6 +122,7 @@ def test_incomplete_record_fails_closed() -> None:
             slicer_profile="test-slicer",
             observations=observations,
             disposition=(PhysicalValidationDisposition.PASS),
+            measurements=MEASUREMENTS,
             operator_notes="Incomplete.",
         )
 
@@ -127,6 +134,7 @@ def test_incomplete_record_fails_closed() -> None:
         slicer_profile="test-slicer",
         observations=observations,
         disposition=(PhysicalValidationDisposition.REVISE),
+        measurements=MEASUREMENTS,
         operator_notes="Incomplete.",
     )
 
@@ -199,6 +207,7 @@ def test_pending_record_can_later_be_completed(
             slicer_profile="test-slicer",
             observations=all_passing_observations(),
             disposition=PhysicalValidationDisposition.REVISE,
+            measurements=MEASUREMENTS,
             operator_notes="Printed; clearance too tight.",
         ),
         output_path=output_path,
@@ -311,3 +320,158 @@ def test_record_without_slicer_profile_loads_as_unrecorded(
 
     assert record.slicer_profile == UNRECORDED_SLICER_PROFILE
     assert record.pending is True
+
+
+def all_passing() -> tuple[PhysicalValidationObservation, ...]:
+    return tuple(
+        PhysicalValidationObservation(check=check, passed=True, notes="Passed.")
+        for check in PhysicalValidationCheck
+    )
+
+
+@pytest.mark.parametrize(
+    "disposition",
+    [PhysicalValidationDisposition.PASS, PhysicalValidationDisposition.REVISE],
+)
+def test_pass_and_revise_require_measurements(
+    disposition: PhysicalValidationDisposition,
+) -> None:
+    with pytest.raises(ValueError, match="requires at least one measurement"):
+        complete_physical_validation_record(
+            candidate_report_path=Path("candidate.json"),
+            fixture_stl_path=Path("fixture.stl"),
+            printer_profile="test-printer",
+            material_profile="test-material",
+            slicer_profile="test-slicer",
+            observations=all_passing(),
+            disposition=disposition,
+            operator_notes="Unmeasured.",
+        )
+
+
+def test_reject_may_have_nothing_to_measure() -> None:
+    record = complete_physical_validation_record(
+        candidate_report_path=Path("candidate.json"),
+        fixture_stl_path=Path("fixture.stl"),
+        printer_profile="test-printer",
+        material_profile="test-material",
+        slicer_profile="test-slicer",
+        observations=tuple(
+            PhysicalValidationObservation(check=check, passed=False)
+            for check in PhysicalValidationCheck
+        ),
+        disposition=PhysicalValidationDisposition.REJECT,
+        operator_notes="Print failed.",
+    )
+
+    assert record.complete is True
+    assert record.measurements == ()
+
+
+def test_measurements_round_trip_with_deviation(tmp_path: Path) -> None:
+    record = complete_physical_validation_record(
+        candidate_report_path=Path("candidate.json"),
+        fixture_stl_path=Path("fixture.stl"),
+        printer_profile="test-printer",
+        material_profile="test-material",
+        slicer_profile="test-slicer",
+        observations=all_passing(),
+        disposition=PhysicalValidationDisposition.PASS,
+        operator_notes="Measured.",
+        measurements=(
+            PhysicalMeasurement(name="vertical_play", value_mm=0.8, nominal_mm=0.85),
+            PhysicalMeasurement(name="clip_to_header_gap", value_mm=0.2),
+        ),
+    )
+    path = tmp_path / "record.json"
+    write_physical_validation_record(record, output_path=path)
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "1.1.0"
+    assert payload["measurements"][0]["deviation_mm"] == pytest.approx(-0.05)
+    assert payload["measurements"][1]["deviation_mm"] is None
+
+    assert load_physical_validation_record(path) == record
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("Vertical Play", 0.8, "lowercase snake_case"),
+        ("vertical_play", float("nan"), "finite value_mm"),
+    ],
+)
+def test_measurement_rejects_bad_input(name: str, value: float, message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        PhysicalMeasurement(name=name, value_mm=value)
+
+
+def test_duplicate_measurement_names_are_rejected() -> None:
+    with pytest.raises(ValueError, match="unique"):
+        complete_physical_validation_record(
+            candidate_report_path=Path("candidate.json"),
+            fixture_stl_path=Path("fixture.stl"),
+            printer_profile="test-printer",
+            material_profile="test-material",
+            slicer_profile="test-slicer",
+            observations=all_passing(),
+            disposition=PhysicalValidationDisposition.PASS,
+            operator_notes="Measured twice.",
+            measurements=MEASUREMENTS + MEASUREMENTS,
+        )
+
+
+def test_legacy_record_is_judged_by_its_own_checklist(tmp_path: Path) -> None:
+    """A 1.0.0 record answered the eight original checks and no more."""
+
+    legacy_checks = [
+        check
+        for check in PhysicalValidationCheck
+        if check
+        not in {
+            PhysicalValidationCheck.BOARD_RESISTS_LATERAL_PUSH,
+            PhysicalValidationCheck.CABLES_SEAT_FULLY,
+        }
+    ]
+    path = tmp_path / "legacy.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0.0",
+                "candidate_report_path": "candidate.json",
+                "fixture_stl_path": "fixture.stl",
+                "printer_profile": "test-printer",
+                "material_profile": "test-material",
+                "slicer_profile": "test-slicer",
+                "observations": [
+                    {"check": check.value, "passed": True, "notes": ""}
+                    for check in legacy_checks
+                ],
+                "disposition": "pass",
+                "operator_notes": "Legacy pass.",
+                "completed_at_utc": "2026-07-28T00:00:00+00:00",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    record = load_physical_validation_record(path)
+
+    assert record.complete is True
+    assert record.passed is True
+    assert record.measurements == ()
+
+
+def test_pending_record_uses_current_schema(tmp_path: Path) -> None:
+    record = create_pending_physical_validation_record(
+        candidate_report_path=tmp_path / "candidate.json",
+        fixture_stl_path=tmp_path / "fixture.stl",
+        printer_profile="test-printer",
+        material_profile="test-material",
+        slicer_profile="test-slicer",
+    )
+
+    assert record.schema_version == "1.1.0"
+    assert {observation.check for observation in record.observations} == set(
+        PhysicalValidationCheck
+    )

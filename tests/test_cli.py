@@ -209,9 +209,26 @@ def write_observations(tmp_path: Path, *, all_passed: bool = True) -> Path:
         "connectors_remain_accessible",
         "components_remain_clear",
         "board_removes_without_damage",
+        "board_resists_lateral_push",
+        "cables_seat_fully",
     )
     path.write_text(
         json.dumps({check: {"passed": all_passed} for check in checks}),
+        encoding="utf-8",
+    )
+
+    return path
+
+
+def write_measurements(tmp_path: Path) -> Path:
+    path = tmp_path / "measurements.json"
+    path.write_text(
+        json.dumps(
+            {
+                "vertical_play": {"value_mm": 0.8, "nominal_mm": 0.85},
+                "board_clearance": {"value_mm": 0.3, "nominal_mm": 0.25},
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -249,6 +266,8 @@ def register_trial(
         "bambu-studio-a1-mini-petg-validation",
         "--observations",
         str(write_observations(tmp_path, all_passed=passed)),
+        "--measurements",
+        str(write_measurements(tmp_path)),
         "--disposition",
         ("pass" if passed else "revise"),
         "--output",
@@ -764,6 +783,8 @@ def test_pending_trial_completes_into_a_counted_outcome(
         "bambu-studio-a1-mini-petg-validation",
         "--observations",
         str(write_observations(tmp_path, all_passed=False)),
+        "--measurements",
+        str(write_measurements(tmp_path)),
         "--disposition",
         "revise",
         "--output",
@@ -1862,3 +1883,148 @@ def test_candidate_promote_requires_visual_review(
     assert exit_code == 1
     assert "visual_review_missing" in capsys.readouterr().err
     assert not (tmp_path / "candidates/r001/promotion.json").exists()
+
+
+def complete_trial_args(
+    tmp_path: Path,
+    candidate_manifest: Path,
+    *,
+    disposition: str,
+    observations: Path,
+    measurements: Path | None,
+) -> list[str]:
+    fixture = tmp_path / "fixture.stl"
+
+    if not fixture.exists():
+        fixture.write_bytes(b"synthetic fixture")
+
+    return [
+        "trial",
+        "complete",
+        "--candidate-report",
+        str(candidate_manifest),
+        "--fixture-stl",
+        str(fixture),
+        "--printer-profile",
+        "bambu-lab-a1-mini",
+        "--material-profile",
+        "petg",
+        "--slicer-profile",
+        "bambu-studio-a1-mini-petg-validation",
+        "--observations",
+        str(observations),
+        *(() if measurements is None else ("--measurements", str(measurements))),
+        "--disposition",
+        disposition,
+        "--output",
+        str(tmp_path / "physical.json"),
+    ]
+
+
+def test_trial_complete_records_measurements_with_deviation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    exit_code, result = run(
+        capsys,
+        *complete_trial_args(
+            tmp_path,
+            candidate_manifest,
+            disposition="pass",
+            observations=write_observations(tmp_path),
+            measurements=write_measurements(tmp_path),
+        ),
+    )
+
+    assert exit_code == 0
+    assert result["passed"] is True
+    assert result["measurements"]["vertical_play"]["deviation_mm"] == pytest.approx(
+        -0.05
+    )
+    payload = json.loads((tmp_path / "physical.json").read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "1.1.0"
+    assert [entry["name"] for entry in payload["measurements"]] == [
+        "vertical_play",
+        "board_clearance",
+    ]
+
+
+def test_trial_complete_refuses_unmeasured_pass(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    exit_code = main(
+        complete_trial_args(
+            tmp_path,
+            candidate_manifest,
+            disposition="pass",
+            observations=write_observations(tmp_path),
+            measurements=None,
+        )
+    )
+
+    assert exit_code == 1
+    assert "requires at least one measurement" in capsys.readouterr().err
+    assert not (tmp_path / "physical.json").exists()
+
+
+def test_trial_complete_refuses_an_unfilled_measurement_template(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+    template = tmp_path / "template.json"
+    template.write_text(
+        json.dumps({"vertical_play": {"value_mm": None, "nominal_mm": 0.85}}),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        complete_trial_args(
+            tmp_path,
+            candidate_manifest,
+            disposition="pass",
+            observations=write_observations(tmp_path),
+            measurements=template,
+        )
+    )
+
+    assert exit_code == 1
+    assert "vertical_play has no value_mm" in capsys.readouterr().err
+
+
+def test_trial_complete_names_missing_checks(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Answers written against the eight-check template must say what's missing."""
+
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+    observations = write_observations(tmp_path)
+    answers = json.loads(observations.read_text(encoding="utf-8"))
+    del answers["board_resists_lateral_push"], answers["cables_seat_fully"]
+    observations.write_text(json.dumps(answers), encoding="utf-8")
+
+    exit_code = main(
+        complete_trial_args(
+            tmp_path,
+            candidate_manifest,
+            disposition="reject",
+            observations=observations,
+            measurements=None,
+        )
+    )
+
+    assert exit_code == 1
+    assert (
+        "missing: ['board_resists_lateral_push', 'cables_seat_fully']"
+        in capsys.readouterr().err
+    )
