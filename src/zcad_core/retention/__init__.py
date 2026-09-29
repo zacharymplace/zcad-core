@@ -183,6 +183,7 @@ from zcad_core.retention.visual_review import (
     VisualReviewObservation,
     VisualReviewRecord,
     complete_visual_review_record,
+    load_visual_review_record,
     write_visual_review_record,
 )
 
@@ -320,6 +321,7 @@ __all__ = [
     "load_export_validation_record",
     "load_manifest",
     "load_physical_validation_record",
+    "load_visual_review_record",
     "persist_candidate_revision",
     "physical_validation_record_from_payload",
     "promote_preferred_revision",
@@ -333,6 +335,7 @@ __all__ = [
     "validate_corner_capture_manufacturing",
     "validate_edge_capture_manufacturing",
     "verify_export_validation",
+    "visual_review_failures",
     "write_immutable_manifest",
     "write_installation_path_report",
     "write_physical_validation_record",
@@ -363,6 +366,7 @@ from .promotion import (
     promote_preferred_revision,
     register_candidate_promotion,
     select_preferred_revision,
+    visual_review_failures,
     write_promotion_record,
 )
 from .revision_registration import (

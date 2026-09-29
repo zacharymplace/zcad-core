@@ -13,11 +13,17 @@ from zcad_core.retention import (
     PromotionDecision,
     PromotionRecord,
     PublicationEligibility,
+    VisualReviewCheck,
+    VisualReviewDisposition,
+    VisualReviewObservation,
+    VisualReviewRecord,
     build_publication_record,
+    complete_visual_review_record,
     evaluate_publication_eligibility,
     promote_preferred_revision,
     select_preferred_revision,
     write_promotion_record,
+    write_visual_review_record,
 )
 from zcad_core.retention.validation_lab import sha256_file, write_immutable_manifest
 
@@ -101,10 +107,43 @@ def write_verified_candidate(
     return candidate_path, record_path
 
 
+def write_visual_review(
+    directory: Path,
+    *,
+    revision: str,
+    disposition: VisualReviewDisposition = VisualReviewDisposition.PASS,
+) -> Path:
+    """Write a current-schema visual review for one synthetic candidate."""
+
+    passing = disposition is VisualReviewDisposition.PASS
+    record = complete_visual_review_record(
+        candidate_id=f"synthetic-target-corner-capture-{revision}",
+        design_review_path=directory / "design-review.json",
+        installation_path_report_path=directory / "installation-path-analysis.json",
+        reviewer="reviewer",
+        observations=tuple(
+            VisualReviewObservation(
+                check=check,
+                passed=passing
+                or check is not VisualReviewCheck.RETENTION_FEATURES_FUSED,
+                notes="Reviewed.",
+            )
+            for check in VisualReviewCheck
+        ),
+        disposition=disposition,
+        reviewer_notes="Reviewed.",
+    )
+    path = directory / "visual-review.json"
+    write_visual_review_record(record, output_path=path)
+
+    return path
+
+
 def test_publication_eligibility_passes() -> None:
     result = evaluate_publication_eligibility(
         automated_validation_passed=True,
         export_validation_failures=(),
+        visual_review_failures=(),
         physical_validation_passed=True,
         candidate_manifest_exists=True,
         relationship_exists=True,
@@ -122,6 +161,7 @@ def test_publication_eligibility_reports_failures() -> None:
     result = evaluate_publication_eligibility(
         automated_validation_passed=False,
         export_validation_failures=("export_validation_missing",),
+        visual_review_failures=("visual_review_missing",),
         physical_validation_passed=False,
         candidate_manifest_exists=True,
         relationship_exists=False,
@@ -133,6 +173,7 @@ def test_publication_eligibility_reports_failures() -> None:
     assert result.failures == (
         "automated_validation_not_passed",
         "export_validation_missing",
+        "visual_review_missing",
         "physical_validation_not_passed",
         "relationship_record_missing",
         "physical_trial_missing",
@@ -272,6 +313,7 @@ def test_register_candidate_promotion_is_idempotent(
             "parameter_delta_path": str(delta),
             "physical_trial_path": str(trial),
             "export_validation_path": str(export_validation),
+            "visual_review_path": str(write_visual_review(tmp_path, revision="r002")),
         }
     )
 
@@ -313,6 +355,7 @@ def test_register_candidate_promotion_accepts_root_candidate_without_lineage(
             "parameter_delta_path": None,
             "physical_trial_path": str(trial),
             "export_validation_path": str(export_validation),
+            "visual_review_path": str(write_visual_review(tmp_path, revision="r001")),
         }
     )
 
@@ -598,6 +641,9 @@ def _write_promotion_artifacts(
             "parameter_delta_path": str(directory / "parameter-delta.json"),
             "physical_trial_path": str(trial_directory / "trial.json"),
             "export_validation_path": str(export_validation),
+            "visual_review_path": str(
+                write_visual_review(directory, revision=revision)
+            ),
         }
     )
 
@@ -870,6 +916,105 @@ def test_register_candidate_promotion_rejects_unverifiable_evidence(
     Path(record.candidate_manifest_path).write_text("{}\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="export_validation_unverifiable"):
+        promote_preferred_revision(
+            record=record,
+            output_path=tmp_path / "promotion.json",
+        )
+
+
+def test_register_candidate_promotion_requires_visual_review(
+    tmp_path: Path,
+) -> None:
+    record = _write_promotion_artifacts(tmp_path, "r001")
+    record = PromotionRecord(**{**record.__dict__, "visual_review_path": None})
+
+    with pytest.raises(ValueError, match="visual_review_missing"):
+        promote_preferred_revision(
+            record=record,
+            output_path=tmp_path / "promotion.json",
+        )
+
+    assert not (tmp_path / "promotion.json").exists()
+
+
+def test_register_candidate_promotion_rejects_failed_visual_review(
+    tmp_path: Path,
+) -> None:
+    record = _write_promotion_artifacts(tmp_path, "r001")
+    revise = write_visual_review(
+        tmp_path / "revise",
+        revision="r001",
+        disposition=VisualReviewDisposition.REVISE,
+    )
+    record = PromotionRecord(**{**record.__dict__, "visual_review_path": str(revise)})
+
+    with pytest.raises(ValueError, match="visual_review_not_passed"):
+        promote_preferred_revision(
+            record=record,
+            output_path=tmp_path / "promotion.json",
+        )
+
+
+def test_register_candidate_promotion_rejects_other_candidates_review(
+    tmp_path: Path,
+) -> None:
+    record = _write_promotion_artifacts(tmp_path, "r001")
+    other = write_visual_review(tmp_path / "other", revision="r002")
+    record = PromotionRecord(**{**record.__dict__, "visual_review_path": str(other)})
+
+    with pytest.raises(ValueError, match="visual_review_candidate_mismatch"):
+        promote_preferred_revision(
+            record=record,
+            output_path=tmp_path / "promotion.json",
+        )
+
+
+def test_register_candidate_promotion_rejects_legacy_visual_review(
+    tmp_path: Path,
+) -> None:
+    """A 1.0.0 review never answered the fused-feature check, so it cannot
+    support a promotion even when it passed on its own terms."""
+
+    record = _write_promotion_artifacts(tmp_path, "r001")
+    legacy = VisualReviewRecord(
+        schema_version="1.0.0",
+        candidate_id=record.candidate_id,
+        design_review_path="design-review.json",
+        installation_path_report_path="installation-path-analysis.json",
+        reviewer="reviewer",
+        observations=tuple(
+            VisualReviewObservation(check=check, passed=True)
+            for check in VisualReviewCheck
+            if check is not VisualReviewCheck.RETENTION_FEATURES_FUSED
+        ),
+        disposition=VisualReviewDisposition.PASS,
+        reviewer_notes="Legacy review.",
+        completed_at_utc="2026-07-28T07:38:14+00:00",
+    )
+    assert legacy.passed is True
+
+    legacy_path = tmp_path / "legacy-visual-review.json"
+    write_visual_review_record(legacy, output_path=legacy_path)
+    record = PromotionRecord(
+        **{**record.__dict__, "visual_review_path": str(legacy_path)}
+    )
+
+    with pytest.raises(ValueError, match="visual_review_schema_outdated"):
+        promote_preferred_revision(
+            record=record,
+            output_path=tmp_path / "promotion.json",
+        )
+
+
+def test_register_candidate_promotion_rejects_unreadable_visual_review(
+    tmp_path: Path,
+) -> None:
+    record = _write_promotion_artifacts(tmp_path, "r001")
+    broken = tmp_path / "broken-visual-review.json"
+    broken.write_text("[]\n", encoding="utf-8")
+    record = PromotionRecord(**{**record.__dict__, "visual_review_path": str(broken)})
+
+    with pytest.raises(ValueError, match="visual_review_unverifiable"):
         promote_preferred_revision(
             record=record,
             output_path=tmp_path / "promotion.json",

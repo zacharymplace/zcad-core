@@ -35,7 +35,9 @@ publication-eligible.
    candidate, recorded with `zcad-validation trial complete`.
 2. **Human visual reviews are outstanding** for all four candidates. The
    review of Feather r003 passed geometry whose ledges were floating, so these
-   reviews should examine the fused ledges specifically.
+   reviews should examine the fused ledges specifically. Record each with
+   `zcad-validation review complete`, whose checklist now includes
+   `retention_features_fused`; promotion requires a passing review.
 3. **GitHub Actions is disabled for the account**, so CI never runs on
    GitHub. The same gates run locally: `scripts/check.sh`, enforced by the
    `.githooks/pre-push` hook (enable per checkout with
@@ -282,6 +284,13 @@ trial was removed.
 - [x] Trial records that cannot mislead: pending trials have an explicit
   pending state, and `trial complete` refuses a `pass` disposition unless
   every check passed.
+- [x] Visual reviews that gate promotion: `zcad-validation review complete`
+  records them (schema 1.1.0 adds the `retention_features_fused` check and
+  refuses a passing disposition when any check failed or the design review's
+  geometry checks did not pass), and `candidate promote` requires a passing
+  current-schema review of the same candidate via `--visual-review`. `report`
+  shows each candidate's review. The legacy 1.0.0 review of Feather r003
+  still loads but cannot support a promotion.
 - [ ] Human visual review of each candidate's design-review package
 - [ ] Feather RP2040 r004 printed and recorded through `trial complete`,
   with dimensional measurements

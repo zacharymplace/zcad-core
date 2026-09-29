@@ -3,8 +3,10 @@
 Thin argparse wrapper over the already-tested ``zcad_core.retention``
 lifecycle functions. Every command reads and writes explicit file paths;
 none of them infer a directory layout beyond what a caller passes in,
-except ``status`` and ``candidate promote``, which read (never write) a
-``--target-root`` to discover existing candidates and promotions, and
+except ``status``, ``report``, and ``candidate promote``, which read (never
+write) a ``--target-root`` to discover existing candidates, promotions, and
+visual reviews (``report`` looks for ``visual-review.json`` beside each
+candidate manifest), and
 ``candidate register``, which writes its export-validation run beside the
 candidate manifest in ``export-validation/``; ``candidate derive`` does the
 same inside ``--output-directory``.
@@ -37,9 +39,13 @@ from zcad_core.retention import (
     RevisionRelationshipType,
     ValidationFixturePolicy,
     ValidationTarget,
+    VisualReviewCheck,
+    VisualReviewDisposition,
+    VisualReviewObservation,
     candidate_identifier,
     compare_candidate_revisions,
     complete_physical_validation_record,
+    complete_visual_review_record,
     create_pending_physical_validation_record,
     execute_production_corner_capture,
     execute_production_edge_capture,
@@ -50,6 +56,7 @@ from zcad_core.retention import (
     load_candidate_revision,
     load_manifest,
     load_physical_validation_record,
+    load_visual_review_record,
     promote_preferred_revision,
     recommend_revision,
     register_candidate_revision,
@@ -60,6 +67,7 @@ from zcad_core.retention import (
     write_physical_validation_record,
     write_revision_comparison_report,
     write_revision_recommendation,
+    write_visual_review_record,
 )
 
 _STRATEGIES = ("corner-capture", "edge-clip")
@@ -173,6 +181,7 @@ def _load_promotion_record(path: Path) -> PromotionRecord:
         parameter_delta_path=_optional_str(payload, "parameter_delta_path"),
         supersedes_candidate_id=_optional_str(payload, "supersedes_candidate_id"),
         export_validation_path=_optional_str(payload, "export_validation_path"),
+        visual_review_path=_optional_str(payload, "visual_review_path"),
     )
 
 
@@ -543,6 +552,9 @@ def _candidate_promote(args: argparse.Namespace) -> int:
         export_validation_path=(
             str(args.export_validation) if args.export_validation is not None else None
         ),
+        visual_review_path=(
+            str(args.visual_review) if args.visual_review is not None else None
+        ),
     )
 
     result = promote_preferred_revision(
@@ -733,6 +745,94 @@ def _trial_register(args: argparse.Namespace) -> int:
     return 0
 
 
+# --- review -------------------------------------------------------------------
+
+
+def _review_complete(args: argparse.Namespace) -> int:
+    """Record a human visual review of a candidate's design-review package.
+
+    Every check must be answered, so a review cannot skip the fused-feature
+    check that would have caught floating ledges. A passing disposition is
+    refused when any check failed or the design review's own geometry checks
+    did not pass.
+    """
+
+    candidate = load_candidate_revision(args.candidate_manifest)
+    disposition = VisualReviewDisposition(args.disposition)
+
+    design_review = load_manifest(args.design_review)
+    installation = load_manifest(args.installation_path_report)
+
+    if str(installation.get("candidate_id")) != candidate.candidate_id:
+        raise ValueError(
+            "Installation-path report belongs to "
+            f"{installation.get('candidate_id')}, not {candidate.candidate_id}"
+        )
+
+    if disposition in {
+        VisualReviewDisposition.PASS,
+        VisualReviewDisposition.PASS_WITH_RESERVATIONS,
+    } and (design_review.get("passed") is not True):
+        raise ValueError(
+            "The design review's geometry checks did not pass, so a visual "
+            f"review cannot record {disposition.value}"
+        )
+
+    answers = load_manifest(args.observations)
+    expected = {check.value for check in VisualReviewCheck}
+    missing = sorted(expected - set(answers))
+    unknown = sorted(set(answers) - expected)
+
+    if missing or unknown:
+        raise ValueError(
+            "--observations must answer every visual-review check exactly; "
+            f"missing: {missing or 'none'}, unknown: {unknown or 'none'}"
+        )
+
+    observations = []
+
+    for check in VisualReviewCheck:
+        answer = answers[check.value]
+
+        if not isinstance(answer, dict) or not isinstance(answer.get("passed"), bool):
+            raise TypeError(f"{check.value} needs a boolean 'passed' field")
+
+        observations.append(
+            VisualReviewObservation(
+                check=check,
+                passed=answer["passed"],
+                notes=str(answer.get("notes", "")),
+            )
+        )
+
+    record = complete_visual_review_record(
+        candidate_id=candidate.candidate_id,
+        design_review_path=args.design_review,
+        installation_path_report_path=args.installation_path_report,
+        reviewer=args.reviewer,
+        observations=tuple(observations),
+        disposition=disposition,
+        reviewer_notes=args.reviewer_notes,
+    )
+
+    write_visual_review_record(
+        record,
+        output_path=args.output,
+    )
+
+    _emit(
+        {
+            "candidate_id": record.candidate_id,
+            "disposition": record.disposition.value,
+            "passed": record.passed,
+            "conditional": record.conditional,
+            "record": str(args.output),
+        }
+    )
+
+    return 0
+
+
 # --- revision -------------------------------------------------------------------
 
 
@@ -836,6 +936,10 @@ def _report(args: argparse.Namespace) -> int:
     candidates_root = args.target_root / "candidates"
     candidate_paths = sorted(candidates_root.glob("*/candidate.json"))
     candidates = tuple(load_candidate_revision(path) for path in candidate_paths)
+    review_paths = {
+        candidate.candidate_id: path.parent / "visual-review.json"
+        for candidate, path in zip(candidates, candidate_paths, strict=True)
+    }
 
     trial_paths = sorted(candidates_root.glob("*/trials/*/trial.json"))
     trials = tuple(_load_physical_trial_manifest(path) for path in trial_paths)
@@ -863,6 +967,11 @@ def _report(args: argparse.Namespace) -> int:
         # Pending trials have no outcome yet; only completed trials count.
         completed_trials = [trial for trial in candidate_trials if trial.complete]
 
+        review_path = review_paths[candidate.candidate_id]
+        review = (
+            load_visual_review_record(review_path) if review_path.is_file() else None
+        )
+
         candidate_reports.append(
             {
                 "candidate_id": candidate.candidate_id,
@@ -882,6 +991,16 @@ def _report(args: argparse.Namespace) -> int:
                     for disposition in PhysicalValidationDisposition
                     if disposition is not PhysicalValidationDisposition.PENDING
                 },
+                "visual_review": (
+                    None
+                    if review is None
+                    else {
+                        "disposition": review.disposition.value,
+                        "passed": review.passed,
+                        "schema_version": review.schema_version,
+                        "reviewer": review.reviewer,
+                    }
+                ),
                 "promotion": (
                     None
                     if promotion is None
@@ -1088,6 +1207,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Passing export-validation record from 'candidate revalidate'.",
     )
+    candidate_promote.add_argument(
+        "--visual-review",
+        type=Path,
+        help="Passing visual-review record from 'review complete'.",
+    )
     candidate_promote.add_argument("--physical-validation-passed", action="store_true")
     candidate_promote.add_argument(
         "--supersedes-candidate-id",
@@ -1151,6 +1275,33 @@ def build_parser() -> argparse.ArgumentParser:
     trial_register.add_argument("--trial-id", required=True)
     trial_register.add_argument("--output", required=True, type=Path)
     trial_register.set_defaults(handler=_trial_register)
+
+    review = subcommands.add_parser("review")
+    review_commands = review.add_subparsers(dest="subcommand", required=True)
+
+    review_complete = review_commands.add_parser("complete")
+    review_complete.add_argument("--candidate-manifest", required=True, type=Path)
+    review_complete.add_argument("--design-review", required=True, type=Path)
+    review_complete.add_argument("--installation-path-report", required=True, type=Path)
+    review_complete.add_argument(
+        "--observations",
+        required=True,
+        type=Path,
+        help=(
+            "JSON object answering every check: "
+            '{"<check>": {"passed": true, "notes": "..."}}. Checks: '
+            + ", ".join(check.value for check in VisualReviewCheck)
+        ),
+    )
+    review_complete.add_argument("--reviewer", required=True)
+    review_complete.add_argument(
+        "--disposition",
+        required=True,
+        choices=[member.value for member in VisualReviewDisposition],
+    )
+    review_complete.add_argument("--reviewer-notes", default="")
+    review_complete.add_argument("--output", required=True, type=Path)
+    review_complete.set_defaults(handler=_review_complete)
 
     revision = subcommands.add_parser("revision")
     revision_commands = revision.add_subparsers(dest="subcommand", required=True)

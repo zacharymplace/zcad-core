@@ -9,6 +9,7 @@ from typing import Any
 
 from .export_validation import load_export_validation_record, verify_export_validation
 from .revision_registration import load_candidate_revision
+from .visual_review import VISUAL_REVIEW_SCHEMA_VERSION, load_visual_review_record
 
 
 class PromotionDecision(str, Enum):
@@ -47,6 +48,7 @@ class PromotionRecord:
     parameter_delta_path: str | None = None
     supersedes_candidate_id: str | None = None
     export_validation_path: str | None = None
+    visual_review_path: str | None = None
 
     def __post_init__(self) -> None:
         if self.schema_version != "1.0.0":
@@ -74,6 +76,7 @@ class PromotionRecord:
             ("relationship_path", self.relationship_path),
             ("parameter_delta_path", self.parameter_delta_path),
             ("export_validation_path", self.export_validation_path),
+            ("visual_review_path", self.visual_review_path),
         ):
             if optional_value is not None and not optional_value.strip():
                 raise ValueError(f"{optional_field_name} cannot be empty")
@@ -93,6 +96,7 @@ def evaluate_publication_eligibility(
     *,
     automated_validation_passed: bool,
     export_validation_failures: Sequence[str],
+    visual_review_failures: Sequence[str],
     physical_validation_passed: bool,
     candidate_manifest_exists: bool,
     relationship_exists: bool,
@@ -105,6 +109,7 @@ def evaluate_publication_eligibility(
         failures.append("automated_validation_not_passed")
 
     failures.extend(export_validation_failures)
+    failures.extend(visual_review_failures)
 
     if not physical_validation_passed:
         failures.append("physical_validation_not_passed")
@@ -180,6 +185,33 @@ def export_validation_failures(record: PromotionRecord) -> tuple[str, ...]:
         return ("export_validation_unverifiable",)
 
 
+def visual_review_failures(record: PromotionRecord) -> tuple[str, ...]:
+    """Verify the human visual review a promotion record cites.
+
+    The review must belong to the promoted candidate, pass, and use the
+    current schema, whose checklist includes the fused-feature check.
+    """
+
+    if record.visual_review_path is None:
+        return ("visual_review_missing",)
+
+    try:
+        review = load_visual_review_record(Path(record.visual_review_path))
+    except (FileNotFoundError, KeyError, TypeError, ValueError):
+        return ("visual_review_unverifiable",)
+
+    if review.candidate_id != record.candidate_id:
+        return ("visual_review_candidate_mismatch",)
+
+    if review.schema_version != VISUAL_REVIEW_SCHEMA_VERSION:
+        return ("visual_review_schema_outdated",)
+
+    if not review.passed:
+        return ("visual_review_not_passed",)
+
+    return ()
+
+
 def register_candidate_promotion(
     *,
     record: PromotionRecord,
@@ -206,6 +238,7 @@ def register_candidate_promotion(
         eligibility = evaluate_publication_eligibility(
             automated_validation_passed=(record.automated_validation_passed),
             export_validation_failures=export_validation_failures(record),
+            visual_review_failures=visual_review_failures(record),
             physical_validation_passed=(record.physical_validation_passed),
             candidate_manifest_exists=Path(record.candidate_manifest_path).is_file(),
             relationship_exists=relationship_exists,

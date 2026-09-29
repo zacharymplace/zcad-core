@@ -17,6 +17,20 @@ class VisualReviewCheck(str, Enum):
     CONNECTORS_ACCESSIBLE = "connectors_accessible"
     INSTALLATION_LIMITATIONS_RECORDED = "installation_limitations_recorded"
     UNDERSIDE_ASSUMPTIONS_RECORDED = "underside_assumptions_recorded"
+    RETENTION_FEATURES_FUSED = "retention_features_fused"
+
+
+VISUAL_REVIEW_SCHEMA_VERSION = "1.1.0"
+
+# Schema 1.0.0 predates the fused-feature check: the review of Feather r003
+# passed ledges that floated clear of the base. Legacy records still load and
+# are judged against the checks that existed when they were written, but only
+# current-schema reviews can support a promotion.
+REQUIRED_VISUAL_REVIEW_CHECKS: dict[str, frozenset[VisualReviewCheck]] = {
+    "1.0.0": frozenset(VisualReviewCheck)
+    - {VisualReviewCheck.RETENTION_FEATURES_FUSED},
+    VISUAL_REVIEW_SCHEMA_VERSION: frozenset(VisualReviewCheck),
+}
 
 
 class VisualReviewDisposition(str, Enum):
@@ -26,6 +40,14 @@ class VisualReviewDisposition(str, Enum):
     PASS_WITH_RESERVATIONS = "pass_with_reservations"
     REVISE = "revise"
     REJECT = "reject"
+
+
+_PASSING_DISPOSITIONS = frozenset(
+    {
+        VisualReviewDisposition.PASS,
+        VisualReviewDisposition.PASS_WITH_RESERVATIONS,
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -55,7 +77,7 @@ class VisualReviewRecord:
     completed_at_utc: str
 
     def __post_init__(self) -> None:
-        if self.schema_version != "1.0.0":
+        if self.schema_version not in REQUIRED_VISUAL_REVIEW_CHECKS:
             raise ValueError("Unsupported visual review schema")
 
         for name, value in (
@@ -79,13 +101,13 @@ class VisualReviewRecord:
 
     @property
     def complete(self) -> bool:
-        """Whether every required check appears once."""
+        """Whether every check required by the record's schema appears once."""
 
         observed = {observation.check for observation in self.observations}
 
-        return observed == set(VisualReviewCheck) and len(observed) == len(
-            self.observations
-        )
+        return observed == REQUIRED_VISUAL_REVIEW_CHECKS[self.schema_version] and len(
+            observed
+        ) == len(self.observations)
 
     @property
     def passed(self) -> bool:
@@ -94,11 +116,7 @@ class VisualReviewRecord:
         return (
             self.complete
             and all(observation.passed for observation in self.observations)
-            and self.disposition
-            in {
-                VisualReviewDisposition.PASS,
-                (VisualReviewDisposition.PASS_WITH_RESERVATIONS),
-            }
+            and self.disposition in _PASSING_DISPOSITIONS
         )
 
     @property
@@ -121,10 +139,31 @@ def complete_visual_review_record(
     disposition: VisualReviewDisposition,
     reviewer_notes: str,
 ) -> VisualReviewRecord:
-    """Create a completed visual-review record."""
+    """Create a completed visual-review record.
+
+    A passing disposition is refused unless every required check is observed
+    once and passed, so a record cannot claim a pass its observations deny.
+    """
+
+    if disposition in _PASSING_DISPOSITIONS:
+        observed = [observation.check for observation in observations]
+        missing = sorted(
+            check.value for check in VisualReviewCheck if check not in observed
+        )
+        failed = [
+            observation.check.value
+            for observation in observations
+            if not observation.passed
+        ]
+
+        if missing or failed or len(observed) != len(set(observed)):
+            raise ValueError(
+                f"A {disposition.value} disposition requires every check to pass "
+                f"once; missing: {missing or 'none'}, failed: {failed or 'none'}"
+            )
 
     return VisualReviewRecord(
-        schema_version="1.0.0",
+        schema_version=VISUAL_REVIEW_SCHEMA_VERSION,
         candidate_id=candidate_id,
         design_review_path=str(design_review_path),
         installation_path_report_path=str(installation_path_report_path),
@@ -175,4 +214,39 @@ def write_visual_review_record(
     output_path.write_text(
         serialized,
         encoding="utf-8",
+    )
+
+
+def load_visual_review_record(path: Path) -> VisualReviewRecord:
+    """Load a visual-review record written by :func:`write_visual_review_record`.
+
+    Derived fields (``complete``, ``passed``, ``conditional``) are recomputed
+    from the observations rather than trusted from the file.
+    """
+
+    if not path.is_file():
+        raise FileNotFoundError(path)
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    if not isinstance(payload, dict):
+        raise TypeError("Visual review record root must be an object")
+
+    return VisualReviewRecord(
+        schema_version=str(payload["schema_version"]),
+        candidate_id=str(payload["candidate_id"]),
+        design_review_path=str(payload["design_review_path"]),
+        installation_path_report_path=str(payload["installation_path_report_path"]),
+        reviewer=str(payload["reviewer"]),
+        observations=tuple(
+            VisualReviewObservation(
+                check=VisualReviewCheck(observation["check"]),
+                passed=bool(observation["passed"]),
+                notes=str(observation.get("notes", "")),
+            )
+            for observation in payload["observations"]
+        ),
+        disposition=VisualReviewDisposition(payload["disposition"]),
+        reviewer_notes=str(payload["reviewer_notes"]),
+        completed_at_utc=str(payload["completed_at_utc"]),
     )

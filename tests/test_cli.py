@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import cadquery as cq
 import pytest
@@ -275,6 +276,119 @@ def register_trial(
     assert exit_code == 0
 
     return trial_manifest
+
+
+VISUAL_REVIEW_CHECKS = (
+    "review_artifacts_open",
+    "color_separation_clear",
+    "board_alignment_plausible",
+    "captures_component_clear",
+    "connectors_accessible",
+    "installation_limitations_recorded",
+    "underside_assumptions_recorded",
+    "retention_features_fused",
+)
+
+
+def write_review_package(
+    candidate_manifest: Path,
+    *,
+    geometry_passed: bool = True,
+    installation_candidate_id: str | None = None,
+) -> tuple[Path, Path]:
+    """Minimal design-review and installation-path reports beside a candidate."""
+
+    candidate_id = json.loads(candidate_manifest.read_text(encoding="utf-8"))[
+        "candidate_id"
+    ]
+    design_review = candidate_manifest.parent / "design-review.json"
+    design_review.write_text(
+        json.dumps({"schema_version": "1.0.0", "passed": geometry_passed}),
+        encoding="utf-8",
+    )
+    installation = candidate_manifest.parent / "installation-path-analysis.json"
+    installation.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0.0",
+                "candidate_id": installation_candidate_id or candidate_id,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    return design_review, installation
+
+
+def write_review_answers(
+    tmp_path: Path,
+    *,
+    failed: tuple[str, ...] = (),
+    omitted: tuple[str, ...] = (),
+) -> Path:
+    path = tmp_path / "review-answers.json"
+    path.write_text(
+        json.dumps(
+            {
+                check: {"passed": check not in failed, "notes": "Reviewed."}
+                for check in VISUAL_REVIEW_CHECKS
+                if check not in omitted
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    return path
+
+
+def review_args(
+    tmp_path: Path,
+    candidate_manifest: Path,
+    *,
+    disposition: str = "pass",
+    answers: Path | None = None,
+    geometry_passed: bool = True,
+    installation_candidate_id: str | None = None,
+) -> list[str]:
+    design_review, installation = write_review_package(
+        candidate_manifest,
+        geometry_passed=geometry_passed,
+        installation_candidate_id=installation_candidate_id,
+    )
+
+    return [
+        "review",
+        "complete",
+        "--candidate-manifest",
+        str(candidate_manifest),
+        "--design-review",
+        str(design_review),
+        "--installation-path-report",
+        str(installation),
+        "--observations",
+        str(answers or write_review_answers(tmp_path)),
+        "--reviewer",
+        "reviewer",
+        "--disposition",
+        disposition,
+        "--reviewer-notes",
+        "Ledges fused to the base.",
+        "--output",
+        str(candidate_manifest.parent / "visual-review.json"),
+    ]
+
+
+def complete_review(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    candidate_manifest: Path,
+) -> Path:
+    exit_code, result = run(capsys, *review_args(tmp_path, candidate_manifest))
+
+    assert exit_code == 0
+    assert result["passed"] is True
+
+    return Path(str(result["record"]))
 
 
 def test_target_register_writes_manifest(
@@ -840,6 +954,7 @@ def test_candidate_promote_and_status_report_preferred_revision(
         passed=True,
     )
     child_export = Path(str(derive_result["export_validation_record"]))
+    child_review = complete_review(tmp_path, capsys, child_manifest)
 
     exit_code, promotion = run(
         capsys,
@@ -861,6 +976,8 @@ def test_candidate_promote_and_status_report_preferred_revision(
         "Passed automated and physical validation.",
         "--export-validation",
         str(child_export),
+        "--visual-review",
+        str(child_review),
         "--physical-validation-passed",
         "--output",
         str(tmp_path / "candidates/r002/promotion.json"),
@@ -1015,6 +1132,8 @@ def test_candidate_promote_requires_supersession_for_new_preferred(
     )
     r002_export = Path(str(derive_result["export_validation_record"]))
     r003_export = Path(str(derive_result_2["export_validation_record"]))
+    r002_review = complete_review(tmp_path, capsys, r002)
+    r003_review = complete_review(tmp_path, capsys, r003)
 
     exit_code, _ = run(
         capsys,
@@ -1036,6 +1155,8 @@ def test_candidate_promote_requires_supersession_for_new_preferred(
         "First preferred revision.",
         "--export-validation",
         str(r002_export),
+        "--visual-review",
+        str(r002_review),
         "--physical-validation-passed",
         "--output",
         str(tmp_path / "candidates/r002/promotion.json"),
@@ -1062,6 +1183,8 @@ def test_candidate_promote_requires_supersession_for_new_preferred(
             "Further improvement.",
             "--export-validation",
             str(r003_export),
+            "--visual-review",
+            str(r003_review),
             "--physical-validation-passed",
             "--output",
             str(tmp_path / "candidates/r003/promotion.json"),
@@ -1092,6 +1215,8 @@ def test_candidate_promote_requires_supersession_for_new_preferred(
         "Further improvement.",
         "--export-validation",
         str(r003_export),
+        "--visual-review",
+        str(r003_review),
         "--physical-validation-passed",
         "--supersedes-candidate-id",
         "synthetic-target-corner-capture-r002",
@@ -1286,6 +1411,7 @@ def test_report_aggregates_candidates_trials_and_promotion(
         passed=True,
     )
     r001_export = revalidate(tmp_path, capsys, candidate_manifest)
+    r001_review = complete_review(tmp_path, capsys, candidate_manifest)
 
     exit_code, promotion = run(
         capsys,
@@ -1303,6 +1429,8 @@ def test_report_aggregates_candidates_trials_and_promotion(
         "First verified candidate with a passing physical trial.",
         "--export-validation",
         str(r001_export),
+        "--visual-review",
+        str(r001_review),
         "--physical-validation-passed",
         "--output",
         str(tmp_path / "candidates/r001/promotion.json"),
@@ -1332,6 +1460,12 @@ def test_report_aggregates_candidates_trials_and_promotion(
     assert candidate_report["trial_outcomes"] == {"pass": 1, "revise": 0, "reject": 0}
     assert candidate_report["promotion"]["decision"] == "promoted"
     assert candidate_report["promotion"]["reviewer"] == "operator"
+    assert candidate_report["visual_review"] == {
+        "disposition": "pass",
+        "passed": True,
+        "schema_version": "1.1.0",
+        "reviewer": "reviewer",
+    }
 
 
 def test_candidate_promote_requires_export_validation(
@@ -1581,3 +1715,150 @@ def test_trial_complete_refuses_pass_with_failed_checks(
         capsys.readouterr().err
     )
     assert not output.exists()
+
+
+def test_review_complete_writes_a_passing_record(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    review = complete_review(tmp_path, capsys, candidate_manifest)
+
+    payload = json.loads(review.read_text(encoding="utf-8"))
+    assert payload["candidate_id"] == "synthetic-target-corner-capture-r001"
+    assert payload["schema_version"] == "1.1.0"
+    assert payload["passed"] is True
+    assert payload["physical_validation_satisfied"] is False
+    assert {observation["check"] for observation in payload["observations"]} == set(
+        VISUAL_REVIEW_CHECKS
+    )
+
+
+def test_review_complete_refuses_to_overwrite(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+    review = complete_review(tmp_path, capsys, candidate_manifest)
+    before = review.read_text(encoding="utf-8")
+
+    exit_code = main(review_args(tmp_path, candidate_manifest, disposition="revise"))
+
+    assert exit_code == 1
+    assert "Refusing to overwrite" in capsys.readouterr().err
+    assert review.read_text(encoding="utf-8") == before
+
+
+@pytest.mark.parametrize(
+    ("answers", "package", "message"),
+    [
+        (
+            {"failed": ("retention_features_fused",)},
+            {},
+            "failed: ['retention_features_fused']",
+        ),
+        (
+            {"omitted": ("retention_features_fused",)},
+            {},
+            "missing: ['retention_features_fused']",
+        ),
+        ({}, {"geometry_passed": False}, "geometry checks did not pass"),
+        (
+            {},
+            {"installation_candidate_id": "some-other-candidate"},
+            "belongs to some-other-candidate",
+        ),
+    ],
+    ids=["failed-check", "skipped-check", "geometry-blocked", "wrong-candidate"],
+)
+def test_review_complete_refuses_an_unsupported_pass(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    answers: dict[str, tuple[str, ...]],
+    package: dict[str, Any],
+    message: str,
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    exit_code = main(
+        review_args(
+            tmp_path,
+            candidate_manifest,
+            answers=write_review_answers(tmp_path, **answers),
+            **package,
+        )
+    )
+
+    assert exit_code == 1
+    assert message in capsys.readouterr().err
+    assert not (candidate_manifest.parent / "visual-review.json").exists()
+
+
+def test_review_complete_records_a_revise_for_floating_ledges(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+
+    exit_code, result = run(
+        capsys,
+        *review_args(
+            tmp_path,
+            candidate_manifest,
+            disposition="revise",
+            answers=write_review_answers(
+                tmp_path, failed=("retention_features_fused",)
+            ),
+        ),
+    )
+
+    assert exit_code == 0
+    assert result["disposition"] == "revise"
+    assert result["passed"] is False
+
+
+def test_candidate_promote_requires_visual_review(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+    trial_manifest = register_trial(
+        tmp_path,
+        capsys,
+        candidate_manifest,
+        revision="r001",
+        passed=True,
+    )
+    export = revalidate(tmp_path, capsys, candidate_manifest)
+
+    exit_code = main(
+        [
+            "candidate",
+            "promote",
+            "--candidate-manifest",
+            str(candidate_manifest),
+            "--physical-trial-path",
+            str(trial_manifest),
+            "--target-root",
+            str(tmp_path),
+            "--reviewer",
+            "operator",
+            "--reason",
+            "Missing visual review.",
+            "--export-validation",
+            str(export),
+            "--physical-validation-passed",
+            "--output",
+            str(tmp_path / "candidates/r001/promotion.json"),
+        ]
+    )
+
+    assert exit_code == 1
+    assert "visual_review_missing" in capsys.readouterr().err
+    assert not (tmp_path / "candidates/r001/promotion.json").exists()
