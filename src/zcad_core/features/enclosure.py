@@ -51,14 +51,22 @@ _BOSS_WALL_OVERLAP_MM = 0.5
 
 @dataclass(frozen=True)
 class EnclosureDesign:
-    """Wall, floor, and lid thicknesses and the lid fastener."""
+    """Wall, floor, and lid thicknesses, the lid fastener, and the gaps
+    between the hardware and the cavity.
+
+    ``side_clearance_mm`` sets how far the walls, and so the corner bosses,
+    stand off the hardware; ``bottom_clearance_mm`` is the standoff height
+    under the lowest part; ``top_clearance_mm`` is the gap under the lid.
+    """
 
     wall_mm: float = 2.0
     floor_mm: float = 2.0
     lid_mm: float = 2.0
     fastener: str = "M3"
     boss_radial_wall_mm: float = 1.8
-    internal_clearance_mm: float = 2.0
+    side_clearance_mm: float = 2.0
+    bottom_clearance_mm: float = 2.0
+    top_clearance_mm: float = 2.0
 
     def validate(self) -> None:
         for name in ("wall_mm", "floor_mm", "lid_mm", "boss_radial_wall_mm"):
@@ -68,8 +76,9 @@ class EnclosureDesign:
         if self.floor_mm <= _FLOOR_EMBED_MM:
             raise ValueError(f"floor_mm must exceed {_FLOOR_EMBED_MM} mm")
 
-        if self.internal_clearance_mm < 0:
-            raise ValueError("internal_clearance_mm must not be negative")
+        for name in ("side_clearance_mm", "bottom_clearance_mm", "top_clearance_mm"):
+            if getattr(self, name) < 0:
+                raise ValueError(f"{name} must not be negative")
 
 
 @dataclass(frozen=True)
@@ -96,7 +105,7 @@ def build_enclosure(
     """Build the base and lid for an assembly's board, display, and cable.
 
     Raises ``ValueError`` when a boss or standoff would intersect a part of
-    the assembly; a larger ``internal_clearance_mm`` moves the corner bosses
+    the assembly; a larger ``side_clearance_mm`` moves the corner bosses
     away from the board.
     """
 
@@ -106,7 +115,9 @@ def build_enclosure(
     spec = derive_enclosure_specification(
         assembly,
         connector_identifier=connector_identifier,
-        internal_clearance_mm=design.internal_clearance_mm,
+        side_clearance_mm=design.side_clearance_mm,
+        bottom_clearance_mm=design.bottom_clearance_mm,
+        top_clearance_mm=design.top_clearance_mm,
     )
     floor_top = spec.bottom_z_mm
     cavity_top = spec.bottom_z_mm + spec.inner_height_mm
@@ -298,6 +309,6 @@ def _require_clear_of_assembly(
             if overlap > _INTERFERENCE_TOLERANCE_MM3:
                 raise ValueError(
                     f"The enclosure {part_name} intersects '{component.identifier}' "
-                    f"by {overlap:.3f} mm3; increase internal_clearance_mm or move "
-                    "the part"
+                    f"by {overlap:.3f} mm3; increase the design's clearances or "
+                    "move the part"
                 )

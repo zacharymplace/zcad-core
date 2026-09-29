@@ -94,6 +94,26 @@ def test_derivation_includes_component_and_clearance_bounds() -> None:
     assert specification.inner_height_mm == pytest.approx(13.0)
 
 
+def test_directional_clearances_override_the_internal_clearance() -> None:
+    uniform = derive_enclosure_specification(_assembly(), internal_clearance_mm=2.0)
+    directional = derive_enclosure_specification(
+        _assembly(),
+        internal_clearance_mm=2.0,
+        side_clearance_mm=5.0,
+        bottom_clearance_mm=3.0,
+        top_clearance_mm=0.5,
+    )
+
+    assert directional.inner_width_mm == pytest.approx(uniform.inner_width_mm + 6)
+    assert directional.inner_depth_mm == pytest.approx(uniform.inner_depth_mm + 6)
+    assert directional.inner_height_mm == pytest.approx(
+        uniform.inner_height_mm + 1 - 1.5
+    )
+    assert directional.bottom_z_mm == pytest.approx(uniform.bottom_z_mm - 1)
+    assert directional.center_x_mm == pytest.approx(uniform.center_x_mm)
+    assert directional.center_y_mm == pytest.approx(uniform.center_y_mm)
+
+
 def test_negative_y_connector_drives_cable_edge() -> None:
     specification = derive_enclosure_specification(
         _assembly(),
@@ -137,6 +157,9 @@ def test_cutout_clearance_expands_opening() -> None:
             -0.1,
             "connector_cutout_clearance_mm",
         ),
+        ("side_clearance_mm", -0.1, "side_clearance_mm"),
+        ("bottom_clearance_mm", -0.1, "bottom_clearance_mm"),
+        ("top_clearance_mm", -0.1, "top_clearance_mm"),
     ],
 )
 def test_derivation_rejects_negative_clearances(

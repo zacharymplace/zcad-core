@@ -43,9 +43,15 @@ DISPLAY = get_reference_oled_128x64()
 DISPLAY_HEIGHT_MM = 8.0
 BOARD_DISPLAY_CLEARANCE_MM = 1.0
 CONNECTOR_ACCESS_CLEARANCE_MM = 2.0
-# 5 mm keeps the M3 corner bosses clear of the board; at the 2 mm default
-# the builder refuses, naming the board as the part they would hit.
-DESIGN = EnclosureDesign(internal_clearance_mm=5.0, fastener="M3")
+# A 5 mm side clearance keeps the M3 corner bosses clear of the board; at
+# the 2 mm default the builder refuses, naming the board as the part they
+# would hit. The board sits on 3 mm standoffs, 1 mm under the lid's display.
+DESIGN = EnclosureDesign(
+    fastener="M3",
+    side_clearance_mm=5.0,
+    bottom_clearance_mm=3.0,
+    top_clearance_mm=1.0,
+)
 
 
 def assembly() -> DeviceAssembly:

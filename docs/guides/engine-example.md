@@ -25,11 +25,13 @@ python examples/pico2_oled_enclosure.py exports/pico2-oled-enclosure
 ```
 
 `EnclosureDesign` sets the wall, floor, and lid thickness, the fastener,
-the boss wall, and `internal_clearance_mm`, the gap between the hardware and
-the cavity on every side. The builder refuses an enclosure whose material
-intersects any part of the assembly. At the default 2 mm clearance the
-corner bosses would hit the Pico 2, so the example uses 5 mm, giving a
-42 x 67 x 24 mm base and a 2 mm lid.
+the boss wall, and three clearances between the hardware and the cavity:
+`side_clearance_mm` for the walls and corner bosses, `bottom_clearance_mm`
+for the standoff height, and `top_clearance_mm` for the gap under the lid.
+The builder refuses an enclosure whose material intersects any part of the
+assembly. At the default 2 mm side clearance the corner bosses would hit
+the Pico 2, so the example uses 5 mm at the sides, 3 mm standoffs, and a
+1 mm gap under the lid, giving a 42 x 67 x 18 mm base and a 2 mm lid.
 
 The gate runs the example (`tests/test_examples.py`), so it stays in step
 with the API. Start a new design by copying it and swapping the hardware,

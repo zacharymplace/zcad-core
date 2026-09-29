@@ -20,7 +20,7 @@ from zcad_core.hardware import get_raspberry_pi_pico2, get_reference_oled_128x64
 BOARD = get_raspberry_pi_pico2()
 DISPLAY = get_reference_oled_128x64()
 DISPLAY_HEIGHT_MM = 8.0
-CLEAR_DESIGN = EnclosureDesign(internal_clearance_mm=5.0)
+CLEAR_DESIGN = EnclosureDesign(side_clearance_mm=5.0)
 
 
 def pico2_oled_assembly() -> DeviceAssembly:
@@ -99,6 +99,26 @@ def test_standoffs_rise_to_the_board_under_each_mounting_hole(
         assert intersection_volume(base, probe) > 0
 
 
+def test_bottom_and_top_clearances_set_standoff_height_and_lid_gap() -> None:
+    design = EnclosureDesign(
+        side_clearance_mm=5.0, bottom_clearance_mm=3.0, top_clearance_mm=1.0
+    )
+    enclosure = build_enclosure(
+        pico2_oled_assembly(), board=BOARD, display=DISPLAY, design=design
+    )
+    display_top = DISPLAY_HEIGHT_MM + DISPLAY.module_depth_mm
+
+    assert enclosure.specification.bottom_z_mm == pytest.approx(-3.0)
+    assert solid(enclosure.lid).BoundingBox().zmin == pytest.approx(display_top + 1.0)
+
+
+def test_refuses_a_board_resting_on_the_floor() -> None:
+    design = EnclosureDesign(side_clearance_mm=5.0, bottom_clearance_mm=0.0)
+
+    with pytest.raises(ValueError, match="above the enclosure floor"):
+        build_enclosure(pico2_oled_assembly(), board=BOARD, design=design)
+
+
 def test_lid_has_a_window_over_the_display(enclosure: Enclosure) -> None:
     lid = solid(enclosure.lid)
     top = cavity_top(enclosure)
@@ -136,7 +156,9 @@ def test_parts_are_clear_of_every_component(enclosure: Enclosure) -> None:
         ({"wall_mm": 0}, "wall_mm must be greater than zero"),
         ({"lid_mm": -1}, "lid_mm must be greater than zero"),
         ({"floor_mm": 0.5}, "floor_mm must exceed"),
-        ({"internal_clearance_mm": -0.1}, "must not be negative"),
+        ({"side_clearance_mm": -0.1}, "side_clearance_mm must not be negative"),
+        ({"bottom_clearance_mm": -0.1}, "bottom_clearance_mm must not be"),
+        ({"top_clearance_mm": -0.1}, "top_clearance_mm must not be negative"),
     ],
 )
 def test_design_rejects_invalid_settings(

@@ -88,13 +88,24 @@ def derive_enclosure_specification(
     connector_identifier: str = "usb_connector",
     internal_clearance_mm: float = 2.0,
     connector_cutout_clearance_mm: float = 0.5,
+    side_clearance_mm: float | None = None,
+    bottom_clearance_mm: float | None = None,
+    top_clearance_mm: float | None = None,
 ) -> EnclosureSpecification:
-    """Derive cavity and connector-opening requirements from an assembly."""
+    """Derive cavity and connector-opening requirements from an assembly.
+
+    ``internal_clearance_mm`` is the gap between the hardware and the cavity
+    on every side; ``side_clearance_mm`` (X and Y), ``bottom_clearance_mm``,
+    and ``top_clearance_mm`` override it in their directions.
+    """
     if not connector_identifier.strip():
         raise ValueError("connector_identifier must not be empty")
 
-    if internal_clearance_mm < 0:
-        raise ValueError("internal_clearance_mm must not be negative")
+    side = _clearance("side_clearance_mm", side_clearance_mm, internal_clearance_mm)
+    bottom = _clearance(
+        "bottom_clearance_mm", bottom_clearance_mm, internal_clearance_mm
+    )
+    top = _clearance("top_clearance_mm", top_clearance_mm, internal_clearance_mm)
 
     if connector_cutout_clearance_mm < 0:
         raise ValueError("connector_cutout_clearance_mm must not be negative")
@@ -110,12 +121,12 @@ def derive_enclosure_specification(
 
         expanded_bounds.append(
             (
-                bounds.xmin - envelope.negative_x_mm - internal_clearance_mm,
-                bounds.ymin - envelope.negative_y_mm - internal_clearance_mm,
-                bounds.zmin - envelope.negative_z_mm - internal_clearance_mm,
-                bounds.xmax + envelope.positive_x_mm + internal_clearance_mm,
-                bounds.ymax + envelope.positive_y_mm + internal_clearance_mm,
-                bounds.zmax + envelope.positive_z_mm + internal_clearance_mm,
+                bounds.xmin - envelope.negative_x_mm - side,
+                bounds.ymin - envelope.negative_y_mm - side,
+                bounds.zmin - envelope.negative_z_mm - bottom,
+                bounds.xmax + envelope.positive_x_mm + side,
+                bounds.ymax + envelope.positive_y_mm + side,
+                bounds.zmax + envelope.positive_z_mm + top,
             )
         )
 
@@ -172,3 +183,18 @@ def derive_enclosure_specification(
 
     specification.validate()
     return specification
+
+
+def _clearance(name: str, value: float | None, default: float) -> float:
+    """A directional clearance, or the internal clearance when it is unset."""
+
+    if default < 0:
+        raise ValueError("internal_clearance_mm must not be negative")
+
+    if value is None:
+        return default
+
+    if value < 0:
+        raise ValueError(f"{name} must not be negative")
+
+    return value
