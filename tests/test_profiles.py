@@ -45,3 +45,17 @@ def test_planned_slicer_profile_loads() -> None:
     assert profile["status"] == "planned"
     assert profile["slice_completed"] is False
     assert profile["estimated_material_grams"] is None
+
+
+def test_package_exports_the_loaders() -> None:
+    from zcad_core import profiles
+    from zcad_core.profiles import loading
+
+    for name in (
+        "load_json_object",
+        "load_material_profile",
+        "load_printer_profile",
+        "load_slicer_profile",
+    ):
+        assert getattr(profiles, name) is getattr(loading, name)
+        assert name in profiles.__all__

@@ -9,7 +9,7 @@ import pytest
 
 from zcad_core.cli import main
 from zcad_core.geometry.cadquery_support import workplane_shape
-from zcad_core.retention import load_export_validation_record
+from zcad_core.retention import GENERATOR_VERSION, load_export_validation_record
 
 PRINTER_PROFILE = (
     Path(__file__).resolve().parents[1] / "profiles/printers/bambu-lab-a1-mini.json"
@@ -2080,3 +2080,49 @@ def test_evidence_without_a_generator_version_needs_the_flag() -> None:
         _generator_version(None, {})
 
     assert _generator_version("1.3.0", {}) == "1.3.0"
+
+
+def create_args(tmp_path: Path, strategy: str, *extra: str) -> list[str]:
+    source_step = tmp_path / "board.step"
+    export_synthetic_board(source_step)
+
+    return [
+        "candidate",
+        "create",
+        "--strategy",
+        strategy,
+        "--source-step",
+        str(source_step),
+        "--pcb-solid-index",
+        "1",
+        "--output-step",
+        str(tmp_path / "capture.step"),
+        "--report-output",
+        str(tmp_path / "capture.json"),
+        *extra,
+    ]
+
+
+def test_candidate_create_records_the_corner_keepout(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code, result = run(
+        capsys, *create_args(tmp_path, "corner-capture", "--corner-keepout-mm", "3.0")
+    )
+
+    assert exit_code == 0
+    report = json.loads(Path(result["report"]).read_text(encoding="utf-8"))
+    assert report["generation"]["corner_keepout_mm"] == 3.0
+    assert report["generator_version"] == GENERATOR_VERSION
+
+
+def test_corner_keepout_is_refused_for_edge_clips(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = main(create_args(tmp_path, "edge-clip", "--corner-keepout-mm", "3.0"))
+
+    assert exit_code == 1
+    assert "applies only to --strategy corner-capture" in capsys.readouterr().err
+    assert not (tmp_path / "capture.json").exists()

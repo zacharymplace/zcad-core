@@ -34,7 +34,7 @@ from zcad_core.assemblies import (
 from zcad_core.exporters import ExportRequest, ExportResult, export_parts
 from zcad_core.features import ConnectorCutoutParameters, cut_connector_opening
 from zcad_core.hardware import get_raspberry_pi_pico2, get_reference_oled_128x64
-from zcad_core.profiles.loading import load_printer_profile
+from zcad_core.profiles import load_printer_profile
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 PRINTER_PROFILE = REPOSITORY_ROOT / "profiles/printers/bambu-lab-a1-mini.json"

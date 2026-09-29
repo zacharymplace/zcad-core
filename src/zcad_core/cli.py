@@ -265,6 +265,24 @@ def _build_capture_policy(
     return EdgeCapturePolicy(**fields)
 
 
+def _corner_keepout(args: argparse.Namespace) -> dict[str, float]:
+    """The request option for ``--corner-keepout-mm``, if one was given.
+
+    It only affects corner selection, so it is refused for edge clips
+    rather than silently ignored.
+    """
+
+    if args.corner_keepout_mm is None:
+        return {}
+
+    if args.strategy != "corner-capture":
+        raise ValueError(
+            "--corner-keepout-mm applies only to --strategy corner-capture"
+        )
+
+    return {"corner_keepout_mm": args.corner_keepout_mm}
+
+
 # --- candidate ----------------------------------------------------------------
 
 
@@ -272,6 +290,7 @@ def _candidate_create(args: argparse.Namespace) -> int:
     """Execute retention geometry generation and write automated evidence."""
 
     policy = _build_capture_policy(args)
+    corner_options = _corner_keepout(args)
 
     if args.strategy == "corner-capture":
         assert isinstance(policy, CornerCapturePolicy)
@@ -281,6 +300,7 @@ def _candidate_create(args: argparse.Namespace) -> int:
                 pcb_solid_index=args.pcb_solid_index,
                 output_step=args.output_step,
                 policy=policy,
+                **corner_options,
             ),
             report_path=args.report_output,
         )
@@ -618,6 +638,7 @@ def _fixture_export(args: argparse.Namespace) -> int:
     """
 
     policy = _build_capture_policy(args)
+    corner_options = _corner_keepout(args)
     fixture_policy = ValidationFixturePolicy(
         base_thickness_mm=args.base_thickness_mm,
         perimeter_margin_mm=args.perimeter_margin_mm,
@@ -631,6 +652,7 @@ def _fixture_export(args: argparse.Namespace) -> int:
                 pcb_solid_index=args.pcb_solid_index,
                 output_step=args.output_step,
                 policy=policy,
+                **corner_options,
             )
         )
         fixture = export_validation_fixture(
@@ -1141,6 +1163,14 @@ def _add_capture_policy_arguments(
     parser.add_argument("--board-clearance-mm", type=float)
     parser.add_argument("--vertical-overlap-mm", type=float)
     parser.add_argument("--minimum-wall-mm", type=float)
+    parser.add_argument(
+        "--corner-keepout-mm",
+        type=float,
+        help=(
+            "Corner-capture only: the square at each PCB corner that must be "
+            "clear of components (default 4.0; the XIAO ESP32-S3 needs 2.1)."
+        ),
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
