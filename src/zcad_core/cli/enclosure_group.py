@@ -12,7 +12,7 @@ from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.enclosure_group import (
     BAY_KINDS,
-    BayKind,
+    Bay,
     GroupDesign,
     GroupEnclosure,
     build_group_enclosure,
@@ -23,14 +23,51 @@ DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
 _REVIEW_LID_LIFT_MM = 25.0
 
 
-def _bays(text: str) -> tuple[BayKind, ...]:
-    names = [part.strip() for part in text.split(",") if part.strip()]
-    kinds = tuple(known for name in names for known in BAY_KINDS if known == name)
+_BAY_OPTIONS = {"standoff": "standoff_height_mm", "headroom": "headroom_mm"}
 
-    if len(kinds) != len(names):
-        raise ValueError(f"bays must each be one of {BAY_KINDS}; got '{text}'")
 
-    return kinds
+def _bay(text: str) -> Bay:
+    """One bay from ``kind`` or ``kind:standoff=10:headroom=30``."""
+
+    kind, *options = (part.strip() for part in text.split(":"))
+    kinds = [known for known in BAY_KINDS if known == kind]
+
+    if not kinds:
+        raise ValueError(f"bay kind must be one of {BAY_KINDS}; got '{kind}'")
+
+    heights: dict[str, float] = {}
+
+    for option in options:
+        name, _, value = option.partition("=")
+
+        if name not in _BAY_OPTIONS or not value:
+            raise ValueError(
+                f"bay option must be standoff=<mm> or headroom=<mm>; got '{option}'"
+            )
+
+        try:
+            heights[_BAY_OPTIONS[name]] = float(value)
+        except ValueError:
+            raise ValueError(f"bay option '{option}' needs a number") from None
+
+    return Bay(kind=kinds[0], **heights)
+
+
+def _bays(text: str) -> tuple[Bay, ...]:
+    return tuple(_bay(part) for part in text.split(",") if part.strip())
+
+
+def _bay_summary(group: GroupEnclosure) -> list[dict[str, object]]:
+    return [
+        {
+            "bay": layout.index,
+            "kind": layout.kind,
+            "standoff_mm": layout.standoff_height_mm,
+            "board_top_z_mm": layout.board_top_z_mm,
+            "room_above_board_mm": round(group.room_above_board_mm(layout), 2),
+        }
+        for layout in group.bays
+    ]
 
 
 def _write_review(group: GroupEnclosure, directory: Path, name: str) -> Path:
@@ -99,7 +136,8 @@ def _group_build(args: argparse.Namespace) -> int:
             repository_root=Path.cwd(),
             printer_profile=profile,
             parameters={
-                "bays": list(bays),
+                "bays": [bay.kind for bay in bays],
+                "bay_heights": _bay_summary(group),
                 "headroom_mm": design.headroom_mm,
                 "service_gap_mm": design.service_gap_mm,
                 "wall_mm": design.wall_mm,
@@ -117,7 +155,8 @@ def _group_build(args: argparse.Namespace) -> int:
     emit(
         {
             "design_name": name,
-            "bays": list(bays),
+            "bays": [bay.kind for bay in bays],
+            "bay_heights": _bay_summary(group),
             "outer_size_mm": list(group.outer_size_mm),
             "checks": group.checks,
             "validation_status": (result.validation_report or {}).get(
@@ -159,7 +198,10 @@ def register(
     build.add_argument(
         "--bays",
         default="pi5,pi5",
-        help=f"comma-separated bays left to right, from {', '.join(BAY_KINDS)}",
+        help=(
+            f"comma-separated bays left to right, from {', '.join(BAY_KINDS)}; "
+            "a bay can set its own heights, as pi5:standoff=10:headroom=30"
+        ),
     )
     build.add_argument("--output-directory", required=True, type=Path)
     build.add_argument("--name")
@@ -168,12 +210,17 @@ def register(
     build.add_argument("--floor-mm", type=float, default=2.0)
     build.add_argument("--lid-mm", type=float, default=3.0)
     build.add_argument("--fastener", default="M3")
-    build.add_argument("--standoff-height-mm", type=float, default=4.0)
+    build.add_argument(
+        "--standoff-height-mm",
+        type=float,
+        default=4.0,
+        help="default standoff height for a bay that sets none",
+    )
     build.add_argument(
         "--headroom-mm",
         type=float,
         default=18.0,
-        help="room above each Pi's PCB; raise it for a HAT",
+        help="default room above the PCB for a bay that sets none",
     )
     build.add_argument("--service-gap-mm", type=float, default=25.0)
     build.add_argument("--open-bay-width-mm", type=float, default=40.0)

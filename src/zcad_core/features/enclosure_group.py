@@ -21,6 +21,7 @@ the row, +Y runs front to back, +Z is up. The floor's top face is at
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -45,6 +46,8 @@ from zcad_core.hardware import (
 
 BayKind = Literal["pi5", "reserved", "open"]
 BAY_KINDS: tuple[BayKind, ...] = ("pi5", "reserved", "open")
+# The card must clear the floor: its depth under the board plus this much.
+_MINIMUM_SD_FLOOR_GAP_MM = 0.4
 
 _FLOOR_EMBED_MM = 0.5
 _BOSS_WALL_OVERLAP_MM = 0.5
@@ -70,11 +73,14 @@ _SCREW_LENGTHS_MM = (4, 5, 6, 8, 10, 12, 16, 20)
 class GroupDesign:
     """Sizes for the row of bays, in millimetres.
 
-    ``headroom_mm`` is the room above a Pi's PCB top: the default clears the
+    ``standoff_height_mm`` and ``headroom_mm`` are the defaults for every
+    bay; a :class:`Bay` overrides either for itself. ``headroom_mm`` is the
+    room a bay's parts need above a Pi's PCB top: the default clears the
     tallest standard part (the 15.6 mm USB stack) and an Active Cooler with
-    2 mm to spare; raise it for a HAT. ``service_gap_mm`` is the space left
-    of each Pi for its USB-C and micro-HDMI plugs. ``open_bay_width_mm`` is
-    the width of an ``open`` bay's shelf.
+    2 mm to spare; raise it for a HAT. For an ``open`` bay it is the height
+    of the shelf's usable space. ``service_gap_mm`` is the space left of each
+    Pi for its USB-C and micro-HDMI plugs. ``open_bay_width_mm`` is the width
+    of an ``open`` bay's shelf.
     """
 
     wall_mm: float = 2.0
@@ -123,14 +129,43 @@ class GroupDesign:
 
 
 @dataclass(frozen=True)
+class Bay:
+    """One bay, with heights that differ from the design's defaults.
+
+    ``standoff_height_mm`` lifts a Pi off the floor, for a board mounted
+    under it; ``headroom_mm`` is the room its parts need above the PCB, for a
+    HAT. The lid is flat, so the box is as tall as its tallest bay needs and
+    the other bays get spare room above their boards.
+    """
+
+    kind: BayKind = "pi5"
+    standoff_height_mm: float | None = None
+    headroom_mm: float | None = None
+
+
+BayLike = BayKind | Bay
+
+
+@dataclass(frozen=True)
 class BayLayout:
-    """Where one bay sits along X, and its centre when it holds a Pi."""
+    """Where one bay sits along X, its heights, and its centre when it holds
+    a Pi. Heights are ``z`` in the enclosure frame; an ``open`` bay has no
+    board, so its board faces sit at the floor."""
 
     index: int
     kind: BayKind
     gap_start_mm: float
     slot_start_mm: float
     slot_end_mm: float
+    standoff_height_mm: float
+    headroom_mm: float
+    board_bottom_z_mm: float
+    board_top_z_mm: float
+
+    @property
+    def needed_top_z_mm(self) -> float:
+        """The lowest lid underside this bay's parts fit under."""
+        return self.board_top_z_mm + self.headroom_mm
 
     @property
     def center_x_mm(self) -> float:
@@ -153,7 +188,6 @@ class GroupEnclosure:
     inner_size_mm: tuple[float, float, float]
     outer_size_mm: tuple[float, float, float]
     pi_center_y_mm: float
-    board_top_z_mm: float
     lid_boss_positions: tuple[tuple[float, float], ...]
     join_positions: tuple[tuple[float, float], ...]
     # One envelope per Pi bay, keyed "bay-<n>", used for the fit checks and
@@ -171,17 +205,22 @@ class GroupEnclosure:
     def passed(self) -> bool:
         return all(self.checks.values())
 
+    def room_above_board_mm(self, bay: BayLayout) -> float:
+        """The space between a bay's board faces and the lid: at least the
+        bay's headroom, and more where a taller bay set the box's height."""
+        return self.cavity_top_z_mm - bay.board_top_z_mm
+
 
 def build_group_enclosure(
-    bays: tuple[BayKind, ...] = ("pi5", "pi5"),
+    bays: Sequence[BayLike] = ("pi5", "pi5"),
     *,
     design: GroupDesign | None = None,
     pi: RaspberryPi5Spec | None = None,
 ) -> GroupEnclosure:
     """Build the base and lid for a row of bays.
 
-    Raises ``ValueError`` for an unknown or empty bay list, or when a feature
-    would cut or run into another.
+    Raises ``ValueError`` for an unknown or empty bay list, a bay whose
+    heights cannot work, or when a feature would cut or run into another.
     """
 
     design = design or GroupDesign()
@@ -191,9 +230,7 @@ def build_group_enclosure(
     if not bays:
         raise ValueError("bays must list at least one bay")
 
-    for kind in bays:
-        if kind not in BAY_KINDS:
-            raise ValueError(f"unknown bay kind '{kind}'; use one of {BAY_KINDS}")
+    specs = tuple(_bay(bay) for bay in bays)
 
     fastener = get_fastener(design.fastener)
     insert_diameter = fastener.heat_set_insert_diameter_mm
@@ -203,16 +240,12 @@ def build_group_enclosure(
         raise ValueError(f"Fastener {fastener.identifier} has no heat-set insert")
 
     radius = insert_diameter / 2 + design.boss_radial_wall_mm
-    layouts, inner_width = _layout(bays, design, pi)
+    layouts, inner_width = _layout(specs, design, pi)
     inner_depth = (
         design.front_clearance_mm + pi.board_length_mm + (design.back_clearance_mm)
     )
-    board_bottom = design.floor_mm + design.standoff_height_mm
-    board_top = board_bottom + pi.board_thickness_mm
-    inner_height = (
-        design.standoff_height_mm + pi.board_thickness_mm + design.headroom_mm
-    )
-    cavity_top = design.floor_mm + inner_height
+    cavity_top = max(layout.needed_top_z_mm for layout in layouts)
+    inner_height = cavity_top - design.floor_mm
     wall = design.wall_mm
     pi_center_y = wall + design.front_clearance_mm + pi.board_length_mm / 2
 
@@ -262,7 +295,7 @@ def build_group_enclosure(
                     x=center_x + hx,
                     y=pi_center_y + hy,
                     base_height_mm=_FLOOR_EMBED_MM,
-                    standoff_height_mm=design.standoff_height_mm,
+                    standoff_height_mm=layout.standoff_height_mm,
                     outer_diameter_mm=_STANDOFF_DIAMETER_MM,
                     hole_diameter_mm=standoff_fastener.tap_hole_mm,
                     base_z_mm=design.floor_mm - _FLOOR_EMBED_MM,
@@ -270,7 +303,11 @@ def build_group_enclosure(
             )
 
         hardware[f"bay-{layout.index}"] = _pi_envelope(
-            pi, center_x, pi_center_y, board_bottom, board_top
+            pi,
+            center_x,
+            pi_center_y,
+            layout.board_bottom_z_mm,
+            layout.board_top_z_mm,
         )
 
     base = _cut_pi_openings(
@@ -281,8 +318,6 @@ def build_group_enclosure(
         radius=radius,
         wall=wall,
         pi_center_y=pi_center_y,
-        board_bottom=board_bottom,
-        board_top=board_top,
     )
 
     join_positions: tuple[tuple[float, float], ...] = ()
@@ -329,7 +364,6 @@ def build_group_enclosure(
         inner_size_mm=(inner_width, inner_depth, inner_height),
         outer_size_mm=outer,
         pi_center_y_mm=pi_center_y,
-        board_top_z_mm=board_top,
         lid_boss_positions=boss_positions,
         join_positions=join_positions,
         hardware=hardware,
@@ -339,33 +373,85 @@ def build_group_enclosure(
     )
 
 
+def _bay(bay: BayLike) -> Bay:
+    """A bay from its kind or itself, refusing an unknown kind."""
+
+    resolved = Bay(kind=bay) if isinstance(bay, str) else bay
+
+    if resolved.kind not in BAY_KINDS:
+        raise ValueError(f"unknown bay kind '{resolved.kind}'; use one of {BAY_KINDS}")
+
+    return resolved
+
+
 def _layout(
-    bays: tuple[BayKind, ...], design: GroupDesign, pi: RaspberryPi5Spec
+    bays: tuple[Bay, ...], design: GroupDesign, pi: RaspberryPi5Spec
 ) -> tuple[tuple[BayLayout, ...], float]:
-    """Each bay's gap and slot along X, and the cavity's inner width."""
+    """Each bay's gap, slot, and heights, and the cavity's inner width."""
 
     layouts: list[BayLayout] = []
     cursor = 0.0
 
-    for index, kind in enumerate(bays):
-        gap = _OPEN_BAY_STRIP_MM if kind == "open" else design.service_gap_mm
+    for index, bay in enumerate(bays):
+        is_open = bay.kind == "open"
+        gap = _OPEN_BAY_STRIP_MM if is_open else design.service_gap_mm
         slot = (
             design.open_bay_width_mm
-            if kind == "open"
+            if is_open
             else pi.board_width_mm + 2 * design.slot_pad_mm
         )
+        standoff, headroom = _heights(bay, index, design, pi)
+        board_bottom = design.floor_mm + standoff
+        board_top = board_bottom + (0.0 if is_open else pi.board_thickness_mm)
         layouts.append(
             BayLayout(
                 index=index,
-                kind=kind,
+                kind=bay.kind,
                 gap_start_mm=cursor,
                 slot_start_mm=cursor + gap,
                 slot_end_mm=cursor + gap + slot,
+                standoff_height_mm=standoff,
+                headroom_mm=headroom,
+                board_bottom_z_mm=board_bottom,
+                board_top_z_mm=board_top,
             )
         )
         cursor += gap + slot
 
     return tuple(layouts), cursor + design.end_margin_mm
+
+
+def _heights(
+    bay: Bay, index: int, design: GroupDesign, pi: RaspberryPi5Spec
+) -> tuple[float, float]:
+    """A bay's standoff height and headroom, from its own or the design's."""
+
+    label = f"bay {index} ({bay.kind})"
+    headroom = bay.headroom_mm if bay.headroom_mm is not None else design.headroom_mm
+
+    if headroom <= 0:
+        raise ValueError(f"{label}: headroom_mm must be greater than zero")
+
+    if bay.kind == "open":
+        if bay.standoff_height_mm is not None:
+            raise ValueError(f"{label}: an open bay has no board to stand off")
+
+        return 0.0, headroom
+
+    standoff = (
+        bay.standoff_height_mm
+        if bay.standoff_height_mm is not None
+        else design.standoff_height_mm
+    )
+    minimum = pi.sd_card_depth_below_board_mm + _MINIMUM_SD_FLOOR_GAP_MM
+
+    if standoff < minimum:
+        raise ValueError(
+            f"{label}: standoff_height_mm must be at least {minimum:.1f} mm "
+            "so the microSD card clears the floor"
+        )
+
+    return standoff, headroom
 
 
 def _boss_columns(
@@ -552,8 +638,6 @@ def _cut_pi_openings(
     radius: float,
     wall: float,
     pi_center_y: float,
-    board_bottom: float,
-    board_top: float,
 ) -> cq.Workplane:
     """Back-wall openings for each Pi's Ethernet and USB plugs, a front-wall
     opening for its microSD card, and one at the end of its service gap for
@@ -577,7 +661,7 @@ def _cut_pi_openings(
                 parameters=ConnectorCutoutParameters(
                     edge="positive_y",
                     center_offset_mm=center_x + port.center_mm,
-                    bottom_z_mm=board_top - 0.5,
+                    bottom_z_mm=layout.board_top_z_mm - 0.5,
                     width_mm=port.width_mm,
                     height_mm=port.height_mm,
                     width_clearance_mm=margin,
@@ -591,7 +675,7 @@ def _cut_pi_openings(
             parameters=ConnectorCutoutParameters(
                 edge="negative_y",
                 center_offset_mm=center_x,
-                bottom_z_mm=board_bottom - _SD_OPENING_MARGIN_MM,
+                bottom_z_mm=layout.board_bottom_z_mm - _SD_OPENING_MARGIN_MM,
                 width_mm=pi.sd_card_width_mm,
                 height_mm=_SD_OPENING_HEIGHT_MM,
                 width_clearance_mm=_SD_OPENING_MARGIN_MM,
@@ -616,7 +700,7 @@ def _cut_pi_openings(
             parameters=ConnectorCutoutParameters(
                 edge="negative_y",
                 center_offset_mm=(start + end) / 2,
-                bottom_z_mm=board_top - 1.0,
+                bottom_z_mm=layout.board_top_z_mm - 1.0,
                 width_mm=width,
                 height_mm=_CABLE_EXIT_HEIGHT_MM,
                 width_clearance_mm=0.0,
