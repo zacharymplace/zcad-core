@@ -97,6 +97,12 @@ from zcad_core.retention.manufacturing import (
     validate_corner_capture_manufacturing,
     validate_edge_capture_manufacturing,
 )
+from zcad_core.retention.measurement_feedback import (
+    FixtureRevisionProposal,
+    PolicyChange,
+    propose_fixture_revision,
+    write_measurement_feedback,
+)
 from zcad_core.retention.physical_validation import (
     PHYSICAL_VALIDATION_SCHEMA_VERSION,
     UNRECORDED_SLICER_PROFILE,
@@ -225,6 +231,7 @@ __all__ = [
     "EdgeClearanceResult",
     "ExportValidationArtifact",
     "ExportValidationRecord",
+    "FixtureRevisionProposal",
     "GeometryInterferenceResult",
     "InstallationPathCollision",
     "InstallationPathPlan",
@@ -241,6 +248,7 @@ __all__ = [
     "PhysicalValidationDisposition",
     "PhysicalValidationObservation",
     "PhysicalValidationRecord",
+    "PolicyChange",
     "PrintOrientation",
     "ProductionBoardCornerAdapter",
     "ProductionBoardEdgeAdapter",
@@ -338,6 +346,7 @@ __all__ = [
     "persist_candidate_revision",
     "physical_validation_record_from_payload",
     "promote_preferred_revision",
+    "propose_fixture_revision",
     "recommend_revision",
     "recorded_generation_parameters",
     "register_artifact_backed_revision",
@@ -352,6 +361,7 @@ __all__ = [
     "visual_review_failures",
     "write_immutable_manifest",
     "write_installation_path_report",
+    "write_measurement_feedback",
     "write_physical_validation_record",
     "write_promotion_record",
     "write_revision_comparison_report",

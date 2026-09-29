@@ -13,7 +13,7 @@ adding new retention strategies or hardware families.
 | 0 — Restore the gate | Complete |
 | 1 — Route Validation Lab through the export pipeline | Complete |
 | 2 — Close the physical loop | Pre-print and visual review complete for four candidates; blocked on printer access |
-| 3 — Measurement feedback | Not started; needs Phase 2 trial data |
+| 3 — Measurement feedback | Per-trial feedback built (fixtures and enclosures); needs Phase 2 trial data |
 | 4 — Retention-strategy breadth | Pre-print and visual review complete for Pico 2, XIAO, and UNO R4; prints pending |
 | 5 — Publication and downstream integration | Not started |
 
@@ -423,6 +423,20 @@ Make revisions follow from measured evidence rather than manual tuning.
 - per printer/material compensation profiles derived from trial data
 - candidate derivation that applies compensation and records it in the
   parameter delta
+
+### Status (2026-09-29)
+
+Per-trial feedback is built for both kinds of print.
+`zcad-validation revision propose` turns a fixture trial's measured side
+gap and vertical play into `board_clearance_mm` and `vertical_overlap_mm`
+changes, and `regenerate-candidate.py --from-trial` applies them, writing
+`measurement-feedback.json` beside the revision so each parameter change
+traces to its measurement. `zcad-validation enclosure revise` does the same
+for enclosures through `hole_compensation_mm` and the plug allowance.
+
+Still to build: per printer and material compensation profiles aggregated
+across trials. They need several trials' data to be worth fitting, so they
+follow the first print runs.
 
 ### Exit criteria
 

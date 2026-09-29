@@ -135,6 +135,11 @@
       "kind": "capability",
       "reference": "src/zcad_core/features/enclosure_revision.py",
       "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/retention/measurement_feedback.py",
+      "result": "pass"
     }
   ],
   "last_verified_at": "2026-09-29T20:09:59Z",
@@ -208,6 +213,7 @@
     "print-ready-enclosure-slicing",
     "enclosure-trial-records",
     "enclosure-measurement-revisions",
-    "hole-compensation"
+    "hole-compensation",
+    "fixture-measurement-feedback"
   ]
 }

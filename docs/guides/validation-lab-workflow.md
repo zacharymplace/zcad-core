@@ -203,7 +203,28 @@ Omit the relationship and parameter-delta paths for a root candidate. When
 another candidate is already preferred, add `--supersedes-candidate-id`.
 
 A `revise` becomes a new revision with geometry rebuilt from the measured
-change:
+change. Let the trial's measurements set it:
+
+```bash
+zcad-validation revision propose --candidate-directory <candidate>
+python scripts/regenerate-candidate.py <candidate> --revision r003 \
+  --from-trial trial-001
+```
+
+`revision propose` only reads. It compares the trial's `board_clearance`
+with `board_clearance_mm`, and its `vertical_play` with
+`board_clearance_mm + vertical_overlap_mm` (the ledge's height above the
+board), and models each fit looser by what printed tight, or tighter by
+what printed loose: at most 0.5 mm a revision, never below the
+manufacturing minimums (0.20 mm clearance, 0.40 mm overlap), and ignoring
+differences under 0.03 mm. When the clearance moves and vertical play was
+not measured, the overlap moves the other way to hold the play. Failed
+checks and closed-up gaps to parts become notes. `--from-trial` applies the
+proposal, names the relationship and reason, and writes
+`measurement-feedback.json` beside the new revision, tracing each change to
+the measurement behind it.
+
+To set a change by hand instead:
 
 ```bash
 python scripts/regenerate-candidate.py <candidate> --revision r003 \

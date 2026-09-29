@@ -7,6 +7,10 @@ run. Two reasons produce one:
 
 - changed parameters (``--set``), such as a clearance a physical trial
   measured too tight; name the change with ``--relationship``
+- a recorded trial's measurements (``--from-trial``), which set the policy
+  changes, the relationship, and the reason, and write
+  ``measurement-feedback.json`` beside the new revision tracing each change
+  to its measurement
 - changed generator code with the policy unchanged, which requires
   ``GENERATOR_VERSION`` to differ from the parent's
 
@@ -25,6 +29,7 @@ Usage:
     python scripts/regenerate-candidate.py <candidate-directory> \\
         --revision r006 --reason "..." \\
         [--set board_clearance_mm=0.30 --relationship adjusts_clearance_from] \\
+        [--from-trial trial-001] \\
         [--corner-keepout-mm 2.1] \\
         [--printer-profile profiles/printers/<id>.json]
 """
@@ -42,8 +47,10 @@ from zcad_core.retention import (
     RevisionRelationshipType,
     load_candidate_revision,
     load_manifest,
+    propose_fixture_revision,
     recorded_generation_parameters,
     register_artifact_backed_revision,
+    write_measurement_feedback,
 )
 
 
@@ -73,7 +80,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("candidate_directory", type=Path)
     parser.add_argument("--revision", required=True)
-    parser.add_argument("--reason", required=True)
+    parser.add_argument("--reason", help="Required unless --from-trial writes one.")
+    parser.add_argument(
+        "--from-trial",
+        metavar="TRIAL_ID",
+        help="Derive the changes from this recorded trial's measurements.",
+    )
     parser.add_argument(
         "--set",
         action="append",
@@ -108,6 +120,33 @@ def main() -> int:
             raise SystemExit(f"--set must be KEY=VALUE, got: {assignment}")
 
         updates[key] = float(value)
+
+    proposal = None
+
+    if args.from_trial:
+        if updates or args.relationship:
+            raise SystemExit(
+                "--from-trial sets the changes; drop --set and --relationship"
+            )
+
+        try:
+            proposal = propose_fixture_revision(
+                args.candidate_directory, trial_id=args.from_trial
+            )
+        except (ValueError, FileNotFoundError) as error:
+            raise SystemExit(str(error)) from error
+
+        if not proposal.changes:
+            raise SystemExit(
+                f"{args.from_trial} proposes no policy change: {list(proposal.notes)}"
+            )
+
+        updates = proposal.updates
+        args.relationship = proposal.relationship.value
+        args.reason = args.reason or proposal.reason
+
+    if not args.reason:
+        raise SystemExit("--reason is required")
 
     if updates and args.relationship is None:
         raise SystemExit(
@@ -148,6 +187,11 @@ def main() -> int:
     )
 
     candidate = result.registration.candidate
+    feedback = (
+        write_measurement_feedback(proposal, parent_directory.parent / args.revision)
+        if proposal is not None
+        else None
+    )
     print(
         json.dumps(
             {
@@ -162,6 +206,7 @@ def main() -> int:
                 ),
                 "export_validation_status": result.export_validation.evaluated_status,
                 "export_validation_record": str(result.export_validation_path),
+                "measurement_feedback": str(feedback) if feedback else None,
             },
             indent=2,
         )

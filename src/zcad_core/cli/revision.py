@@ -1,4 +1,4 @@
-"""zcad-validation revision compare."""
+"""zcad-validation revision compare and revision propose."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from zcad_core.cli._common import (
 from zcad_core.retention import (
     compare_candidate_revisions,
     load_candidate_revision,
+    propose_fixture_revision,
     recommend_revision,
     write_revision_comparison_report,
     write_revision_recommendation,
@@ -62,6 +63,27 @@ def _revision_compare(args: argparse.Namespace) -> int:
     return 0
 
 
+def _revision_propose(args: argparse.Namespace) -> int:
+    """Propose the next revision's policy from a recorded fixture trial."""
+
+    proposal = propose_fixture_revision(args.candidate_directory, trial_id=args.trial)
+    payload = proposal.record()
+
+    if proposal.changes:
+        payload["regenerate"] = " ".join(
+            [
+                "python scripts/regenerate-candidate.py",
+                str(args.candidate_directory),
+                "--revision <next>",
+                f"--from-trial {args.trial}",
+            ]
+        )
+
+    emit(payload)
+
+    return 0
+
+
 def register(
     subcommands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
@@ -78,3 +100,11 @@ def register(
     revision_compare.add_argument("--report-output", required=True, type=Path)
     revision_compare.add_argument("--recommendation-output", required=True, type=Path)
     revision_compare.set_defaults(handler=_revision_compare)
+
+    revision_propose = revision_commands.add_parser(
+        "propose",
+        help="propose the next revision's policy from a recorded fixture trial",
+    )
+    revision_propose.add_argument("--candidate-directory", required=True, type=Path)
+    revision_propose.add_argument("--trial", default="trial-001")
+    revision_propose.set_defaults(handler=_revision_propose)
