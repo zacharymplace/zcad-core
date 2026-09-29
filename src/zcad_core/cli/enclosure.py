@@ -23,6 +23,7 @@ from zcad_core.features import (
     build_enclosure,
     export_enclosure_review,
 )
+from zcad_core.features.enclosure_revision import propose_revision, revised_name
 from zcad_core.features.enclosure_trial import (
     EnclosureTrialDisposition,
     complete_enclosure_trial,
@@ -91,6 +92,7 @@ def _design(args: argparse.Namespace) -> EnclosureDesign:
         cable_plug_height_mm=args.cable_plug_height_mm,
         display_retainer=args.display_retainer,
         display_fastener=args.display_fastener,
+        hole_compensation_mm=args.hole_compensation_mm,
     )
 
 
@@ -98,10 +100,20 @@ def _enclosure_build(args: argparse.Namespace) -> int:
     """Build, validate, and export an enclosure and its build record, and
     optionally review it and slice it ready to print."""
 
+    payload, passed = _build(args, _design(args))
+    emit(payload)
+
+    return 0 if passed else 1
+
+
+def _build(
+    args: argparse.Namespace,
+    design: EnclosureDesign,
+    revision_of: dict[str, object] | None = None,
+) -> tuple[dict[str, object], bool]:
     board = get_board(args.board)
     display = get_display(args.display) if args.display else None
     assembly = _assembly(args, display)
-    design = _design(args)
     enclosure = build_enclosure(assembly, board=board, display=display, design=design)
     name = args.name or f"{board.identifier.lower().replace('_', '-')}-enclosure"
     printer_profile = load_printer_profile(args.printer_profile)
@@ -132,6 +144,12 @@ def _enclosure_build(args: argparse.Namespace) -> int:
         display=display,
         part_stls={part.part_name: part.stl_path for part in result.parts},
         printer_profile_id=str(printer_profile["profile_id"]),
+        assembly_settings={
+            "display_height_mm": args.display_height_mm,
+            "board_display_clearance_mm": args.board_display_clearance_mm,
+            "connector_access_clearance_mm": args.connector_access_clearance_mm,
+        },
+        revision_of=revision_of,
     )
     payload: dict[str, object] = {
         "design_name": name,
@@ -162,6 +180,48 @@ def _enclosure_build(args: argparse.Namespace) -> int:
     if args.slice:
         payload["print"] = _slice(args, enclosure, name, build_record)
 
+    return payload, passed
+
+
+def _enclosure_revise(args: argparse.Namespace) -> int:
+    """Propose the next design from a completed trial, and optionally build it."""
+
+    revision = propose_revision(args.trial_directory)
+    payload: dict[str, object] = revision.summary()
+
+    if args.output_directory is None:
+        emit(payload)
+
+        return 0
+
+    build = revision.build_record
+    assembly = build.get("assembly") or {}
+    rebuild = argparse.Namespace(
+        board=build["board"],
+        display=build["display"],
+        output_directory=args.output_directory,
+        name=revised_name(build["design_name"]),
+        review=args.review,
+        slice=args.slice,
+        slicer_profile=args.slicer_profile,
+        printer_profile=Path("profiles/printers")
+        / f"{build['printer_profile_id']}.json",
+        display_height_mm=assembly.get("display_height_mm", 8.0),
+        board_display_clearance_mm=assembly.get("board_display_clearance_mm", 1.0),
+        connector_access_clearance_mm=assembly.get(
+            "connector_access_clearance_mm", 2.0
+        ),
+    )
+    payload["build"], passed = _build(
+        rebuild,
+        EnclosureDesign(**revision.design),
+        revision_of={
+            "build_record_path": str(revision.build_record_path),
+            "build_record_sha256": sha256(revision.build_record_path),
+            "trial_id": revision.trial["trial_id"],
+            "changes": payload["changes"],
+        },
+    )
     emit(payload)
 
     return 0 if passed else 1
@@ -317,6 +377,12 @@ def register(
     build.add_argument("--cable-plug-width-mm", type=float, default=12.5)
     build.add_argument("--cable-plug-height-mm", type=float, default=7.5)
     build.add_argument(
+        "--hole-compensation-mm",
+        type=float,
+        default=0.0,
+        help="widen every hole and opening by this much for an undersizing printer",
+    )
+    build.add_argument(
         "--no-display-retainer",
         dest="display_retainer",
         action="store_false",
@@ -336,6 +402,25 @@ def register(
         default=Path("profiles/slicers/bambu-studio-a1-mini-petg-validation.json"),
     )
     build.set_defaults(handler=_enclosure_build)
+
+    revise = enclosure_commands.add_parser(
+        "revise",
+        help="propose the next design from a completed trial, and optionally build it",
+    )
+    revise.add_argument("--trial-directory", required=True, type=Path)
+    revise.add_argument(
+        "--output-directory",
+        type=Path,
+        help="build the revised design here, recording what it revises",
+    )
+    revise.add_argument("--review", action="store_true")
+    revise.add_argument("--slice", action="store_true")
+    revise.add_argument(
+        "--slicer-profile",
+        type=Path,
+        default=Path("profiles/slicers/bambu-studio-a1-mini-petg-validation.json"),
+    )
+    revise.set_defaults(handler=_enclosure_revise)
 
     trial = enclosure_commands.add_parser(
         "trial", help="record how a printed enclosure fitted"

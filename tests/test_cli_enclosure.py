@@ -242,3 +242,54 @@ def test_build_slices_both_parts_ready_to_print(
         "seeed-xiao-esp32-s3-enclosure-base.stl",
         "seeed-xiao-esp32-s3-enclosure-lid.stl",
     ]
+
+
+def test_revise_proposes_and_builds_the_next_design(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    exit_code, first = build(
+        capsys, tmp_path / "r1", "--board", "raspberry_pi_pico_2", "--name", "case"
+    )
+    assert exit_code == 0
+    _, started = run(
+        capsys, "enclosure", "trial", "start", "--build-record", first["build_record"]
+    )
+    trial = Path(started["trial"])
+    observations = json.loads((trial / "observations.json").read_text("utf-8"))
+    for entry in observations.values():
+        entry["result"] = "pass"
+    (trial / "observations.json").write_text(json.dumps(observations), "utf-8")
+    measurements = json.loads((trial / "measurements.json").read_text("utf-8"))
+    measurements["lid_hole_diameter_mm"]["value_mm"] = 3.1
+    (trial / "measurements.json").write_text(json.dumps(measurements), "utf-8")
+    run(
+        capsys,
+        "enclosure",
+        "trial",
+        "complete",
+        "--trial-directory",
+        str(trial),
+        "--disposition",
+        "revise",
+    )
+
+    exit_code, revised = run(
+        capsys,
+        "enclosure",
+        "revise",
+        "--trial-directory",
+        str(trial),
+        "--output-directory",
+        str(tmp_path / "r2"),
+    )
+
+    assert exit_code == 0
+    assert [change["setting"] for change in revised["changes"]] == [
+        "hole_compensation_mm"
+    ]
+    assert revised["build"]["design_name"] == "case-r2"
+    record = json.loads((tmp_path / "r2" / "enclosure.json").read_text("utf-8"))
+    assert record["design"]["hole_compensation_mm"] == 0.3
+    assert record["revision_of"]["trial_id"] == "trial-001"
+    # The nominal the next trial measures is still the intended size.
+    assert record["nominal_measurements_mm"]["lid_hole_diameter_mm"] == 3.4

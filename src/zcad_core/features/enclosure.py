@@ -67,6 +67,13 @@ _SUPPORT_MARGIN_MM = 2.0
 # Supports are notched this far clear of the parts under the board.
 _UNDER_BOARD_CLEARANCE_MM = 0.3
 _DISPLAY_POST_WALL_MM = 1.2
+# Printers print holes small far more often than large, and the cradle's
+# 0.3 mm fit leaves little room to shrink.
+HOLE_COMPENSATION_RANGE_MM = (-0.2, 1.0)
+# The builder's default fits, before hole compensation widens them.
+_OPENING_CLEARANCE_MM = 0.6
+_CRADLE_CLEARANCE_MM = 0.3
+_RETAINER_CLEARANCE_MM = 0.3
 
 
 @dataclass(frozen=True)
@@ -101,6 +108,10 @@ class EnclosureDesign:
     cable_plug_height_mm: float = 7.5
     display_retainer: bool = True
     display_fastener: str = "M2"
+    # How much wider than intended every hole and opening is modelled, to
+    # make up for a printer that prints them undersized. A trial measures
+    # the intended sizes; ``enclosure revise`` sets this from the shortfall.
+    hole_compensation_mm: float = 0.0
 
     def validate(self) -> None:
         for name in ("wall_mm", "floor_mm", "lid_mm", "boss_radial_wall_mm"):
@@ -109,6 +120,11 @@ class EnclosureDesign:
 
         if self.floor_mm <= _FLOOR_EMBED_MM:
             raise ValueError(f"floor_mm must exceed {_FLOOR_EMBED_MM} mm")
+
+        low, high = HOLE_COMPENSATION_RANGE_MM
+
+        if not low <= self.hole_compensation_mm <= high:
+            raise ValueError(f"hole_compensation_mm must be from {low} to {high} mm")
 
         if self.side_clearance_mm is not None and self.side_clearance_mm < 0:
             raise ValueError("side_clearance_mm must not be negative")
@@ -187,14 +203,17 @@ def build_enclosure(
     for x, y in positions:
         base = add_heat_set_insert_boss(
             base,
-            parameters=InsertBossParameters.from_fastener(
-                fastener=fastener,
-                x=x,
-                y=y,
-                base_height_mm=_FLOOR_EMBED_MM,
-                base_z_mm=spec.bottom_z_mm - _FLOOR_EMBED_MM,
-                boss_height_mm=spec.inner_height_mm,
-                radial_wall_mm=design.boss_radial_wall_mm,
+            parameters=_compensated_boss(
+                InsertBossParameters.from_fastener(
+                    fastener=fastener,
+                    x=x,
+                    y=y,
+                    base_height_mm=_FLOOR_EMBED_MM,
+                    base_z_mm=spec.bottom_z_mm - _FLOOR_EMBED_MM,
+                    boss_height_mm=spec.inner_height_mm,
+                    radial_wall_mm=design.boss_radial_wall_mm,
+                ),
+                design.hole_compensation_mm,
             ),
         )
 
@@ -204,6 +223,7 @@ def build_enclosure(
         board=board,
         board_identifier=board_identifier,
         spec=spec,
+        hole_compensation_mm=design.hole_compensation_mm,
     )
     base = _clear_parts_under_board(base, spec, assembly, board_identifier)
     openings = _openings(spec, design, assembly, board_identifier)
@@ -264,6 +284,8 @@ def _add_display_features(
             panel_thickness_mm=design.lid_mm,
             x=component.placement.x_mm,
             y=component.placement.y_mm,
+            window_clearance_mm=display.recommended_window_clearance_mm
+            + design.hole_compensation_mm / 2,
         ),
     )
 
@@ -294,6 +316,7 @@ def _add_display_features(
                 module_thickness_mm=bounds.zlen,
                 module_top_z_mm=bounds.zmax,
                 lid_underside_z_mm=cavity_top,
+                clearance_mm=_RETAINER_CLEARANCE_MM + design.hole_compensation_mm / 2,
             ),
         ),
         "clips",
@@ -328,7 +351,7 @@ def _add_display_posts(
             positions=tuple((center_x + x, center_y + y) for x, y in holes.positions),
             pcb_face_z_mm=bounds.zmax - (display.panel_thickness_mm or 0.0),
             lid_underside_z_mm=cavity_top,
-            pilot_hole_mm=fastener.tap_hole_mm,
+            pilot_hole_mm=fastener.tap_hole_mm + design.hole_compensation_mm,
             outer_diameter_mm=fastener.tap_hole_mm + 2 * _DISPLAY_POST_WALL_MM,
         ),
     )
@@ -461,6 +484,7 @@ def _add_board_support(
     board: BoardSpec,
     board_identifier: str,
     spec: EnclosureSpecification,
+    hole_compensation_mm: float = 0.0,
 ) -> tuple[cq.Workplane, str]:
     """Standoffs under a board's holes, or a cradle for a board without."""
 
@@ -491,19 +515,24 @@ def _add_board_support(
             board_thickness_mm=bounds.zlen,
             base_z_mm=floor_top - _FLOOR_EMBED_MM,
             connector_edge=spec.cable_edge,
+            clearance_mm=_CRADLE_CLEARANCE_MM + hole_compensation_mm / 2,
         )
 
         return add_board_cradle(base, parameters=cradle), "cradle"
 
     for x, y in pattern.positions:
+        standoff = pattern.standoff(
+            x=placement.x_mm + x,
+            y=placement.y_mm + y,
+            base_height_mm=_FLOOR_EMBED_MM,
+            base_z_mm=floor_top - _FLOOR_EMBED_MM,
+            standoff_height_mm=support_height,
+        )
         base = add_pcb_standoff(
             base,
-            parameters=pattern.standoff(
-                x=placement.x_mm + x,
-                y=placement.y_mm + y,
-                base_height_mm=_FLOOR_EMBED_MM,
-                base_z_mm=floor_top - _FLOOR_EMBED_MM,
-                standoff_height_mm=support_height,
+            parameters=replace(
+                standoff,
+                hole_diameter_mm=standoff.hole_diameter_mm + hole_compensation_mm,
             ),
         )
 
@@ -529,6 +558,7 @@ def _cable_opening(
         width_mm=width,
         height_mm=center_z + height / 2 - bottom_z,
         cutter_depth_mm=2 * (design.wall_mm + _OPENING_OVERCUT_MM),
+        width_clearance_mm=_OPENING_CLEARANCE_MM + design.hole_compensation_mm,
     )
 
 
@@ -569,6 +599,7 @@ def _openings(
                 width_mm=bounds.xlen if along_y else bounds.ylen,
                 height_mm=bounds.zlen,
                 cutter_depth_mm=2 * (design.wall_mm + _OPENING_OVERCUT_MM),
+                width_clearance_mm=_OPENING_CLEARANCE_MM + design.hole_compensation_mm,
             )
         )
 
@@ -656,6 +687,16 @@ def _clear_parts_under_board(
         )
 
     return base
+
+
+def _compensated_boss(
+    boss: InsertBossParameters, hole_compensation_mm: float
+) -> InsertBossParameters:
+    return replace(
+        boss,
+        insert_pocket_diameter_mm=boss.insert_pocket_diameter_mm + hole_compensation_mm,
+        pilot_hole_diameter_mm=boss.pilot_hole_diameter_mm + hole_compensation_mm,
+    )
 
 
 def _corner_boss_positions(
@@ -772,7 +813,7 @@ def _lid(
     holes = (
         cq.Workplane("XY")
         .pushPoints(list(positions))
-        .circle(fastener.clearance_hole_mm / 2)
+        .circle((fastener.clearance_hole_mm + design.hole_compensation_mm) / 2)
         .extrude(design.lid_mm + 2.0)
         .translate((0, 0, cavity_top - 1.0))
     )

@@ -115,7 +115,8 @@ Open items, in order:
    snap clips, the plug opening, the insert bosses, and the display
    mounts are unproven in plastic. `enclosure build --slice` produces the
    plate's G-code and opens trial-001; record the print with
-   `enclosure trial complete`.
+   `enclosure trial complete`, then `enclosure revise` proposes and builds
+   the next revision from its measurements.
 2. **Lid options**: snap-fit lid, locating lip, countersunk holes, vents.
 
 ### Gaps closed since 2026-09-27

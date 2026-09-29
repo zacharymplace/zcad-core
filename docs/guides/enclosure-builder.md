@@ -67,6 +67,10 @@ cables.
 - `top_clearance_mm`: the gap between the display and the lid (2).
 - `cable_plug_width_mm`, `cable_plug_height_mm`: the plug body the opening
   must pass.
+- `hole_compensation_mm`: how much wider than intended to model every hole
+  and opening (screw holes, insert pockets, pilot holes, windows, cable
+  openings, and the cradle and retainer fits), for a printer that prints
+  them small (0 by default; -0.2 to 1.0). A revision sets it from a trial.
 
 The builder refuses, with the part named, any enclosure whose base or lid
 intersects the hardware, whose lid runs into the base, or whose cable
@@ -148,6 +152,30 @@ measurement's deviation from nominal, and it refuses parts whose STL no
 longer matches the build record. A completed trial is never overwritten:
 `zcad-validation enclosure trial start --build-record .../enclosure.json`
 opens the next one.
+
+### Revising from a trial
+
+```bash
+zcad-validation enclosure revise \
+  --trial-directory exports/pico2-enclosure/trials/trial-001
+```
+
+reads a completed trial and proposes the next design:
+
+- **Holes**: the trial measures the intended sizes of the insert pockets
+  and lid screw holes, so the mean shortfall (intended minus measured) is
+  added to `hole_compensation_mm`. Shortfalls under 0.05 mm are noise.
+- **Cable**: a cable that would not plug in widens the plug allowance by
+  1 mm each way.
+- **Everything else**: a failed check no setting fixes becomes a note on
+  what to look at, and a base that printed more than 0.5% off size is a
+  note to calibrate the printer; the design is never scaled.
+
+Add `--output-directory` to build the revised design there (named
+`<design>-r2`, then `-r3`), with `--review` and `--slice` as for a build.
+Its build record keeps the intended nominals, so the next trial measures the
+same targets, and its `revision_of` records the build, trial, and changes it
+came from.
 
 Build an enclosure you will print and record under
 `evidence/enclosures/<name>/`, beside the fixture evidence, so that

@@ -130,6 +130,11 @@
       "kind": "capability",
       "reference": "src/zcad_core/features/enclosure_trial.py",
       "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/features/enclosure_revision.py",
+      "result": "pass"
     }
   ],
   "last_verified_at": "2026-09-29T20:09:59Z",
@@ -201,6 +206,8 @@
     "vendor-display-catalog",
     "display-screw-posts",
     "print-ready-enclosure-slicing",
-    "enclosure-trial-records"
+    "enclosure-trial-records",
+    "enclosure-measurement-revisions",
+    "hole-compensation"
   ]
 }
