@@ -8,6 +8,10 @@ the revision manifests, and a first export-validation run.
 The generated geometry is attributed to the checked-out commit, so ``src/``
 must have no uncommitted changes. Nothing existing is overwritten.
 
+The corner keepout is inherited from the parent's recorded generation
+settings. A corner-capture parent generated before those were recorded needs
+``--corner-keepout-mm`` (the XIAO ESP32-S3 candidates used 2.1).
+
 Bring the new revision to the pre-print state with
 ``scripts/prepare-candidate-for-print.py`` and slice it with
 ``scripts/slice-candidate-fixture.py``.
@@ -15,6 +19,7 @@ Bring the new revision to the pre-print state with
 Usage:
     python scripts/regenerate-candidate.py <candidate-directory> \\
         --revision r005 --generator-version 1.4.0 --reason "..." \\
+        [--corner-keepout-mm 2.1] \\
         [--printer-profile profiles/printers/<id>.json]
 """
 
@@ -30,6 +35,7 @@ from zcad_core.retention import (
     RevisionRelationshipType,
     load_candidate_revision,
     load_manifest,
+    recorded_generation_parameters,
     register_artifact_backed_revision,
 )
 
@@ -63,6 +69,11 @@ def main() -> int:
     parser.add_argument("--generator-version", required=True)
     parser.add_argument("--reason", required=True)
     parser.add_argument(
+        "--corner-keepout-mm",
+        type=float,
+        help="Only for a corner-capture parent that does not record its keepout.",
+    )
+    parser.add_argument(
         "--printer-profile",
         type=Path,
         default=Path("profiles/printers/bambu-lab-a1-mini.json"),
@@ -92,6 +103,7 @@ def main() -> int:
         generator_version=args.generator_version,
         created_at_utc=datetime.now(UTC).isoformat(),
         printer_profile=load_manifest(args.printer_profile),
+        corner_keepout_mm=args.corner_keepout_mm,
     )
 
     candidate = result.registration.candidate
@@ -101,6 +113,9 @@ def main() -> int:
                 "candidate_id": candidate.candidate_id,
                 "supersedes": parent.candidate_id,
                 "selected": list(candidate.selected_corners),
+                "generation": recorded_generation_parameters(
+                    result.evidence_artifact.report_path
+                ),
                 "export_validation_status": result.export_validation.evaluated_status,
                 "export_validation_record": str(result.export_validation_path),
             },

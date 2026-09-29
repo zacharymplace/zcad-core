@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import cadquery as cq
@@ -10,6 +11,7 @@ from zcad_core.retention import (
     CandidateRevision,
     RevisionRelationshipType,
     load_candidate_revision,
+    recorded_generation_parameters,
     register_artifact_backed_revision,
     sha256_file,
     verify_export_validation,
@@ -111,6 +113,7 @@ def test_registers_artifact_backed_revision(
         generator_version="1.1.0",
         created_at_utc=("2026-01-02T00:00:00+00:00"),
         printer_profile=PRINTER_PROFILE,
+        corner_keepout_mm=4.0,
         repository_root=tmp_path,
     )
 
@@ -200,6 +203,7 @@ def test_refuses_existing_revision_outputs(
             generator_version="1.1.0",
             created_at_utc=("2026-01-02T00:00:00+00:00"),
             printer_profile=PRINTER_PROFILE,
+            corner_keepout_mm=4.0,
         )
 
     assert (
@@ -233,6 +237,7 @@ def regenerate(
         generator_version=generator_version,
         created_at_utc="2026-01-02T00:00:00+00:00",
         printer_profile=PRINTER_PROFILE,
+        corner_keepout_mm=4.0,
         repository_root=tmp_path,
     )
 
@@ -285,3 +290,80 @@ def test_registers_edge_clip_revision(tmp_path: Path) -> None:
     assert len(candidate.selected_corners) == 1
     assert result.export_validation.evaluated_status == "PASS"
     assert load_candidate_revision(tmp_path / "r002/candidate.json") == candidate
+
+
+def generate_child(
+    tmp_path: Path,
+    parent: CandidateRevision,
+    **settings: float,
+):
+    source_step = tmp_path / "board.step"
+    export_clear_board(source_step)
+
+    return register_artifact_backed_revision(
+        parent_candidate=parent,
+        revision="r002",
+        parameter_updates={},
+        relationship=RevisionRelationshipType.SUPERSEDES,
+        reason="Regenerate under a new generator.",
+        output_directory=tmp_path / "r002",
+        source_step=source_step,
+        pcb_solid_index=1,
+        git_commit="d" * 40,
+        generator_version="1.1.0",
+        created_at_utc="2026-01-02T00:00:00+00:00",
+        printer_profile=PRINTER_PROFILE,
+        repository_root=tmp_path,
+        **settings,
+    )
+
+
+def test_new_revisions_record_their_generation_settings(tmp_path: Path) -> None:
+    result = generate_child(tmp_path, parent_candidate(), corner_keepout_mm=3.5)
+
+    assert recorded_generation_parameters(result.evidence_artifact.report_path) == {
+        "corner_keepout_mm": 3.5,
+        "vertical_margin_mm": 0.1,
+    }
+
+
+def test_revision_inherits_the_parents_recorded_keepout(tmp_path: Path) -> None:
+    evidence = tmp_path / "parent-evidence.json"
+    evidence.write_text(
+        json.dumps(
+            {"generation": {"corner_keepout_mm": 3.5, "vertical_margin_mm": 0.1}}
+        ),
+        encoding="utf-8",
+    )
+    parent = replace(parent_candidate(), automated_evidence_path=str(evidence))
+
+    result = generate_child(tmp_path, parent)
+
+    assert (
+        recorded_generation_parameters(result.evidence_artifact.report_path)[
+            "corner_keepout_mm"
+        ]
+        == 3.5
+    )
+
+
+def test_unrecorded_corner_keepout_is_refused_rather_than_guessed(
+    tmp_path: Path,
+) -> None:
+    """Candidates generated before the record existed (XIAO r003 used 2.1 mm)
+    must be told their keepout; the 4.0 mm default could pick other corners."""
+
+    with pytest.raises(ValueError, match="does not record the corner keepout"):
+        generate_child(tmp_path, parent_candidate())
+
+    assert not (tmp_path / "r002" / "retention.step").exists()
+
+
+def test_recorded_generation_parameters_reads_legacy_and_missing_evidence(
+    tmp_path: Path,
+) -> None:
+    legacy = tmp_path / "legacy.json"
+    legacy.write_text(json.dumps({"policy": {"arm_width_mm": 3.0}}), encoding="utf-8")
+
+    assert recorded_generation_parameters(legacy) == {}
+    assert recorded_generation_parameters(tmp_path / "missing.json") == {}

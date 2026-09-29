@@ -313,6 +313,11 @@ Do not print superseded candidates, including UNO R4 r004, whose visual
 review recorded `revise`. XIAO r002's unregistered placeholder trial was
 removed. `scripts/regenerate-candidate.py` rebuilds a candidate under a new
 generator version with its policy unchanged, as it did for UNO R4 r005.
+New candidates record the adapter settings that chose their capture
+locations (`generation` in `automated-validation.json`), and regeneration
+inherits them. Candidates generated before that record do not carry it: a
+corner-capture regeneration from one refuses to guess, so pass
+`--corner-keepout-mm` (4.0 for Feather and Pico 2, 2.1 for XIAO).
 
 ### Deliverables
 

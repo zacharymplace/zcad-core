@@ -20,7 +20,7 @@ Slice the fixture separately with ``scripts/slice-candidate-fixture.py``.
 
 Usage:
     python scripts/prepare-candidate-for-print.py <candidate-directory> \\
-        [--corner-keepout-mm 4.0] \\
+        [--corner-keepout-mm 2.1] \\
         [--slicer-profile profiles/slicers/<id>.json] \\
         [--refresh-trial-templates]
 """
@@ -56,6 +56,7 @@ from zcad_core.retention import (
     load_export_validation_record,
     load_manifest,
     load_physical_validation_record,
+    recorded_generation_parameters,
     verify_export_validation,
     write_installation_path_report,
     write_physical_validation_record,
@@ -209,7 +210,14 @@ def refresh_trial_templates(directory: Path, candidate_policy: dict[str, Any]) -
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("candidate_directory", type=Path)
-    parser.add_argument("--corner-keepout-mm", type=float, default=4.0)
+    parser.add_argument(
+        "--corner-keepout-mm",
+        type=float,
+        help=(
+            "Defaults to the keepout the candidate's evidence records, else "
+            "4.0; the regenerated geometry must match retention.step either way."
+        ),
+    )
     parser.add_argument(
         "--slicer-profile",
         type=Path,
@@ -242,6 +250,13 @@ def main() -> int:
         raise SystemExit(f"{record_path} does not support the candidate: {failures}")
 
     policy = {name: float(candidate.retention_policy[name]) for name in POLICY_FIELDS}
+    corner_keepout_mm = (
+        args.corner_keepout_mm
+        if args.corner_keepout_mm is not None
+        else recorded_generation_parameters(
+            Path(candidate.automated_evidence_path)
+        ).get("corner_keepout_mm", 4.0)
+    )
     source_step = Path(target["source_model_path"])
     pcb_solid_index = int(target["pcb_solid_index"])
 
@@ -255,7 +270,7 @@ def main() -> int:
                     pcb_solid_index=pcb_solid_index,
                     output_step=regenerated,
                     policy=CornerCapturePolicy(**policy),
-                    corner_keepout_mm=args.corner_keepout_mm,
+                    corner_keepout_mm=corner_keepout_mm,
                 )
             )
             install = analyze_installation_paths(

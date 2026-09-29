@@ -72,6 +72,7 @@ from zcad_core.retention.evidence_artifact import (
     analyze_capture_interference,
     build_evidence_report,
     generate_production_evidence_artifact,
+    recorded_generation_parameters,
 )
 from zcad_core.retention.installation_path import (
     InstallationPathCollision,
@@ -330,6 +331,7 @@ __all__ = [
     "physical_validation_record_from_payload",
     "promote_preferred_revision",
     "recommend_revision",
+    "recorded_generation_parameters",
     "register_artifact_backed_revision",
     "register_candidate_promotion",
     "register_candidate_revision",

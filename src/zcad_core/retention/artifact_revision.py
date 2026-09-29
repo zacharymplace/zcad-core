@@ -21,6 +21,7 @@ from .edge_evidence_artifact import (
 from .evidence_artifact import (
     ProductionEvidenceArtifact,
     generate_production_evidence_artifact,
+    recorded_generation_parameters,
 )
 from .export_validation import (
     ExportValidationRecord,
@@ -60,6 +61,13 @@ _POLICY_FIELDS = (
 )
 
 
+# Every candidate generated before generation settings were recorded used
+# this vertical margin; the corner keepout had no single value (see
+# register_artifact_backed_revision).
+_DEFAULT_VERTICAL_MARGIN_MM = 0.10
+_DEFAULT_CORNER_KEEPOUT_MM = 4.0
+
+
 @dataclass(frozen=True)
 class ArtifactBackedRevisionResult:
     """Generated artifacts and immutable revision records."""
@@ -91,8 +99,8 @@ def register_artifact_backed_revision(
     printer_profile: dict[str, Any],
     repository_root: Path = Path("."),
     fixture_policy: (ValidationFixturePolicy | None) = None,
-    corner_keepout_mm: float = 4.0,
-    vertical_margin_mm: float = 0.10,
+    corner_keepout_mm: float | None = None,
+    vertical_margin_mm: float | None = None,
 ) -> ArtifactBackedRevisionResult:
     """Generate and register one evidence-backed revision.
 
@@ -103,6 +111,13 @@ def register_artifact_backed_revision(
     The new candidate is export-validated immediately, with the embedded
     source board reported separately; a failing run is recorded and blocks
     promotion, not registration.
+
+    ``corner_keepout_mm`` and ``vertical_margin_mm`` default to the values
+    the parent's automated evidence recorded, so a revision is generated
+    with the settings that chose its parent's capture locations. A
+    corner-capture parent that predates that record must be given
+    ``corner_keepout_mm`` explicitly: a default could select different
+    corners or fail to find any (the XIAO ESP32-S3 needs 2.1 mm, not 4.0).
     """
 
     if parameter_updates:
@@ -128,6 +143,28 @@ def register_artifact_backed_revision(
     else:
         raise ValueError(
             "parameter_updates cannot be empty unless generator_version changes"
+        )
+
+    recorded = recorded_generation_parameters(
+        Path(parent_candidate.automated_evidence_path)
+    )
+
+    if corner_keepout_mm is None:
+        corner_keepout_mm = recorded.get("corner_keepout_mm")
+
+    if corner_keepout_mm is None:
+        if parent_candidate.strategy == "corner-capture":
+            raise ValueError(
+                f"{parent_candidate.candidate_id} does not record the corner "
+                "keepout it was generated with; pass corner_keepout_mm "
+                "explicitly"
+            )
+
+        corner_keepout_mm = _DEFAULT_CORNER_KEEPOUT_MM
+
+    if vertical_margin_mm is None:
+        vertical_margin_mm = recorded.get(
+            "vertical_margin_mm", _DEFAULT_VERTICAL_MARGIN_MM
         )
 
     retention_step = output_directory / "retention.step"

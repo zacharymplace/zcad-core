@@ -107,6 +107,12 @@ def generate_production_evidence_artifact(
         interference=interference,
         manufacturing=manufacturing,
     )
+    # The adapter settings that chose the capture corners, so the candidate
+    # can be regenerated exactly (a board may need a non-default keepout).
+    report["generation"] = {
+        "corner_keepout_mm": request.corner_keepout_mm,
+        "vertical_margin_mm": request.vertical_margin_mm,
+    }
 
     report_path.write_text(
         json.dumps(
@@ -277,3 +283,27 @@ def _sha256(path: Path) -> str:
             digest.update(block)
 
     return digest.hexdigest()
+
+
+def recorded_generation_parameters(evidence_path: Path) -> dict[str, float]:
+    """The adapter settings a candidate's automated evidence recorded.
+
+    Evidence written before these were recorded, or missing entirely, yields
+    an empty mapping, so callers can tell "not recorded" from any recorded
+    value.
+    """
+
+    if not evidence_path.is_file():
+        return {}
+
+    payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+    generation = payload.get("generation") if isinstance(payload, dict) else None
+
+    if not isinstance(generation, dict):
+        return {}
+
+    return {
+        str(name): float(value)
+        for name, value in generation.items()
+        if isinstance(value, int | float)
+    }

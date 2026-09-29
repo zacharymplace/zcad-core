@@ -89,6 +89,10 @@ def generate_production_edge_evidence_artifact(
         interference=interference,
         manufacturing=manufacturing,
     )
+    report["generation"] = {
+        "engagement_depth_mm": request.engagement_depth_mm,
+        "vertical_margin_mm": request.vertical_margin_mm,
+    }
 
     report_path.write_text(
         json.dumps(
