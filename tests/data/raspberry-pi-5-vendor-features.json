@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0.0",
+  "frame": "vendor model, seen from above: X along the 85 mm edge, Y along the 56 mm edge, Z up; origin at the PCB centre; heights from the PCB",
+  "source_model_path": "evidence/raspberry-pi-5/step/rpi-5b_no_graphics.step",
+  "source_model_sha256": "78164070c1cc7ab854382950d2e85926c6e35432f1e5a146b733397a7c6afb44",
+  "generated_by": "scripts/extract-pi5-vendor-features.py",
+  "board_mm": [
+    85.0,
+    56.0,
+    1.276
+  ],
+  "features": [
+    {
+      "name": "ethernet",
+      "x_mm": 34.75,
+      "y_mm": -17.75,
+      "top_mm": 13.33,
+      "bottom_mm": -0.694,
+      "edge_overhang_mm": 3.05,
+      "parts": 2
+    },
+    {
+      "name": "usb_stack_1",
+      "x_mm": 36.735,
+      "y_mm": 1.0,
+      "top_mm": 16.22,
+      "bottom_mm": -0.194,
+      "edge_overhang_mm": 3.0,
+      "parts": 1
+    },
+    {
+      "name": "usb_stack_2",
+      "x_mm": 36.555,
+      "y_mm": 19.0,
+      "top_mm": 16.055,
+      "bottom_mm": -0.196,
+      "edge_overhang_mm": 2.78,
+      "parts": 1
+    },
+    {
+      "name": "gpio_header",
+      "x_mm": -10.0,
+      "y_mm": 24.5,
+      "top_mm": 8.57,
+      "bottom_mm": -0.594,
+      "edge_overhang_mm": 0.0,
+      "parts": 40
+    },
+    {
+      "name": "usb_c",
+      "x_mm": -31.3,
+      "y_mm": -25.54,
+      "top_mm": 3.29,
+      "bottom_mm": 0.306,
+      "edge_overhang_mm": 1.2,
+      "parts": 1
+    },
+    {
+      "name": "micro_sd",
+      "x_mm": -34.55,
+      "y_mm": 0.085,
+      "top_mm": -1.306,
+      "bottom_mm": -1.45,
+      "edge_overhang_mm": 0.0,
+      "parts": 8
+    }
+  ]
+}

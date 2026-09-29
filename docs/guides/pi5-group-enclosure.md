@@ -248,6 +248,17 @@ positions and the cooler size are the least certain. Print the base, check a
 Pi against it before printing the lid, and record it as a trial. If a port
 opening is off, edit `BoardPortSpec` in `hardware/electronics/raspberry_pi.py`.
 
+Its orientation, which side each port and the header are on, is checked against
+Raspberry Pi's STEP model, because an earlier version was mirrored left to
+right and printing it would have put the USB-C and HDMI cables on the wrong
+side. `tests/data/raspberry-pi-5-vendor-features.json` records where the
+model puts the Ethernet jack, both USB stacks, the header, USB-C, and the
+microSD slot. The test carries them through the one rotation that puts the
+Ethernet on the spec's Ethernet edge and requires the enclosure's Pi envelope
+to contain each, so a mirrored or turned spec fails. If you replace the model,
+re-run `scripts/extract-pi5-vendor-features.py`; a slow test fails when the
+recorded numbers no longer match it.
+
 The checks are: the base and lid do not touch, each Pi's envelope clears both
 parts, and each part is one solid. They do not check cable bend room or
 airflow.
