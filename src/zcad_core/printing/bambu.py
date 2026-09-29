@@ -156,6 +156,44 @@ def slice_models(
     """Slice the models onto one plate and write the slice evidence, with
     any ``summary_fields`` the caller adds to the summary."""
 
+    _require_inputs(models, output_directory, app)
+    profile = json.loads(slicer_profile_path.read_text(encoding="utf-8"))
+
+    if profile.get("orientation") != "base_down":
+        raise SliceError("Only base_down slicer profiles are supported")
+
+    names = preset_names(profile)
+    index = load_presets(app)
+    configs = {kind: flatten(index, kind, name) for kind, name in names.items()}
+    overrides = process_overrides(profile)
+    configs["process"].update(overrides)
+    plate = _run_bambu(app, configs, models, output_directory)
+    gcode = output_directory / "plate_1.gcode"
+    summary = {
+        "schema_version": SLICE_SUMMARY_SCHEMA_VERSION,
+        "models": [{"path": str(model), "sha256": sha256(model)} for model in models],
+        "slicer_profile_id": profile["profile_id"],
+        "software": {"name": "Bambu Studio", "version": _version(app)},
+        "presets": names,
+        "applied_settings": overrides,
+        "orientation": "as modelled (auto-orient off; arrange may spin about Z)",
+        "gcode_sha256": sha256(gcode),
+        "estimated_print_time_seconds": plate["total_predication"],
+        "filament_used_g": sum(f["total_used_g"] for f in plate["filaments"]),
+        "feature_type_times_seconds": plate["feature_type_times"],
+        "slicer_warning": plate.get("warning_message", ""),
+        "sliced_at_utc": datetime.now(UTC).isoformat(),
+        **(summary_fields or {}),
+    }
+    summary_path = output_directory / "slice-summary.json"
+    summary_path.write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+    return SliceResult(gcode_path=gcode, summary_path=summary_path, summary=summary)
+
+
+def _require_inputs(models: Sequence[Path], output_directory: Path, app: Path) -> None:
     if not models:
         raise ValueError("Nothing to slice")
 
@@ -171,19 +209,20 @@ def slice_models(
     if not app.is_dir():
         raise SliceError(f"Bambu Studio is not installed at {app}")
 
-    profile = json.loads(slicer_profile_path.read_text(encoding="utf-8"))
 
-    if profile.get("orientation") != "base_down":
-        raise SliceError("Only base_down slicer profiles are supported")
+def _version(app: Path) -> str:
+    info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
 
-    names = preset_names(profile)
-    version = plistlib.loads((app / "Contents/Info.plist").read_bytes())[
-        "CFBundleShortVersionString"
-    ]
-    index = load_presets(app)
-    configs = {kind: flatten(index, kind, name) for kind, name in names.items()}
-    overrides = process_overrides(profile)
-    configs["process"].update(overrides)
+    return str(info["CFBundleShortVersionString"])
+
+
+def _run_bambu(
+    app: Path,
+    configs: dict[str, dict[str, Any]],
+    models: Sequence[Path],
+    output_directory: Path,
+) -> dict[str, Any]:
+    """Slice in a scratch folder, copy the plate out, and return its metrics."""
 
     with tempfile.TemporaryDirectory(prefix="zcad-slice-") as folder:
         work = Path(folder)
@@ -213,37 +252,11 @@ def slice_models(
         if result.get("return_code") != 0 or not (work / "plate_1.gcode").is_file():
             raise SliceError(f"Slice failed: {result.get('error_string')}")
 
-        plate = result["sliced_plates"][0]
         output_directory.mkdir(parents=True)
 
-        for name in ("plate_1.gcode", "result.json"):
+        for name in ("plate_1.gcode", "result.json", *(f"{k}.json" for k in configs)):
             (output_directory / name).write_bytes((work / name).read_bytes())
 
-        for kind in configs:
-            (output_directory / f"{kind}.json").write_bytes(
-                (work / f"{kind}.json").read_bytes()
-            )
+    plate: dict[str, Any] = result["sliced_plates"][0]
 
-    gcode = output_directory / "plate_1.gcode"
-    summary = {
-        "schema_version": SLICE_SUMMARY_SCHEMA_VERSION,
-        "models": [{"path": str(model), "sha256": sha256(model)} for model in models],
-        "slicer_profile_id": profile["profile_id"],
-        "software": {"name": "Bambu Studio", "version": version},
-        "presets": names,
-        "applied_settings": overrides,
-        "orientation": "as modelled (auto-orient off; arrange may spin about Z)",
-        "gcode_sha256": sha256(gcode),
-        "estimated_print_time_seconds": plate["total_predication"],
-        "filament_used_g": sum(f["total_used_g"] for f in plate["filaments"]),
-        "feature_type_times_seconds": plate["feature_type_times"],
-        "slicer_warning": plate.get("warning_message", ""),
-        "sliced_at_utc": datetime.now(UTC).isoformat(),
-        **(summary_fields or {}),
-    }
-    summary_path = output_directory / "slice-summary.json"
-    summary_path.write_text(
-        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-
-    return SliceResult(gcode_path=gcode, summary_path=summary_path, summary=summary)
+    return plate

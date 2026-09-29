@@ -13,6 +13,8 @@ Responsibilities:
 - Export pipeline
 - Hardware abstractions
 - Board-retention strategies and the Validation Lab
+- Printable enclosures built around catalogued hardware
+- Slicing and print-trial records
 
 This repository intentionally contains no product-specific models.
 
@@ -21,8 +23,11 @@ This repository intentionally contains no product-specific models.
 - **[Validation Lab workflow](guides/validation-lab-workflow.md)** — take a
   board from its vendor STEP model to a promoted fixture candidate, step by
   step.
+- **[Enclosure builder](guides/enclosure-builder.md)** — build a
+  screw-together enclosure for a catalogued board and display, slice it,
+  and record how the print fitted, from the command line.
 - **[Engine example](guides/engine-example.md)** — design, check, and
-  export an enclosure with the core engine.
+  export an enclosure with the core engine from Python.
 - **[Architecture](architecture.md)** — package layout and the retention
   strategy's design history.
 - **[Roadmaps](roadmaps/validation-lab.md)** — the Validation Lab

@@ -13,6 +13,8 @@ Responsibilities:
 - Export pipeline
 - Hardware abstractions
 - Board-retention strategies and the Validation Lab
+- Printable enclosures built around catalogued hardware
+- Slicing and print-trial records
 
 This repository intentionally contains no product-specific models.
 

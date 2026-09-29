@@ -149,6 +149,11 @@ longer matches the build record. A completed trial is never overwritten:
 `zcad-validation enclosure trial start --build-record .../enclosure.json`
 opens the next one.
 
+Build an enclosure you will print and record under
+`evidence/enclosures/<name>/`, beside the fixture evidence, so that
+`scripts/backup-evidence.sh` backs up its build record, slice, and trials.
+Scratch builds can go anywhere, such as `exports/`, which git ignores.
+
 ## Catalogued hardware
 
 | Board | Support | Source |

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import cache
+
 import cadquery as cq
 import pytest
 
@@ -73,6 +75,14 @@ def board_assembly(
     )
 
 
+@cache
+def board_only(board_identifier: str) -> tuple[DeviceAssembly, Enclosure]:
+    """One default enclosure per board, shared by the tests that only read it."""
+    assembly = board_assembly(board_identifier)
+
+    return assembly, build_enclosure(assembly, board=get_board(board_identifier))
+
+
 def test_refuses_bosses_that_would_hit_the_board() -> None:
     design = EnclosureDesign(side_clearance_mm=2.0)
 
@@ -97,9 +107,7 @@ def test_automatic_side_clearance_widens_one_axis_just_enough(
 
 @pytest.mark.parametrize("board_identifier", list_boards())
 def test_every_catalogued_board_gets_a_clear_enclosure(board_identifier: str) -> None:
-    assembly = board_assembly(board_identifier)
-
-    enclosure = build_enclosure(assembly, board=get_board(board_identifier))
+    _, enclosure = board_only(board_identifier)
 
     assert len(enclosure.base.solids().vals()) == 1
     assert len(enclosure.lid.solids().vals()) == 1
@@ -110,7 +118,7 @@ def test_every_catalogued_board_gets_a_clear_enclosure(board_identifier: str) ->
 
 def test_irregular_hole_pattern_gets_a_standoff_under_each_hole() -> None:
     uno = get_arduino_uno_r4_wifi()
-    enclosure = build_enclosure(board_assembly(uno.identifier), board=uno)
+    _, enclosure = board_only(uno.identifier)
     base = solid(enclosure.base)
 
     for x, y in uno.mounting_hole_positions_mm:
@@ -122,9 +130,8 @@ def test_irregular_hole_pattern_gets_a_standoff_under_each_hole() -> None:
 
 
 def test_supports_are_notched_clear_of_parts_under_the_board() -> None:
-    uno = get_arduino_uno_r4_wifi()
-    assembly = board_assembly(uno.identifier)
-    base = solid(build_enclosure(assembly, board=uno).base)
+    assembly, enclosure = board_only(get_arduino_uno_r4_wifi().identifier)
+    base = solid(enclosure.base)
 
     for identifier in board_component_identifiers(assembly):
         part = assembly.get(identifier).transformed_geometry().val()
@@ -133,9 +140,7 @@ def test_supports_are_notched_clear_of_parts_under_the_board() -> None:
 
 
 def test_barrel_jack_gets_its_own_opening() -> None:
-    uno = get_arduino_uno_r4_wifi()
-    assembly = board_assembly(uno.identifier)
-    enclosure = build_enclosure(assembly, board=uno)
+    assembly, enclosure = board_only(get_arduino_uno_r4_wifi().identifier)
     spec = enclosure.specification
     jack = next(
         component.transformed_geometry().val().BoundingBox()  # type: ignore[union-attr]
@@ -151,7 +156,7 @@ def test_barrel_jack_gets_its_own_opening() -> None:
 
 def test_cable_opening_follows_an_off_centre_connector() -> None:
     uno = get_arduino_uno_r4_wifi()
-    enclosure = build_enclosure(board_assembly(uno.identifier), board=uno)
+    _, enclosure = board_only(uno.identifier)
     spec = enclosure.specification
     assert spec.cable_edge == "negative_x"
     wall_x = spec.center_x_mm - spec.inner_width_mm / 2 - 1.0

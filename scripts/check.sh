@@ -42,5 +42,11 @@ echo "==> ruff check"
 echo "==> mypy"
 "$python" -m mypy src scripts tests examples
 
+# Run tests across every core when pytest-xdist is installed (it is in the
+# dev extras); geometry tests are CPU-bound and independent.
+if "$python" -c "import xdist" 2>/dev/null; then
+  pytest_args+=(-n auto)
+fi
+
 echo "==> pytest ${pytest_args[*]:1}"
 "$python" -m pytest "${pytest_args[@]}"

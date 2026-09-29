@@ -40,7 +40,9 @@ publication-eligible.
    `git config core.hooksPath .githooks`). The hook is also the only place
    the 19 tests that load vendor STEP models from `evidence/` run, since they
    skip wherever `evidence/` is absent; they are marked `slow`, and
-   `scripts/check.sh --fast` skips them for a quicker local loop.
+   `scripts/check.sh --fast` skips them for a quicker local loop. Tests run
+   in parallel with pytest-xdist: the full gate takes about a minute and
+   `--fast` under 40 seconds (2026-09-29).
 
 ### Visual reviews (2026-09-28)
 

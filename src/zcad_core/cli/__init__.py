@@ -1,7 +1,7 @@
-"""Validation Lab command-line interface.
+"""The zcad-validation command: the Validation Lab and the enclosure builder.
 
 Thin argparse wrapper over the already-tested ``zcad_core.retention``
-lifecycle functions. Every command reads and writes explicit file paths;
+lifecycle functions and the enclosure builder in ``zcad_core.features``. Every command reads and writes explicit file paths;
 none of them infer a directory layout beyond what a caller passes in,
 except ``status``, ``report``, and ``candidate promote``, which read (never
 write) a ``--target-root`` to discover existing candidates, promotions, and
@@ -10,7 +10,8 @@ candidate manifest), and
 ``candidate register``, which writes its export-validation run beside the
 candidate manifest in ``export-validation/``; ``candidate derive`` does the
 same inside ``--output-directory``. ``enclosure build`` writes only inside
-its ``--output-directory``.
+its ``--output-directory``, and ``enclosure trial`` only inside the trials
+folder beside a build record.
 """
 
 from __future__ import annotations
@@ -43,7 +44,13 @@ _COMMAND_GROUPS = (
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="zcad-validation")
+    parser = argparse.ArgumentParser(
+        prog="zcad-validation",
+        description=(
+            "Validation Lab fixtures (target, candidate, fixture, trial, review, "
+            "revision, status, report) and printable enclosures (enclosure)."
+        ),
+    )
     subcommands = parser.add_subparsers(dest="command", required=True)
 
     for group in _COMMAND_GROUPS:
