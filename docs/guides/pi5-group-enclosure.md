@@ -171,6 +171,45 @@ a low divider.
 - `lid_mm` (3), `wall_mm` (2), `floor_mm` (2).
 - `vents`: five slots in the lid over each Pi's SoC and cooler.
 
+## Printing
+
+```bash
+zcad-validation enclosure-group build --bays pi5,pi5 \
+  --output-directory exports/pi5-pair --slice
+```
+
+`--slice` writes print-oriented STLs to `print/` (the base on its floor, the
+lid on its outer face) and slices each with Bambu Studio into
+`slice/base/` and `slice/lid/`, using the project slicer profile
+(`--slicer-profile`). Each part gets a plate of its own: the pair's base and
+lid are each 96 mm deep, so together they would not fit the A1 mini's
+180 mm bed. The summary reports each plate's print time, filament, and any
+slicer warning. Slicing is skipped if a fit check fails.
+
+The default pair, on the A1 mini PETG profile, slices to about 2 h 11 min and
+73 g for the base, and 1 h 14 min and 45 g for the lid: about 3.5 hours and
+118 g in all. Existing slice output is never overwritten.
+
+## First print checklist
+
+Print the base first and test-fit before printing the lid. With a real Pi 5:
+
+1. **Standoffs and holes:** the Pi drops onto four standoffs and each M2.5
+   screw starts in its pilot hole without forcing.
+2. **Ports:** Ethernet and both USB pairs line up with their back-wall
+   openings, and a plug seats fully. Check the USB-C and micro-HDMI plugs in
+   the gap.
+3. **microSD:** the card goes in and out through the front opening.
+4. **Height:** with an Active Cooler fitted, note the gap between it and where
+   the lid will sit. This is the number most worth measuring.
+5. **Header:** if you plan to use the 40-pin header, check for room, and for a
+   divider notch.
+
+Then print the lid, close it, and check the six screws and the vents. Record
+what you measured against `RaspberryPi5Spec` (hole spacing, port centres,
+cooler height); those are the numbers to correct in
+`hardware/electronics/raspberry_pi.py`.
+
 ## What is assumed
 
 The Pi 5 is `RaspberryPi5Spec`, built by hand from the published drawing,
