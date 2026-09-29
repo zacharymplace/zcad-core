@@ -16,7 +16,7 @@ zcad-validation = "zcad_core.cli:main"
 
 [project.optional-dependencies]
 dev = [
-  "mypy>=1.10,<2",
+  "mypy>=2.3,<3",
   "pytest>=9,<10",
   "ruff>=0.16,<1",
 ]
