@@ -291,6 +291,14 @@ captures, the board-to-capture gap, the base lip under each part that
 overhangs the PCB edge, and the hole clearance of parts reaching through
 the base. Candidates reviewed before 1.2.0 do not carry it.
 
+Installation-path analysis (report schema 1.1.0) now moves the board against
+the printed fixture, base and clearance holes included, instead of the
+capture geometry alone, counting only overlap beyond each part's seated
+contact. Parts through base holes therefore block planar slides: rerun on
+UNO R4 r005, the two collision-free planar paths its stored report shows are
+blocked by its pins. XIAO r003's diagonal slide-out stays collision-free, so
+that reservation is a real escape path.
+
 Print-ready candidates, each with passing export validation, design review,
 and slicing readiness, a Bambu Studio slice, and an open trial-001:
 

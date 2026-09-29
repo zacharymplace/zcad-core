@@ -46,7 +46,8 @@ def test_analyzes_default_rigid_paths(
         candidate_id="candidate-r001",
     )
 
-    assert report.schema_version == "1.0.0"
+    assert report.schema_version == "1.1.0"
+    assert report.collision_geometry == "fixture"
     assert report.results
     assert any(result.name == "vertical" for result in report.results)
     assert all(result.sample_count > 0 for result in report.results)
@@ -115,3 +116,75 @@ def test_writes_immutable_path_report(
             report,
             output_path=output_path,
         )
+
+
+def edge_execution_with_underside_part(tmp_path: Path, *, depth_mm: float | None):
+    """A plain board, optionally with a 2 mm square part depth_mm below it."""
+
+    source_step = tmp_path / "board.step"
+    assembly = cq.Assembly()
+    assembly.add(
+        cq.Workplane("XY").box(40.0, 30.0, 1.6).translate((0.0, 0.0, 0.8)),
+        name="pcb",
+    )
+
+    if depth_mm is not None:
+        height = depth_mm + 0.5
+        assembly.add(
+            cq.Workplane("XY")
+            .box(2.0, 2.0, height)
+            .translate((0.0, 0.0, -depth_mm + height / 2)),
+            name="part",
+        )
+
+    assembly.export(str(source_step), exportType="STEP")
+
+    return execute_production_edge_capture(
+        ProductionEdgeExecutionRequest(
+            source_step=source_step,
+            pcb_solid_index=1,
+            output_step=tmp_path / "retention.step",
+            policy=EdgeCapturePolicy(),
+        )
+    )
+
+
+def planar_results(report) -> dict[str, tuple[bool, float]]:
+    return {
+        result.name: (result.passed, result.maximum_intersection_mm3)
+        for result in report.results
+        if result.name.startswith("planar_from_")
+    }
+
+
+def test_open_edges_allow_a_planar_slide_on_a_plain_board(tmp_path: Path) -> None:
+    report = analyze_edge_installation_paths(
+        edge_execution_with_underside_part(tmp_path, depth_mm=None),
+        candidate_id="candidate-r001",
+    )
+
+    assert planar_results(report) == {
+        "planar_from_negative_x": (True, 0.0),
+        "planar_from_positive_x": (True, 0.0),
+        "planar_from_positive_y": (True, 0.0),
+    }
+
+
+def test_parts_in_base_holes_block_planar_slides(tmp_path: Path) -> None:
+    """Regression for UNO R4: the clip-only analysis reported collision-free
+    slides that its pins, seated in base clearance holes, cannot make."""
+
+    report = analyze_edge_installation_paths(
+        edge_execution_with_underside_part(tmp_path, depth_mm=0.3),
+        candidate_id="candidate-r001",
+    )
+
+    results = planar_results(report)
+    assert set(results) == {
+        "planar_from_negative_x",
+        "planar_from_positive_x",
+        "planar_from_positive_y",
+    }
+    assert all(passed is False for passed, _ in results.values())
+    # The 2 x 2 mm part sweeps 0.3 mm deep into the hole wall.
+    assert all(volume == pytest.approx(1.2, abs=1e-3) for _, volume in results.values())
