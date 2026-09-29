@@ -1,7 +1,24 @@
 #!/usr/bin/env bash
 # Run the same gates as .github/workflows/ci.yml: format, lint, types, tests.
+#   --fast  skip tests marked slow (those that load vendor STEP models from
+#           evidence/). The pre-push hook always runs the full suite, since
+#           evidence/ is local and nothing else runs those tests.
 set -euo pipefail
 
+pytest_args=(-q)
+
+case "${1:-}" in
+  "") ;;
+  --fast) pytest_args+=(-m "not slow") ;;
+  *)
+    echo "usage: $0 [--fast]" >&2
+    exit 2
+    ;;
+esac
+
+# Resolve the repository from this script's location, not the caller's working
+# directory, which may be evidence/ itself (a separate repository).
+cd "$(dirname "${BASH_SOURCE[0]}")"
 cd "$(git rev-parse --show-toplevel)"
 
 # Linked worktrees have no .venv of their own, so fall back to the main
@@ -25,5 +42,5 @@ echo "==> ruff check"
 echo "==> mypy"
 "$python" -m mypy src scripts
 
-echo "==> pytest"
-"$python" -m pytest -q
+echo "==> pytest ${pytest_args[*]:1}"
+"$python" -m pytest "${pytest_args[@]}"

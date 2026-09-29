@@ -47,3 +47,7 @@ warn_unreachable = true
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+addopts = ["--strict-markers"]
+markers = [
+  "slow: loads a vendor STEP model from evidence/; deselect with -m 'not slow'",
+]

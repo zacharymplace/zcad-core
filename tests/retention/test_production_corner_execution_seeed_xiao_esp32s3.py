@@ -13,6 +13,8 @@ from zcad_core.retention import (
     generate_production_evidence_artifact,
 )
 
+pytestmark = pytest.mark.slow
+
 XIAO_ESP32S3_STEP = Path("evidence/seeed-xiao-esp32s3/step/xiao_esp32s3_z_up.step")
 
 POLICY = CornerCapturePolicy(

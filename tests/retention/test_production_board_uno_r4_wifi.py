@@ -9,6 +9,8 @@ from zcad_core.retention import (
     ProductionBoardCornerAdapter,
 )
 
+pytestmark = pytest.mark.slow
+
 UNO_R4_WIFI_STEP = Path("evidence/arduino-uno-r4-wifi/step/UNO_R4_WIFI.step")
 
 

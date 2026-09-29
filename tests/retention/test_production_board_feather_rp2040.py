@@ -9,6 +9,8 @@ from zcad_core.retention import (
     ProductionBoardCornerAdapter,
 )
 
+pytestmark = pytest.mark.slow
+
 FEATHER_STEP = Path("evidence/adafruit-feather-rp2040/4884 Feather RP2040.step")
 
 

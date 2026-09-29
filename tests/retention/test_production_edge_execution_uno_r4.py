@@ -15,6 +15,8 @@ from zcad_core.retention.production_edge_execution import (
     execute_production_edge_capture,
 )
 
+pytestmark = pytest.mark.slow
+
 UNO_R4_WIFI_STEP = Path("evidence/arduino-uno-r4-wifi/step/UNO_R4_WIFI.step")
 
 

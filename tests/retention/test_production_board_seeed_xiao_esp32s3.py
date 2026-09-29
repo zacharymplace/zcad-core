@@ -12,6 +12,8 @@ from zcad_core.retention import (
 # The vendor STEP file has the board lying in the XZ plane (Y = thickness
 # axis); this is a Z-up copy produced once with a 90deg rotation about X.
 # See scripts/generate-seeed-xiao-esp32s3-retention-evidence.py.
+pytestmark = pytest.mark.slow
+
 XIAO_ESP32S3_STEP = Path("evidence/seeed-xiao-esp32s3/step/xiao_esp32s3_z_up.step")
 
 # At only 21 x 17.8mm, the default 3.0mm arm / 2.0mm engagement / 4.0mm

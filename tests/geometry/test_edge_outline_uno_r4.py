@@ -13,6 +13,8 @@ from zcad_core.geometry.types import (
     EdgeSegment,
 )
 
+pytestmark = pytest.mark.slow
+
 STEP_PATH = (
     Path(__file__).resolve().parents[2]
     / "evidence"

@@ -12,6 +12,8 @@ from zcad_core.retention import (
     execute_production_corner_capture,
 )
 
+pytestmark = pytest.mark.slow
+
 PICO2_STEP = Path("evidence/raspberry-pi-pico-2/step/rpi_pico2.step")
 
 
