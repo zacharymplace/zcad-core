@@ -1,0 +1,115 @@
+"""Regenerate a Validation Lab candidate with changed generator code.
+
+For a corner-capture or edge-clip candidate directory this writes a new
+revision beside it that supersedes the parent with the same retention policy,
+rebuilt by the current code: retention STEP, automated evidence, fixture STL,
+the revision manifests, and a first export-validation run.
+
+The generated geometry is attributed to the checked-out commit, so ``src/``
+must have no uncommitted changes. Nothing existing is overwritten.
+
+Bring the new revision to the pre-print state with
+``scripts/prepare-candidate-for-print.py`` and slice it with
+``scripts/slice-candidate-fixture.py``.
+
+Usage:
+    python scripts/regenerate-candidate.py <candidate-directory> \\
+        --revision r005 --generator-version 1.4.0 --reason "..." \\
+        [--printer-profile profiles/printers/<id>.json]
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+from datetime import UTC, datetime
+from pathlib import Path
+
+from zcad_core.retention import (
+    RevisionRelationshipType,
+    load_candidate_revision,
+    load_manifest,
+    register_artifact_backed_revision,
+)
+
+
+def checked_out_commit() -> str:
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain", "--", "src"],
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout
+
+    if dirty.strip():
+        raise SystemExit(
+            "src/ has uncommitted changes; commit them first so the new "
+            "revision's git_commit names the code that generated it"
+        )
+
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout.strip()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("candidate_directory", type=Path)
+    parser.add_argument("--revision", required=True)
+    parser.add_argument("--generator-version", required=True)
+    parser.add_argument("--reason", required=True)
+    parser.add_argument(
+        "--printer-profile",
+        type=Path,
+        default=Path("profiles/printers/bambu-lab-a1-mini.json"),
+    )
+    args = parser.parse_args()
+
+    parent_directory: Path = args.candidate_directory
+    parent = load_candidate_revision(parent_directory / "candidate.json")
+    target = load_manifest(parent_directory.parents[1] / "target.json")
+
+    if target["target_id"] != parent.target_id:
+        raise SystemExit(
+            f"{parent_directory} belongs to {parent.target_id}, "
+            f"not {target['target_id']}"
+        )
+
+    result = register_artifact_backed_revision(
+        parent_candidate=parent,
+        revision=args.revision,
+        parameter_updates={},
+        relationship=RevisionRelationshipType.SUPERSEDES,
+        reason=args.reason,
+        output_directory=parent_directory.parent / args.revision,
+        source_step=Path(target["source_model_path"]),
+        pcb_solid_index=int(target["pcb_solid_index"]),
+        git_commit=checked_out_commit(),
+        generator_version=args.generator_version,
+        created_at_utc=datetime.now(UTC).isoformat(),
+        printer_profile=load_manifest(args.printer_profile),
+    )
+
+    candidate = result.registration.candidate
+    print(
+        json.dumps(
+            {
+                "candidate_id": candidate.candidate_id,
+                "supersedes": parent.candidate_id,
+                "selected": list(candidate.selected_corners),
+                "export_validation_status": result.export_validation.evaluated_status,
+                "export_validation_record": str(result.export_validation_path),
+            },
+            indent=2,
+        )
+    )
+
+    return 0 if result.export_validation.evaluated_status == "PASS" else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -247,3 +247,83 @@ def test_board_modelled_below_origin_seats_on_base(tmp_path: Path) -> None:
 
     assert report["passed"] is True
     assert report["interference"]["pcb_fixture_intersection_mm3"] == 0.0
+
+
+def review_board_with_top_part(
+    tmp_path: Path, *, minimum_component_gap_mm: float
+) -> dict[str, object]:
+    """A board with one top-side part 1.6 mm (the board) above the base."""
+
+    source_step = tmp_path / "board.step"
+    pcb = cq.Workplane("XY").box(40.0, 30.0, 1.6).translate((0.0, 0.0, 0.8))
+    part = cq.Workplane("XY").box(4.0, 4.0, 2.0).translate((0.0, 0.0, 2.6))
+    assembly = cq.Assembly()
+    assembly.add(pcb, name="pcb")
+    assembly.add(part, name="part")
+    assembly.export(str(source_step), exportType="STEP")
+
+    execution = execute_production_corner_capture(
+        ProductionCornerExecutionRequest(
+            source_step=source_step,
+            pcb_solid_index=1,
+            output_step=tmp_path / "retention.step",
+            policy=CornerCapturePolicy(),
+        )
+    )
+    artifact = export_design_review_package(
+        execution,
+        output_directory=tmp_path / "review",
+        fixture_policy=ValidationFixturePolicy(),
+        minimum_component_gap_mm=minimum_component_gap_mm,
+    )
+    report = json.loads(artifact.report_path.read_text(encoding="utf-8"))
+    assert report["passed"] is artifact.passed
+
+    return report
+
+
+def test_component_inside_minimum_gap_blocks_review(tmp_path: Path) -> None:
+    """Zero overlap volume is not enough: a part closer to the fixture than
+    the minimum gap blocks the review (UNO R4 r004's clip touched a header)."""
+
+    report = review_board_with_top_part(tmp_path, minimum_component_gap_mm=2.0)
+    interference = report["interference"]
+
+    assert report["passed"] is False
+    assert report["decision"] == "geometry_review_blocked"
+    assert interference["component_fixture_intersections"] == []
+    assert interference["component_clearance_violations"] == [
+        {"component_index": 1, "gap_mm": pytest.approx(1.6, abs=1e-3)}
+    ]
+
+
+def test_component_beyond_minimum_gap_passes(tmp_path: Path) -> None:
+    report = review_board_with_top_part(tmp_path, minimum_component_gap_mm=0.1)
+
+    assert report["passed"] is True
+    assert report["schema_version"] == "1.1.0"
+    assert report["interference"]["minimum_component_gap_mm"] == 0.1
+    assert report["interference"]["component_clearance_violations"] == []
+
+
+def test_flush_underside_pad_is_seating_not_a_clearance_violation(
+    tmp_path: Path,
+) -> None:
+    report = review_board(tmp_path, depth_mm=0.0)
+    interference = report["interference"]
+
+    assert report["passed"] is True
+    assert interference["component_clearance_violations"] == []
+    assert interference["underside_seating_contacts"] == [
+        {"component_index": 1, "intersection_mm3": 0.0, "depth_mm": 0.0}
+    ]
+
+
+def test_rejects_negative_minimum_component_gap(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="minimum_component_gap_mm"):
+        export_design_review_package(
+            production_execution(tmp_path),
+            output_directory=tmp_path / "review",
+            fixture_policy=ValidationFixturePolicy(),
+            minimum_component_gap_mm=-0.1,
+        )

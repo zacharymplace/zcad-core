@@ -24,6 +24,8 @@ from zcad_core.retention.validation_fixture import (
 # read up to ~0.3 um loose, so seating comparisons allow 1 um.
 _SEATING_EPSILON_MM = 1e-3
 
+DESIGN_REVIEW_SCHEMA_VERSION = "1.1.0"
+
 ProductionExecutionResult = (
     ProductionCornerExecutionResult | ProductionEdgeExecutionResult
 )
@@ -141,12 +143,28 @@ def _intersection_volume(
     return 0.0 if intersection is None else float(intersection.Volume())
 
 
+def _rests_under_board(component: cq.Shape, pcb_bounds: cq.BoundBox) -> bool:
+    """Whether a component sits within the board footprint and reaches its
+    underside, so touching the base top is seating rather than a clash."""
+
+    bounds = component.BoundingBox()
+
+    return (
+        bounds.xmin >= pcb_bounds.xmin - _SEATING_EPSILON_MM
+        and bounds.xmax <= pcb_bounds.xmax + _SEATING_EPSILON_MM
+        and bounds.ymin >= pcb_bounds.ymin - _SEATING_EPSILON_MM
+        and bounds.ymax <= pcb_bounds.ymax + _SEATING_EPSILON_MM
+        and bounds.zmin <= pcb_bounds.zmin + _SEATING_EPSILON_MM
+    )
+
+
 def _review_report(
     *,
     execution: ProductionExecutionResult,
     fixture: cq.Shape,
     tolerance_mm3: float,
     seating_contact_mm: float,
+    minimum_component_gap_mm: float,
     paths: dict[str, Path],
 ) -> dict[str, Any]:
     pcb = execution.board_model.pcb
@@ -157,14 +175,35 @@ def _review_report(
         pcb,
     )
 
-    pcb_bottom = pcb.BoundingBox().zmin
+    pcb_bounds = pcb.BoundingBox()
+    pcb_bottom = pcb_bounds.zmin
     component_intersections = []
+    clearance_violations = []
     seating_contacts = []
 
     for index, component in enumerate(components, start=1):
         intersection = _intersection(fixture, component)
 
         if intersection is None or intersection.Volume() <= tolerance_mm3:
+            # No overlapping volume, but flush or near-flush faces still clash
+            # once printed: UNO R4 r004's clip ended flush against a header.
+            if minimum_component_gap_mm > 0:
+                gap = fixture.distance(component)
+
+                if gap < minimum_component_gap_mm:
+                    if _rests_under_board(component, pcb_bounds):
+                        seating_contacts.append(
+                            {
+                                "component_index": index,
+                                "intersection_mm3": 0.0,
+                                "depth_mm": 0.0,
+                            }
+                        )
+                    else:
+                        clearance_violations.append(
+                            {"component_index": index, "gap_mm": round(gap, 6)}
+                        )
+
             continue
 
         box = intersection.BoundingBox()
@@ -186,10 +225,14 @@ def _review_report(
         else:
             component_intersections.append(entry)
 
-    passed = pcb_intersection_mm3 <= tolerance_mm3 and not component_intersections
+    passed = (
+        pcb_intersection_mm3 <= tolerance_mm3
+        and not component_intersections
+        and not clearance_violations
+    )
 
     return {
-        "schema_version": "1.0.0",
+        "schema_version": DESIGN_REVIEW_SCHEMA_VERSION,
         "decision": ("visual_review_ready" if passed else "geometry_review_blocked"),
         "passed": passed,
         "tolerance_mm3": tolerance_mm3,
@@ -207,6 +250,8 @@ def _review_report(
                 6,
             ),
             "component_fixture_intersections": component_intersections,
+            "minimum_component_gap_mm": minimum_component_gap_mm,
+            "component_clearance_violations": clearance_violations,
             "seating_contact_mm": seating_contact_mm,
             "underside_seating_contacts": seating_contacts,
         },
@@ -226,14 +271,24 @@ def export_design_review_package(
     fixture_policy: ValidationFixturePolicy,
     tolerance_mm3: float = 1e-6,
     seating_contact_mm: float = 0.05,
+    minimum_component_gap_mm: float = 0.1,
 ) -> DesignReviewArtifact:
-    """Export a multi-format production design-review package."""
+    """Export a multi-format production design-review package.
+
+    The review blocks on any fixture overlap with the PCB or a component
+    (beyond seating contact under the board), and on any component closer
+    to the fixture than ``minimum_component_gap_mm``, which catches faces
+    that touch with zero overlapping volume.
+    """
 
     if tolerance_mm3 < 0:
         raise ValueError("tolerance_mm3 cannot be negative")
 
     if seating_contact_mm < 0:
         raise ValueError("seating_contact_mm cannot be negative")
+
+    if minimum_component_gap_mm < 0:
+        raise ValueError("minimum_component_gap_mm cannot be negative")
 
     glb_path = output_directory / "design-review.glb"
     step_path = output_directory / "design-review.step"
@@ -365,6 +420,7 @@ def export_design_review_package(
         fixture=fixture,
         tolerance_mm3=tolerance_mm3,
         seating_contact_mm=seating_contact_mm,
+        minimum_component_gap_mm=minimum_component_gap_mm,
         paths=artifact_paths,
     )
 

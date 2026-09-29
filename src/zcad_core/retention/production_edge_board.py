@@ -101,8 +101,17 @@ class ProductionBoardEdgeAdapter:
         edge: BoardEdge,
         *,
         minimum_span_mm: float,
+        component_clearance_mm: float = 0.0,
     ) -> EdgeClearanceResult:
-        """Find spans on one edge clear of both material gaps and components."""
+        """Find spans on one edge clear of both material gaps and components.
+
+        ``component_clearance_mm`` widens each component's footprint before it
+        blocks the edge, so a clip built on the returned span keeps that gap
+        from every component instead of ending flush against one.
+        """
+
+        if component_clearance_mm < 0:
+            raise ValueError("component_clearance_mm cannot be negative")
 
         pcb_bounds = model.pcb.BoundingBox()
 
@@ -121,6 +130,7 @@ class ProductionBoardEdgeAdapter:
             model=model,
             edge=edge,
             pcb_bounds=pcb_bounds,
+            clearance=component_clearance_mm,
         )
 
         clear_spans = tuple(
@@ -156,6 +166,7 @@ class ProductionBoardEdgeAdapter:
                 model,
                 edge,
                 minimum_span_mm=minimum_span_mm,
+                component_clearance_mm=policy.board_clearance_mm,
             )
             for edge in BoardEdge
         )
@@ -207,10 +218,13 @@ class ProductionBoardEdgeAdapter:
         model: ProductionBoardModel,
         edge: BoardEdge,
         pcb_bounds: cq.BoundBox,
+        clearance: float,
     ) -> tuple[EdgeSegment, ...]:
         lower, upper = _edge_limits(edge, pcb_bounds)
         pcb_top_z = pcb_bounds.zmax
-        depth = self._engagement_depth_mm
+        # A component just past the engagement strip still needs clearance
+        # from the clip's inner face.
+        depth = self._engagement_depth_mm + clearance
 
         blocked: list[tuple[float, float]] = []
 
@@ -230,8 +244,8 @@ class ProductionBoardEdgeAdapter:
             if not overlaps_depth:
                 continue
 
-            start = max(along_start, lower)
-            end = min(along_end, upper)
+            start = max(along_start - clearance, lower)
+            end = min(along_end + clearance, upper)
 
             if end > start:
                 blocked.append((start, end))
