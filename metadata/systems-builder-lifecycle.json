@@ -8,7 +8,7 @@
     "repository": "zacharymplace/zcad-core",
     "path": ".",
     "branch": "main",
-    "commit": "262b61b"
+    "commit": "161ad59"
   },
   "evidence": [
     {
@@ -57,7 +57,7 @@
       "result": "pass"
     }
   ],
-  "last_verified_at": "2026-09-29T00:41:14Z",
+  "last_verified_at": "2026-09-29T01:09:20Z",
   "next_action": {
     "description": "Phase 2 of docs/roadmaps/next-phases.md: print and test-fit the four print-ready candidates (Feather RP2040 r004, Pico 2 r002, XIAO ESP32-S3 r003, UNO R4 WiFi r004), record each trial with `zcad-validation trial complete`, then register and promote passing candidates.",
     "command": "scripts/check.sh"
