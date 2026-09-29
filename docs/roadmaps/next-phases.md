@@ -12,19 +12,19 @@ adding new retention strategies or hardware families.
 |---|---|
 | 0 — Restore the gate | Complete |
 | 1 — Route Validation Lab through the export pipeline | Complete |
-| 2 — Close the physical loop | Pre-print complete for four candidates; blocked on printer access |
+| 2 — Close the physical loop | Pre-print and visual review complete for four candidates; blocked on printer access |
 | 3 — Measurement feedback | Not started; needs Phase 2 trial data |
-| 4 — Retention-strategy breadth | Pre-print complete for Pico 2, XIAO, and UNO R4; prints pending |
+| 4 — Retention-strategy breadth | Pre-print and visual review complete for Pico 2, XIAO, and UNO R4; prints pending |
 | 5 — Publication and downstream integration | Not started |
 
 Four candidates are ready to print. Each has passing export validation, a
-passing design review, slicing readiness, a Bambu Studio slice, and an open
-pending trial (see Phase 2):
+passing design review, a passing human visual review, slicing readiness, a
+Bambu Studio slice, and an open pending trial (see Phase 2):
 
 - `adafruit-feather-rp2040-corner-capture-r004`
 - `raspberry-pi-pico-2-corner-capture-r002`
 - `seeed-xiao-esp32s3-corner-capture-r003`
-- `arduino-uno-r4-wifi-edge-clip-r004`
+- `arduino-uno-r4-wifi-edge-clip-r005`
 
 No candidate has been printed or promoted yet, and nothing is
 publication-eligible.
@@ -33,18 +33,38 @@ publication-eligible.
 
 1. **No printer access.** Phase 2 needs a print and test fit of each
    candidate, recorded with `zcad-validation trial complete`.
-2. **Human visual reviews are outstanding** for all four candidates. The
-   review of Feather r003 passed geometry whose ledges were floating, so these
-   reviews should examine the fused ledges specifically. Record each with
-   `zcad-validation review complete`, whose checklist now includes
-   `retention_features_fused`; promotion requires a passing review.
-3. **GitHub Actions is disabled for the account**, so CI never runs on
+2. **GitHub Actions is disabled for the account**, so CI never runs on
    GitHub. The same gates run locally: `scripts/check.sh`, enforced by the
    `.githooks/pre-push` hook (enable per checkout with
    `git config core.hooksPath .githooks`). The hook is also the only place
    the 19 tests that load vendor STEP models from `evidence/` run, since they
    skip wherever `evidence/` is absent; they are marked `slow`, and
    `scripts/check.sh --fast` skips them for a quicker local loop.
+
+### Visual reviews (2026-09-28)
+
+All four print-ready candidates passed a human visual review, recorded with
+`zcad-validation review complete`, with reservations. Each review measured
+the design-review STEP rather than relying on the rendered views alone.
+
+The review of UNO R4 r004 recorded `revise`: its clip ended flush
+(0.000 mm) against a header housing, which the design review missed because
+flush faces overlap by zero volume. Generator 1.4.0 fixed the cause and
+r005 replaced it (see Phase 2).
+
+Each review's reservations are for its physical trial to settle:
+
+| Candidate | Check when printed |
+|---|---|
+| Feather RP2040 r004 | USB-C plug seats past the base, which extends 0.85 mm beyond the receptacle face |
+| Pico 2 r002 | Micro-USB plug seats past a 0.70 mm base lip that sits 0.20 mm below the receptacle; the likeliest plug interference |
+| XIAO ESP32-S3 r003 | A diagonal push does not slide the board out (planar diagonal paths are collision-free and engagement is 0.3 mm); the 0.261 mm gap between a capture and the part beside USB-C; a 0.47 mm USB-C lip |
+| UNO R4 WiFi r005 | The 0.25 mm clip-to-header gap; lift at the unclipped positive_y edge, which relies on pin friction; a 1.14 mm USB-C lip |
+
+The base lip under an edge connector appears on all four boards: the
+fixture's 2 mm perimeter margin runs under any connector that overhangs the
+PCB edge. If the trials confirm it blocks plugs, fix it once in the
+generator with a relief under overhanging connectors.
 
 ### Tracks
 
@@ -254,12 +274,17 @@ validation and the design review:
 - 1.3.0 cuts clearance holes through the base under parts that reach more
   than 0.05 mm below the PCB, such as the UNO R4's through-hole headers and
   power jack.
+- 1.4.0 keeps `board_clearance_mm` between edge-clip spans and component
+  footprints, so clips no longer end flush against a component (UNO R4
+  r004's clip touched a header housing).
 
 The design review's interference check now fails closed: it takes the
 largest overlap across several boolean formulations. The old check reported
 0 mm³ for the XIAO's multi-shell vendor PCB, which actually overlapped its
 base by 88.7 mm³. The review accepts bottom-side pads up to 0.05 mm proud of
-the PCB as seating contact.
+the PCB as seating contact. Since design-review schema 1.1.0 it also blocks
+any component closer to the fixture than 0.1 mm, which catches faces that
+touch with zero overlapping volume.
 
 Print-ready candidates, each with passing export validation, design review,
 and slicing readiness, a Bambu Studio slice, and an open trial-001:
@@ -269,10 +294,12 @@ and slicing readiness, a Bambu Studio slice, and an open trial-001:
 | `adafruit-feather-rp2040-corner-capture-r004` | 9 min, 3.70 g | 0.90 mm |
 | `raspberry-pi-pico-2-corner-capture-r002` | 8 min, 3.45 g | 0.85 mm |
 | `seeed-xiao-esp32s3-corner-capture-r003` | 5 min, 1.44 g | 0.85 mm |
-| `arduino-uno-r4-wifi-edge-clip-r004` | 17 min, 8.61 g | 0.85 mm |
+| `arduino-uno-r4-wifi-edge-clip-r005` | 17 min, 8.61 g | 0.85 mm |
 
-Do not print superseded candidates. XIAO r002's unregistered placeholder
-trial was removed.
+Do not print superseded candidates, including UNO R4 r004, whose visual
+review recorded `revise`. XIAO r002's unregistered placeholder trial was
+removed. `scripts/regenerate-candidate.py` rebuilds a candidate under a new
+generator version with its policy unchanged, as it did for UNO R4 r005.
 
 ### Deliverables
 
@@ -291,7 +318,8 @@ trial was removed.
   current-schema review of the same candidate via `--visual-review`. `report`
   shows each candidate's review. The legacy 1.0.0 review of Feather r003
   still loads but cannot support a promotion.
-- [ ] Human visual review of each candidate's design-review package
+- [x] Human visual review of each candidate's design-review package (all
+  four pass with reservations; UNO R4 r004 was revised to r005 first)
 - [ ] Feather RP2040 r004 printed and recorded through `trial complete`,
   with dimensional measurements
 - [ ] A pass promotes r004; a revise derives r005 from measured deltas.
@@ -329,9 +357,9 @@ Prove the physical loop for each retention strategy.
 ### Deliverables
 
 - Phase 2 repeated for Pico 2 (corner capture), UNO R4 WiFi (edge clip),
-  and XIAO ESP32-S3. Their pre-print packages are complete (Pico 2 r002,
-  UNO R4 r004, and XIAO r003), so they can be printed in the same session as
-  Feather r004.
+  and XIAO ESP32-S3. Their pre-print packages and visual reviews are
+  complete (Pico 2 r002, UNO R4 r005, and XIAO r003), so they can be printed
+  in the same session as Feather r004.
 - wearable targets moved from synthetic to measured or official models when
   source data is available
 

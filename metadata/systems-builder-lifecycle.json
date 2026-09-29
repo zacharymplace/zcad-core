@@ -8,7 +8,7 @@
     "repository": "zacharymplace/zcad-core",
     "path": ".",
     "branch": "main",
-    "commit": "161ad59"
+    "commit": "96f243f"
   },
   "evidence": [
     {
@@ -55,16 +55,25 @@
       "kind": "capability",
       "reference": "scripts/backup-evidence.sh",
       "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "scripts/regenerate-candidate.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/retention/visual_review.py",
+      "result": "pass"
     }
   ],
-  "last_verified_at": "2026-09-29T01:09:20Z",
+  "last_verified_at": "2026-09-29T01:56:35Z",
   "next_action": {
-    "description": "Phase 2 of docs/roadmaps/next-phases.md: print and test-fit the four print-ready candidates (Feather RP2040 r004, Pico 2 r002, XIAO ESP32-S3 r003, UNO R4 WiFi r004), record each trial with `zcad-validation trial complete`, then register and promote passing candidates.",
+    "description": "Phase 2 of docs/roadmaps/next-phases.md: print and test-fit the four print-ready, visually reviewed candidates (Feather RP2040 r004, Pico 2 r002, XIAO ESP32-S3 r003, UNO R4 WiFi r005), check each review's reservations, record each trial with `zcad-validation trial complete`, then register and promote passing candidates.",
     "command": "scripts/check.sh"
   },
   "blockers": [
     "No printer access: physical trials for the four print-ready candidates are open but unprinted, so no candidate can be promoted (Phase 2).",
-    "Human visual reviews of the four candidates' design-review packages are outstanding (Phase 2).",
     "GitHub Actions is disabled for the account, so CI never runs on GitHub; gates run locally through the .githooks/pre-push hook."
   ],
   "capabilities": [
@@ -99,6 +108,9 @@
     "pre-print-candidate-preparation",
     "local-ci-gate",
     "offsite-evidence-backup",
-    "slow-test-selection"
+    "slow-test-selection",
+    "visual-review-promotion-gate",
+    "design-review-minimum-gap",
+    "candidate-regeneration"
   ]
 }
