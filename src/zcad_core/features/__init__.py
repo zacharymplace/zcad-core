@@ -10,6 +10,11 @@ from zcad_core.features.display_cutouts import (
     add_display_bezel,
     cut_display_window,
 )
+from zcad_core.features.enclosure import (
+    Enclosure,
+    EnclosureDesign,
+    build_enclosure,
+)
 from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
@@ -30,6 +35,8 @@ __all__ = [
     "ConnectorCutoutParameters",
     "DisplayBezelParameters",
     "DisplayWindowParameters",
+    "Enclosure",
+    "EnclosureDesign",
     "InsertBossParameters",
     "MountableBoardSpec",
     "PcbStandoffParameters",
@@ -39,6 +46,7 @@ __all__ = [
     "add_heat_set_insert_boss",
     "add_pcb_standoff",
     "add_snap_retention_clip",
+    "build_enclosure",
     "centered_mounting_hole_positions",
     "cut_connector_opening",
     "cut_display_window",

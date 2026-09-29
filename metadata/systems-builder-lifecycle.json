@@ -88,7 +88,7 @@
     },
     {
       "kind": "capability",
-      "reference": "examples/pico2_oled_tray.py",
+      "reference": "examples/pico2_oled_enclosure.py",
       "result": "pass"
     },
     {

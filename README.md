@@ -18,8 +18,8 @@ This repository intentionally contains no product-specific models.
 
 ## Getting started
 
-- `examples/pico2_oled_tray.py` designs, checks, and exports an enclosure
-  tray with the core engine.
+- `examples/pico2_oled_enclosure.py` designs, checks, and exports a
+  screw-together enclosure with the core engine.
 - `docs/guides/validation-lab-workflow.md` takes a board from its vendor STEP
   model to a promoted, validated fixture candidate.
 
