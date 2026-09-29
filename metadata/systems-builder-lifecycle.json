@@ -120,11 +120,21 @@
       "kind": "capability",
       "reference": "docs/guides/enclosure-builder.md",
       "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/printing/bambu.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/features/enclosure_trial.py",
+      "result": "pass"
     }
   ],
   "last_verified_at": "2026-09-29T20:09:59Z",
   "next_action": {
-    "description": "Phase 2 of docs/roadmaps/next-phases.md: print and test-fit the four print-ready, visually reviewed candidates (Feather RP2040 r004, Pico 2 r002, XIAO ESP32-S3 r003, UNO R4 WiFi r005), check each review's reservations, record each trial with `zcad-validation trial complete`, then register and promote passing candidates. Print a Pico 2 or XIAO enclosure on the same run to prove the enclosure builder's clips, plug opening, and insert bosses.",
+    "description": "Phase 2 of docs/roadmaps/next-phases.md: print and test-fit the four print-ready, visually reviewed candidates (Feather RP2040 r004, Pico 2 r002, XIAO ESP32-S3 r003, UNO R4 WiFi r005), check each review's reservations, record each trial with `zcad-validation trial complete`, then register and promote passing candidates. Print a Pico 2 or XIAO enclosure on the same run (`zcad-validation enclosure build --slice`) and record it with `zcad-validation enclosure trial complete`.",
     "command": "scripts/check.sh"
   },
   "blockers": [
@@ -189,6 +199,8 @@
     "board-catalog",
     "vendor-model-board-components",
     "vendor-display-catalog",
-    "display-screw-posts"
+    "display-screw-posts",
+    "print-ready-enclosure-slicing",
+    "enclosure-trial-records"
   ]
 }

@@ -189,7 +189,9 @@ ADAFRUIT_OLED_128X64_1_3IN = DisplaySpec(
     geometry_source=(
         "Adafruit 938 CAD model (PCB, holes, panel, connectors); active area "
         "from the UG-2864KSWLG01 datasheet drawing, 1.55 mm off the panel "
-        "centre away from its flex cable"
+        "centre away from its flex cable, whose wraparound pads Adafruit's "
+        "board layout (Adafruit-1.3inch-128x64-Mono-OLED-PCB) puts at the end "
+        "opposite the header"
     ),
 )
 
@@ -213,12 +215,13 @@ ADAFRUIT_OLED_128X128_1_5IN = DisplaySpec(
     panel_thickness_mm=1.41,
     panel_center_x_mm=0.13,
     panel_center_y_mm=0.26,
-    geometry_evidence_status="provisional",
+    geometry_evidence_status="measured",
     geometry_source=(
         "Adafruit 4741 CAD model (PCB, holes, panel, connectors); active area "
         "from the RiTdisplay RGS15128128WR000 drawing, 2.92 mm off the panel "
-        "centre. The model does not show the flex cable, so the offset's "
-        "direction (away from the header) is inferred; confirm on the part"
+        "centre away from its flex cable, whose pads Adafruit's board layout "
+        "(Adafruit-Grayscale-1.5-inch-128x128-OLED-PCB) puts at the end "
+        "opposite the header"
     ),
 )
 

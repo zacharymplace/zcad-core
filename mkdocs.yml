@@ -42,6 +42,7 @@ nav:
       - geometry: reference/geometry.md
       - hardware: reference/hardware.md
       - metadata: reference/metadata.md
+      - printing: reference/printing.md
       - profiles: reference/profiles.md
       - retention: reference/retention.md
       - validation: reference/validation.md

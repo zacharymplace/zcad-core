@@ -13,6 +13,7 @@ what each subpackage's `__init__.py` exports via `__all__`.
 | [`geometry`](geometry.md) | Low-level board-edge and outline analysis |
 | [`hardware`](hardware.md) | Fastener, magnet, and electronics component specifications |
 | [`metadata`](metadata.md) | Reproducible per-part build records |
+| [`printing`](printing.md) | Slicing parts for the printer with Bambu Studio |
 | [`profiles`](profiles.md) | Printer and material manufacturing profiles |
 | [`retention`](retention.md) | The retention engine, its strategies, and the Validation Lab evidence/promotion pipeline |
 | [`validation`](validation.md) | Profile-aware part validation |

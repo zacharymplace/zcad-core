@@ -111,8 +111,9 @@ Open items, in order:
 
 1. **Print one enclosure** (Pico 2 or XIAO) with the fixture trials: the
    snap clips, the plug opening, the insert bosses, and the display
-   retainer are unproven in plastic. Record it with an enclosure trial
-   record, still to be built.
+   mounts are unproven in plastic. `enclosure build --slice` produces the
+   plate's G-code and opens trial-001; record the print with
+   `enclosure trial complete`.
 2. **Lid options**: snap-fit lid, locating lip, countersunk holes, vents.
 
 ### Gaps closed since 2026-09-27

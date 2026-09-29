@@ -110,6 +110,45 @@ enclosure = build_enclosure(
   body that clears the floor, and contact only where expected (the board on
   its supports, the display on its pads).
 
+## Printing and recording a trial
+
+```bash
+zcad-validation enclosure build --board raspberry_pi_pico_2 \
+  --display adafruit_oled_128x64_1_3in \
+  --output-directory exports/pico2-enclosure --review --slice
+```
+
+Every build writes `enclosure.json`, a build record of the hardware, the
+design settings, each part's STL hash, the checks that apply, and the
+nominal dimensions to measure. `--slice` then:
+
+- writes print-oriented copies of the parts to `print/`: the base on its
+  floor, the lid on its outer face so its posts or retainer point up;
+- slices both onto one plate with Bambu Studio into `slice/`
+  (`plate_1.gcode` and `slice-summary.json`), using the project slicer
+  profile (`--slicer-profile`); a plate too small for both parts fails
+  here; and
+- opens `trials/trial-001/`.
+
+After printing and assembling, fill in the trial's `observations.json`
+(`pass` or `fail` for each check that applies: clean print, inserts, lid
+closure, board seated and held, cable plugs in, other openings clear,
+display aligned and held, nothing rattles) and `measurements.json` (caliper
+values beside the nominals), then:
+
+```bash
+zcad-validation enclosure trial complete \
+  --trial-directory exports/pico2-enclosure/trials/trial-001 \
+  --disposition pass
+```
+
+`pass` needs every check to pass and at least one measurement; `revise`
+needs a measurement; `fail` needs neither. The record stores each
+measurement's deviation from nominal, and it refuses parts whose STL no
+longer matches the build record. A completed trial is never overwritten:
+`zcad-validation enclosure trial start --build-record .../enclosure.json`
+opens the next one.
+
 ## Catalogued hardware
 
 | Board | Support | Source |
@@ -140,14 +179,16 @@ checkout.
 | Display | Mounting | Source |
 | --- | --- | --- |
 | `ADAFRUIT_OLED_128X64_1_3IN` | Screw posts | Adafruit 938 CAD model; active area from the panel datasheet |
-| `ADAFRUIT_OLED_128X128_1_5IN` | Screw posts | Provisional: Adafruit 4741 CAD model; the active area's 2.9 mm offset direction is inferred, so check it on the part |
+| `ADAFRUIT_OLED_128X128_1_5IN` | Screw posts | Adafruit 4741 CAD model; active area from the panel datasheet |
 | `ADAFRUIT_EINK_200X200_1_54IN` | Screw posts | Adafruit 4196 CAD model; active area from the panel drawing |
 | `REFERENCE_OLED_128X64` | Retainer clips | Vendor-neutral reference with no holes |
 
 The Adafruit displays are modelled in layers, face up: the parts behind the
 PCB, the PCB, then the glass panel. So posts land on the PCB beside the
 panel, and the window sits over the active area, which is off the panel
-centre on all three. The vendor models are in `evidence/`, and a slow test
+centre on all three, away from the panel's flex cable (placed from
+Adafruit's board layouts for the OLEDs, and the panel drawing for the
+e-ink). The vendor models are in `evidence/`, and a slow test
 checks each spec's PCB outline, thickness, and hole spacing against them.
 Solder a header on the back and the stack grows; raise the display height
 and top clearance to suit.

@@ -8,6 +8,7 @@ src/zcad_core/
 ├── geometry      board-edge analysis and fail-closed solid intersection
 ├── hardware      catalogued boards (with vendor-model parts), displays, fasteners
 ├── metadata      per-part build records
+├── printing      slicing parts for the printer (Bambu Studio)
 ├── profiles      printer, material, and slicer profile loading
 ├── retention     retention strategies and the Validation Lab
 ├── validation    design, geometry, and STL checks

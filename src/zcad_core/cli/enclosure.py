@@ -1,9 +1,11 @@
-"""zcad-validation enclosure build and enclosure hardware."""
+"""zcad-validation enclosure build, hardware, and trial."""
 
 from __future__ import annotations
 
 import argparse
 from pathlib import Path
+
+import cadquery as cq
 
 from zcad_core.assemblies import (
     DeviceAssembly,
@@ -15,9 +17,19 @@ from zcad_core.assemblies import (
 from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features import (
+    Enclosure,
     EnclosureDesign,
+    EnclosureReview,
     build_enclosure,
     export_enclosure_review,
+)
+from zcad_core.features.enclosure_trial import (
+    EnclosureTrialDisposition,
+    complete_enclosure_trial,
+    print_oriented_parts,
+    sha256,
+    start_enclosure_trial,
+    write_build_record,
 )
 from zcad_core.hardware import (
     DisplaySpec,
@@ -27,6 +39,7 @@ from zcad_core.hardware import (
     list_displays,
     list_fasteners,
 )
+from zcad_core.printing import SliceError, slice_models
 from zcad_core.profiles import load_printer_profile
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
@@ -65,13 +78,8 @@ def _assembly(args: argparse.Namespace, display: DisplaySpec | None) -> DeviceAs
     return assembly
 
 
-def _enclosure_build(args: argparse.Namespace) -> int:
-    """Build, validate, and export an enclosure, and optionally review it."""
-
-    board = get_board(args.board)
-    display = get_display(args.display) if args.display else None
-    assembly = _assembly(args, display)
-    design = EnclosureDesign(
+def _design(args: argparse.Namespace) -> EnclosureDesign:
+    return EnclosureDesign(
         wall_mm=args.wall_mm,
         floor_mm=args.floor_mm,
         lid_mm=args.lid_mm,
@@ -84,8 +92,19 @@ def _enclosure_build(args: argparse.Namespace) -> int:
         display_retainer=args.display_retainer,
         display_fastener=args.display_fastener,
     )
+
+
+def _enclosure_build(args: argparse.Namespace) -> int:
+    """Build, validate, and export an enclosure and its build record, and
+    optionally review it and slice it ready to print."""
+
+    board = get_board(args.board)
+    display = get_display(args.display) if args.display else None
+    assembly = _assembly(args, display)
+    design = _design(args)
     enclosure = build_enclosure(assembly, board=board, display=display, design=design)
     name = args.name or f"{board.identifier.lower().replace('_', '-')}-enclosure"
+    printer_profile = load_printer_profile(args.printer_profile)
     result = export_parts(
         ExportRequest(
             design_name=name,
@@ -93,7 +112,7 @@ def _enclosure_build(args: argparse.Namespace) -> int:
             parts={"base": enclosure.base, "lid": enclosure.lid},
             output_directory=args.output_directory,
             repository_root=Path.cwd(),
-            printer_profile=load_printer_profile(args.printer_profile),
+            printer_profile=printer_profile,
             parameters={
                 "board": board.identifier,
                 "display": display.identifier if display else None,
@@ -105,11 +124,22 @@ def _enclosure_build(args: argparse.Namespace) -> int:
             },
         )
     )
+    build_record = write_build_record(
+        args.output_directory,
+        enclosure=enclosure,
+        design_name=name,
+        board_identifier=board.identifier,
+        display=display,
+        part_stls={part.part_name: part.stl_path for part in result.parts},
+        printer_profile_id=str(printer_profile["profile_id"]),
+    )
     payload: dict[str, object] = {
         "design_name": name,
         "board_support": enclosure.board_support,
+        "display_support": enclosure.display_support,
         "side_clearance_mm": list(enclosure.side_clearance_mm),
         "validation_status": (result.validation_report or {}).get("evaluated_status"),
+        "build_record": str(build_record),
         "parts": {
             part.part_name: {
                 "step": str(part.step_path),
@@ -120,7 +150,6 @@ def _enclosure_build(args: argparse.Namespace) -> int:
             for part in result.parts
         },
     }
-
     passed = True
 
     if args.review:
@@ -128,25 +157,97 @@ def _enclosure_build(args: argparse.Namespace) -> int:
             enclosure, assembly, output_directory=args.output_directory / "review"
         )
         passed = review.passed
-        payload["review"] = {
-            "passed": review.passed,
-            "report": str(review.report_path),
-            "glb": str(review.glb_path),
-            "recommended_screw": (
-                f"{enclosure.fastener.identifier} x "
-                f"{review.report['fasteners']['recommended_screw_length_mm']} mm"
-            ),
-            "display_screws": review.report["display_fasteners"],
-            "failed_checks": sorted(
-                name
-                for name, check in review.report["checks"].items()
-                if not check["passed"]
-            ),
-        }
+        payload["review"] = _review_payload(enclosure, review)
+
+    if args.slice:
+        payload["print"] = _slice(args, enclosure, name, build_record)
 
     emit(payload)
 
     return 0 if passed else 1
+
+
+def _review_payload(enclosure: Enclosure, review: EnclosureReview) -> dict[str, object]:
+    return {
+        "passed": review.passed,
+        "report": str(review.report_path),
+        "glb": str(review.glb_path),
+        "recommended_screw": (
+            f"{enclosure.fastener.identifier} x "
+            f"{review.report['fasteners']['recommended_screw_length_mm']} mm"
+        ),
+        "display_screws": review.report["display_fasteners"],
+        "failed_checks": sorted(
+            name
+            for name, check in review.report["checks"].items()
+            if not check["passed"]
+        ),
+    }
+
+
+def _slice(
+    args: argparse.Namespace, enclosure: Enclosure, name: str, build_record: Path
+) -> dict[str, object]:
+    """Write print-oriented STLs, slice them onto one plate, and open the
+    first trial."""
+
+    print_directory = args.output_directory / "print"
+    print_directory.mkdir()
+    models = []
+
+    for part, shape in print_oriented_parts(enclosure).items():
+        model = print_directory / f"{name}-{part}.stl"
+        cq.exporters.export(shape, str(model))
+        models.append(model)
+
+    try:
+        sliced = slice_models(
+            models,
+            args.output_directory / "slice",
+            slicer_profile_path=args.slicer_profile,
+            summary_fields={
+                "design_name": name,
+                "build_record_sha256": sha256(build_record),
+            },
+        )
+    except SliceError as error:
+        raise ValueError(str(error)) from error
+
+    trial = start_enclosure_trial(build_record)
+    summary = sliced.summary
+
+    return {
+        "gcode": str(sliced.gcode_path),
+        "estimated_print_minutes": round(summary["estimated_print_time_seconds"] / 60),
+        "filament_used_g": round(summary["filament_used_g"], 1),
+        "slicer_warning": summary["slicer_warning"],
+        "trial": str(trial),
+    }
+
+
+def _trial_start(args: argparse.Namespace) -> int:
+    trial = start_enclosure_trial(args.build_record)
+    emit(
+        {
+            "trial": str(trial),
+            "observations": str(trial / "observations.json"),
+            "measurements": str(trial / "measurements.json"),
+        }
+    )
+
+    return 0
+
+
+def _trial_complete(args: argparse.Namespace) -> int:
+    record = complete_enclosure_trial(
+        args.trial_directory,
+        disposition=EnclosureTrialDisposition(args.disposition),
+        material_profile_id=args.material_profile,
+        notes=args.notes,
+    )
+    emit({"trial_record": str(record)})
+
+    return 0
 
 
 def _enclosure_hardware(args: argparse.Namespace) -> int:
@@ -221,4 +322,39 @@ def register(
         action="store_false",
         help="leave the display loose under its window",
     )
+    build.add_argument(
+        "--slice",
+        action="store_true",
+        help=(
+            "also slice both parts onto one plate with Bambu Studio, in "
+            "<output-directory>/slice, and open the first trial"
+        ),
+    )
+    build.add_argument(
+        "--slicer-profile",
+        type=Path,
+        default=Path("profiles/slicers/bambu-studio-a1-mini-petg-validation.json"),
+    )
     build.set_defaults(handler=_enclosure_build)
+
+    trial = enclosure_commands.add_parser(
+        "trial", help="record how a printed enclosure fitted"
+    )
+    trial_commands = trial.add_subparsers(dest="trial_command", required=True)
+    trial_start = trial_commands.add_parser(
+        "start", help="write the next trial's observation and measurement templates"
+    )
+    trial_start.add_argument("--build-record", required=True, type=Path)
+    trial_start.set_defaults(handler=_trial_start)
+    trial_complete = trial_commands.add_parser(
+        "complete", help="validate a filled-in trial and write its record"
+    )
+    trial_complete.add_argument("--trial-directory", required=True, type=Path)
+    trial_complete.add_argument(
+        "--disposition",
+        required=True,
+        choices=[disposition.value for disposition in EnclosureTrialDisposition],
+    )
+    trial_complete.add_argument("--material-profile", default="petg")
+    trial_complete.add_argument("--notes", default="")
+    trial_complete.set_defaults(handler=_trial_complete)

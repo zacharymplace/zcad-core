@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from zcad_core.cli import main
+from zcad_core.printing import BAMBU_STUDIO
 
 PRINTER_PROFILE = (
     Path(__file__).resolve().parents[1] / "profiles/printers/bambu-lab-a1-mini.json"
@@ -186,3 +187,58 @@ def test_build_screws_a_display_to_lid_posts(
         "recommended_screw_length_mm": 5,
         "size": "M2",
     }
+
+
+def test_build_writes_a_build_record_and_trials_complete(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    exit_code, output = build(capsys, tmp_path, "--board", "raspberry_pi_pico_2")
+    assert exit_code == 0
+    record = Path(output["build_record"])
+    assert json.loads(record.read_text("utf-8"))["board"] == "RASPBERRY_PI_PICO_2"
+
+    exit_code, started = run(
+        capsys, "enclosure", "trial", "start", "--build-record", str(record)
+    )
+    assert exit_code == 0
+    trial = Path(started["trial"])
+    observations = json.loads((trial / "observations.json").read_text("utf-8"))
+    for entry in observations.values():
+        entry["result"] = "pass"
+    (trial / "observations.json").write_text(json.dumps(observations), "utf-8")
+    measurements = json.loads((trial / "measurements.json").read_text("utf-8"))
+    measurements["base_height_mm"]["value_mm"] = 20.1
+    (trial / "measurements.json").write_text(json.dumps(measurements), "utf-8")
+
+    exit_code, completed = run(
+        capsys,
+        "enclosure",
+        "trial",
+        "complete",
+        "--trial-directory",
+        str(trial),
+        "--disposition",
+        "pass",
+    )
+
+    assert exit_code == 0
+    assert json.loads(Path(completed["trial_record"]).read_text("utf-8"))["passed"]
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not BAMBU_STUDIO.is_dir(), reason="Bambu Studio is not installed")
+def test_build_slices_both_parts_ready_to_print(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    exit_code, output = build(
+        capsys, tmp_path, "--board", "seeed_xiao_esp32_s3", "--slice"
+    )
+
+    assert exit_code == 0
+    assert Path(output["print"]["gcode"]).stat().st_size > 0
+    assert output["print"]["estimated_print_minutes"] > 0
+    assert (Path(output["print"]["trial"]) / "observations.json").is_file()
+    assert sorted(path.name for path in (tmp_path / "print").iterdir()) == [
+        "seeed-xiao-esp32-s3-enclosure-base.stl",
+        "seeed-xiao-esp32-s3-enclosure-lid.stl",
+    ]

@@ -140,6 +140,8 @@ class Enclosure:
     # longest that fits (PCB thickness plus post length).
     display_screw_count: int = 0
     display_screw_reach_mm: float | None = None
+    # The cable opening first, then one per board part reached through a wall.
+    openings: tuple[ConnectorCutoutParameters, ...] = ()
 
 
 def build_enclosure(
@@ -204,13 +206,8 @@ def build_enclosure(
         spec=spec,
     )
     base = _clear_parts_under_board(base, spec, assembly, board_identifier)
-    base = _cut_openings(
-        base,
-        _openings(spec, design, assembly, board_identifier),
-        design,
-        fastener,
-        positions,
-    )
+    openings = _openings(spec, design, assembly, board_identifier)
+    base = _cut_openings(base, openings, design, fastener, positions)
 
     lid = _lid(spec, design, cavity_top, fastener, positions)
 
@@ -240,6 +237,7 @@ def build_enclosure(
         fastener_positions=positions,
         board_support=board_support,
         display_support=display_support,
+        openings=tuple(openings),
         display_screw_count=display_screws[0] if display_screws else 0,
         display_screw_reach_mm=display_screws[1] if display_screws else None,
     )
