@@ -47,6 +47,25 @@ side hooks under it, leaving the middle of the other two edges open for a
 pin header or flex cable. Turn either off with `display_retainer=False`
 (`--no-display-retainer`).
 
+**Lid options.**
+
+- `--countersunk` (`countersunk_screws`) sinks flat-head lid screws flush;
+  an M3 head needs a lid at least 1.9 mm thick.
+- `--locating-lip` (`locating_lip`) hangs a 2 mm skirt under a screwed lid,
+  just inside the walls, so it keys onto the base before the screws go in.
+  It is notched around the corner bosses and the wall openings.
+- `--lid snap` (`lid_attachment="snap"`) replaces the screws and inserts
+  with a 4.5 mm skirt that carries a ridge along each long side; the ridges
+  click into grooves in the long walls, and the skirt is slit beside each
+  ridge so that stretch flexes. With no bosses, the cavity only needs room
+  for the skirt, so snap enclosures are often smaller.
+- `--vent-slots N` (`vent_slots`) cuts N vertical slots, 1.6 mm wide at a
+  4 mm pitch, through each long wall that carries no opening, below the
+  lid's skirt and clear of the corners.
+
+The builder refuses combinations that do not fit, such as more slots than
+a wall holds, or vents on walls too low to fit them under a skirt.
+
 **Cable opening.** The opening passes a cable's moulded plug body, not just
 the connector, so the plug reaches the connector through the wall and the
 gap inside it. The defaults (12.5 x 7.5 mm) fit common USB-C and micro-USB
@@ -70,7 +89,10 @@ cables.
 - `hole_compensation_mm`: how much wider than intended to model every hole
   and opening (screw holes, insert pockets, pilot holes, windows, cable
   openings, and the cradle and retainer fits), for a printer that prints
-  them small (0 by default; -0.2 to 1.0). A revision sets it from a trial.
+  them small (0 by default; -0.2 to 1.0). A revision sets it from a trial;
+  `--compensation-profile profiles/compensation/<printer>-<material>.json`
+  takes it from the pooled trials of that printer and material, and the
+  build record notes the profile's version.
 
 The builder refuses, with the part named, any enclosure whose base or lid
 intersects the hardware, whose lid runs into the base, or whose cable

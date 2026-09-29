@@ -13,7 +13,7 @@ adding new retention strategies or hardware families.
 | 0 — Restore the gate | Complete |
 | 1 — Route Validation Lab through the export pipeline | Complete |
 | 2 — Close the physical loop | Pre-print and visual review complete for four candidates; blocked on printer access |
-| 3 — Measurement feedback | Per-trial feedback built (fixtures and enclosures); needs Phase 2 trial data |
+| 3 — Measurement feedback | Built for fixtures and enclosures; needs Phase 2 trial data |
 | 4 — Retention-strategy breadth | Pre-print and visual review complete for Pico 2, XIAO, and UNO R4; prints pending |
 | 5 — Publication and downstream integration | Not started |
 
@@ -172,6 +172,15 @@ tests, and mypy is clean. When cadquery 2.9 is released, raise the pin in
 `pyproject.toml` to `cadquery>=2.9,<3`, reinstall, and run the full gate.
 Do not depend on cadquery's development branch in the meantime; fixtures
 would rest on an unreleased geometry kernel.
+
+### Docs toolchain (2026-09-29)
+
+The docs build on MkDocs 1.6 with Material for MkDocs and mkdocstrings 1.0.
+MkDocs 2.0, in pre-release, removes the plugin and theming systems, so
+neither mkdocstrings nor Material can run on it; the Material team
+recommends staying on MkDocs 1.x or moving to Zensical, their drop-in
+successor. `pyproject.toml` pins `mkdocs<2` (Material 9.7.5 and later cap
+it too). Revisit Zensical once it documents mkdocstrings support.
 
 ## Operating principles
 
@@ -434,9 +443,15 @@ changes, and `regenerate-candidate.py --from-trial` applies them, writing
 traces to its measurement. `zcad-validation enclosure revise` does the same
 for enclosures through `hole_compensation_mm` and the plug allowance.
 
-Still to build: per printer and material compensation profiles aggregated
-across trials. They need several trials' data to be worth fitting, so they
-follow the first print runs.
+Compensation profiles pool every recorded trial for a printer and material:
+`zcad-validation compensation derive` writes
+`profiles/compensation/<printer>-<material>.json` with the mean, spread, and
+count of the hole, side-gap, and vertical-play errors, the trial records it
+read and their hashes, and each earlier version in its history. It refuses
+until there are at least two trials. `enclosure build --compensation-profile`
+and `regenerate-candidate.py --compensation-profile` apply one and record
+its id, version, and hash (in the build record, and in `compensation.json`
+beside the revision). The first profile waits on the first print runs.
 
 ### Exit criteria
 

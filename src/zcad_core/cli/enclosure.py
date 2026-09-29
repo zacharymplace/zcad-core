@@ -23,6 +23,7 @@ from zcad_core.features import (
     build_enclosure,
     export_enclosure_review,
 )
+from zcad_core.features.enclosure import HOLE_COMPENSATION_RANGE_MM, LID_ATTACHMENTS
 from zcad_core.features.enclosure_revision import propose_revision, revised_name
 from zcad_core.features.enclosure_trial import (
     EnclosureTrialDisposition,
@@ -41,7 +42,7 @@ from zcad_core.hardware import (
     list_fasteners,
 )
 from zcad_core.printing import SliceError, slice_models
-from zcad_core.profiles import load_printer_profile
+from zcad_core.profiles import load_compensation_profile, load_printer_profile
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
 
@@ -80,6 +81,24 @@ def _assembly(args: argparse.Namespace, display: DisplaySpec | None) -> DeviceAs
 
 
 def _design(args: argparse.Namespace) -> EnclosureDesign:
+    compensation = args.hole_compensation_mm
+
+    if args.compensation_profile is not None:
+        if compensation:
+            raise ValueError(
+                "Pass --hole-compensation-mm or --compensation-profile, not both"
+            )
+
+        mean = load_compensation_profile(args.compensation_profile).mean(
+            "hole_shortfall_mm"
+        )
+
+        if mean is None:
+            raise ValueError(f"{args.compensation_profile} has no hole figure")
+
+        low, high = HOLE_COMPENSATION_RANGE_MM
+        compensation = round(min(max(mean, low), high), 2)
+
     return EnclosureDesign(
         wall_mm=args.wall_mm,
         floor_mm=args.floor_mm,
@@ -92,7 +111,11 @@ def _design(args: argparse.Namespace) -> EnclosureDesign:
         cable_plug_height_mm=args.cable_plug_height_mm,
         display_retainer=args.display_retainer,
         display_fastener=args.display_fastener,
-        hole_compensation_mm=args.hole_compensation_mm,
+        hole_compensation_mm=compensation,
+        lid_attachment=args.lid,
+        countersunk_screws=args.countersunk,
+        locating_lip=args.locating_lip,
+        vent_slots=args.vent_slots,
     )
 
 
@@ -150,6 +173,11 @@ def _build(
             "connector_access_clearance_mm": args.connector_access_clearance_mm,
         },
         revision_of=revision_of,
+        compensation_profile=(
+            load_compensation_profile(args.compensation_profile).reference()
+            if getattr(args, "compensation_profile", None) is not None
+            else None
+        ),
     )
     payload: dict[str, object] = {
         "design_name": name,
@@ -235,6 +263,8 @@ def _review_payload(enclosure: Enclosure, review: EnclosureReview) -> dict[str, 
         "recommended_screw": (
             f"{enclosure.fastener.identifier} x "
             f"{review.report['fasteners']['recommended_screw_length_mm']} mm"
+            if enclosure.fastener_positions
+            else None
         ),
         "display_screws": review.report["display_fasteners"],
         "failed_checks": sorted(
@@ -376,6 +406,33 @@ def register(
     build.add_argument("--top-clearance-mm", type=float, default=2.0)
     build.add_argument("--cable-plug-width-mm", type=float, default=12.5)
     build.add_argument("--cable-plug-height-mm", type=float, default=7.5)
+    build.add_argument(
+        "--lid",
+        choices=LID_ATTACHMENTS,
+        default="screws",
+        help="screw the lid into heat-set inserts, or snap it on",
+    )
+    build.add_argument(
+        "--countersunk",
+        action="store_true",
+        help="sink flat-head lid screws flush",
+    )
+    build.add_argument(
+        "--locating-lip",
+        action="store_true",
+        help="hang a lip under a screwed lid that keys it onto the base",
+    )
+    build.add_argument(
+        "--vent-slots",
+        type=int,
+        default=0,
+        help="vent slots in each long wall that carries no opening",
+    )
+    build.add_argument(
+        "--compensation-profile",
+        type=Path,
+        help="take hole compensation from this printer and material profile",
+    )
     build.add_argument(
         "--hole-compensation-mm",
         type=float,

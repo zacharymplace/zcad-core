@@ -100,6 +100,7 @@ from zcad_core.retention.manufacturing import (
 from zcad_core.retention.measurement_feedback import (
     FixtureRevisionProposal,
     PolicyChange,
+    compensated_policy,
     propose_fixture_revision,
     write_measurement_feedback,
 )
@@ -318,6 +319,7 @@ __all__ = [
     "compare_candidate_parameters",
     "compare_candidate_revisions",
     "compare_trial_outcomes",
+    "compensated_policy",
     "complete_physical_validation_record",
     "complete_visual_review_record",
     "create_pending_physical_validation_record",

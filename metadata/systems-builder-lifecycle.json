@@ -140,6 +140,16 @@
       "kind": "capability",
       "reference": "src/zcad_core/retention/measurement_feedback.py",
       "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/profiles/compensation.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/features/enclosure_lid.py",
+      "result": "pass"
     }
   ],
   "last_verified_at": "2026-09-29T20:09:59Z",
@@ -214,6 +224,8 @@
     "enclosure-trial-records",
     "enclosure-measurement-revisions",
     "hole-compensation",
-    "fixture-measurement-feedback"
+    "fixture-measurement-feedback",
+    "compensation-profiles",
+    "enclosure-lid-options"
   ]
 }

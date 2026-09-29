@@ -293,3 +293,30 @@ def test_revise_proposes_and_builds_the_next_design(
     assert record["revision_of"]["trial_id"] == "trial-001"
     # The nominal the next trial measures is still the intended size.
     assert record["nominal_measurements_mm"]["lid_hole_diameter_mm"] == 3.4
+
+
+def test_build_snaps_the_lid_on_and_vents_the_walls(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    exit_code, output = build(
+        capsys,
+        tmp_path,
+        "--board",
+        "raspberry_pi_pico_2",
+        "--lid",
+        "snap",
+        "--vent-slots",
+        "2",
+        # A bare Pico 2's walls are too low for vents under a snap skirt.
+        "--top-clearance-mm",
+        "6",
+        "--review",
+    )
+
+    assert exit_code == 0
+    assert output["review"]["recommended_screw"] is None
+    report = json.loads(Path(output["review"]["report"]).read_text("utf-8"))
+    assert report["fasteners"] == {"lid": "snap-fit", "count": 0}
+    record = json.loads(Path(output["build_record"]).read_text("utf-8"))
+    assert record["design"]["lid_attachment"] == "snap"
+    assert "inserts_installed" not in record["checks"]

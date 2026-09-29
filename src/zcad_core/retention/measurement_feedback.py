@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from zcad_core.profiles.compensation import CompensationProfile
 from zcad_core.retention.manufacturing import ManufacturingPolicy
 from zcad_core.retention.physical_validation import (
     PhysicalValidationRecord,
@@ -365,3 +366,72 @@ def write_measurement_feedback(
     )
 
     return path
+
+
+COMPENSATION_RECORD = "compensation.json"
+
+
+def compensated_policy(
+    candidate_directory: Path,
+    profile: CompensationProfile,
+    *,
+    minimums: ManufacturingPolicy | None = None,
+) -> dict[str, Any]:
+    """The policy changes a compensation profile makes to a candidate, and the
+    ``compensation.json`` record that traces them.
+
+    The candidate's policy must be its intended fit: a candidate already
+    revised from a trial or a profile is refused, so no error is corrected
+    twice.
+    """
+
+    for record in (MEASUREMENT_FEEDBACK, COMPENSATION_RECORD):
+        if (candidate_directory / record).exists():
+            raise ValueError(
+                f"{candidate_directory} was already corrected ({record}); apply "
+                "a profile to a candidate that carries its intended fit"
+            )
+
+    minimums = minimums or ManufacturingPolicy()
+    candidate = load_candidate_revision(candidate_directory / "candidate.json")
+    policy = {name: float(value) for name, value in candidate.retention_policy.items()}
+    side = profile.mean("side_gap_shortfall_mm")
+    vertical = profile.mean("vertical_play_shortfall_mm")
+
+    if side is None and vertical is None:
+        raise ValueError(f"{profile.path} has no fixture figures to apply")
+
+    clearance = policy[CLEARANCE]
+
+    if side is not None:
+        clearance = _bounded(
+            policy[CLEARANCE],
+            policy[CLEARANCE] + side,
+            minimums.minimum_board_clearance_mm,
+        )
+
+    play = policy[CLEARANCE] + policy[OVERLAP] + (vertical or 0.0)
+    overlap = _bounded(
+        policy[OVERLAP], play - clearance, minimums.minimum_vertical_overlap_mm
+    )
+    changes = [
+        {
+            "parameter": parameter,
+            "previous_value": policy[parameter],
+            "current_value": value,
+            "figure": figure,
+            "mean_mm": mean,
+        }
+        for parameter, value, figure, mean in (
+            (CLEARANCE, clearance, "side_gap_shortfall_mm", side),
+            (OVERLAP, overlap, "vertical_play_shortfall_mm", vertical),
+        )
+        if value != policy[parameter]
+    ]
+
+    return {
+        "schema_version": MEASUREMENT_FEEDBACK_SCHEMA_VERSION,
+        "parent_candidate_id": candidate.candidate_id,
+        "profile": profile.reference(),
+        "changes": changes,
+    }

@@ -178,7 +178,21 @@ zcad-validation trial register \
 ```
 
 `pass` and `revise` need at least one measurement; a `pass` also needs every
-check to pass. A completed trial is never overwritten: record another
+check to pass.
+
+On a print day with several prints, answer on the Fixture Fit Trials
+checklist instead, then export its answers (one `<id>.json` per print) and
+record them all at once:
+
+```bash
+python scripts/record-print-day.py <answers> --dry-run
+python scripts/record-print-day.py <answers>
+scripts/backup-evidence.sh
+```
+
+It records each finished fixture (`trial complete` and `trial register`)
+and enclosure (`enclosure trial complete`), skips an unfinished answer with
+the reason, and never touches a trial already recorded. A completed trial is never overwritten: record another
 attempt as `trial-002`.
 
 ## 6. Promote, or revise
@@ -223,6 +237,20 @@ checks and closed-up gaps to parts become notes. `--from-trial` applies the
 proposal, names the relationship and reason, and writes
 `measurement-feedback.json` beside the new revision, tracing each change to
 the measurement behind it.
+
+Once a printer and material have several recorded trials, pool them into a
+compensation profile and start new candidates from it instead:
+
+```bash
+zcad-validation compensation derive
+python scripts/regenerate-candidate.py <candidate> --revision r002 \
+  --compensation-profile profiles/compensation/bambu-lab-a1-mini-petg.json
+```
+
+The profile corrects the candidate's clearance and overlap by the pooled
+side-gap and vertical-play errors and writes `compensation.json` beside the
+revision. It refuses a candidate already corrected from a trial or a
+profile, so no error is corrected twice.
 
 To set a change by hand instead:
 

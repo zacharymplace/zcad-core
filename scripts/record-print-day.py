@@ -1,0 +1,276 @@
+"""Record print-day fit trials from the Fixture Fit Trials checklist.
+
+The checklist page saves one answer document per print: its checks, its
+measurements, a disposition, and notes. Export them (Claude does this with
+the page's database, one ``<id>.json`` per print) and this script records
+each finished one:
+
+- a Validation Lab fixture: writes the trial's ``observations.json`` and
+  ``measurements.json`` (dropping anything not measured), then runs
+  ``zcad-validation trial complete`` and ``trial register``, taking the
+  printer, material, and slicer from the pending record;
+- an enclosure build under ``evidence/enclosures/``: writes the same two
+  files in the enclosure trial's form and runs
+  ``zcad-validation enclosure trial complete``.
+
+An answer that is not finished (a check unanswered, no disposition, or no
+measurement where one is needed) is skipped with the reason, and a trial
+already recorded is never touched. ``--dry-run`` reports the plan and
+writes nothing. Back up the evidence afterwards.
+
+Usage:
+    python scripts/record-print-day.py <answers-directory> \\
+        [--evidence-root evidence] [--dry-run]
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from contextlib import redirect_stdout
+from dataclasses import dataclass
+from io import StringIO
+from pathlib import Path
+from typing import Any
+
+from zcad_core.cli import main as zcad
+
+GIVE_UP = ("reject", "fail")
+
+
+@dataclass(frozen=True)
+class Answer:
+    """One print's answers from the checklist."""
+
+    source: Path
+    candidate_id: str
+    observations: dict[str, dict[str, Any]]
+    measurements: dict[str, dict[str, Any]]
+    disposition: str
+    notes: str
+
+    @property
+    def measured(self) -> dict[str, dict[str, Any]]:
+        return {
+            name: entry
+            for name, entry in self.measurements.items()
+            if entry.get("value_mm") is not None
+        }
+
+    def unfinished(self) -> str | None:
+        """Why this answer cannot be recorded yet, if it cannot."""
+
+        open_checks = [
+            check
+            for check, entry in self.observations.items()
+            if entry.get("passed") is None
+        ]
+
+        if open_checks:
+            return f"unanswered checks: {', '.join(open_checks)}"
+
+        if not self.disposition:
+            return "no disposition"
+
+        failed = [
+            check for check, entry in self.observations.items() if not entry["passed"]
+        ]
+
+        if self.disposition == "pass" and failed:
+            return f"a pass with failed checks: {', '.join(failed)}"
+
+        if self.disposition not in GIVE_UP and not self.measured:
+            return f"a {self.disposition} needs at least one measurement"
+
+        return None
+
+
+def read_answers(directory: Path) -> list[Answer]:
+    answers = []
+
+    for path in sorted(directory.rglob("*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        answers.append(
+            Answer(
+                source=path,
+                candidate_id=str(payload["candidate_id"]),
+                observations=dict(payload.get("observations", {})),
+                measurements=dict(payload.get("measurements", {})),
+                disposition=str(payload.get("disposition", "")),
+                notes=str(payload.get("operator_notes", "")),
+            )
+        )
+
+    return answers
+
+
+def find_print(evidence_root: Path, candidate_id: str) -> tuple[str, Path]:
+    """Whether a candidate id names an enclosure or a fixture, and where."""
+
+    enclosure = evidence_root / "enclosures" / candidate_id
+
+    if (enclosure / "enclosure.json").is_file():
+        return "enclosure", enclosure
+
+    for manifest in evidence_root.glob("*/validation-lab/candidates/*/candidate.json"):
+        if json.loads(manifest.read_text(encoding="utf-8")).get("candidate_id") == (
+            candidate_id
+        ):
+            return "fixture", manifest.parent
+
+    raise FileNotFoundError(f"No fixture candidate or enclosure named {candidate_id}")
+
+
+def _run(arguments: list[str]) -> dict[str, Any]:
+    output = StringIO()
+
+    with redirect_stdout(output):
+        code = zcad(arguments)
+
+    if code != 0:
+        raise RuntimeError(f"zcad-validation {' '.join(arguments[:3])} failed")
+
+    result: dict[str, Any] = json.loads(output.getvalue())
+
+    return result
+
+
+def _write(path: Path, payload: dict[str, Any]) -> None:
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def record_fixture(answer: Answer, candidate: Path) -> dict[str, Any]:
+    trial = candidate / "trials" / "trial-001"
+    pending = json.loads((trial / "physical-validation.json").read_text("utf-8"))
+    _write(trial / "observations.json", answer.observations)
+    _write(trial / "measurements.json", answer.measured)
+    completed = _run(
+        [
+            "trial",
+            "complete",
+            "--candidate-report",
+            str(candidate / "automated-validation.json"),
+            "--fixture-stl",
+            str(candidate / "fixture.stl"),
+            "--printer-profile",
+            pending["printer_profile"],
+            "--material-profile",
+            pending["material_profile"],
+            "--slicer-profile",
+            pending["slicer_profile"],
+            "--observations",
+            str(trial / "observations.json"),
+            "--measurements",
+            str(trial / "measurements.json"),
+            "--disposition",
+            answer.disposition,
+            "--operator-notes",
+            answer.notes,
+            "--output",
+            str(trial / "physical-validation.json"),
+        ]
+    )
+    registered = _run(
+        [
+            "trial",
+            "register",
+            "--candidate-manifest",
+            str(candidate / "candidate.json"),
+            "--physical-validation-record",
+            str(trial / "physical-validation.json"),
+            "--fixture",
+            str(candidate / "fixture.stl"),
+            "--trial-id",
+            "trial-001",
+            "--output",
+            str(trial / "trial.json"),
+        ]
+    )
+
+    return {"passed": completed["passed"], "manifest": registered["manifest"]}
+
+
+def record_enclosure(answer: Answer, build: Path) -> dict[str, Any]:
+    trial = build / "trials" / "trial-001"
+    _write(
+        trial / "observations.json",
+        {
+            check: {
+                "result": "pass" if entry["passed"] else "fail",
+                "notes": entry.get("notes", ""),
+            }
+            for check, entry in answer.observations.items()
+        },
+    )
+    _write(trial / "measurements.json", answer.measured)
+    completed = _run(
+        [
+            "enclosure",
+            "trial",
+            "complete",
+            "--trial-directory",
+            str(trial),
+            "--disposition",
+            answer.disposition,
+            "--notes",
+            answer.notes,
+        ]
+    )
+
+    return {"trial_record": completed["trial_record"]}
+
+
+def recorded(kind: str, location: Path) -> bool:
+    trial = location / "trials" / "trial-001"
+
+    if kind == "enclosure":
+        return (trial / "enclosure-trial.json").is_file()
+
+    return (trial / "trial.json").is_file()
+
+
+def plan(answer: Answer, evidence_root: Path) -> tuple[str, str, Path | None]:
+    """What to do with one answer: record it, or why not."""
+
+    kind, location = find_print(evidence_root, answer.candidate_id)
+
+    if recorded(kind, location):
+        return kind, "already recorded", location
+
+    reason = answer.unfinished()
+
+    return kind, (f"skip: {reason}" if reason else "record"), location
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("answers", type=Path)
+    parser.add_argument("--evidence-root", type=Path, default=Path("evidence"))
+    parser.add_argument("--dry-run", action="store_true")
+    args = parser.parse_args()
+    report = []
+
+    for answer in read_answers(args.answers):
+        kind, action, location = plan(answer, args.evidence_root)
+        entry: dict[str, Any] = {
+            "print": answer.candidate_id,
+            "kind": kind,
+            "action": action,
+        }
+
+        if action == "record" and not args.dry_run and location is not None:
+            recorder = record_enclosure if kind == "enclosure" else record_fixture
+            entry["result"] = recorder(answer, location)
+
+        report.append(entry)
+
+    print(json.dumps(report, indent=2))
+
+    if not args.dry_run and any("result" in entry for entry in report):
+        print("Now back up the evidence: scripts/backup-evidence.sh")
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

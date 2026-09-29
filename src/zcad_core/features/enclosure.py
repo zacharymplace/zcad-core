@@ -36,6 +36,19 @@ from zcad_core.features.display_retainer import (
     add_display_posts,
     add_display_retainer,
 )
+from zcad_core.features.enclosure_lid import (
+    LIP_DEPTH_MM,
+    SNAP_SKIRT_DEPTH_MM,
+    VENT_RIM_MM,
+    Cavity,
+    countersinks,
+    notch_skirt,
+    relief_slits,
+    skirt,
+    snap_grooves,
+    snap_ridges,
+    vents,
+)
 from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
@@ -70,6 +83,9 @@ _DISPLAY_POST_WALL_MM = 1.2
 # Printers print holes small far more often than large, and the cradle's
 # 0.3 mm fit leaves little room to shrink.
 HOLE_COMPENSATION_RANGE_MM = (-0.2, 1.0)
+LID_ATTACHMENTS = ("screws", "snap")
+# A flat-head screw's head is about twice its thread (ISO 10642 M3: 6 mm).
+_COUNTERSINK_HEAD_ALLOWANCE_MM = 0.0
 # The builder's default fits, before hole compensation widens them.
 _OPENING_CLEARANCE_MM = 0.6
 _CRADLE_CLEARANCE_MM = 0.3
@@ -112,6 +128,14 @@ class EnclosureDesign:
     # make up for a printer that prints them undersized. A trial measures
     # the intended sizes; ``enclosure revise`` sets this from the shortfall.
     hole_compensation_mm: float = 0.0
+    # "screws" into heat-set inserts, or a "snap" lid with no fasteners.
+    lid_attachment: str = "screws"
+    # Sink flat-head lid screws flush (screwed lids only).
+    countersunk_screws: bool = False
+    # A skirt under a screwed lid that keys it onto the base.
+    locating_lip: bool = False
+    # Vertical vent slots in each long wall that carries no opening.
+    vent_slots: int = 0
 
     def validate(self) -> None:
         for name in ("wall_mm", "floor_mm", "lid_mm", "boss_radial_wall_mm"):
@@ -129,6 +153,8 @@ class EnclosureDesign:
         if self.side_clearance_mm is not None and self.side_clearance_mm < 0:
             raise ValueError("side_clearance_mm must not be negative")
 
+        self._validate_lid()
+
         for name in (
             "bottom_clearance_mm",
             "top_clearance_mm",
@@ -137,6 +163,29 @@ class EnclosureDesign:
         ):
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} must not be negative")
+
+    def _validate_lid(self) -> None:
+        if self.lid_attachment not in LID_ATTACHMENTS:
+            raise ValueError(f"lid_attachment must be one of {LID_ATTACHMENTS}")
+
+        snap = self.lid_attachment == "snap"
+
+        if snap and self.countersunk_screws:
+            raise ValueError("A snap-fit lid has no screws to countersink")
+
+        if snap and self.locating_lip:
+            raise ValueError("A snap-fit lid already locates on its skirt")
+
+        if self.vent_slots < 0:
+            raise ValueError("vent_slots must not be negative")
+
+    @property
+    def skirt_depth_mm(self) -> float | None:
+        """How far the lid's skirt reaches into the base, if it has one."""
+        if self.lid_attachment == "snap":
+            return SNAP_SKIRT_DEPTH_MM
+
+        return LIP_DEPTH_MM if self.locating_lip else None
 
 
 @dataclass(frozen=True)
@@ -198,7 +247,10 @@ def build_enclosure(
     cavity_top = spec.bottom_z_mm + spec.inner_height_mm
     positions = _corner_boss_positions(spec, fastener, design)
 
-    base = _shell(spec, design).union(_corner_fills(spec, positions))
+    base = _shell(spec, design)
+
+    if positions:
+        base = base.union(_corner_fills(spec, positions))
 
     for x, y in positions:
         base = add_heat_set_insert_boss(
@@ -228,8 +280,10 @@ def build_enclosure(
     base = _clear_parts_under_board(base, spec, assembly, board_identifier)
     openings = _openings(spec, design, assembly, board_identifier)
     base = _cut_openings(base, openings, design, fastener, positions)
-
+    cavity = _cavity(spec, design)
+    base = _lid_options_in_base(base, cavity, design, fastener, positions, openings)
     lid = _lid(spec, design, cavity_top, fastener, positions)
+    lid = _lid_options_in_lid(lid, cavity, design, fastener, positions, openings)
 
     display_support = None
     display_screws: tuple[int, float] | None = None
@@ -381,8 +435,9 @@ def _automatic_specification(
     connector_identifier: str,
     display_identifier: str | None,
 ) -> tuple[EnclosureSpecification, tuple[float, float]]:
-    """The smallest cavity whose corner bosses clear the hardware, the
-    board's supports, and the cable opening, with its X and Y clearances."""
+    """The smallest cavity whose corner bosses, and lid skirt if it has one,
+    clear the hardware, the board's supports, and the cable opening, with
+    its X and Y clearances."""
 
     obstacles = _boss_obstacles(assembly, board_identifier, display_identifier)
     radius = _boss_radius(fastener, design)
@@ -413,16 +468,21 @@ def _automatic_specification(
         ):
             continue
 
-        bosses = [
+        blockers: list[cq.Shape] = [
             cq.Solid.makeCylinder(
                 radius, spec.inner_height_mm, pnt=cq.Vector(x, y, spec.bottom_z_mm)
             )
             for x, y in positions
         ]
 
+        if design.skirt_depth_mm is not None:
+            blockers.append(
+                _all_solids(skirt(_cavity(spec, design), design.skirt_depth_mm))
+            )
+
         if all(
-            intersection_volume(boss, obstacle) <= _INTERFERENCE_TOLERANCE_MM3
-            for boss in bosses
+            intersection_volume(blocker, obstacle) <= _INTERFERENCE_TOLERANCE_MM3
+            for blocker in blockers
             for obstacle in obstacles
         ):
             return spec, (
@@ -431,6 +491,18 @@ def _automatic_specification(
             )
 
     raise ValueError("No side clearance clears the corner bosses; set one")
+
+
+def _cavity(spec: EnclosureSpecification, design: EnclosureDesign) -> Cavity:
+    return Cavity(
+        center_x_mm=spec.center_x_mm,
+        center_y_mm=spec.center_y_mm,
+        width_mm=spec.inner_width_mm,
+        depth_mm=spec.inner_depth_mm,
+        floor_z_mm=spec.bottom_z_mm,
+        top_z_mm=spec.bottom_z_mm + spec.inner_height_mm,
+        wall_mm=design.wall_mm,
+    )
 
 
 def _boss_obstacles(
@@ -456,15 +528,15 @@ def _boss_obstacles(
 
 
 def _grown(shape: cq.Shape) -> cq.Shape:
-    """A shape's bounding box grown by the support margin in X and Y, and
-    down by it, where supports and retainer clips reach."""
+    """A shape's bounding box grown by the support margin all round, where
+    supports, cradle clips, and retainer clips reach."""
 
     bounds = shape.BoundingBox()
 
     return cq.Solid.makeBox(
         bounds.xlen + 2 * _SUPPORT_MARGIN_MM,
         bounds.ylen + 2 * _SUPPORT_MARGIN_MM,
-        bounds.zlen + _SUPPORT_MARGIN_MM,
+        bounds.zlen + 2 * _SUPPORT_MARGIN_MM,
         pnt=cq.Vector(
             bounds.xmin - _SUPPORT_MARGIN_MM,
             bounds.ymin - _SUPPORT_MARGIN_MM,
@@ -704,7 +776,11 @@ def _corner_boss_positions(
     fastener: FastenerSpec,
     design: EnclosureDesign,
 ) -> tuple[tuple[float, float], ...]:
-    """Boss centres at each cavity corner, sunk slightly into both walls."""
+    """Boss centres at each cavity corner, sunk slightly into both walls;
+    none for a snap-fit lid."""
+
+    if design.lid_attachment == "snap":
+        return ()
 
     insert_diameter = fastener.heat_set_insert_diameter_mm
 
@@ -810,6 +886,9 @@ def _lid(
         )
         .translate((spec.center_x_mm, spec.center_y_mm, cavity_top))
     )
+    if not positions:
+        return lid
+
     holes = (
         cq.Workplane("XY")
         .pushPoints(list(positions))
@@ -819,6 +898,82 @@ def _lid(
     )
 
     return lid.cut(holes)
+
+
+def _lid_options_in_base(
+    base: cq.Workplane,
+    cavity: Cavity,
+    design: EnclosureDesign,
+    fastener: FastenerSpec,
+    positions: tuple[tuple[float, float], ...],
+    openings: list[ConnectorCutoutParameters],
+) -> cq.Workplane:
+    """Cut the snap grooves and the vents into the walls."""
+
+    if design.lid_attachment == "snap":
+        base = base.cut(snap_grooves(cavity))
+
+    if design.vent_slots:
+        skirt = design.skirt_depth_mm
+        base = base.cut(
+            vents(
+                cavity,
+                slots_per_wall=design.vent_slots,
+                blocked_edges=[opening.edge for opening in openings],
+                top_z_mm=cavity.top_z_mm
+                - (skirt + 1.0 if skirt is not None else VENT_RIM_MM),
+                corner_keepout_mm=(
+                    2 * _boss_radius(fastener, design) + 1.0 if positions else 3.0
+                ),
+            )
+        )
+
+    return base
+
+
+def _lid_options_in_lid(
+    lid: cq.Workplane,
+    cavity: Cavity,
+    design: EnclosureDesign,
+    fastener: FastenerSpec,
+    positions: tuple[tuple[float, float], ...],
+    openings: list[ConnectorCutoutParameters],
+) -> cq.Workplane:
+    """Countersink the screw holes and hang the lip or snap skirt."""
+
+    if design.countersunk_screws:
+        lid = lid.cut(
+            countersinks(
+                positions,
+                hole_diameter_mm=fastener.clearance_hole_mm
+                + design.hole_compensation_mm,
+                head_diameter_mm=2 * fastener.nominal_diameter_mm
+                + _COUNTERSINK_HEAD_ALLOWANCE_MM,
+                lid_top_z_mm=cavity.top_z_mm + design.lid_mm,
+                lid_thickness_mm=design.lid_mm,
+            )
+        )
+
+    depth = design.skirt_depth_mm
+
+    if depth is None:
+        return lid
+
+    body = skirt(cavity, depth)
+
+    if design.lid_attachment == "snap":
+        body = body.union(snap_ridges(cavity)).cut(relief_slits(cavity))
+
+    return lid.union(
+        notch_skirt(
+            body,
+            boss_positions=positions,
+            boss_radius_mm=_boss_radius(fastener, design),
+            openings=openings,
+            cavity=cavity,
+            depth_mm=depth,
+        )
+    )
 
 
 def _all_solids(model: cq.Workplane) -> cq.Shape:

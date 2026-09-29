@@ -63,8 +63,8 @@ CHECK_GUIDANCE = {
         "Every heat-set insert went in square and sits flush with its boss"
     ),
     EnclosureCheck.LID_CLOSES_FLUSH: (
-        "The lid sits flat on the rim and the screws draw it down without "
-        "cracking a boss"
+        "The lid sits flat on the rim and stays shut: screws draw it down "
+        "without cracking a boss, or both snaps click home"
     ),
     EnclosureCheck.BOARD_SEATS: "The board sits level on its standoffs or cradle",
     EnclosureCheck.BOARD_RETAINED: (
@@ -121,6 +121,9 @@ def applicable_checks(enclosure: Enclosure) -> tuple[EnclosureCheck, ...]:
     if len(enclosure.openings) < 2:
         skipped.add(EnclosureCheck.ACCESS_OPENINGS_CLEAR)
 
+    if not enclosure.fastener_positions:
+        skipped.add(EnclosureCheck.INSERTS_INSTALLED)
+
     if enclosure.display_support is None:
         skipped |= {EnclosureCheck.DISPLAY_ALIGNED, EnclosureCheck.DISPLAY_RETAINED}
 
@@ -149,9 +152,11 @@ def nominal_measurements(
         "base_height_mm": spec.inner_height_mm + design.floor_mm,
         "wall_thickness_mm": design.wall_mm,
         "lid_thickness_mm": design.lid_mm,
-        "insert_pocket_diameter_mm": boss.insert_pocket_diameter_mm,
-        "lid_hole_diameter_mm": enclosure.fastener.clearance_hole_mm,
     }
+
+    if enclosure.fastener_positions:
+        nominals["insert_pocket_diameter_mm"] = boss.insert_pocket_diameter_mm
+        nominals["lid_hole_diameter_mm"] = enclosure.fastener.clearance_hole_mm
 
     if cable is not None:
         nominals["cable_opening_width_mm"] = cable.opening_width_mm
@@ -176,6 +181,7 @@ def write_build_record(
     printer_profile_id: str,
     assembly_settings: dict[str, float] | None = None,
     revision_of: dict[str, Any] | None = None,
+    compensation_profile: dict[str, Any] | None = None,
 ) -> Path:
     """Write ``enclosure.json``; refuses to replace one.
 
@@ -198,6 +204,7 @@ def write_build_record(
         "design": asdict(enclosure.design),
         "assembly": assembly_settings or {},
         "revision_of": revision_of,
+        "compensation_profile": compensation_profile,
         "side_clearance_mm": list(enclosure.side_clearance_mm),
         "board_support": enclosure.board_support,
         "display_support": enclosure.display_support,

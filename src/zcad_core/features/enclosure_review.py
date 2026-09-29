@@ -141,6 +141,26 @@ def recommended_screw_length_mm(enclosure: Enclosure) -> int:
     return fitting[-1]
 
 
+def _lid_fasteners(enclosure: Enclosure) -> dict[str, Any]:
+    """The screws and inserts that hold the lid, or none for a snap lid."""
+
+    if not enclosure.fastener_positions:
+        return {"lid": "snap-fit", "count": 0}
+
+    return {
+        "lid": "screwed",
+        "size": enclosure.fastener.identifier,
+        "count": len(enclosure.fastener_positions),
+        "head": "countersunk" if enclosure.design.countersunk_screws else "any",
+        "heat_set_insert_mm": {
+            "diameter": enclosure.fastener.heat_set_insert_diameter_mm,
+            "depth": enclosure.fastener.heat_set_insert_depth_mm,
+        },
+        "recommended_screw_length_mm": recommended_screw_length_mm(enclosure),
+        "positions_mm": [list(position) for position in enclosure.fastener_positions],
+    }
+
+
 def _display_fasteners(enclosure: Enclosure) -> dict[str, Any] | None:
     """The self-tapping screws that hold a display to its lid posts."""
 
@@ -324,18 +344,7 @@ def _report(
             "z": round(spec.inner_height_mm, 3),
         },
         "parts": {"base": _bounds(base), "lid": _bounds(lid)},
-        "fasteners": {
-            "size": enclosure.fastener.identifier,
-            "count": len(enclosure.fastener_positions),
-            "heat_set_insert_mm": {
-                "diameter": enclosure.fastener.heat_set_insert_diameter_mm,
-                "depth": enclosure.fastener.heat_set_insert_depth_mm,
-            },
-            "recommended_screw_length_mm": recommended_screw_length_mm(enclosure),
-            "positions_mm": [
-                list(position) for position in enclosure.fastener_positions
-            ],
-        },
+        "fasteners": _lid_fasteners(enclosure),
         "display_fasteners": _display_fasteners(enclosure),
         "cable_opening_mm": {
             "edge": spec.cable_edge,
