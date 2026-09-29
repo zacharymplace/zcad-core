@@ -8,12 +8,12 @@
     "repository": "zacharymplace/zcad-core",
     "path": ".",
     "branch": "main",
-    "commit": "13820ab"
+    "commit": "262b61b"
   },
   "evidence": [
     {
       "kind": "validation",
-      "reference": "scripts/check.sh (ruff format, ruff check, mypy, pytest; run by .githooks/pre-push)",
+      "reference": "scripts/check.sh (ruff format and ruff check over src, tests, and scripts; mypy over src and scripts; pytest; run by .githooks/pre-push; --fast skips slow vendor-STEP tests)",
       "result": "pass"
     },
     {
@@ -50,15 +50,21 @@
       "kind": "capability",
       "reference": "scripts/slice-candidate-fixture.py",
       "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "scripts/backup-evidence.sh",
+      "result": "pass"
     }
   ],
-  "last_verified_at": "2026-09-28T04:55:07Z",
+  "last_verified_at": "2026-09-29T00:41:14Z",
   "next_action": {
     "description": "Phase 2 of docs/roadmaps/next-phases.md: print and test-fit the four print-ready candidates (Feather RP2040 r004, Pico 2 r002, XIAO ESP32-S3 r003, UNO R4 WiFi r004), record each trial with `zcad-validation trial complete`, then register and promote passing candidates.",
     "command": "scripts/check.sh"
   },
   "blockers": [
     "No printer access: physical trials for the four print-ready candidates are open but unprinted, so no candidate can be promoted (Phase 2).",
+    "Human visual reviews of the four candidates' design-review packages are outstanding (Phase 2).",
     "GitHub Actions is disabled for the account, so CI never runs on GitHub; gates run locally through the .githooks/pre-push hook."
   ],
   "capabilities": [
@@ -91,6 +97,8 @@
     "underside-clearance-fixtures",
     "bambu-studio-slicing",
     "pre-print-candidate-preparation",
-    "local-ci-gate"
+    "local-ci-gate",
+    "offsite-evidence-backup",
+    "slow-test-selection"
   ]
 }
