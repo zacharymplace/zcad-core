@@ -99,6 +99,51 @@ builder refuses:
   `headroom` on a bay if the opening must be taller); and
 - two openings in one wall that overlap.
 
+## Dividers
+
+A bay can have a divider on its left, between it and the bay before it. The
+first bay has none.
+
+```bash
+zcad-validation enclosure-group build \
+  --bays "pi5,pi5:divider=vents+notch+ties" \
+  --output-directory exports/divided
+```
+
+A divider is a wall across the enclosure, front to back, 2 mm thick, standing
+0.75 mm past the previous bay's header edge. The next bay's gap boss sits
+against it and fuses to it. Tokens, joined by `+`:
+
+| Token | Adds |
+| --- | --- |
+| `solid` | A plain full-height wall that runs to the lid. Also the default when you give only other tokens. |
+| `vents` | Vertical slots near the top, so air passes between bays but line of sight does not. Full height only. |
+| `notch` | A 20 x 10 mm pass-through at the previous bay's header, rising from its board, for a ribbon or jumper wires. |
+| `ties` | Two rows of slot pairs, 4.2 x 2 mm, for zip ties to strap what sits beside the divider. |
+| `h12` | A low divider 12 mm tall instead: open at the top, for separating cables. |
+
+In Python it is `Bay("pi5", divider=Divider(vents=True, notch=True))` with
+`Divider` from `zcad_core.features.enclosure_group_dividers`. `height_mm` sets
+a low divider.
+
+- **What it costs:** each divider adds 2.75 mm to the row (0.75 clearance and
+  its 2 mm). The default pair grows from 176 to 178.75 mm, which leaves
+  1.25 mm of the A1 mini's 180 mm bed. Its service gap is unchanged, so plugs
+  keep their 25 mm.
+- **What it is for:** a full-height divider separates the heat of a bay's
+  contents from the next bay, and `vents` lets air through while it does.
+  A divider does not make a fireproof or electrical barrier: it is 2 mm of
+  printed PETG. Do not rely on one to isolate a mains-powered item.
+- **Features that crowd each other:** vent slots that would come within 3 mm
+  of the notch or a tie slot are left out, so a divider with all three has
+  fewer vents.
+- **Refused:** a divider on the first bay; `vents` on a low divider; a divider
+  as tall as the box (leave the height unset); a notch or tie slots that would
+  not leave a millimetre of wall above them.
+
+`GroupDesign` sets `divider_mm` (2), `divider_clearance_mm` (0.75),
+`divider_notch_width_mm` (20), and `divider_notch_height_mm` (10).
+
 ## Room to grow
 
 - **Within the unit:** build with `reserved` bays now, and give a bay the

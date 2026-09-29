@@ -31,6 +31,13 @@ from zcad_core.features.connector_cutouts import (
     ConnectorCutoutParameters,
     cut_connector_opening,
 )
+from zcad_core.features.enclosure_group_dividers import (
+    Divider,
+    DividerPlacement,
+    build_divider,
+    check_divider,
+    require_divider_fits,
+)
 from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
@@ -103,6 +110,10 @@ class GroupDesign:
     plug_margin_mm: float = 1.5
     vents: bool = True
     join_bolts: bool = True
+    divider_mm: float = 2.0
+    divider_clearance_mm: float = 0.75
+    divider_notch_width_mm: float = 20.0
+    divider_notch_height_mm: float = 10.0
 
     def validate(self) -> None:
         for name in (
@@ -115,6 +126,9 @@ class GroupDesign:
             "service_gap_mm",
             "end_margin_mm",
             "open_bay_width_mm",
+            "divider_mm",
+            "divider_notch_width_mm",
+            "divider_notch_height_mm",
         ):
             if getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be greater than zero")
@@ -127,6 +141,7 @@ class GroupDesign:
             "back_clearance_mm",
             "slot_pad_mm",
             "plug_margin_mm",
+            "divider_clearance_mm",
         ):
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} must not be negative")
@@ -158,13 +173,16 @@ class Bay:
     HAT. The lid is flat, so the box is as tall as its tallest bay needs and
     the other bays get spare room above their boards. ``openings`` cut
     through an ``open`` bay's walls, for the cables of whatever sits on its
-    shelf; a Pi bay's openings are fixed by its ports.
+    shelf; a Pi bay's openings are fixed by its ports. ``divider`` puts a
+    wall on the boundary to this bay's left, just past the previous bay's
+    header edge, so the first bay takes none.
     """
 
     kind: BayKind = "pi5"
     standoff_height_mm: float | None = None
     headroom_mm: float | None = None
     openings: tuple[BayOpening, ...] = ()
+    divider: Divider | None = None
 
 
 BayLike = BayKind | Bay
@@ -186,6 +204,9 @@ class BayLayout:
     board_bottom_z_mm: float
     board_top_z_mm: float
     openings: tuple[BayOpening, ...] = ()
+    divider: Divider | None = None
+    # Where the divider's left face is, when there is one.
+    divider_start_mm: float = 0.0
 
     @property
     def needed_top_z_mm(self) -> float:
@@ -274,6 +295,14 @@ def build_group_enclosure(
     _require_openings_under_lid(layouts, inner_height)
     wall = design.wall_mm
     pi_center_y = wall + design.front_clearance_mm + pi.board_length_mm / 2
+    dividers = _dividers(
+        layouts,
+        design=design,
+        pi=pi,
+        inner_height=inner_height,
+        inner_depth=inner_depth,
+        pi_center_y=pi_center_y,
+    )
 
     outer = (
         inner_width + 2 * wall,
@@ -304,6 +333,9 @@ def build_group_enclosure(
                 radial_wall_mm=design.boss_radial_wall_mm,
             ),
         )
+
+    for divider, placement in dividers:
+        base = base.union(build_divider(divider, placement))
 
     standoff_fastener = get_fastener(_PI_STANDOFF_FASTENER)
     hardware: dict[str, cq.Shape] = {}
@@ -421,6 +453,19 @@ def _layout(
 
     for index, bay in enumerate(bays):
         is_open = bay.kind == "open"
+        divider_start = 0.0
+
+        if bay.divider is not None:
+            if index == 0:
+                raise ValueError(
+                    "bay 0: a divider stands to a bay's left, so the first bay "
+                    "takes none"
+                )
+
+            check_divider(bay.divider, f"bay {index} ({bay.kind})")
+            divider_start = cursor + design.divider_clearance_mm
+            cursor = divider_start + design.divider_mm
+
         gap = _OPEN_BAY_STRIP_MM if is_open else design.service_gap_mm
         slot = (
             design.open_bay_width_mm
@@ -442,6 +487,8 @@ def _layout(
                 board_bottom_z_mm=board_bottom,
                 board_top_z_mm=board_top,
                 openings=_check_openings(bay, index, slot),
+                divider=bay.divider,
+                divider_start_mm=divider_start,
             )
         )
         cursor += gap + slot
@@ -545,12 +592,19 @@ def _boss_columns(
     """Boss centres along X: the two end corners, and one at the start of
     each gap after the first, clear of the neighbouring Pi."""
 
-    interior = [
-        wall + layout.gap_start_mm + radius + _BOSS_CLEARANCE_MM
-        for layout in layouts[1:]
-    ]
+    interior = [_gap_boss_x(layout, radius, wall) for layout in layouts[1:]]
 
     return (wall + corner_x, *interior, wall + inner_width - corner_x)
+
+
+def _gap_boss_x(layout: BayLayout, radius: float, wall: float) -> float:
+    """The boss at the start of a bay's gap. Behind a divider it sits against
+    the divider, sunk into it like a corner boss into its walls, so the two
+    fuse; otherwise it stands a millimetre clear of the neighbouring Pi."""
+
+    inset = radius - _BOSS_WALL_OVERLAP_MM if layout.divider else radius + 1.0
+
+    return wall + layout.gap_start_mm + inset
 
 
 def _hole_positions(pi: RaspberryPi5Spec) -> tuple[tuple[float, float], ...]:
@@ -767,7 +821,7 @@ def _cut_pi_openings(
 
         # The gap's front opening starts past the boss at the gap's start
         # and stops a millimetre short of the Pi's slot.
-        start = wall + layout.gap_start_mm + 2 * radius + _BOSS_CLEARANCE_MM + 1.0
+        start = _gap_boss_x(layout, radius, wall) + radius + _BOSS_CLEARANCE_MM
         end = wall + layout.slot_start_mm - 1.0
         width = end - start
 
@@ -791,6 +845,50 @@ def _cut_pi_openings(
         )
 
     return base
+
+
+def _dividers(
+    layouts: tuple[BayLayout, ...],
+    *,
+    design: GroupDesign,
+    pi: RaspberryPi5Spec,
+    inner_height: float,
+    inner_depth: float,
+    pi_center_y: float,
+) -> list[tuple[Divider, DividerPlacement]]:
+    """Each bay's divider and where it stands, refused if it does not fit.
+
+    A divider stands just past the previous bay's header edge, so its notch
+    is centred on that bay's header and rises from that bay's board.
+    """
+
+    placed: list[tuple[Divider, DividerPlacement]] = []
+
+    for layout in layouts:
+        if layout.divider is None:
+            continue
+
+        left = layouts[layout.index - 1]
+        notch_y = pi_center_y + (pi.header_center_y_mm if left.holds_pi else 0.0)
+        notch_bottom = left.board_top_z_mm if left.holds_pi else design.floor_mm + 2.0
+        placement = DividerPlacement(
+            x_start_mm=design.wall_mm + layout.divider_start_mm,
+            thickness_mm=design.divider_mm,
+            front_y_mm=design.wall_mm,
+            back_y_mm=design.wall_mm + inner_depth,
+            floor_top_z_mm=design.floor_mm,
+            inner_height_mm=inner_height,
+            notch_center_y_mm=notch_y,
+            notch_bottom_z_mm=notch_bottom,
+            notch_width_mm=design.divider_notch_width_mm,
+            notch_height_mm=design.divider_notch_height_mm,
+        )
+        require_divider_fits(
+            layout.divider, placement, f"bay {layout.index} ({layout.kind})"
+        )
+        placed.append((layout.divider, placement))
+
+    return placed
 
 
 def _require_openings_under_lid(

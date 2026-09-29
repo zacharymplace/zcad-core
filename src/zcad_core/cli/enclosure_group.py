@@ -20,6 +20,7 @@ from zcad_core.features.enclosure_group import (
     OpeningWall,
     build_group_enclosure,
 )
+from zcad_core.features.enclosure_group_dividers import Divider
 from zcad_core.profiles import load_printer_profile
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
@@ -54,9 +55,43 @@ def _opening(wall: OpeningWall, value: str) -> BayOpening:
         ) from None
 
 
+_DIVIDER_TOKENS = "solid, vents, notch, ties, h<height>"
+
+
+def _divider(value: str) -> Divider:
+    """A divider from tokens joined by ``+``: ``solid`` for a plain full-height
+    wall, ``vents``, ``notch``, ``ties``, and ``h12`` for a low one 12 mm tall,
+    as in ``vents+notch+ties`` or ``h12``."""
+
+    flags = {"solid": False, "vents": False, "notch": False, "ties": False}
+    height: float | None = None
+
+    for token in (part.strip() for part in value.split("+")):
+        if token in flags:
+            flags[token] = True
+        elif token.startswith("h") and token[1:]:
+            try:
+                height = float(token[1:])
+            except ValueError:
+                raise ValueError(
+                    f"a divider is {_DIVIDER_TOKENS}, joined by +; got '{token}'"
+                ) from None
+        else:
+            raise ValueError(
+                f"a divider is {_DIVIDER_TOKENS}, joined by +; got '{token}'"
+            )
+
+    return Divider(
+        height_mm=height,
+        vents=flags["vents"],
+        notch=flags["notch"],
+        tie_slots=flags["ties"],
+    )
+
+
 def _bay(text: str) -> Bay:
     """One bay from ``kind``, with any of ``:standoff=10``, ``:headroom=30``,
-    ``:front=20x10``, and ``:back=20x10@-5/3``."""
+    ``:front=20x10``, ``:back=20x10@-5/3``, and ``:divider=vents+notch``."""
 
     kind, *options = (part.strip() for part in text.split(":"))
     kinds = [known for known in BAY_KINDS if known == kind]
@@ -66,6 +101,7 @@ def _bay(text: str) -> Bay:
 
     heights: dict[str, float] = {}
     openings: list[BayOpening] = []
+    divider: Divider | None = None
 
     for option in options:
         name, _, value = option.partition("=")
@@ -75,10 +111,14 @@ def _bay(text: str) -> Bay:
             openings.append(_opening(walls[0], value))
             continue
 
+        if name == "divider" and value:
+            divider = _divider(value)
+            continue
+
         if name not in _BAY_OPTIONS or not value:
             raise ValueError(
-                "bay option must be standoff=<mm>, headroom=<mm>, or "
-                f"{_OPENING_SYNTAX}; got '{option}'"
+                "bay option must be standoff=<mm>, headroom=<mm>, "
+                f"{_OPENING_SYNTAX}, or divider=<{_DIVIDER_TOKENS}>; got '{option}'"
             )
 
         try:
@@ -86,7 +126,7 @@ def _bay(text: str) -> Bay:
         except ValueError:
             raise ValueError(f"bay option '{option}' needs a number") from None
 
-    return Bay(kind=kinds[0], openings=tuple(openings), **heights)
+    return Bay(kind=kinds[0], openings=tuple(openings), divider=divider, **heights)
 
 
 def _bays(text: str) -> tuple[Bay, ...]:
@@ -111,6 +151,18 @@ def _bay_summary(group: GroupEnclosure) -> list[dict[str, object]]:
                 }
                 for opening in layout.openings
             ],
+            "divider": (
+                None
+                if layout.divider is None
+                else {
+                    "full_height": layout.divider.full_height,
+                    "height_mm": layout.divider.height_mm,
+                    "vents": layout.divider.vents,
+                    "notch": layout.divider.notch,
+                    "tie_slots": layout.divider.tie_slots,
+                    "left_face_x_mm": layout.divider_start_mm + group.design.wall_mm,
+                }
+            ),
         }
         for layout in group.bays
     ]
@@ -249,7 +301,9 @@ def register(
             "a bay can set its own heights, as pi5:standoff=10:headroom=30, "
             "and an open bay can cut wall openings, as "
             "open:back=20x10@-5/3 (width x height, offset from the shelf's "
-            "middle, height above the floor)"
+            "middle, height above the floor); any bay after the first can "
+            "have a divider on its left, as pi5:divider=vents+notch+ties or "
+            "open:divider=h12 (a low one 12 mm tall)"
         ),
     )
     build.add_argument("--output-directory", required=True, type=Path)
