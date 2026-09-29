@@ -37,10 +37,15 @@ not (UNO R4 WiFi). A board without holes (XIAO ESP32-S3) sits in a snap-in
 cradle: a ledge under its edges, a snap clip on each side edge, and a stop
 behind the edge opposite its connector.
 
-**Display retainer.** L-shaped posts at the display's corners locate it
-and carry pads its face rests against; a snap clip on each side hooks under
-it. The middle of the other two edges stays open for a pin header or flex
-cable. Turn it off with `display_retainer=False` (`--no-display-retainer`).
+**Display mounting.** A display with mounting holes screws to posts that
+hang from the lid over its holes: its face sits under the window and
+`display_fastener` self-tapping screws (M2 by default,
+`--display-fastener`) go up through its PCB into the posts. A display
+without holes sits in a retainer instead: L-shaped posts at its corners
+locate it and carry pads its face rests against, and a snap clip on each
+side hooks under it, leaving the middle of the other two edges open for a
+pin header or flex cable. Turn either off with `display_retainer=False`
+(`--no-display-retainer`).
 
 **Cable opening.** The opening passes a cable's moulded plug body, not just
 the connector, so the plug reaches the connector through the wall and the
@@ -99,7 +104,8 @@ enclosure = build_enclosure(
   enclosure.
 - `enclosure-review.json`: part sizes, the side clearances chosen, the gap
   and overlap between each part and each piece of hardware, the screws to
-  buy (the longest standard length the lid and insert take), and five
+  buy (the longest standard length the lid and insert take, and for a
+  screwed display the longest that its PCB and posts take), and five
   checks: no interference, one solid per part, open screw paths, a plug
   body that clears the floor, and contact only where expected (the board on
   its supports, the display on its pads).
@@ -130,3 +136,18 @@ model's SHA-256. It merges parts of a similar height lying within 2 mm of
 each other and ignores parts under 0.5 mm, so the boxes are slightly
 generous. Re-run it after replacing a vendor model; it needs the evidence
 checkout.
+
+| Display | Mounting | Source |
+| --- | --- | --- |
+| `ADAFRUIT_OLED_128X64_1_3IN` | Screw posts | Adafruit 938 CAD model; active area from the panel datasheet |
+| `ADAFRUIT_OLED_128X128_1_5IN` | Screw posts | Provisional: Adafruit 4741 CAD model; the active area's 2.9 mm offset direction is inferred, so check it on the part |
+| `ADAFRUIT_EINK_200X200_1_54IN` | Screw posts | Adafruit 4196 CAD model; active area from the panel drawing |
+| `REFERENCE_OLED_128X64` | Retainer clips | Vendor-neutral reference with no holes |
+
+The Adafruit displays are modelled in layers, face up: the parts behind the
+PCB, the PCB, then the glass panel. So posts land on the PCB beside the
+panel, and the window sits over the active area, which is off the panel
+centre on all three. The vendor models are in `evidence/`, and a slow test
+checks each spec's PCB outline, thickness, and hole spacing against them.
+Solder a header on the back and the stack grows; raise the display height
+and top clearance to suit.

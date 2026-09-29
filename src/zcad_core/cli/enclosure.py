@@ -82,6 +82,7 @@ def _enclosure_build(args: argparse.Namespace) -> int:
         cable_plug_width_mm=args.cable_plug_width_mm,
         cable_plug_height_mm=args.cable_plug_height_mm,
         display_retainer=args.display_retainer,
+        display_fastener=args.display_fastener,
     )
     enclosure = build_enclosure(assembly, board=board, display=display, design=design)
     name = args.name or f"{board.identifier.lower().replace('_', '-')}-enclosure"
@@ -135,6 +136,7 @@ def _enclosure_build(args: argparse.Namespace) -> int:
                 f"{enclosure.fastener.identifier} x "
                 f"{review.report['fasteners']['recommended_screw_length_mm']} mm"
             ),
+            "display_screws": review.report["display_fasteners"],
             "failed_checks": sorted(
                 name
                 for name, check in review.report["checks"].items()
@@ -199,6 +201,11 @@ def register(
     build.add_argument("--floor-mm", type=float, default=2.0)
     build.add_argument("--lid-mm", type=float, default=2.0)
     build.add_argument("--fastener", default="M3")
+    build.add_argument(
+        "--display-fastener",
+        default="M2",
+        help="self-tapping screws into the display posts",
+    )
     build.add_argument(
         "--side-clearance-mm",
         type=float,

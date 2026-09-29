@@ -157,3 +157,52 @@ def _clip(
     lip = _box((side * reach, side * outer), width, (lip_bottom, lip_top))
 
     return stem.union(lip)
+
+
+@dataclass(frozen=True)
+class DisplayPostParameters:
+    """Lid-hung posts a display's PCB screws up against, face to the lid."""
+
+    positions: tuple[tuple[float, float], ...]
+    pcb_face_z_mm: float
+    lid_underside_z_mm: float
+    pilot_hole_mm: float
+    outer_diameter_mm: float
+
+    def validate(self) -> None:
+        if not self.positions:
+            raise ValueError("a display needs at least one post")
+
+        if self.pilot_hole_mm <= 0:
+            raise ValueError("pilot_hole_mm must be greater than zero")
+
+        if self.outer_diameter_mm < self.pilot_hole_mm + 1.6:
+            raise ValueError("a post's wall must be at least 0.8 mm thick")
+
+        if self.pcb_face_z_mm >= self.lid_underside_z_mm:
+            raise ValueError("the display's PCB must sit below the lid")
+
+
+def add_display_posts(
+    model: cq.Workplane,
+    *,
+    parameters: DisplayPostParameters,
+) -> cq.Workplane:
+    """Add a post with a screw pilot hole over each display mounting hole."""
+    parameters.validate()
+
+    # The posts overlap the lid slightly so they fuse to it.
+    length = parameters.lid_underside_z_mm - parameters.pcb_face_z_mm + 0.01
+    posts = cq.Workplane("XY")
+    pilots = cq.Workplane("XY")
+
+    for x, y in parameters.positions:
+        base = cq.Vector(x, y, parameters.pcb_face_z_mm)
+        posts = posts.add(
+            cq.Solid.makeCylinder(parameters.outer_diameter_mm / 2, length, pnt=base)
+        )
+        pilots = pilots.add(
+            cq.Solid.makeCylinder(parameters.pilot_hole_mm / 2, length - 0.01, pnt=base)
+        )
+
+    return model.union(posts.combine()).cut(pilots.combine())

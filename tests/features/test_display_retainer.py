@@ -9,13 +9,19 @@ import pytest
 
 from zcad_core.assemblies import Placement, build_board_display_assembly
 from zcad_core.features import (
+    DisplayPostParameters,
     DisplayRetainerParameters,
+    Enclosure,
     EnclosureDesign,
     add_display_retainer,
     build_enclosure,
 )
 from zcad_core.geometry.intersection import intersection_volume
-from zcad_core.hardware import get_raspberry_pi_pico2, get_reference_oled_128x64
+from zcad_core.hardware import (
+    get_display,
+    get_raspberry_pi_pico2,
+    get_reference_oled_128x64,
+)
 
 DISPLAY = get_reference_oled_128x64()
 LID_UNDERSIDE_MM = 20.0
@@ -146,3 +152,75 @@ def test_enclosure_lid_holds_the_display_unless_turned_off() -> None:
     assert plain.BoundingBox().zmin == pytest.approx(
         display_top + EnclosureDesign().top_clearance_mm
     )
+
+
+SCREWED = get_display("ADAFRUIT_OLED_128X64_1_3IN")
+
+
+def screwed_enclosure(design: EnclosureDesign | None = None) -> tuple[Enclosure, float]:
+    board = get_raspberry_pi_pico2()
+    assembly = build_board_display_assembly(
+        board=board,
+        display=SCREWED,
+        board_placement=Placement(),
+        display_placement=Placement(z_mm=8.0),
+        board_display_clearance_mm=1.0,
+        connector_access_clearance_mm=2.0,
+    )
+    enclosure = build_enclosure(assembly, board=board, display=SCREWED, design=design)
+
+    return enclosure, 8.0 + SCREWED.module_depth_mm - (SCREWED.panel_thickness_mm or 0)
+
+
+def test_display_with_holes_screws_to_lid_posts() -> None:
+    enclosure, pcb_face = screwed_enclosure()
+    (lid,) = enclosure.lid.solids().vals()
+    assert isinstance(lid, cq.Solid)
+    half_x = (SCREWED.mounting_hole_spacing_x_mm or 0) / 2
+    half_y = (SCREWED.mounting_hole_spacing_y_mm or 0) / 2
+
+    assert enclosure.display_support == "posts"
+    assert enclosure.display_screw_count == 4
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            x, y = sx * half_x, sy * half_y
+            # The post reaches the PCB face; its pilot hole is open.
+            assert lid.isInside(cq.Vector(x + 1.5, y, pcb_face + 0.2))
+            assert not lid.isInside(cq.Vector(x, y, pcb_face + 0.5))
+    # The window is over the active area, off the panel centre.
+    top = lid.BoundingBox().zmax
+    assert not lid.isInside(cq.Vector(0, SCREWED.active_center_y_mm, top - 1.0))
+
+
+def test_screw_reach_is_the_pcb_and_post() -> None:
+    enclosure, pcb_face = screwed_enclosure()
+    spec = enclosure.specification
+    cavity_top = spec.bottom_z_mm + spec.inner_height_mm
+
+    assert enclosure.display_screw_reach_mm == pytest.approx(
+        cavity_top - pcb_face + (SCREWED.pcb_thickness_mm or 0)
+    )
+
+
+def test_refuses_display_screws_too_big_for_its_holes() -> None:
+    with pytest.raises(ValueError, match="do not fit the display's 2.5 mm holes"):
+        screwed_enclosure(EnclosureDesign(display_fastener="M3"))
+
+
+def test_post_parameters_reject_invalid_geometry() -> None:
+    posts = DisplayPostParameters(
+        positions=((0.0, 0.0),),
+        pcb_face_z_mm=10.0,
+        lid_underside_z_mm=14.0,
+        pilot_hole_mm=1.6,
+        outer_diameter_mm=4.0,
+    )
+    posts.validate()
+
+    for change, message in (
+        ({"positions": ()}, "at least one post"),
+        ({"outer_diameter_mm": 3.0}, "at least 0.8 mm thick"),
+        ({"pcb_face_z_mm": 14.0}, "below the lid"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            replace(posts, **change).validate()

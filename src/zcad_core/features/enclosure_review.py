@@ -141,6 +141,24 @@ def recommended_screw_length_mm(enclosure: Enclosure) -> int:
     return fitting[-1]
 
 
+def _display_fasteners(enclosure: Enclosure) -> dict[str, Any] | None:
+    """The self-tapping screws that hold a display to its lid posts."""
+
+    reach = enclosure.display_screw_reach_mm
+
+    if reach is None:
+        return None
+
+    fitting = [length for length in _SCREW_LENGTHS_MM if length <= reach]
+
+    return {
+        "size": enclosure.design.display_fastener,
+        "count": enclosure.display_screw_count,
+        "kind": "self-tapping, into plastic",
+        "recommended_screw_length_mm": fitting[-1] if fitting else None,
+    }
+
+
 def _single_shape(model: cq.Workplane) -> cq.Shape:
     shapes = [value for value in model.vals() if isinstance(value, cq.Shape)]
 
@@ -318,6 +336,7 @@ def _report(
                 list(position) for position in enclosure.fastener_positions
             ],
         },
+        "display_fasteners": _display_fasteners(enclosure),
         "cable_opening_mm": {
             "edge": spec.cable_edge,
             "connector": [

@@ -41,7 +41,12 @@ def test_hardware_lists_the_catalogs(capsys: pytest.CaptureFixture[str]) -> None
 
     assert exit_code == 0
     assert "RASPBERRY_PI_PICO_2" in output["boards"]
-    assert output["displays"] == ["REFERENCE_OLED_128X64"]
+    assert output["displays"] == [
+        "ADAFRUIT_EINK_200X200_1_54IN",
+        "ADAFRUIT_OLED_128X128_1_5IN",
+        "ADAFRUIT_OLED_128X64_1_3IN",
+        "REFERENCE_OLED_128X64",
+    ]
     assert "M3" in output["fasteners"]
 
 
@@ -159,3 +164,25 @@ def test_build_can_leave_the_display_loose(
     assert exit_code == 0
     # The lid is a plain plate, as thick as the lid setting.
     assert output["parts"]["lid"]["bounds_mm"][2] == pytest.approx(2.0)
+
+
+def test_build_screws_a_display_to_lid_posts(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    exit_code, output = build(
+        capsys,
+        tmp_path,
+        "--board",
+        "raspberry_pi_pico_2",
+        "--display",
+        "adafruit_oled_128x64_1_3in",
+        "--review",
+    )
+
+    assert exit_code == 0
+    assert output["review"]["display_screws"] == {
+        "count": 4,
+        "kind": "self-tapping, into plastic",
+        "recommended_screw_length_mm": 5,
+        "size": "M2",
+    }

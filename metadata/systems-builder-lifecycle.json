@@ -8,7 +8,7 @@
     "repository": "zacharymplace/zcad-core",
     "path": ".",
     "branch": "main",
-    "commit": "a98d06c"
+    "commit": "6673e92"
   },
   "evidence": [
     {
@@ -95,11 +95,36 @@
       "kind": "capability",
       "reference": "src/zcad_core/geometry/intersection.py",
       "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/features/enclosure.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/features/enclosure_review.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/cli/enclosure.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "scripts/extract-board-components.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "docs/guides/enclosure-builder.md",
+      "result": "pass"
     }
   ],
-  "last_verified_at": "2026-09-29T04:46:36Z",
+  "last_verified_at": "2026-09-29T20:09:59Z",
   "next_action": {
-    "description": "Phase 2 of docs/roadmaps/next-phases.md: print and test-fit the four print-ready, visually reviewed candidates (Feather RP2040 r004, Pico 2 r002, XIAO ESP32-S3 r003, UNO R4 WiFi r005), check each review's reservations, record each trial with `zcad-validation trial complete`, then register and promote passing candidates.",
+    "description": "Phase 2 of docs/roadmaps/next-phases.md: print and test-fit the four print-ready, visually reviewed candidates (Feather RP2040 r004, Pico 2 r002, XIAO ESP32-S3 r003, UNO R4 WiFi r005), check each review's reservations, record each trial with `zcad-validation trial complete`, then register and promote passing candidates. Print a Pico 2 or XIAO enclosure on the same run to prove the enclosure builder's clips, plug opening, and insert bosses.",
     "command": "scripts/check.sh"
   },
   "blockers": [
@@ -153,6 +178,17 @@
     "runnable-engine-example",
     "fail-closed-interference",
     "complexity-limit",
-    "modular-cli"
+    "modular-cli",
+    "enclosure-builder",
+    "automatic-boss-clearance",
+    "hole-less-board-cradle",
+    "display-retainer",
+    "plug-sized-cable-openings",
+    "enclosure-review-package",
+    "enclosure-cli",
+    "board-catalog",
+    "vendor-model-board-components",
+    "vendor-display-catalog",
+    "display-screw-posts"
   ]
 }

@@ -20,7 +20,12 @@ def test_catalogs_list_every_board_and_display() -> None:
         "RASPBERRY_PI_PICO_2",
         "SEEED_XIAO_ESP32_S3",
     )
-    assert list_displays() == ("REFERENCE_OLED_128X64",)
+    assert list_displays() == (
+        "ADAFRUIT_EINK_200X200_1_54IN",
+        "ADAFRUIT_OLED_128X128_1_5IN",
+        "ADAFRUIT_OLED_128X64_1_3IN",
+        "REFERENCE_OLED_128X64",
+    )
 
 
 def test_lookup_ignores_case() -> None:

@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field, replace
 from typing import Any
 
+import cadquery as cq
 import pytest
 
 from zcad_core.assemblies import (
@@ -18,6 +19,7 @@ from zcad_core.hardware import (
     BoardComponentSpec,
     RectangularConnectorSpec,
     get_arduino_uno_r4_wifi,
+    get_display,
     get_raspberry_pi_pico2,
     get_reference_oled_128x64,
 )
@@ -380,3 +382,29 @@ def test_board_assembly_rejects_duplicate_identifiers() -> None:
             board_identifier="same",
             connector_identifier="same",
         )
+
+
+def test_layered_display_is_a_panel_on_a_pcb() -> None:
+    display = get_display("ADAFRUIT_OLED_128X64_1_3IN")
+    assembly = build_board_display_assembly(
+        board=get_raspberry_pi_pico2(),
+        display=display,
+        board_placement=Placement(),
+        display_placement=Placement(z_mm=8.0),
+    )
+    (shape,) = assembly.get("display").transformed_geometry().solids().vals()
+    assert isinstance(shape, cq.Solid)
+    bounds = shape.BoundingBox()
+    panel = display.panel_thickness_mm or 0.0
+
+    assert (bounds.xlen, bounds.ylen, bounds.zlen) == pytest.approx(
+        (display.module_width_mm, display.module_height_mm, display.module_depth_mm)
+    )
+    # Beside the panel, the face is the PCB's, a panel's thickness lower.
+    corner = cq.Vector(
+        -display.module_width_mm / 2 + 0.5,
+        -display.module_height_mm / 2 + 0.5,
+        bounds.zmax - panel / 2,
+    )
+    assert not shape.isInside(corner)
+    assert shape.isInside(cq.Vector(0, 0, bounds.zmax - panel / 2))

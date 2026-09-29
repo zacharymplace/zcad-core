@@ -1,6 +1,9 @@
 """Reusable board, edge-connector, and display assemblies."""
 
-from typing import Protocol
+from dataclasses import replace
+from typing import Protocol, runtime_checkable
+
+import cadquery as cq
 
 from zcad_core.assemblies.assembly import (
     DeviceAssembly,
@@ -70,6 +73,24 @@ class RectangularDisplaySpec(Protocol):
     def mount_style(self) -> str: ...
 
 
+@runtime_checkable
+class LayeredDisplaySpec(RectangularDisplaySpec, Protocol):
+    """A display modelled as a panel on a PCB over the parts behind it."""
+
+    @property
+    def pcb_thickness_mm(self) -> float | None: ...
+    @property
+    def panel_width_mm(self) -> float | None: ...
+    @property
+    def panel_height_mm(self) -> float | None: ...
+    @property
+    def panel_thickness_mm(self) -> float | None: ...
+    @property
+    def panel_center_x_mm(self) -> float: ...
+    @property
+    def panel_center_y_mm(self) -> float: ...
+
+
 def build_board_display_assembly(
     *,
     board: RectangularBoardSpec,
@@ -102,20 +123,59 @@ def build_board_display_assembly(
                 board_identifier=board_identifier,
                 connector_identifier=connector_identifier,
             ),
-            build_rectangular_hardware_component(
-                identifier=display_identifier,
-                hardware_identifier=display.identifier,
-                kind="display",
-                width_mm=display.module_width_mm,
-                depth_mm=display.module_height_mm,
-                height_mm=display.module_depth_mm,
-                placement=display_placement,
-                metadata={
-                    "mount_style": display.mount_style,
-                },
-            ),
+            _display_component(display, display_placement, display_identifier),
         )
     )
+
+
+def _display_component(
+    display: RectangularDisplaySpec, placement: Placement, identifier: str
+) -> AssemblyComponent:
+    """The display as a block, or, for a layered spec, as its panel on its
+    PCB over the envelope of the parts behind it."""
+
+    component = build_rectangular_hardware_component(
+        identifier=identifier,
+        hardware_identifier=display.identifier,
+        kind="display",
+        width_mm=display.module_width_mm,
+        depth_mm=display.module_height_mm,
+        height_mm=display.module_depth_mm,
+        placement=placement,
+        metadata={"mount_style": display.mount_style},
+    )
+    if not isinstance(display, LayeredDisplaySpec) or display.pcb_thickness_mm is None:
+        return component
+
+    assert display.panel_width_mm is not None
+    assert display.panel_height_mm is not None
+    assert display.panel_thickness_mm is not None
+    panel_thickness = display.panel_thickness_mm
+    below_panel = display.module_depth_mm - panel_thickness
+    body = cq.Workplane("XY").box(
+        display.module_width_mm,
+        display.module_height_mm,
+        below_panel,
+        centered=(True, True, False),
+    )
+    panel = (
+        cq.Workplane("XY")
+        .box(
+            display.panel_width_mm,
+            display.panel_height_mm,
+            panel_thickness,
+            centered=(True, True, False),
+        )
+        .translate(
+            (
+                display.panel_center_x_mm,
+                display.panel_center_y_mm,
+                below_panel,
+            )
+        )
+    )
+
+    return replace(component, geometry=body.union(panel))
 
 
 def build_board_assembly(

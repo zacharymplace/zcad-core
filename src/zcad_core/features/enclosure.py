@@ -31,14 +31,20 @@ from zcad_core.features.display_cutouts import (
     cut_display_window,
 )
 from zcad_core.features.display_retainer import (
+    DisplayPostParameters,
     DisplayRetainerParameters,
+    add_display_posts,
     add_display_retainer,
 )
 from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
 )
-from zcad_core.features.pcb_mounts import add_pcb_standoff, board_hole_pattern
+from zcad_core.features.pcb_mounts import (
+    BoardHolePattern,
+    add_pcb_standoff,
+    board_hole_pattern,
+)
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware import BoardSpec, DisplaySpec, FastenerSpec, get_fastener
 
@@ -60,6 +66,7 @@ _AUTOMATIC_WIDENING_MM = tuple(0.5 * step for step in range(25))
 _SUPPORT_MARGIN_MM = 2.0
 # Supports are notched this far clear of the parts under the board.
 _UNDER_BOARD_CLEARANCE_MM = 0.3
+_DISPLAY_POST_WALL_MM = 1.2
 
 
 @dataclass(frozen=True)
@@ -76,8 +83,10 @@ class EnclosureDesign:
     ``cable_plug_height_mm``, so a cable's moulded plug body reaches the
     connector through the wall and the gap inside it; the defaults fit
     common USB-C and micro-USB cables. Set both to zero for an opening sized
-    to the connector alone. ``display_retainer`` hangs corner posts and snap
-    clips from the lid to hold the display under its window.
+    to the connector alone. ``display_retainer`` holds the display under
+    its window: screw posts over a display's mounting holes, for
+    ``display_fastener`` self-tapping screws, or, for a display without
+    holes, corner posts and snap clips.
     """
 
     wall_mm: float = 2.0
@@ -91,6 +100,7 @@ class EnclosureDesign:
     cable_plug_width_mm: float = 12.5
     cable_plug_height_mm: float = 7.5
     display_retainer: bool = True
+    display_fastener: str = "M2"
 
     def validate(self) -> None:
         for name in ("wall_mm", "floor_mm", "lid_mm", "boss_radial_wall_mm"):
@@ -125,6 +135,11 @@ class Enclosure:
     fastener: FastenerSpec
     fastener_positions: tuple[tuple[float, float], ...]
     board_support: str
+    display_support: str | None = None
+    # Screws up through the display's PCB into its posts: how many, and the
+    # longest that fits (PCB thickness plus post length).
+    display_screw_count: int = 0
+    display_screw_reach_mm: float | None = None
 
 
 def build_enclosure(
@@ -199,8 +214,11 @@ def build_enclosure(
 
     lid = _lid(spec, design, cavity_top, fastener, positions)
 
+    display_support = None
+    display_screws: tuple[int, float] | None = None
+
     if display is not None:
-        lid = _add_display_features(
+        lid, display_support, display_screws = _add_display_features(
             lid,
             assembly=assembly,
             display=display,
@@ -221,6 +239,9 @@ def build_enclosure(
         fastener=fastener,
         fastener_positions=positions,
         board_support=board_support,
+        display_support=display_support,
+        display_screw_count=display_screws[0] if display_screws else 0,
+        display_screw_reach_mm=display_screws[1] if display_screws else None,
     )
 
 
@@ -232,8 +253,9 @@ def _add_display_features(
     display_identifier: str,
     design: EnclosureDesign,
     cavity_top: float,
-) -> cq.Workplane:
-    """Cut the display window and hang the retainer under it."""
+) -> tuple[cq.Workplane, str | None, tuple[int, float] | None]:
+    """Cut the display window and hang what holds the display under it; for
+    screw posts, also the number of screws and the longest that fits."""
 
     component = assembly.get(display_identifier)
     lid = cut_display_window(
@@ -248,20 +270,68 @@ def _add_display_features(
     )
 
     if not design.display_retainer:
-        return lid
+        return lid, None, None
 
     bounds = _all_solids(component.transformed_geometry()).BoundingBox()
+    holes = board_hole_pattern(display)
 
-    return add_display_retainer(
+    if holes is not None:
+        pcb_face = bounds.zmax - (display.panel_thickness_mm or 0.0)
+        reach = cavity_top - pcb_face + (display.pcb_thickness_mm or 0.0)
+
+        return (
+            _add_display_posts(lid, display, holes, bounds, design, cavity_top),
+            "posts",
+            (len(holes.positions), reach),
+        )
+
+    return (
+        add_display_retainer(
+            lid,
+            parameters=DisplayRetainerParameters(
+                center_x_mm=(bounds.xmin + bounds.xmax) / 2,
+                center_y_mm=(bounds.ymin + bounds.ymax) / 2,
+                module_width_mm=bounds.xlen,
+                module_depth_mm=bounds.ylen,
+                module_thickness_mm=bounds.zlen,
+                module_top_z_mm=bounds.zmax,
+                lid_underside_z_mm=cavity_top,
+            ),
+        ),
+        "clips",
+        None,
+    )
+
+
+def _add_display_posts(
+    lid: cq.Workplane,
+    display: DisplaySpec,
+    holes: BoardHolePattern,
+    bounds: cq.BoundBox,
+    design: EnclosureDesign,
+    cavity_top: float,
+) -> cq.Workplane:
+    """Posts from the lid down to the display's PCB, over its holes."""
+
+    fastener = get_fastener(design.display_fastener)
+
+    if fastener.clearance_hole_mm > holes.hole_diameter_mm:
+        raise ValueError(
+            f"{fastener.identifier} screws do not fit the display's "
+            f"{holes.hole_diameter_mm} mm holes; choose a smaller display_fastener"
+        )
+
+    center_x = (bounds.xmin + bounds.xmax) / 2
+    center_y = (bounds.ymin + bounds.ymax) / 2
+
+    return add_display_posts(
         lid,
-        parameters=DisplayRetainerParameters(
-            center_x_mm=(bounds.xmin + bounds.xmax) / 2,
-            center_y_mm=(bounds.ymin + bounds.ymax) / 2,
-            module_width_mm=bounds.xlen,
-            module_depth_mm=bounds.ylen,
-            module_thickness_mm=bounds.zlen,
-            module_top_z_mm=bounds.zmax,
+        parameters=DisplayPostParameters(
+            positions=tuple((center_x + x, center_y + y) for x, y in holes.positions),
+            pcb_face_z_mm=bounds.zmax - (display.panel_thickness_mm or 0.0),
             lid_underside_z_mm=cavity_top,
+            pilot_hole_mm=fastener.tap_hole_mm,
+            outer_diameter_mm=fastener.tap_hole_mm + 2 * _DISPLAY_POST_WALL_MM,
         ),
     )
 

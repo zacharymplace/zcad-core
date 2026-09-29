@@ -15,7 +15,9 @@ from zcad_core.features.display_cutouts import (
     cut_display_window,
 )
 from zcad_core.features.display_retainer import (
+    DisplayPostParameters,
     DisplayRetainerParameters,
+    add_display_posts,
     add_display_retainer,
 )
 from zcad_core.features.enclosure import (
@@ -51,6 +53,7 @@ __all__ = [
     "BoardHolePattern",
     "ConnectorCutoutParameters",
     "DisplayBezelParameters",
+    "DisplayPostParameters",
     "DisplayRetainerParameters",
     "DisplayWindowParameters",
     "Enclosure",
@@ -63,6 +66,7 @@ __all__ = [
     "add_board_cradle",
     "add_board_standoffs",
     "add_display_bezel",
+    "add_display_posts",
     "add_display_retainer",
     "add_heat_set_insert_boss",
     "add_pcb_standoff",

@@ -6,7 +6,7 @@ This roadmap sequences work after the completed Validation Lab phases and the
 September 2026 export-validation work. It builds on both tracks rather than
 adding new retention strategies or hardware families.
 
-## Current position (2026-09-28)
+## Current position (2026-09-29)
 
 | Phase | Status |
 |---|---|
@@ -32,7 +32,8 @@ publication-eligible.
 ### Blockers and open items
 
 1. **No printer access.** Phase 2 needs a print and test fit of each
-   candidate, recorded with `zcad-validation trial complete`.
+   candidate, recorded with `zcad-validation trial complete`. An enclosure
+   should go on the same print run (see the enclosure builder below).
 2. **GitHub Actions is disabled for the account**, so CI never runs on
    GitHub. The same gates run locally: `scripts/check.sh`, enforced by the
    `.githooks/pre-push` hook (enable per checkout with
@@ -74,10 +75,45 @@ generator with a relief under overhanging connectors.
   `zcad-validation` CLI. It covers corner-capture, edge-clip, and snap-shell
   retention across the Feather RP2040, Pico 2, UNO R4 WiFi, XIAO ESP32-S3,
   Dexcom G7 (synthetic), and Tandem Mobi (synthetic) targets.
+- **Enclosure builder** (new, 2026-09-29; see below): screw-together
+  enclosures built from catalogued hardware, from Python or
+  `zcad-validation enclosure build`.
 - **Validated export pipeline**: geometry inspection, design validation
   reports, STEP round-trip and STL topology checks, staged publication with
   rollback, and STL clearance and material probes. As of Phase 1, every
   Validation Lab candidate passes through it.
+
+### Enclosure builder (2026-09-29)
+
+A second use of the engine, beside the Validation Lab: `build_enclosure`
+turns a board, and optionally a display, into a printable base and lid.
+Guide: `docs/guides/enclosure-builder.md`.
+
+- **Base**: floor and walls, an M3 heat-set insert boss in each corner,
+  board standoffs (rectangular or irregular hole patterns) or a snap-in
+  cradle for a board without holes, and a wall opening sized for the
+  cable's moulded plug, plus one for any part reached through a wall.
+- **Lid**: screw holes over the bosses, a display window, and a retainer
+  (corner posts, face pads, snap clips) that holds the display.
+- **Automatic side clearance**: widens X and Y separately until the bosses
+  clear the hardware; separate bottom and top clearances.
+- **Board parts from vendor models**: `scripts/extract-board-components.py`
+  turns each vendor STEP's parts into boxes the enclosure must clear, so
+  cavities fit headers, buttons, jacks, and under-board pins, and a display
+  too close to a part is refused.
+- **Review package**: an exploded GLB, SVG views, and a report of
+  clearances, five checks, and the screws to buy (`--review`).
+- **Catalog**: Feather RP2040, Pico 2, UNO R4 WiFi (provisional holes), and
+  XIAO ESP32-S3; Adafruit's 1.3" and 1.5" OLEDs and 1.54" e-ink, which
+  screw to lid posts, and a vendor-neutral OLED held by clips.
+
+Open items, in order:
+
+1. **Print one enclosure** (Pico 2 or XIAO) with the fixture trials: the
+   snap clips, the plug opening, the insert bosses, and the display
+   retainer are unproven in plastic. Record it with an enclosure trial
+   record, still to be built.
+2. **Lid options**: snap-fit lid, locating lip, countersunk holes, vents.
 
 ### Gaps closed since 2026-09-27
 

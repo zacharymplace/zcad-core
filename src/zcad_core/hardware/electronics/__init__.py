@@ -26,6 +26,9 @@ from zcad_core.hardware.electronics.connectors import (
     RectangularConnectorSpec,
 )
 from zcad_core.hardware.electronics.displays import (
+    ADAFRUIT_EINK_200X200_1_54IN,
+    ADAFRUIT_OLED_128X64_1_3IN,
+    ADAFRUIT_OLED_128X128_1_5IN,
     REFERENCE_OLED_128X64,
     DisplayMountStyle,
     DisplaySpec,
@@ -41,6 +44,9 @@ from zcad_core.hardware.electronics.seeed import (
 )
 
 __all__ = [
+    "ADAFRUIT_EINK_200X200_1_54IN",
+    "ADAFRUIT_OLED_128X64_1_3IN",
+    "ADAFRUIT_OLED_128X128_1_5IN",
     "BOARD_CATALOG",
     "DISPLAY_CATALOG",
     "REFERENCE_OLED_128X64",

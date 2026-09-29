@@ -8,6 +8,9 @@ from zcad_core.hardware.electronics.arduino import get_arduino_uno_r4_wifi
 from zcad_core.hardware.electronics.board_components import BoardComponentSpec
 from zcad_core.hardware.electronics.connectors import RectangularConnectorSpec
 from zcad_core.hardware.electronics.displays import (
+    ADAFRUIT_EINK_200X200_1_54IN,
+    ADAFRUIT_OLED_128X64_1_3IN,
+    ADAFRUIT_OLED_128X128_1_5IN,
     DisplaySpec,
     get_reference_oled_128x64,
 )
@@ -46,7 +49,15 @@ BOARD_CATALOG: HardwareCatalog[BoardSpec] = HardwareCatalog(
 
 DISPLAY_CATALOG: HardwareCatalog[DisplaySpec] = HardwareCatalog(
     category="display",
-    entries={display.identifier: display for display in (get_reference_oled_128x64(),)},
+    entries={
+        display.identifier: display
+        for display in (
+            get_reference_oled_128x64(),
+            ADAFRUIT_OLED_128X64_1_3IN,
+            ADAFRUIT_OLED_128X128_1_5IN,
+            ADAFRUIT_EINK_200X200_1_54IN,
+        )
+    },
 )
 
 
