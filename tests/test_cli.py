@@ -2062,7 +2062,7 @@ def test_trial_complete_refuses_to_overwrite_a_completed_trial(
 
 
 def test_generator_version_comes_from_the_evidence() -> None:
-    from zcad_core.cli import _generator_version
+    from zcad_core.cli.candidate import _generator_version
 
     assert _generator_version(None, {"generator_version": "1.4.0"}) == "1.4.0"
     assert _generator_version("1.4.0", {"generator_version": "1.4.0"}) == "1.4.0"
@@ -2074,7 +2074,7 @@ def test_generator_version_comes_from_the_evidence() -> None:
 def test_evidence_without_a_generator_version_needs_the_flag() -> None:
     """The old default of 1.0.0 would have mislabelled current geometry."""
 
-    from zcad_core.cli import _generator_version
+    from zcad_core.cli.candidate import _generator_version
 
     with pytest.raises(ValueError, match="pass --generator-version"):
         _generator_version(None, {})
