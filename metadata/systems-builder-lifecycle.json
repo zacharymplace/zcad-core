@@ -8,7 +8,7 @@
     "repository": "zacharymplace/zcad-core",
     "path": ".",
     "branch": "main",
-    "commit": "96f243f"
+    "commit": "83f53a9"
   },
   "evidence": [
     {
@@ -65,9 +65,24 @@
       "kind": "capability",
       "reference": "src/zcad_core/retention/visual_review.py",
       "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/retention/physical_validation.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/retention/installation_path.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/retention/generator.py",
+      "result": "pass"
     }
   ],
-  "last_verified_at": "2026-09-29T01:56:35Z",
+  "last_verified_at": "2026-09-29T03:31:42Z",
   "next_action": {
     "description": "Phase 2 of docs/roadmaps/next-phases.md: print and test-fit the four print-ready, visually reviewed candidates (Feather RP2040 r004, Pico 2 r002, XIAO ESP32-S3 r003, UNO R4 WiFi r005), check each review's reservations, record each trial with `zcad-validation trial complete`, then register and promote passing candidates.",
     "command": "scripts/check.sh"
@@ -111,6 +126,13 @@
     "slow-test-selection",
     "visual-review-promotion-gate",
     "design-review-minimum-gap",
-    "candidate-regeneration"
+    "candidate-regeneration",
+    "trial-dimensional-measurements",
+    "design-review-clearance-measurements",
+    "fixture-aware-installation-analysis",
+    "append-only-trial-records",
+    "recorded-generation-settings",
+    "generator-version-fingerprint",
+    "type-checked-tests"
   ]
 }
