@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from zcad_core.cli import (
     candidate,
     enclosure,
+    enclosure_group,
     fixture,
     review,
     revision,
@@ -39,6 +40,7 @@ _COMMAND_GROUPS = (
     revision,
     status,
     enclosure,
+    enclosure_group,
 )
 
 

@@ -35,7 +35,9 @@ from zcad_core.hardware.electronics.displays import (
     get_reference_oled_128x64,
 )
 from zcad_core.hardware.electronics.raspberry_pi import (
+    RaspberryPi5Spec,
     RaspberryPiPico2Spec,
+    get_raspberry_pi5,
     get_raspberry_pi_pico2,
 )
 from zcad_core.hardware.electronics.seeed import (
@@ -57,6 +59,7 @@ __all__ = [
     "BoardSpec",
     "DisplayMountStyle",
     "DisplaySpec",
+    "RaspberryPi5Spec",
     "RaspberryPiPico2Spec",
     "RectangularConnectorSpec",
     "SeeedXiaoEsp32S3Spec",
@@ -64,6 +67,7 @@ __all__ = [
     "get_arduino_uno_r4_wifi",
     "get_board",
     "get_display",
+    "get_raspberry_pi5",
     "get_raspberry_pi_pico2",
     "get_reference_oled_128x64",
     "get_seeed_xiao_esp32s3",
