@@ -17,9 +17,10 @@ case "${1:-}" in
 esac
 
 # Resolve the repository from this script's location, not the caller's working
-# directory, which may be evidence/ itself (a separate repository).
-cd "$(dirname "${BASH_SOURCE[0]}")"
-cd "$(git rev-parse --show-toplevel)"
+# directory, which may be evidence/ itself (a separate repository). Not from
+# `git rev-parse --show-toplevel`: a hook runs with GIT_DIR set and no work
+# tree, so in a linked worktree that answers with the current directory.
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 # Linked worktrees have no .venv of their own, so fall back to the main
 # checkout's, which sits next to the shared git directory.
