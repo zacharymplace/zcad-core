@@ -31,7 +31,8 @@ engineering history.
 6. Publication requires traceable automated and physical evidence.
 7. Repository code remains authoritative for contracts and policy.
 8. Local evidence artifacts remain untracked unless intentionally promoted
-   into a governed evidence package.
+   into a governed evidence package. The private `zcad-core-evidence`
+   repository is a backup of the local store, not a publication.
 
 ## Core lifecycle
 

@@ -39,7 +39,10 @@ publication-eligible.
 3. **GitHub Actions is disabled for the account**, so CI never runs on
    GitHub. The same gates run locally: `scripts/check.sh`, enforced by the
    `.githooks/pre-push` hook (enable per checkout with
-   `git config core.hooksPath .githooks`).
+   `git config core.hooksPath .githooks`). The hook is also the only place
+   the 19 tests that load vendor STEP models from `evidence/` run, since they
+   skip wherever `evidence/` is absent; they are marked `slow`, and
+   `scripts/check.sh --fast` skips them for a quicker local loop.
 
 ### Tracks
 
@@ -65,6 +68,27 @@ publication-eligible.
   base. All three are fixed, and the candidates were regenerated (Phase 2
   prerequisite).
 
+### Repository audit (2026-09-28)
+
+A whole-repository health check found the gate green but several gaps
+around it, now closed:
+
+- **Evidence has an offsite backup.** `evidence/` is its own git repository
+  pushed to the private `zacharymplace/zcad-core-evidence`, alongside the
+  existing Time Machine backup. `scripts/backup-evidence.sh` commits and
+  pushes new evidence and does nothing when it is unchanged.
+- **Scripts are gated.** Two Feather RP2040 scripts had drifted from the
+  library and would have failed with `TypeError`; they are fixed, and
+  `check.sh`, CI, and the pre-push hook now check `scripts/` as well.
+- **Docs match the code.** The empty `generators`, `materials`, `rendering`,
+  and `utils` packages are gone, and the README and architecture tree list
+  the packages that exist.
+- **Slow tests are marked.** Vendor-STEP tests carry a `slow` marker, and
+  `check.sh --fast` runs the rest in about 40 seconds instead of two
+  minutes.
+- **One Python version.** The development venv runs Python 3.11, matching
+  CI and `requires-python`, instead of 3.14.
+
 ## Operating principles
 
 The Validation Lab principles continue to apply. In addition:
@@ -76,6 +100,8 @@ The Validation Lab principles continue to apply. In addition:
 3. New validation rules never rewrite historical evidence; they produce new,
    versioned re-validation records.
 4. Software work does not outrun physical evidence by more than one phase.
+5. New evidence is backed up with `scripts/backup-evidence.sh` after each
+   trial or candidate revision.
 
 ## Phase 0 — Restore the gate
 
