@@ -24,15 +24,15 @@ jobs:
 
       - name: Ruff format
         run: |
-          ruff format --check src tests scripts
+          ruff format --check src tests scripts examples
 
       - name: Ruff lint
         run: |
-          ruff check src tests scripts
+          ruff check src tests scripts examples
 
       - name: Mypy
         run: |
-          mypy src scripts tests
+          mypy src scripts tests examples
 
       - name: Pytest
         run: |

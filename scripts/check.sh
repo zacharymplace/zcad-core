@@ -34,13 +34,13 @@ else
 fi
 
 echo "==> ruff format --check"
-"$python" -m ruff format --check src tests scripts
+"$python" -m ruff format --check src tests scripts examples
 
 echo "==> ruff check"
-"$python" -m ruff check src tests scripts
+"$python" -m ruff check src tests scripts examples
 
 echo "==> mypy"
-"$python" -m mypy src scripts tests
+"$python" -m mypy src scripts tests examples
 
 echo "==> pytest ${pytest_args[*]:1}"
 "$python" -m pytest "${pytest_args[@]}"

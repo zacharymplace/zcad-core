@@ -325,6 +325,9 @@ locations (`generation` in `automated-validation.json`), and regeneration
 inherits them. Candidates generated before that record do not carry it: a
 corner-capture regeneration from one refuses to guess, so pass
 `--corner-keepout-mm` (4.0 for Feather and Pico 2, 2.1 for XIAO).
+`regenerate-candidate.py --set KEY=VALUE --relationship <type>` builds a
+revision from measured parameter changes, which is the path a `revise`
+trial takes.
 
 The generator version is `GENERATOR_VERSION` in
 `src/zcad_core/retention/generator.py`, not a value typed per run: new

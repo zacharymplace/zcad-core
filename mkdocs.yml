@@ -26,6 +26,9 @@ nav:
   - Architecture:
       - Overview: architecture.md
       - Retention strategy evidence: architecture/retention-strategy-evidence.md
+  - Guides:
+      - Validation Lab workflow: guides/validation-lab-workflow.md
+      - Engine example: guides/engine-example.md
   - Roadmaps:
       - Validation Lab: roadmaps/validation-lab.md
       - Next phases: roadmaps/next-phases.md

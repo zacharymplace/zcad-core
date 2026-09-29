@@ -18,6 +18,11 @@ This repository intentionally contains no product-specific models.
 
 ## Where to go next
 
+- **[Validation Lab workflow](guides/validation-lab-workflow.md)** — take a
+  board from its vendor STEP model to a promoted fixture candidate, step by
+  step.
+- **[Engine example](guides/engine-example.md)** — design, check, and
+  export an enclosure with the core engine.
 - **[Architecture](architecture.md)** — package layout and the retention
   strategy's design history.
 - **[Roadmaps](roadmaps/validation-lab.md)** — the Validation Lab
