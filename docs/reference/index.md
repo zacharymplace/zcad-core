@@ -16,6 +16,3 @@ what each subpackage's `__init__.py` exports via `__all__`.
 | [`profiles`](profiles.md) | Printer and material manufacturing profiles |
 | [`retention`](retention.md) | The retention engine, its strategies, and the Validation Lab evidence/promotion pipeline |
 | [`validation`](validation.md) | Profile-aware part validation |
-
-`generators`, `materials`, `rendering`, and `utils` exist as reserved
-package directories in the architecture but have no implementation yet.
