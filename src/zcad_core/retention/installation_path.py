@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -259,6 +260,125 @@ def _split_fixture(
     return halves[0], halves[1]
 
 
+class _FixtureCollider:
+    """Overlap of the moving board with the fixture, beyond its seated contact."""
+
+    def __init__(
+        self, pcb: cq.Shape, components: tuple[cq.Shape, ...], fixture: cq.Shape
+    ) -> None:
+        self._shapes = (pcb, *components)
+        self._bounds = tuple(shape.BoundingBox() for shape in self._shapes)
+        pcb_bottom = pcb.BoundingBox().zmin
+        captures, base = _split_fixture(fixture, pcb_bottom)
+
+        # (obstacle, obstacle bounds, indices of shapes tested against it)
+        self._obstacles: list[tuple[cq.Shape, cq.BoundBox, tuple[int, ...]]] = []
+
+        if captures is not None:
+            everything = tuple(range(len(self._shapes)))
+            self._obstacles.extend(
+                (solid, solid.BoundingBox(), everything) for solid in captures.Solids()
+            )
+
+        if base is not None:
+            reaching_base = tuple(
+                index
+                for index, bounds in enumerate(self._bounds)
+                if bounds.zmin < pcb_bottom + _SPLIT_EPSILON_MM
+            )
+            self._obstacles.append((base, base.BoundingBox(), reaching_base))
+
+        self._seated = {
+            pair: self._overlap(pair, (0.0, 0.0, 0.0))
+            for pair in self._candidate_pairs((0.0, 0.0, 0.0))
+        }
+
+    def _candidate_pairs(self, offset: Vector3) -> list[tuple[int, int]]:
+        """(obstacle, shape) index pairs whose bounds overlap at this offset."""
+
+        return [
+            (obstacle_index, shape_index)
+            for obstacle_index, (_, obstacle_bounds, movers) in enumerate(
+                self._obstacles
+            )
+            for shape_index in movers
+            if _translated_bounds_overlap(
+                self._bounds[shape_index], obstacle_bounds, offset
+            )
+        ]
+
+    def _overlap(self, pair: tuple[int, int], offset: Vector3) -> float:
+        obstacle_index, shape_index = pair
+        shape = self._shapes[shape_index]
+        moved = shape if offset == (0.0, 0.0, 0.0) else _moved_shape(shape, offset)
+
+        return _intersection_volume(moved, self._obstacles[obstacle_index][0])
+
+    def excess_volume(self, offset: Vector3) -> float:
+        return sum(
+            max(0.0, self._overlap(pair, offset) - self._seated.get(pair, 0.0))
+            for pair in self._candidate_pairs(offset)
+        )
+
+
+def _plan_samples(plan: InstallationPathPlan) -> Iterator[tuple[int, float, Vector3]]:
+    """(segment index, fraction, offset) for each sample along a plan."""
+
+    for segment_index, (start, end) in enumerate(
+        zip(plan.waypoints_mm, plan.waypoints_mm[1:])
+    ):
+        first_sample = 0 if segment_index == 0 else 1
+
+        for sample_index in range(first_sample, plan.samples_per_segment + 1):
+            fraction = sample_index / plan.samples_per_segment
+            yield (
+                segment_index,
+                fraction,
+                (
+                    start[0] + (end[0] - start[0]) * fraction,
+                    start[1] + (end[1] - start[1]) * fraction,
+                    start[2] + (end[2] - start[2]) * fraction,
+                ),
+            )
+
+
+def _sample_plan(
+    plan: InstallationPathPlan,
+    collider: _FixtureCollider,
+    tolerance_mm3: float,
+) -> InstallationPathResult:
+    collisions: list[InstallationPathCollision] = []
+    maximum = 0.0
+    sample_count = 0
+
+    for segment_index, fraction, offset in _plan_samples(plan):
+        volume = collider.excess_volume(offset)
+        maximum = max(maximum, volume)
+        sample_count += 1
+
+        if volume > tolerance_mm3:
+            collisions.append(
+                InstallationPathCollision(
+                    segment_index=segment_index,
+                    segment_fraction=round(fraction, 6),
+                    offset_mm=(
+                        round(offset[0], 6),
+                        round(offset[1], 6),
+                        round(offset[2], 6),
+                    ),
+                    intersection_mm3=round(volume, 6),
+                )
+            )
+
+    return InstallationPathResult(
+        name=plan.name,
+        passed=not collisions,
+        sample_count=sample_count,
+        maximum_intersection_mm3=round(maximum, 6),
+        collisions=tuple(collisions),
+    )
+
+
 def sample_installation_paths(
     *,
     candidate_id: str,
@@ -290,110 +410,13 @@ def sample_installation_paths(
     if fixture.isNull():
         raise ValueError("Installation analysis needs fixture geometry")
 
-    shapes = (pcb, *components)
-    shape_bounds = tuple(shape.BoundingBox() for shape in shapes)
-    pcb_bottom = pcb.BoundingBox().zmin
-    captures, base = _split_fixture(fixture, pcb_bottom)
-
-    # (obstacle, obstacle bounds, indices of shapes tested against it)
-    obstacles: list[tuple[cq.Shape, cq.BoundBox, tuple[int, ...]]] = []
-
-    if captures is not None:
-        everything = tuple(range(len(shapes)))
-        obstacles.extend(
-            (solid, solid.BoundingBox(), everything) for solid in captures.Solids()
-        )
-
-    if base is not None:
-        reaching_base = tuple(
-            index
-            for index, bounds in enumerate(shape_bounds)
-            if bounds.zmin < pcb_bottom + _SPLIT_EPSILON_MM
-        )
-        obstacles.append((base, base.BoundingBox(), reaching_base))
-
-    seated = {
-        (obstacle_index, shape_index): _intersection_volume(
-            shapes[shape_index], obstacle
-        )
-        for obstacle_index, (obstacle, obstacle_bounds, movers) in enumerate(obstacles)
-        for shape_index in movers
-        if _translated_bounds_overlap(
-            shape_bounds[shape_index], obstacle_bounds, (0.0, 0.0, 0.0)
-        )
-    }
-
-    def excess_volume(offset: Vector3) -> float:
-        total = 0.0
-
-        for obstacle_index, (obstacle, obstacle_bounds, movers) in enumerate(obstacles):
-            for shape_index in movers:
-                if not _translated_bounds_overlap(
-                    shape_bounds[shape_index], obstacle_bounds, offset
-                ):
-                    continue
-
-                volume = _intersection_volume(
-                    _moved_shape(shapes[shape_index], offset), obstacle
-                )
-                total += max(
-                    0.0, volume - seated.get((obstacle_index, shape_index), 0.0)
-                )
-
-        return total
-
-    results: list[InstallationPathResult] = []
-
-    for plan in plans:
-        collisions: list[InstallationPathCollision] = []
-        maximum = 0.0
-        sample_count = 0
-
-        for segment_index, (start, end) in enumerate(
-            zip(plan.waypoints_mm, plan.waypoints_mm[1:])
-        ):
-            first_sample = 0 if segment_index == 0 else 1
-
-            for sample_index in range(first_sample, plan.samples_per_segment + 1):
-                fraction = sample_index / plan.samples_per_segment
-                offset: Vector3 = (
-                    start[0] + (end[0] - start[0]) * fraction,
-                    start[1] + (end[1] - start[1]) * fraction,
-                    start[2] + (end[2] - start[2]) * fraction,
-                )
-                volume = excess_volume(offset)
-                maximum = max(maximum, volume)
-                sample_count += 1
-
-                if volume > tolerance_mm3:
-                    collisions.append(
-                        InstallationPathCollision(
-                            segment_index=segment_index,
-                            segment_fraction=round(fraction, 6),
-                            offset_mm=(
-                                round(offset[0], 6),
-                                round(offset[1], 6),
-                                round(offset[2], 6),
-                            ),
-                            intersection_mm3=round(volume, 6),
-                        )
-                    )
-
-        results.append(
-            InstallationPathResult(
-                name=plan.name,
-                passed=not collisions,
-                sample_count=sample_count,
-                maximum_intersection_mm3=round(maximum, 6),
-                collisions=tuple(collisions),
-            )
-        )
+    collider = _FixtureCollider(pcb, components, fixture)
 
     return InstallationPathReport(
         schema_version=INSTALLATION_PATH_SCHEMA_VERSION,
         candidate_id=candidate_id,
         tolerance_mm3=tolerance_mm3,
-        results=tuple(results),
+        results=tuple(_sample_plan(plan, collider, tolerance_mm3) for plan in plans),
         limitation=LIMITATION,
         collision_geometry="fixture",
     )

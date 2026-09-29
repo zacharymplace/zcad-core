@@ -104,6 +104,82 @@ def validate_build_volume(
     return issues
 
 
+_MINIMUM_PARAMETERS = {
+    "wall": "wall",
+    "floor": "floor",
+    "label_height": "emboss_height",
+    "label_size": "text_size",
+}
+
+
+def _minimum_issue(
+    design_type: str,
+    parameter_name: str,
+    value: object,
+    minimum: float,
+) -> ValidationIssue | None:
+    """An error below the printer minimum, a warning within 25% above it."""
+
+    if not isinstance(value, int | float):
+        return ValidationIssue(
+            severity="error",
+            code=(f"invalid_parameter_{parameter_name}"),
+            message=(f"Design parameter '{parameter_name}' must be numeric."),
+        )
+
+    if value < minimum:
+        return ValidationIssue(
+            severity="error",
+            code=(f"minimum_{parameter_name}_violated"),
+            message=(
+                f"Design type '{design_type}' declares "
+                f"{parameter_name}={value:.3f} mm, "
+                f"below the printer minimum of "
+                f"{minimum:.3f} mm."
+            ),
+        )
+
+    if value < minimum * 1.25:
+        return ValidationIssue(
+            severity="warning",
+            code=(f"minimum_{parameter_name}_near_limit"),
+            message=(
+                f"Design parameter "
+                f"'{parameter_name}' is "
+                f"{value:.3f} mm, close to the "
+                f"printer minimum of "
+                f"{minimum:.3f} mm."
+            ),
+        )
+
+    return None
+
+
+def _lid_clearance_issue(
+    clearance: object, recommended: float
+) -> ValidationIssue | None:
+    if not isinstance(clearance, int | float):
+        return ValidationIssue(
+            severity="error",
+            code=("invalid_parameter_lid_clearance"),
+            message=("Design parameter 'lid_clearance' must be numeric."),
+        )
+
+    if clearance < recommended:
+        return ValidationIssue(
+            severity="warning",
+            code="lid_clearance_below_profile",
+            message=(
+                f"Declared lid clearance is "
+                f"{clearance:.3f} mm per side, "
+                f"below the profile recommendation "
+                f"of {recommended:.3f} mm."
+            ),
+        )
+
+    return None
+
+
 def validate_design_parameters(
     *,
     design_type: str,
@@ -116,70 +192,24 @@ def validate_design_parameters(
     if not isinstance(minimums, dict):
         raise TypeError("Printer profile section 'minimums_mm' must be an object")
 
-    issues: list[ValidationIssue] = []
+    issues: list[ValidationIssue | None] = []
 
-    checks = {
-        "wall": "wall",
-        "floor": "floor",
-        "label_height": "emboss_height",
-        "label_size": "text_size",
-    }
-
-    for parameter_name, minimum_name in checks.items():
+    for parameter_name, minimum_name in _MINIMUM_PARAMETERS.items():
         if parameter_name not in parameters:
             continue
 
-        value = parameters[parameter_name]
         minimum = minimums.get(minimum_name)
 
-        if not isinstance(
-            minimum,
-            int | float,
-        ):
+        if not isinstance(minimum, int | float):
             raise TypeError(
                 f"Printer profile value 'minimums_mm.{minimum_name}' must be numeric"
             )
 
-        if not isinstance(
-            value,
-            int | float,
-        ):
-            issues.append(
-                ValidationIssue(
-                    severity="error",
-                    code=(f"invalid_parameter_{parameter_name}"),
-                    message=(f"Design parameter '{parameter_name}' must be numeric."),
-                )
+        issues.append(
+            _minimum_issue(
+                design_type, parameter_name, parameters[parameter_name], minimum
             )
-            continue
-
-        if value < minimum:
-            issues.append(
-                ValidationIssue(
-                    severity="error",
-                    code=(f"minimum_{parameter_name}_violated"),
-                    message=(
-                        f"Design type '{design_type}' declares "
-                        f"{parameter_name}={value:.3f} mm, "
-                        f"below the printer minimum of "
-                        f"{minimum:.3f} mm."
-                    ),
-                )
-            )
-        elif value < minimum * 1.25:
-            issues.append(
-                ValidationIssue(
-                    severity="warning",
-                    code=(f"minimum_{parameter_name}_near_limit"),
-                    message=(
-                        f"Design parameter "
-                        f"'{parameter_name}' is "
-                        f"{value:.3f} mm, close to the "
-                        f"printer minimum of "
-                        f"{minimum:.3f} mm."
-                    ),
-                )
-            )
+        )
 
     tolerances = printer_profile.get("tolerances_mm")
 
@@ -187,13 +217,9 @@ def validate_design_parameters(
         raise TypeError("Printer profile section 'tolerances_mm' must be an object")
 
     if "lid_clearance" in parameters:
-        clearance = parameters["lid_clearance"]
         recommended = tolerances.get("sliding_clearance_per_side")
 
-        if not isinstance(
-            recommended,
-            int | float,
-        ):
+        if not isinstance(recommended, int | float):
             raise ValueError(
                 "Printer profile value "
                 "'tolerances_mm."
@@ -201,32 +227,9 @@ def validate_design_parameters(
                 "must be numeric"
             )
 
-        if not isinstance(
-            clearance,
-            int | float,
-        ):
-            issues.append(
-                ValidationIssue(
-                    severity="error",
-                    code=("invalid_parameter_lid_clearance"),
-                    message=("Design parameter 'lid_clearance' must be numeric."),
-                )
-            )
-        elif clearance < recommended:
-            issues.append(
-                ValidationIssue(
-                    severity="warning",
-                    code="lid_clearance_below_profile",
-                    message=(
-                        f"Declared lid clearance is "
-                        f"{clearance:.3f} mm per side, "
-                        f"below the profile recommendation "
-                        f"of {recommended:.3f} mm."
-                    ),
-                )
-            )
+        issues.append(_lid_clearance_issue(parameters["lid_clearance"], recommended))
 
-    return issues
+    return [issue for issue in issues if issue is not None]
 
 
 def validate_design_and_parts(
