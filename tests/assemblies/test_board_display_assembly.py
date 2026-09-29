@@ -1,6 +1,6 @@
 """Tests for generic rectangular board-display assemblies."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import pytest
@@ -9,12 +9,17 @@ from zcad_core.assemblies import (
     DeviceAssembly,
     Placement,
     analyze_board_display_assembly,
+    board_component_identifiers,
     build_board_assembly,
     build_board_display_assembly,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware import (
+    BoardComponentSpec,
     RectangularConnectorSpec,
+    get_arduino_uno_r4_wifi,
     get_raspberry_pi_pico2,
+    get_reference_oled_128x64,
 )
 
 
@@ -293,15 +298,78 @@ def test_analyzer_rejects_negative_clearance() -> None:
         )
 
 
-def test_board_assembly_has_only_the_board_and_connector() -> None:
+def test_board_assembly_has_the_board_connector_and_components() -> None:
+    board = get_raspberry_pi_pico2()
     assembly = build_board_assembly(
-        board=get_raspberry_pi_pico2(),
-        board_placement=Placement(),
+        board=board,
+        board_placement=Placement(z_mm=2.0),
         connector_access_clearance_mm=2.0,
     )
 
-    assert assembly.identifiers == ("board", "board_connector")
+    assert assembly.identifiers[:2] == ("board", "board_connector")
+    assert board_component_identifiers(assembly) == tuple(
+        f"board_{part.identifier}" for part in board.components
+    )
     assert assembly.get("board").metadata["mounting"]["spacing_x_mm"] == 11.4
+    # The BOOTSEL button, the tallest part, about 2.5 mm above the board.
+    button = next(part for part in board.components if part.identifier == "top-03")
+    placed = workplane_shape(
+        assembly.get("board_top-03").transformed_geometry()
+    ).BoundingBox()
+    assert button.height_mm == pytest.approx(2.5, abs=0.1)
+    assert placed.zmax == pytest.approx(
+        2.0
+        + board.board_thickness_mm
+        + button.bottom_offset_from_board_top_mm
+        + button.height_mm
+    )
+
+
+def test_component_through_the_board_is_refused() -> None:
+    board = get_raspberry_pi_pico2()
+    through = replace(
+        board,
+        components=(
+            BoardComponentSpec(
+                identifier="through",
+                center_x_mm=0,
+                center_y_mm=0,
+                width_mm=2,
+                depth_mm=2,
+                bottom_offset_from_board_top_mm=-0.5,
+                height_mm=2,
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="wholly above or below the board"):
+        build_board_assembly(board=through, board_placement=Placement())
+
+
+def test_analysis_finds_a_display_resting_on_a_tall_component() -> None:
+    uno = get_arduino_uno_r4_wifi()
+    display = get_reference_oled_128x64()
+
+    def analysed(height: float) -> list[tuple[str, str]]:
+        assembly = build_board_display_assembly(
+            board=uno,
+            display=display,
+            board_placement=Placement(),
+            display_placement=Placement(z_mm=height),
+            board_display_clearance_mm=1.0,
+        )
+        report = analyze_board_display_assembly(
+            assembly, minimum_board_display_clearance_mm=1.0
+        )
+
+        return sorted(
+            (finding.first_identifier, finding.second_identifier)
+            for finding in report.findings
+        )
+
+    # A header 8.5 mm tall on a 1.61 mm board reaches the display at 8 mm.
+    assert ("board_top-05", "display") in analysed(8.0)
+    assert analysed(12.0) == []
 
 
 def test_board_assembly_rejects_duplicate_identifiers() -> None:

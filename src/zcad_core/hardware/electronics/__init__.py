@@ -8,6 +8,10 @@ from zcad_core.hardware.electronics.arduino import (
     ArduinoUnoR4WifiSpec,
     get_arduino_uno_r4_wifi,
 )
+from zcad_core.hardware.electronics.board_components import (
+    BoardComponentSpec,
+    load_board_components,
+)
 from zcad_core.hardware.electronics.boards import (
     BOARD_CATALOG,
     DISPLAY_CATALOG,
@@ -42,6 +46,7 @@ __all__ = [
     "REFERENCE_OLED_128X64",
     "AdafruitFeatherRp2040Spec",
     "ArduinoUnoR4WifiSpec",
+    "BoardComponentSpec",
     "BoardEdge",
     "BoardSpec",
     "DisplayMountStyle",
@@ -58,4 +63,5 @@ __all__ = [
     "get_seeed_xiao_esp32s3",
     "list_boards",
     "list_displays",
+    "load_board_components",
 ]

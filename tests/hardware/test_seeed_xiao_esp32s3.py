@@ -10,11 +10,11 @@ def test_xiao_esp32s3_dimensions() -> None:
 
     assert board.identifier == "SEEED_XIAO_ESP32_S3"
     assert board.geometry_evidence_status == "provisional"
-    assert "board thickness and USB-C envelope unverified" in (board.geometry_source)
+    assert "USB-C envelope unverified" in (board.geometry_source)
 
     assert board.board_width_mm == 17.8
     assert board.board_length_mm == 21.0
-    assert board.board_thickness_mm == 1.0
+    assert board.board_thickness_mm == 1.25
 
     assert board.recommended_standoff_height_mm == 3.0
     assert board.recommended_clearance_mm == 0.5

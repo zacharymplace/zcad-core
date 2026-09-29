@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0.0",
+  "board": "SEEED_XIAO_ESP32_S3",
+  "source_model_path": "evidence/seeed-xiao-esp32s3/step/xiao_esp32s3_z_up.step",
+  "source_model_sha256": "948247e4c3ebefef5a26c803d296c6503041a7f45ac4c3a78b6f298c1002d9b6",
+  "pcb_solid_index": 37,
+  "generated_by": "scripts/extract-board-components.py",
+  "components": [
+    {
+      "identifier": "top-01",
+      "center_x_mm": -5.934,
+      "center_y_mm": 8.905,
+      "width_mm": 1.6,
+      "depth_mm": 2.6,
+      "bottom_offset_from_board_top_mm": 0.1,
+      "height_mm": 0.63,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-02",
+      "center_x_mm": -0.0,
+      "center_y_mm": -1.533,
+      "width_mm": 12.6,
+      "depth_mm": 10.6,
+      "bottom_offset_from_board_top_mm": 0.0,
+      "height_mm": 2.0,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-03",
+      "center_x_mm": -4.727,
+      "center_y_mm": -8.756,
+      "width_mm": 3.1,
+      "depth_mm": 3.0,
+      "bottom_offset_from_board_top_mm": 0.0,
+      "height_mm": 1.25,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-04",
+      "center_x_mm": 5.925,
+      "center_y_mm": 8.887,
+      "width_mm": 1.6,
+      "depth_mm": 2.6,
+      "bottom_offset_from_board_top_mm": 0.1,
+      "height_mm": 0.63,
+      "access_edge": null
+    }
+  ]
+}

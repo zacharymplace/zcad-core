@@ -1,0 +1,100 @@
+{
+  "schema_version": "1.0.0",
+  "board": "ADAFRUIT_FEATHER_RP2040",
+  "source_model_path": "evidence/adafruit-feather-rp2040/4884 Feather RP2040.step",
+  "source_model_sha256": "de85fb7f6644cdea17808208d888e64264d691573da8cd0fee808e2fd44d477f",
+  "pcb_solid_index": 1,
+  "generated_by": "scripts/extract-board-components.py",
+  "components": [
+    {
+      "identifier": "top-01",
+      "center_x_mm": -7.174,
+      "center_y_mm": -14.478,
+      "width_mm": 7.6,
+      "depth_mm": 7.9,
+      "bottom_offset_from_board_top_mm": 0.0,
+      "height_mm": 4.8,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-02",
+      "center_x_mm": -6.674,
+      "center_y_mm": -14.478,
+      "width_mm": 8.6,
+      "depth_mm": 7.1,
+      "bottom_offset_from_board_top_mm": 0.0,
+      "height_mm": 3.35,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-03",
+      "center_x_mm": -0.463,
+      "center_y_mm": 19.913,
+      "width_mm": 13.277,
+      "depth_mm": 10.844,
+      "bottom_offset_from_board_top_mm": 0.0,
+      "height_mm": 2.96,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-04",
+      "center_x_mm": 0.21,
+      "center_y_mm": -10.456,
+      "width_mm": 13.976,
+      "depth_mm": 10.196,
+      "bottom_offset_from_board_top_mm": 0.0,
+      "height_mm": 1.4,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-05",
+      "center_x_mm": -5.992,
+      "center_y_mm": -23.58,
+      "width_mm": 0.787,
+      "depth_mm": 1.092,
+      "bottom_offset_from_board_top_mm": 0.302,
+      "height_mm": 0.406,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-06",
+      "center_x_mm": -1.256,
+      "center_y_mm": 7.219,
+      "width_mm": 9.512,
+      "depth_mm": 10.596,
+      "bottom_offset_from_board_top_mm": 0.0,
+      "height_mm": 1.0,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-07",
+      "center_x_mm": 3.632,
+      "center_y_mm": 18.606,
+      "width_mm": 2.0,
+      "depth_mm": 1.25,
+      "bottom_offset_from_board_top_mm": 0.0,
+      "height_mm": 1.0,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-08",
+      "center_x_mm": 5.016,
+      "center_y_mm": -13.589,
+      "width_mm": 2.8,
+      "depth_mm": 4.6,
+      "bottom_offset_from_board_top_mm": 0.0,
+      "height_mm": 1.94,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-09",
+      "center_x_mm": 6.032,
+      "center_y_mm": -23.622,
+      "width_mm": 0.787,
+      "depth_mm": 1.092,
+      "bottom_offset_from_board_top_mm": 0.302,
+      "height_mm": 0.406,
+      "access_edge": null
+    }
+  ]
+}

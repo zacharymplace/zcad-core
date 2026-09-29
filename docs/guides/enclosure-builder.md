@@ -109,10 +109,24 @@ enclosure = build_enclosure(
 | Board | Support | Source |
 | --- | --- | --- |
 | `ADAFRUIT_FEATHER_RP2040` | Standoffs | Measured from the vendor STEP |
-| `ARDUINO_UNO_R4_WIFI` | Standoffs | Provisional: outline and USB-C from the vendor STEP, holes from the UNO drawing |
-| `RASPBERRY_PI_PICO_2` | Standoffs | Datasheet |
-| `SEEED_XIAO_ESP32_S3` | Cradle | Provisional: DXF outline |
+| `ARDUINO_UNO_R4_WIFI` | Standoffs | Provisional: outline, USB-C, and parts from the vendor STEP, holes from the UNO drawing |
+| `RASPBERRY_PI_PICO_2` | Standoffs | Datasheet; parts from the vendor STEP |
+| `SEEED_XIAO_ESP32_S3` | Cradle | Provisional: DXF outline; thickness and parts from the vendor STEP |
 
-The catalog models each board as its PCB and one USB connector. Other
-parts are not modelled: size the clearances for tall headers yourself, and
-note that the UNO R4 WiFi's barrel jack gets no opening.
+Each board carries its PCB, its USB connector, and every other part as
+boxes an enclosure must clear, extracted from the vendor model: headers,
+buttons, battery connectors, shield cans, and the pins under the board. So:
+
+- the cavity grows to fit the tallest part and the pins underneath;
+- a display too close to a tall part is refused (the UNO R4 WiFi's ICSP
+  header reaches a display 8 mm above the board; 14 mm clears it);
+- standoffs are notched clear of pins under the board; and
+- a part that overhangs an edge, like the UNO R4 WiFi's barrel jack, gets
+  its own opening in that wall.
+
+`scripts/extract-board-components.py` writes the parts to
+`src/zcad_core/hardware/data/board-components/`, recording the vendor
+model's SHA-256. It merges parts of a similar height lying within 2 mm of
+each other and ignores parts under 0.5 mm, so the boxes are slightly
+generous. Re-run it after replacing a vendor model; it needs the evidence
+checkout.

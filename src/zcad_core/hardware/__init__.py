@@ -18,6 +18,7 @@ __all__ = [
     "REFERENCE_OLED_128X64",
     "AdafruitFeatherRp2040Spec",
     "ArduinoUnoR4WifiSpec",
+    "BoardComponentSpec",
     "BoardEdge",
     "BoardSpec",
     "DexcomG7Spec",
@@ -46,6 +47,7 @@ __all__ = [
     "list_displays",
     "list_fasteners",
     "list_magnets",
+    "load_board_components",
 ]
 
 from zcad_core.hardware.catalog import (
@@ -57,6 +59,7 @@ from zcad_core.hardware.electronics import (
     DISPLAY_CATALOG,
     AdafruitFeatherRp2040Spec,
     ArduinoUnoR4WifiSpec,
+    BoardComponentSpec,
     BoardEdge,
     BoardSpec,
     RaspberryPiPico2Spec,
@@ -70,6 +73,7 @@ from zcad_core.hardware.electronics import (
     get_seeed_xiao_esp32s3,
     list_boards,
     list_displays,
+    load_board_components,
 )
 from zcad_core.hardware.magnets import (
     MagnetSpec,

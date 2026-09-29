@@ -58,6 +58,8 @@ _OPENING_OVERCUT_MM = 0.5
 _MINIMUM_SIDE_CLEARANCE_MM = 2.0
 _AUTOMATIC_WIDENING_MM = tuple(0.5 * step for step in range(25))
 _SUPPORT_MARGIN_MM = 2.0
+# Supports are notched this far clear of the parts under the board.
+_UNDER_BOARD_CLEARANCE_MM = 0.3
 
 
 @dataclass(frozen=True)
@@ -186,7 +188,14 @@ def build_enclosure(
         board_identifier=board_identifier,
         spec=spec,
     )
-    base = _cut_cable_opening(base, spec, design, fastener, positions)
+    base = _clear_parts_under_board(base, spec, assembly, board_identifier)
+    base = _cut_openings(
+        base,
+        _openings(spec, design, assembly, board_identifier),
+        design,
+        fastener,
+        positions,
+    )
 
     lid = _lid(spec, design, cavity_top, fastener, positions)
 
@@ -305,7 +314,12 @@ def _automatic_specification(
         )
         positions = _corner_boss_positions(spec, fastener, design)
 
-        if _opening_hits_boss(spec, design, fastener, positions):
+        if _opening_hits_boss(
+            _openings(spec, design, assembly, board_identifier),
+            design,
+            fastener,
+            positions,
+        ):
             continue
 
         bosses = [
@@ -450,36 +464,130 @@ def _cable_opening(
     )
 
 
-def _opening_hits_boss(
+def _openings(
     spec: EnclosureSpecification,
+    design: EnclosureDesign,
+    assembly: DeviceAssembly,
+    board_identifier: str,
+) -> list[ConnectorCutoutParameters]:
+    """The cable opening, and one for each board part reached through a
+    wall, such as a barrel jack."""
+
+    openings = [_cable_opening(spec, design)]
+    board_top = _bounds(assembly, board_identifier).zmax
+
+    for component in assembly.components:
+        edge = component.metadata.get("access_edge")
+
+        if component.metadata.get("board_identifier") != board_identifier or not edge:
+            continue
+
+        bounds = _bounds(assembly, component.identifier)
+
+        # Only the part above the board is reached; its pins below are not.
+        if bounds.zmin < board_top - 1e-6:
+            continue
+
+        along_y = edge in ("negative_y", "positive_y")
+        openings.append(
+            ConnectorCutoutParameters(
+                edge=edge,
+                center_offset_mm=(
+                    (bounds.xmin + bounds.xmax) / 2
+                    if along_y
+                    else (bounds.ymin + bounds.ymax) / 2
+                ),
+                bottom_z_mm=bounds.zmin,
+                width_mm=bounds.xlen if along_y else bounds.ylen,
+                height_mm=bounds.zlen,
+                cutter_depth_mm=2 * (design.wall_mm + _OPENING_OVERCUT_MM),
+            )
+        )
+
+    return openings
+
+
+def _bounds(assembly: DeviceAssembly, identifier: str) -> cq.BoundBox:
+    return _all_solids(assembly.get(identifier).transformed_geometry()).BoundingBox()
+
+
+def _opening_hits_boss(
+    openings: list[ConnectorCutoutParameters],
     design: EnclosureDesign,
     fastener: FastenerSpec,
     positions: tuple[tuple[float, float], ...],
 ) -> bool:
-    opening = _cable_opening(spec, design)
-    along_y = opening.edge in ("negative_y", "positive_y")
-    reach = opening.opening_width_mm / 2 + _boss_radius(fastener, design)
+    radius = _boss_radius(fastener, design)
 
     return any(
-        abs((x if along_y else y) - opening.center_offset_mm) < reach
+        abs(
+            (x if opening.edge in ("negative_y", "positive_y") else y)
+            - opening.center_offset_mm
+        )
+        < opening.opening_width_mm / 2 + radius
+        for opening in openings
         for x, y in positions
     )
 
 
-def _cut_cable_opening(
+def _cut_openings(
     base: cq.Workplane,
-    spec: EnclosureSpecification,
+    openings: list[ConnectorCutoutParameters],
     design: EnclosureDesign,
     fastener: FastenerSpec,
     positions: tuple[tuple[float, float], ...],
 ) -> cq.Workplane:
-    if _opening_hits_boss(spec, design, fastener, positions):
+    if _opening_hits_boss(openings, design, fastener, positions):
         raise ValueError(
-            "The cable opening would cut a corner boss; increase "
+            "An opening in the wall would cut a corner boss; increase "
             "side_clearance_mm or reduce cable_plug_width_mm"
         )
 
-    return cut_connector_opening(base, parameters=_cable_opening(spec, design))
+    for opening in openings:
+        base = cut_connector_opening(base, parameters=opening)
+
+    return base
+
+
+def _clear_parts_under_board(
+    base: cq.Workplane,
+    spec: EnclosureSpecification,
+    assembly: DeviceAssembly,
+    board_identifier: str,
+) -> cq.Workplane:
+    """Notch the board's supports around the parts on its underside, such as
+    header pins, so a standoff beside them still reaches the board."""
+
+    board_bottom = _bounds(assembly, board_identifier).zmin
+
+    for component in assembly.components:
+        if component.metadata.get("board_identifier") != board_identifier:
+            continue
+
+        part = _bounds(assembly, component.identifier)
+
+        if part.zmax > board_bottom + 1e-6:
+            continue
+
+        bottom = max(part.zmin - _UNDER_BOARD_CLEARANCE_MM, spec.bottom_z_mm)
+        base = base.cut(
+            cq.Workplane("XY")
+            .box(
+                part.xlen + 2 * _UNDER_BOARD_CLEARANCE_MM,
+                part.ylen + 2 * _UNDER_BOARD_CLEARANCE_MM,
+                board_bottom - bottom,
+                centered=False,
+            )
+            .translate(
+                (
+                    part.xmin - _UNDER_BOARD_CLEARANCE_MM,
+                    part.ymin - _UNDER_BOARD_CLEARANCE_MM,
+                    bottom,
+                )
+            )
+        )
+
+    return base
 
 
 def _corner_boss_positions(

@@ -57,7 +57,8 @@ def _assembly(args: argparse.Namespace, display: DisplaySpec | None) -> DeviceAs
 
     if report.has_findings:
         raise ValueError(
-            "The display is too close to the board; raise --display-height-mm: "
+            "The display is too close to the board or its parts; raise "
+            "--display-height-mm: "
             f"{report.findings}"
         )
 

@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0.0",
+  "board": "RASPBERRY_PI_PICO_2",
+  "source_model_path": "evidence/raspberry-pi-pico-2/step/rpi_pico2.step",
+  "source_model_sha256": "d49ada10d893cfcb07cb4abced0a0a0cadca4c4150f153d874268ca06171a24f",
+  "pcb_solid_index": 373,
+  "generated_by": "scripts/extract-board-components.py",
+  "components": [
+    {
+      "identifier": "top-01",
+      "center_x_mm": -0.975,
+      "center_y_mm": 0.375,
+      "width_mm": 12.349,
+      "depth_mm": 16.75,
+      "bottom_offset_from_board_top_mm": 0.085,
+      "height_mm": 1.0,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-02",
+      "center_x_mm": -4.325,
+      "center_y_mm": -15.838,
+      "width_mm": 5.35,
+      "depth_mm": 8.725,
+      "bottom_offset_from_board_top_mm": 0.085,
+      "height_mm": 1.25,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-03",
+      "center_x_mm": 3.5,
+      "center_y_mm": -13.5,
+      "width_mm": 3.4,
+      "depth_mm": 4.2,
+      "bottom_offset_from_board_top_mm": 0.085,
+      "height_mm": 2.5,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-04",
+      "center_x_mm": 3.499,
+      "center_y_mm": -13.5,
+      "width_mm": 2.875,
+      "depth_mm": 4.5,
+      "bottom_offset_from_board_top_mm": 0.085,
+      "height_mm": 0.6,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-05",
+      "center_x_mm": 5.7,
+      "center_y_mm": -20.7,
+      "width_mm": 1.0,
+      "depth_mm": 0.8,
+      "bottom_offset_from_board_top_mm": 0.385,
+      "height_mm": 0.3,
+      "access_edge": null
+    }
+  ]
+}

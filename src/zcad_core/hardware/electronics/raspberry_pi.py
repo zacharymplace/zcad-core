@@ -2,6 +2,10 @@
 
 from dataclasses import dataclass, field
 
+from zcad_core.hardware.electronics.board_components import (
+    BoardComponentSpec,
+    load_board_components,
+)
 from zcad_core.hardware.electronics.connectors import (
     RectangularConnectorSpec,
 )
@@ -39,6 +43,11 @@ class RaspberryPiPico2Spec:
     mounting_hole_diameter_mm: float = 2.1
     mounting_hole_spacing_x_mm: float = 11.4
     mounting_hole_spacing_y_mm: float = 47.0
+
+    # Every other part, extracted from the vendor model.
+    components: tuple[BoardComponentSpec, ...] = field(
+        default_factory=lambda: load_board_components("raspberry-pi-pico-2")
+    )
 
     recommended_standoff_height_mm: float = 3.0
     recommended_clearance_mm: float = 0.5

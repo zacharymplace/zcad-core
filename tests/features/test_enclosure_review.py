@@ -83,9 +83,9 @@ def test_clearances_cover_every_part_and_component(
     rows = {(row["part"], row["hardware"]): row for row in review.report["clearances"]}
 
     assert set(rows) == {
-        (part, hardware)
+        (part, component.identifier)
         for part in ("base", "lid")
-        for hardware in ("board", "board_connector", "display")
+        for component in pico2_oled_assembly().components
     }
     # The board rests on its standoffs and the display against the lid's
     # retainer pads; nothing else touches.

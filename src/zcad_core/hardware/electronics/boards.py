@@ -5,6 +5,7 @@ from typing import Protocol
 from zcad_core.hardware.catalog import HardwareCatalog
 from zcad_core.hardware.electronics.adafruit import get_adafruit_feather_rp2040
 from zcad_core.hardware.electronics.arduino import get_arduino_uno_r4_wifi
+from zcad_core.hardware.electronics.board_components import BoardComponentSpec
 from zcad_core.hardware.electronics.connectors import RectangularConnectorSpec
 from zcad_core.hardware.electronics.displays import (
     DisplaySpec,
@@ -15,7 +16,7 @@ from zcad_core.hardware.electronics.seeed import get_seeed_xiao_esp32s3
 
 
 class BoardSpec(Protocol):
-    """A rectangular board with one edge connector (the shape assemblies need)."""
+    """A rectangular board with one edge connector and its other parts."""
 
     @property
     def identifier(self) -> str: ...
@@ -27,6 +28,8 @@ class BoardSpec(Protocol):
     def board_thickness_mm(self) -> float: ...
     @property
     def usb_connector(self) -> RectangularConnectorSpec: ...
+    @property
+    def components(self) -> tuple[BoardComponentSpec, ...]: ...
 
 
 _BOARDS: tuple[BoardSpec, ...] = (

@@ -2,6 +2,10 @@
 
 from dataclasses import dataclass, field
 
+from zcad_core.hardware.electronics.board_components import (
+    BoardComponentSpec,
+    load_board_components,
+)
 from zcad_core.hardware.electronics.connectors import (
     RectangularConnectorSpec,
 )
@@ -28,16 +32,21 @@ class SeeedXiaoEsp32S3Spec:
 
     geometry_evidence_status: str = "provisional"
     geometry_source: str = (
-        "Seeed Studio XIAO ESP32-S3 DXF v1.1; "
-        "board thickness and USB-C envelope unverified"
+        "Seeed Studio XIAO ESP32-S3 DXF v1.1 outline; board thickness "
+        "measured from the vendor STEP; USB-C envelope unverified"
     )
 
     board_width_mm: float = 17.8
     board_length_mm: float = 21.0
-    board_thickness_mm: float = 1.0
+    board_thickness_mm: float = 1.25
 
     usb_connector: RectangularConnectorSpec = field(
         default_factory=_xiao_esp32s3_usb_connector
+    )
+
+    # Every other part, extracted from the vendor model.
+    components: tuple[BoardComponentSpec, ...] = field(
+        default_factory=lambda: load_board_components("seeed-xiao-esp32s3")
     )
 
     recommended_standoff_height_mm: float = 3.0

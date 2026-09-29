@@ -2,6 +2,10 @@
 
 from dataclasses import dataclass, field
 
+from zcad_core.hardware.electronics.board_components import (
+    BoardComponentSpec,
+    load_board_components,
+)
 from zcad_core.hardware.electronics.connectors import (
     RectangularConnectorSpec,
 )
@@ -48,6 +52,11 @@ class ArduinoUnoR4WifiSpec:
         (-19.05, 24.13),
         (31.75, -19.05),
         (31.75, 8.89),
+    )
+
+    # Every other part, extracted from the vendor model.
+    components: tuple[BoardComponentSpec, ...] = field(
+        default_factory=lambda: load_board_components("arduino-uno-r4-wifi")
     )
 
     recommended_standoff_height_mm: float = 3.0

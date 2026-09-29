@@ -150,6 +150,22 @@ def _require_unique_identifiers(identifiers: tuple[str, ...]) -> None:
         raise ValueError("component identifiers must be unique")
 
 
+def board_component_identifier(board_identifier: str, component_identifier: str) -> str:
+    """The assembly identifier of one of a board's catalogued components."""
+    return f"{board_identifier}_{component_identifier}"
+
+
+def board_component_identifiers(
+    assembly: DeviceAssembly, board_identifier: str = "board"
+) -> tuple[str, ...]:
+    """The identifiers of the parts an assembly places on a board."""
+    return tuple(
+        component.identifier
+        for component in assembly.components
+        if component.metadata.get("board_identifier") == board_identifier
+    )
+
+
 def _board_components(
     *,
     board: RectangularBoardSpec,
@@ -158,8 +174,9 @@ def _board_components(
     connector_access_clearance_mm: float,
     board_identifier: str,
     connector_identifier: str,
-) -> tuple[AssemblyComponent, AssemblyComponent]:
-    """The board, with its mounting and retention metadata, and its connector."""
+) -> tuple[AssemblyComponent, ...]:
+    """The board, with its mounting and retention metadata, its connector,
+    and each of its catalogued components."""
     if connector_access_clearance_mm < 0:
         raise ValueError("connector_access_clearance_mm must not be negative")
 
@@ -176,6 +193,36 @@ def _board_components(
         resolved_board_metadata["retention"] = board_retention
 
     board_metadata = resolved_board_metadata if resolved_board_metadata else None
+
+    board_top = board_placement.z_mm + board.board_thickness_mm
+    parts: list[AssemblyComponent] = []
+
+    for part in getattr(board, "components", ()):
+        part.validate_against_board(board.board_thickness_mm)
+        parts.append(
+            build_rectangular_hardware_component(
+                identifier=board_component_identifier(
+                    board_identifier, part.identifier
+                ),
+                hardware_identifier=f"{board.identifier}:{part.identifier}",
+                kind="board_component",
+                width_mm=part.width_mm,
+                depth_mm=part.depth_mm,
+                height_mm=part.height_mm,
+                placement=Placement(
+                    x_mm=board_placement.x_mm + part.center_x_mm,
+                    y_mm=board_placement.y_mm + part.center_y_mm,
+                    z_mm=board_top + part.bottom_offset_from_board_top_mm,
+                ),
+                metadata={
+                    "board_identifier": board_identifier,
+                    "access_edge": part.access_edge,
+                },
+            )
+        )
+
+    if board_placement.rotation_z_deg and parts:
+        raise ValueError("a board with catalogued components must not be rotated")
 
     return (
         build_rectangular_hardware_component(
@@ -201,6 +248,7 @@ def _board_components(
                 clearance_mm=connector_access_clearance_mm,
             ),
         ),
+        *parts,
     )
 
 
@@ -228,25 +276,34 @@ def analyze_board_display_assembly(
     if len(expected_identifiers) != 3:
         raise ValueError("component identifiers must be unique")
 
+    parts = board_component_identifiers(assembly, board_identifier)
     actual_identifiers = set(assembly.identifiers)
 
-    if actual_identifiers != expected_identifiers:
+    if actual_identifiers != expected_identifiers | set(parts):
         rendered = ", ".join(sorted(expected_identifiers))
 
-        raise ValueError(f"board-display assembly must contain exactly: {rendered}")
+        raise ValueError(
+            f"board-display assembly must contain exactly: {rendered}, "
+            "and the board's catalogued components"
+        )
+
+    # The board's own parts touch it and each other; only the display must
+    # keep its distance from all of them.
+    on_board = (board_identifier, connector_identifier, *parts)
+    display_clearance = ClearanceEnvelope(
+        positive_z_mm=minimum_board_display_clearance_mm
+    )
 
     return assembly.analyze_interference(
-        allowed_contact_pairs=(
-            component_pair(
-                board_identifier,
-                connector_identifier,
-            ),
+        allowed_contact_pairs=tuple(
+            component_pair(first, second)
+            for index, first in enumerate(on_board)
+            for second in on_board[index + 1 :]
         ),
         clearance_policy=ClearancePolicy(
             component_envelopes={
-                board_identifier: ClearanceEnvelope(
-                    positive_z_mm=(minimum_board_display_clearance_mm),
-                ),
+                identifier: display_clearance
+                for identifier in (board_identifier, *parts)
             }
         ),
     )

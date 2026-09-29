@@ -6,6 +6,7 @@ import pytest
 from zcad_core.assemblies import (
     DeviceAssembly,
     Placement,
+    board_component_identifiers,
     build_board_assembly,
     build_board_display_assembly,
 )
@@ -114,7 +115,38 @@ def test_irregular_hole_pattern_gets_a_standoff_under_each_hole() -> None:
 
     for x, y in uno.mounting_hole_positions_mm:
         assert not base.isInside(cq.Vector(x, y, -0.5))
-        assert base.isInside(cq.Vector(x + 2.5, y, -0.5))
+        # Material rings the hole, though a standoff beside header pins is
+        # notched clear of them.
+        probe = cq.Solid.makeBox(7, 7, 0.5, pnt=cq.Vector(x - 3.5, y - 3.5, -0.5))
+        assert intersection_volume(base, probe) > 1.0
+
+
+def test_supports_are_notched_clear_of_parts_under_the_board() -> None:
+    uno = get_arduino_uno_r4_wifi()
+    assembly = board_assembly(uno.identifier)
+    base = solid(build_enclosure(assembly, board=uno).base)
+
+    for identifier in board_component_identifiers(assembly):
+        part = assembly.get(identifier).transformed_geometry().val()
+        assert isinstance(part, cq.Shape)
+        assert intersection_volume(base, part) == 0
+
+
+def test_barrel_jack_gets_its_own_opening() -> None:
+    uno = get_arduino_uno_r4_wifi()
+    assembly = board_assembly(uno.identifier)
+    enclosure = build_enclosure(assembly, board=uno)
+    spec = enclosure.specification
+    jack = next(
+        component.transformed_geometry().val().BoundingBox()  # type: ignore[union-attr]
+        for component in assembly.components
+        if component.metadata.get("access_edge") == "negative_x"
+        and component.identifier.startswith("board_top")
+    )
+    wall_x = spec.center_x_mm - spec.inner_width_mm / 2 - 1.0
+    centre = cq.Vector(wall_x, (jack.ymin + jack.ymax) / 2, (jack.zmin + jack.zmax) / 2)
+
+    assert not solid(enclosure.base).isInside(centre)
 
 
 def test_cable_opening_follows_an_off_centre_connector() -> None:
@@ -159,10 +191,11 @@ def test_refuses_a_cable_opening_that_would_cut_a_boss() -> None:
 
 
 def test_refuses_a_rotated_board() -> None:
-    assembly = board_assembly(BOARD.identifier, Placement(rotation_z_deg=90.0))
-
     with pytest.raises(ValueError, match="must not be rotated"):
-        build_enclosure(assembly, board=BOARD)
+        build_enclosure(
+            board_assembly(BOARD.identifier, Placement(rotation_z_deg=90.0)),
+            board=BOARD,
+        )
 
 
 def test_base_and_lid_enclose_the_cavity(enclosure: Enclosure) -> None:

@@ -2,6 +2,10 @@
 
 from dataclasses import dataclass, field
 
+from zcad_core.hardware.electronics.board_components import (
+    BoardComponentSpec,
+    load_board_components,
+)
 from zcad_core.hardware.electronics.connectors import (
     RectangularConnectorSpec,
 )
@@ -44,6 +48,11 @@ class AdafruitFeatherRp2040Spec:
     mounting_hole_diameter_mm: float = 2.5
     mounting_hole_spacing_x_mm: float = 17.78
     mounting_hole_spacing_y_mm: float = 45.72
+
+    # Every other part, extracted from the vendor model.
+    components: tuple[BoardComponentSpec, ...] = field(
+        default_factory=lambda: load_board_components("adafruit-feather-rp2040")
+    )
 
     recommended_standoff_height_mm: float = 3.0
     recommended_clearance_mm: float = 0.5
