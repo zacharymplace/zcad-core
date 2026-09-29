@@ -154,3 +154,19 @@ def test_design_rejects_contradictory_lid_settings(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         EnclosureDesign(**settings).validate()  # type: ignore[arg-type]
+
+
+def test_snap_ridge_and_rim_have_lead_ins() -> None:
+    enclosure = built(lid_attachment="snap")
+    base, lid = solid(enclosure.base), solid(enclosure.lid)
+    axis, face = long_wall_face(enclosure)
+    ridge_z = top(enclosure) - RIDGE_DROP_MM
+    # Past the skirt's gap, where only the ridge's tip reaches.
+    into_wall = face + 0.25
+
+    # Flat on top, sloped underneath: solid high on the ridge, open low.
+    assert lid.isInside(point(axis, into_wall, 0.0, ridge_z + 0.3))
+    assert not lid.isInside(point(axis, into_wall, 0.0, ridge_z - 0.4))
+    # The rim's inner top edge is chamfered, the wall below it is not.
+    assert not base.isInside(point(axis, face + 0.15, 0.0, top(enclosure) - 0.1))
+    assert base.isInside(point(axis, face + 0.15, 0.0, top(enclosure) - 1.0))

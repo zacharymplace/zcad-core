@@ -39,6 +39,8 @@ RIDGE_DROP_MM = 2.8
 # Ridges and grooves run along this share of each long wall.
 SNAP_SPAN_FRACTION = 0.6
 RELIEF_SLIT_MM = 1.0
+# The 45° lead-in along each long wall's inner top edge.
+RIM_CHAMFER_MM = 0.5
 # Skirt notches clear bosses and openings by this much.
 NOTCH_CLEARANCE_MM = 0.4
 # Solid lid left under a countersink.
@@ -187,13 +189,21 @@ def snap_ridges(cavity: Cavity) -> cq.Workplane:
 
     for edge in cavity.long_edges():
         half = cavity.wall_length(edge) * SNAP_SPAN_FRACTION / 2
+        # Flat on top to hold; a 45° lead-in underneath, so the ridge cams
+        # past the wall's rim instead of catching on it.
+        tip = SKIRT_FIT_MM - RIDGE_PROTRUSION_MM
+        top = ridge_z + RIDGE_HEIGHT_MM / 2
         ridges = ridges.union(
-            _band(
+            _wall_prism(
                 cavity,
                 edge,
-                along=(-half, half),
-                inward=(SKIRT_FIT_MM - RIDGE_PROTRUSION_MM, SKIRT_FIT_MM + 0.01),
-                z=(ridge_z - RIDGE_HEIGHT_MM / 2, ridge_z + RIDGE_HEIGHT_MM / 2),
+                half,
+                [
+                    (SKIRT_FIT_MM + 0.01, top),
+                    (tip, top),
+                    (tip, top - RIDGE_HEIGHT_MM + RIDGE_PROTRUSION_MM),
+                    (SKIRT_FIT_MM + 0.01, top - RIDGE_HEIGHT_MM - 0.01),
+                ],
             )
         )
 
@@ -242,8 +252,54 @@ def snap_grooves(cavity: Cavity) -> cq.Workplane:
                 z=(ridge_z - GROOVE_HEIGHT_MM / 2, ridge_z + GROOVE_HEIGHT_MM / 2),
             )
         )
+        # A lead-in along the rim's inner edge, for the ridge to ride down.
+        top = cavity.top_z_mm + 0.01
+        grooves = grooves.union(
+            _wall_prism(
+                cavity,
+                edge,
+                cavity.wall_length(edge) / 2,
+                [
+                    (0.01, top),
+                    (-RIM_CHAMFER_MM, top),
+                    (0.01, top - RIM_CHAMFER_MM - 0.01),
+                ],
+            )
+        )
 
     return grooves
+
+
+_EDGE_TURN_DEG = {
+    "positive_y": 0.0,
+    "negative_y": 180.0,
+    "positive_x": -90.0,
+    "negative_x": 90.0,
+}
+
+
+def _wall_prism(
+    cavity: Cavity,
+    edge: str,
+    half_length: float,
+    profile: Sequence[tuple[float, float]],
+) -> cq.Workplane:
+    """A 2D profile swept along one wall: each point is (distance into the
+    cavity from the wall's inner face, height)."""
+
+    # Build against a +Y wall at the origin, then turn it to face ``edge``.
+    face = cavity.depth_mm / 2 if edge.endswith("_y") else cavity.width_mm / 2
+    prism = (
+        cq.Workplane("YZ")
+        .polyline([(face - inward, z) for inward, z in profile])
+        .close()
+        .extrude(2 * half_length)
+        .translate((-half_length, 0, 0))
+    )
+
+    return prism.rotate((0, 0, 0), (0, 0, 1), _EDGE_TURN_DEG[edge]).translate(
+        (cavity.center_x_mm, cavity.center_y_mm, 0)
+    )
 
 
 def countersinks(
