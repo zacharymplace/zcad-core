@@ -12,9 +12,12 @@ from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.enclosure_group import (
     BAY_KINDS,
+    OPENING_WALLS,
     Bay,
+    BayOpening,
     GroupDesign,
     GroupEnclosure,
+    OpeningWall,
     build_group_enclosure,
 )
 from zcad_core.profiles import load_printer_profile
@@ -24,10 +27,36 @@ _REVIEW_LID_LIFT_MM = 25.0
 
 
 _BAY_OPTIONS = {"standoff": "standoff_height_mm", "headroom": "headroom_mm"}
+_OPENING_SYNTAX = "front=<width>x<height>[@<offset>[/<bottom>]]"
+
+
+def _opening(wall: OpeningWall, value: str) -> BayOpening:
+    """An opening from ``20x10``, ``20x10@-5``, or ``20x10@-5/3``: width and
+    height, the offset from the shelf's middle, and the height above the
+    floor, all in millimetres."""
+
+    size, _, placement = value.partition("@")
+    width, _, height = size.partition("x")
+    offset, _, bottom = placement.partition("/")
+
+    try:
+        return BayOpening(
+            wall=wall,
+            width_mm=float(width),
+            height_mm=float(height),
+            offset_mm=float(offset) if offset else 0.0,
+            bottom_mm=float(bottom) if bottom else 0.0,
+        )
+    except ValueError:
+        raise ValueError(
+            f"an opening must be {wall}=<width>x<height>[@<offset>[/<bottom>]] "
+            f"in millimetres; got '{wall}={value}'"
+        ) from None
 
 
 def _bay(text: str) -> Bay:
-    """One bay from ``kind`` or ``kind:standoff=10:headroom=30``."""
+    """One bay from ``kind``, with any of ``:standoff=10``, ``:headroom=30``,
+    ``:front=20x10``, and ``:back=20x10@-5/3``."""
 
     kind, *options = (part.strip() for part in text.split(":"))
     kinds = [known for known in BAY_KINDS if known == kind]
@@ -36,13 +65,20 @@ def _bay(text: str) -> Bay:
         raise ValueError(f"bay kind must be one of {BAY_KINDS}; got '{kind}'")
 
     heights: dict[str, float] = {}
+    openings: list[BayOpening] = []
 
     for option in options:
         name, _, value = option.partition("=")
+        walls = [known for known in OPENING_WALLS if known == name]
+
+        if walls and value:
+            openings.append(_opening(walls[0], value))
+            continue
 
         if name not in _BAY_OPTIONS or not value:
             raise ValueError(
-                f"bay option must be standoff=<mm> or headroom=<mm>; got '{option}'"
+                "bay option must be standoff=<mm>, headroom=<mm>, or "
+                f"{_OPENING_SYNTAX}; got '{option}'"
             )
 
         try:
@@ -50,7 +86,7 @@ def _bay(text: str) -> Bay:
         except ValueError:
             raise ValueError(f"bay option '{option}' needs a number") from None
 
-    return Bay(kind=kinds[0], **heights)
+    return Bay(kind=kinds[0], openings=tuple(openings), **heights)
 
 
 def _bays(text: str) -> tuple[Bay, ...]:
@@ -65,6 +101,16 @@ def _bay_summary(group: GroupEnclosure) -> list[dict[str, object]]:
             "standoff_mm": layout.standoff_height_mm,
             "board_top_z_mm": layout.board_top_z_mm,
             "room_above_board_mm": round(group.room_above_board_mm(layout), 2),
+            "openings": [
+                {
+                    "wall": opening.wall,
+                    "width_mm": opening.width_mm,
+                    "height_mm": opening.height_mm,
+                    "offset_mm": opening.offset_mm,
+                    "bottom_mm": opening.bottom_mm,
+                }
+                for opening in layout.openings
+            ],
         }
         for layout in group.bays
     ]
@@ -200,7 +246,10 @@ def register(
         default="pi5,pi5",
         help=(
             f"comma-separated bays left to right, from {', '.join(BAY_KINDS)}; "
-            "a bay can set its own heights, as pi5:standoff=10:headroom=30"
+            "a bay can set its own heights, as pi5:standoff=10:headroom=30, "
+            "and an open bay can cut wall openings, as "
+            "open:back=20x10@-5/3 (width x height, offset from the shelf's "
+            "middle, height above the floor)"
         ),
     )
     build.add_argument("--output-directory", required=True, type=Path)
