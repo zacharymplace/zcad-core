@@ -216,12 +216,13 @@ def write_physical_validation_record(
     *,
     output_path: Path,
 ) -> None:
-    """Write a deterministic physical-validation record."""
+    """Write a deterministic physical-validation record.
 
-    output_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    A pending record is a placeholder, so completing it in place is allowed.
+    Anything else that already exists is refused unless the content is
+    identical: a completed trial is evidence, and rerunning ``trial
+    complete`` must not silently replace its outcome.
+    """
 
     payload = asdict(record)
 
@@ -233,16 +234,34 @@ def write_physical_validation_record(
     payload["pending"] = record.pending
     payload["complete"] = record.complete
     payload["passed"] = record.passed
+    serialized = json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
-    output_path.write_text(
-        json.dumps(
-            payload,
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
+    if output_path.exists():
+        existing = output_path.read_text(encoding="utf-8")
+
+        if existing == serialized:
+            return
+
+        try:
+            replaces_placeholder = (
+                load_physical_validation_record(output_path).pending
+                and not record.pending
+            )
+        except (KeyError, TypeError, ValueError):
+            replaces_placeholder = False
+
+        if not replaces_placeholder:
+            raise FileExistsError(
+                "Refusing to overwrite physical-validation record: "
+                f"{output_path}; only a pending record may be completed in "
+                "place, so write another trial to a new file"
+            )
+
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
     )
+    output_path.write_text(serialized, encoding="utf-8")
 
 
 def complete_physical_validation_record(

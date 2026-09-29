@@ -475,3 +475,67 @@ def test_pending_record_uses_current_schema(tmp_path: Path) -> None:
     assert {observation.check for observation in record.observations} == set(
         PhysicalValidationCheck
     )
+
+
+def completed_record(
+    disposition: PhysicalValidationDisposition = PhysicalValidationDisposition.PASS,
+    notes: str = "Fit accepted.",
+):
+    return complete_physical_validation_record(
+        candidate_report_path=Path("candidate.json"),
+        fixture_stl_path=Path("fixture.stl"),
+        printer_profile="test-printer",
+        material_profile="test-material",
+        slicer_profile="test-slicer",
+        observations=all_passing(),
+        disposition=disposition,
+        operator_notes=notes,
+        measurements=MEASUREMENTS,
+    )
+
+
+def test_completed_record_is_never_overwritten(tmp_path: Path) -> None:
+    path = tmp_path / "record.json"
+    first = completed_record()
+    write_physical_validation_record(first, output_path=path)
+    before = path.read_text(encoding="utf-8")
+
+    # Rewriting identical content is a no-op, not an error.
+    write_physical_validation_record(first, output_path=path)
+
+    with pytest.raises(FileExistsError, match="Refusing to overwrite"):
+        write_physical_validation_record(
+            completed_record(
+                PhysicalValidationDisposition.REVISE, notes="Second opinion."
+            ),
+            output_path=path,
+        )
+
+    assert path.read_text(encoding="utf-8") == before
+
+
+def test_completed_record_cannot_revert_to_pending(tmp_path: Path) -> None:
+    path = tmp_path / "record.json"
+    write_physical_validation_record(completed_record(), output_path=path)
+
+    with pytest.raises(FileExistsError, match="only a pending record"):
+        write_physical_validation_record(
+            create_pending_physical_validation_record(
+                candidate_report_path=Path("candidate.json"),
+                fixture_stl_path=Path("fixture.stl"),
+                printer_profile="test-printer",
+                material_profile="test-material",
+                slicer_profile="test-slicer",
+            ),
+            output_path=path,
+        )
+
+
+def test_unreadable_existing_file_is_not_replaced(tmp_path: Path) -> None:
+    path = tmp_path / "record.json"
+    path.write_text("[]\n", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="Refusing to overwrite"):
+        write_physical_validation_record(completed_record(), output_path=path)
+
+    assert path.read_text(encoding="utf-8") == "[]\n"

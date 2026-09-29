@@ -2028,3 +2028,29 @@ def test_trial_complete_names_missing_checks(
         "missing: ['board_resists_lateral_push', 'cables_seat_fully']"
         in capsys.readouterr().err
     )
+
+
+def test_trial_complete_refuses_to_overwrite_a_completed_trial(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    target_manifest = register_target(tmp_path, capsys)
+    candidate_manifest = register_candidate(tmp_path, capsys, target_manifest)
+    args = complete_trial_args(
+        tmp_path,
+        candidate_manifest,
+        disposition="pass",
+        observations=write_observations(tmp_path),
+        measurements=write_measurements(tmp_path),
+    )
+
+    exit_code, _ = run(capsys, *args)
+    assert exit_code == 0
+    recorded = (tmp_path / "physical.json").read_text(encoding="utf-8")
+
+    args[args.index("--disposition") + 1] = "revise"
+    exit_code = main(args)
+
+    assert exit_code == 1
+    assert "Refusing to overwrite" in capsys.readouterr().err
+    assert (tmp_path / "physical.json").read_text(encoding="utf-8") == recorded
