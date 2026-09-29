@@ -98,8 +98,8 @@ def test_the_bay_layout_reaches_the_page_for_its_dimension_chain(
     pair = next(entry for entry in data if entry["key"] == "pair")
 
     assert pair["wall"] == 2.0
-    assert [bay["gap"] for bay in pair["bays"]] == [[0.0, 25.0], [81.5, 106.5]]
-    assert [bay["slot"] for bay in pair["bays"]] == [[25.0, 81.5], [106.5, 163.0]]
+    assert [bay["gap"] for bay in pair["bays"]] == [[65.5, 90.5], [147.0, 172.0]]
+    assert [bay["slot"] for bay in pair["bays"]] == [[9.0, 65.5], [90.5, 147.0]]
     assert pair["size"] == [176.0, 96.0, 25.4]
 
 

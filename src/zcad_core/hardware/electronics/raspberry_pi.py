@@ -83,10 +83,12 @@ class BoardPortSpec:
 class RaspberryPi5Spec:
     """Mechanical envelope of a Raspberry Pi 5 and its Active Cooler.
 
-    Portrait frame, origin at the board centre: the Ethernet and USB edge is
-    ``positive_y``, the USB-C power and micro-HDMI edge is ``negative_x``,
-    the 40-pin header edge is ``positive_x``, and the microSD end is
-    ``negative_y``.
+    Portrait frame, origin at the board centre, seen from above: the
+    Ethernet and USB edge is ``positive_y``, with Ethernet on the right; the
+    USB-C power and micro-HDMI edge is ``positive_x``; the 40-pin header
+    runs along ``negative_x``; and the microSD end is ``negative_y``. (An
+    earlier version mirrored this left to right; Raspberry Pi's STEP model
+    settles it.)
 
     The numbers come from Raspberry Pi's mechanical drawings, RP-008347 for the
     board and RP-008187 for the Active Cooler, which call themselves
@@ -97,7 +99,9 @@ class RaspberryPi5Spec:
     push pins meet the board's two cooler holes, and the cooler's height above
     the PCB, which assumes its pin tips are flush with the PCB underside
     (13.7 mm overall less the 1.4 mm board). Measure a real board before
-    trusting a 0.5 mm margin.
+    trusting a 0.5 mm margin. ``components`` are the board's parts as boxes,
+    extracted from Raspberry Pi's STEP model, for the single-board enclosure
+    builder.
     """
 
     identifier: str = "RASPBERRY_PI_5"
@@ -113,15 +117,30 @@ class RaspberryPi5Spec:
     recommended_clearance_mm: float = 0.0
 
     ports: tuple[BoardPortSpec, ...] = (
-        BoardPortSpec("ETHERNET", "positive_y", -17.8, 16.1, 13.4, 18.2, 3.1),
-        BoardPortSpec("USB3_PAIR", "positive_y", 1.1, 13.7, 15.6, 14.0, 3.1),
-        BoardPortSpec("USB2_PAIR", "positive_y", 19.0, 13.7, 15.6, 14.0, 3.1),
-        BoardPortSpec("USB_C_POWER", "negative_x", -31.3, 9.0, 3.2, 8.0, 0.8),
-        BoardPortSpec("MICRO_HDMI_0", "negative_x", -16.7, 7.0, 3.4, 7.0, 0.8),
-        BoardPortSpec("MICRO_HDMI_1", "negative_x", -3.3, 7.0, 3.4, 7.0, 0.8),
+        BoardPortSpec("ETHERNET", "positive_y", 17.8, 16.1, 13.4, 18.2, 3.1),
+        BoardPortSpec("USB3_PAIR", "positive_y", -1.1, 13.7, 15.6, 14.0, 3.1),
+        BoardPortSpec("USB2_PAIR", "positive_y", -19.0, 13.7, 15.6, 14.0, 3.1),
+        BoardPortSpec("USB_C_POWER", "positive_x", -31.3, 9.0, 3.2, 8.0, 0.8),
+        BoardPortSpec("MICRO_HDMI_0", "positive_x", -16.7, 7.0, 3.4, 7.0, 0.8),
+        BoardPortSpec("MICRO_HDMI_1", "positive_x", -3.3, 7.0, 3.4, 7.0, 0.8),
+    )
+    # The edge the power cable plugs into, for the single-board enclosure.
+    usb_connector: RectangularConnectorSpec = field(
+        default_factory=lambda: RectangularConnectorSpec(
+            identifier="USB_C_POWER",
+            width_mm=9.0,
+            height_mm=3.2,
+            depth_mm=8.0,
+            board_edge="positive_x",
+            center_offset_mm=-31.3,
+            bottom_offset_from_board_top_mm=0.0,
+        )
+    )
+    components: tuple[BoardComponentSpec, ...] = field(
+        default_factory=lambda: load_board_components("raspberry-pi-5")
     )
 
-    # The 2x20 header on the positive_x edge: pins reach 8.3 mm above the PCB.
+    # The 2x20 header on the negative_x edge: pins reach 8.3 mm above the PCB.
     header_height_mm: float = 8.5
     header_length_mm: float = 51.0
     header_width_mm: float = 5.1
@@ -131,11 +150,11 @@ class RaspberryPi5Spec:
     # a 30 x 30 mm square over the SoC.
     cooler_width_mm: float = 42.5
     cooler_length_mm: float = 63.5
-    cooler_center_x_mm: float = -1.25
+    cooler_center_x_mm: float = 1.25
     cooler_center_y_mm: float = -10.0
     cooler_bottom_above_board_mm: float = 3.5
     cooler_height_mm: float = 12.5
-    fan_center_x_mm: float = 4.6
+    fan_center_x_mm: float = -4.6
     fan_center_y_mm: float = 0.1
     # The microSD card hangs under the board and past the negative_y edge.
     sd_card_width_mm: float = 12.0

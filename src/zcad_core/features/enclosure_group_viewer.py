@@ -55,7 +55,7 @@ DEFAULT_CONFIGS: tuple[ViewerConfig, ...] = (
     ViewerConfig(
         "pair",
         "Default pair",
-        "Two Pi 5 bays, each with a service gap on its left.",
+        "Two Pi 5 bays, each with a service gap on its right.",
         ("pi5", "pi5"),
     ),
     ViewerConfig(
@@ -150,7 +150,7 @@ def _bays(group: GroupEnclosure) -> list[dict[str, Any]]:
     return [
         {
             "kind": bay.kind,
-            "gap": [round(bay.gap_start_mm, 2), round(bay.slot_start_mm, 2)],
+            "gap": [round(bay.gap_start_mm, 2), round(bay.gap_end_mm, 2)],
             "slot": [round(bay.slot_start_mm, 2), round(bay.slot_end_mm, 2)],
             "standoff": bay.standoff_height_mm,
             "room": round(group.room_above_board_mm(bay), 1),

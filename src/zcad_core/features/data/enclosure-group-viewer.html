@@ -280,7 +280,7 @@ dd { margin: 0; font-family: var(--font-data); text-align: right; font-variant-n
     tick([W, totalY, 0], [0, 1, 0], 3);
     label(fmt(W), [W / 2, totalY, 0]);
 
-    // Chain along the front edge: each bay's gap, then its slot.
+    // Chain along the front edge: each bay's slot, then its gap.
     var cursor = wall;
     var marks = [cursor];
     function span(a, b, text) {
@@ -289,11 +289,11 @@ dd { margin: 0; font-family: var(--font-data); text-align: right; font-variant-n
       if (b - a >= 8 && text) label(text, [(a + b) / 2, chainY, 0]);
     }
     cfg.bays.forEach(function (b) {
-      var gs = b.gap[0] + wall, ss = b.gap[1] + wall, se = b.slot[1] + wall;
-      if (gs - cursor > 0.05) span(cursor, gs, "");
-      span(gs, ss, fmt(ss - gs));
+      var ss = b.slot[0] + wall, se = b.slot[1] + wall, ge = b.gap[1] + wall;
+      if (ss - cursor > 0.05) span(cursor, ss, fmt(ss - cursor));
       span(ss, se, (b.kind === "open" ? "shelf " : "") + fmt(se - ss));
-      cursor = se;
+      span(se, ge, fmt(ge - se));
+      cursor = ge;
     });
     if (W - wall - cursor > 0.05) span(cursor, W - wall, fmt(W - wall - cursor));
     marks.forEach(function (x) { tick([x, chainY, 0], [0, 1, 0], 2.5); });

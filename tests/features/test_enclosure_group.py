@@ -44,22 +44,23 @@ def test_pi5_spec_matches_the_published_board() -> None:
         49.0,
         58.0,
     )
-    assert {port.edge for port in pi.ports} == {"positive_y", "negative_x"}
+    assert {port.edge for port in pi.ports} == {"positive_y", "positive_x"}
 
 
 def test_pi5_ports_sit_where_raspberry_pis_drawing_dimensions_them() -> None:
     # RP-008347, landscape, from the bottom-left corner: the Ethernet, and each
     # USB pair, are 10.2, 29.1, and 47 mm up the 56 mm edge; USB-C and the two
     # micro-HDMI ports are 11.2, 25.8, and 39.2 mm along the 85 mm edge. The
-    # spec is portrait about the board centre: the short edge runs along X,
-    # the long edge along Y.
+    # spec is that view turned a quarter turn anticlockwise, portrait about
+    # the board centre: landscape up becomes portrait left, so the Ethernet
+    # lands on the right (+X) and the USB-C edge on +X.
     pi = get_raspberry_pi5()
     centres = {port.identifier: port.center_mm for port in pi.ports}
     half_width, half_length = pi.board_width_mm / 2, pi.board_length_mm / 2
 
-    assert centres["ETHERNET"] == pytest.approx(10.2 - half_width, abs=0.1)
-    assert centres["USB3_PAIR"] == pytest.approx(29.1 - half_width, abs=0.1)
-    assert centres["USB2_PAIR"] == pytest.approx(47.0 - half_width, abs=0.1)
+    assert centres["ETHERNET"] == pytest.approx(half_width - 10.2, abs=0.1)
+    assert centres["USB3_PAIR"] == pytest.approx(half_width - 29.1, abs=0.1)
+    assert centres["USB2_PAIR"] == pytest.approx(half_width - 47.0, abs=0.1)
     assert centres["USB_C_POWER"] == pytest.approx(11.2 - half_length, abs=0.1)
     assert centres["MICRO_HDMI_0"] == pytest.approx(25.8 - half_length, abs=0.1)
     assert centres["MICRO_HDMI_1"] == pytest.approx(39.2 - half_length, abs=0.1)
@@ -80,7 +81,7 @@ def test_pi5_active_cooler_is_the_drawings_63_5_by_42_5_mm_over_the_board() -> N
 
     assert (pi.cooler_length_mm, pi.cooler_width_mm) == (63.5, 42.5)
     assert pi.cooler_bottom_above_board_mm > max(
-        port.height_mm for port in pi.ports if port.edge == "negative_x"
+        port.height_mm for port in pi.ports if port.edge == "positive_x"
     )
     # Its box stays over the board.
     low = pi.cooler_center_y_mm - pi.cooler_length_mm / 2

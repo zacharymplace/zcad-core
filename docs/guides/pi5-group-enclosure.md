@@ -23,12 +23,12 @@ Every Pi sits portrait:
 | --- | --- |
 | Ethernet and USB | the back wall, through one opening per port |
 | microSD end | the front wall, through one opening |
-| USB-C power and micro-HDMI | a 25 mm service gap on the Pi's left |
-| 40-pin header | the next bay's gap, or the right end |
+| USB-C power and micro-HDMI | a 25 mm service gap on the Pi's right |
+| 40-pin header | the previous bay's gap, or the left end |
 
 A power or HDMI plug goes into the gap and its cable bends toward the front,
 leaving through an opening at the end of the gap. Every bay repeats the same
-gap-then-slot pattern, so any bay can take a Pi.
+slot-then-gap pattern, so any bay can take a Pi.
 
 | Bay | Builds |
 | --- | --- |
@@ -38,7 +38,7 @@ gap-then-slot pattern, so any bay can take a Pi.
 
 The Pi is held by four M2.5 self-tapping screws through its mounting holes
 into the standoffs. The lid screws into six M3 heat-set inserts (corners and
-the start of each gap after the first).
+the end of each gap but the last).
 
 ## Heights per bay
 
@@ -111,14 +111,14 @@ zcad-validation enclosure-group build \
 ```
 
 A divider is a wall across the enclosure, front to back, 2 mm thick, standing
-0.75 mm past the previous bay's header edge. The next bay's gap boss sits
-against it and fuses to it. Tokens, joined by `+`:
+at the end of the previous bay's gap, 0.75 mm clear of its own bay's header
+edge. The previous bay's gap boss sits against it and fuses to it. Tokens, joined by `+`:
 
 | Token | Adds |
 | --- | --- |
 | `solid` | A plain full-height wall that runs to the lid. Also the default when you give only other tokens. |
 | `vents` | Vertical slots near the top, so air passes between bays but line of sight does not. Full height only. |
-| `notch` | A 20 x 10 mm pass-through at the previous bay's header, rising from its board, for a ribbon or jumper wires. |
+| `notch` | A 20 x 10 mm pass-through at its own bay's header, rising from that board, for a ribbon or jumper wires. |
 | `ties` | Two rows of slot pairs, 4.2 x 2 mm, for zip ties to strap what sits beside the divider. |
 | `h12` | A low divider 12 mm tall instead: open at the top, for separating cables. |
 
@@ -204,7 +204,7 @@ writes `index.html` and `enclosures.json` into the folder. Open
 divided pair, a low divider, a raised bay, and a pair with an open shelf. You
 can rotate and zoom, set the lid to on, lifted, or off, hide the Pi envelopes,
 cut the box open with a plane, and show dimensions: the overall size, and along
-the front edge each bay's service gap and slot. It also shows whether the row
+the front edge each bay's slot and service gap. It also shows whether the row
 fits the A1 mini's bed.
 
 - `--bays` shows your own rows instead, in the syntax of `build --bays`. Repeat

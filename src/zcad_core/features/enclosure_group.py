@@ -2,11 +2,11 @@
 
 Every Pi sits portrait, its Ethernet and USB edge against the back wall and
 its microSD end against the front wall. Its USB-C power and micro-HDMI edge
-faces a service gap on its own left, so a cable plugged in there bends
-toward the front wall and leaves through an opening at the end of the gap.
-Because every bay repeats the same gap-then-slot pattern, any bay can hold a
-Pi 5 now or later, and a bay can be an open shelf for an SSD, a switch, or a
-power supply.
+faces a service gap on its own right, so a cable plugged in there bends
+toward the front wall and leaves through an opening at the end of the gap;
+its 40-pin header faces left. Because every bay repeats the same
+slot-then-gap pattern, any bay can hold a Pi 5 now or later, and a bay can
+be an open shelf for an SSD, a switch, or a power supply.
 
 A Pi bay is built the same whether or not the Pi is fitted, so a
 ``reserved`` bay takes a Pi later with no reprint. The units also bolt
@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Literal
 
 import cadquery as cq
@@ -89,9 +90,10 @@ class GroupDesign:
     room a bay's parts need above a Pi's PCB top: the default clears the
     tallest standard part (the 15.6 mm USB stack) and an Active Cooler with
     2 mm to spare; raise it for a HAT. For an ``open`` bay it is the height
-    of the shelf's usable space. ``service_gap_mm`` is the space left of each
-    Pi for its USB-C and micro-HDMI plugs. ``open_bay_width_mm`` is the width
-    of an ``open`` bay's shelf.
+    of the shelf's usable space. ``service_gap_mm`` is the space right of each
+    Pi for its USB-C and micro-HDMI plugs, and ``end_margin_mm`` the space
+    left of the first bay, beside its header. ``open_bay_width_mm`` is the
+    width of an ``open`` bay's shelf.
     """
 
     wall_mm: float = 2.0
@@ -174,8 +176,9 @@ class Bay:
     the other bays get spare room above their boards. ``openings`` cut
     through an ``open`` bay's walls, for the cables of whatever sits on its
     shelf; a Pi bay's openings are fixed by its ports. ``divider`` puts a
-    wall on the boundary to this bay's left, just past the previous bay's
-    header edge, so the first bay takes none.
+    wall on the boundary to this bay's left, at the end of the previous
+    bay's service gap and just clear of this bay's header edge, so the first
+    bay takes none.
     """
 
     kind: BayKind = "pi5"
@@ -196,9 +199,11 @@ class BayLayout:
 
     index: int
     kind: BayKind
-    gap_start_mm: float
     slot_start_mm: float
     slot_end_mm: float
+    # The service gap to the slot's right, or an open shelf's strip.
+    gap_start_mm: float
+    gap_end_mm: float
     standoff_height_mm: float
     headroom_mm: float
     board_bottom_z_mm: float
@@ -376,6 +381,7 @@ def build_group_enclosure(
         radius=radius,
         wall=wall,
         pi_center_y=pi_center_y,
+        boss_columns=boss_columns,
     )
     base = _cut_bay_openings(base, layouts, design)
 
@@ -449,7 +455,8 @@ def _layout(
     """Each bay's gap, slot, and heights, and the cavity's inner width."""
 
     layouts: list[BayLayout] = []
-    cursor = 0.0
+    # The first bay's header faces the left wall across the end margin.
+    cursor = design.end_margin_mm
 
     for index, bay in enumerate(bays):
         is_open = bay.kind == "open"
@@ -462,9 +469,11 @@ def _layout(
                     "takes none"
                 )
 
+            # It closes the previous bay's gap and stands clear of this
+            # bay's header.
             check_divider(bay.divider, f"bay {index} ({bay.kind})")
-            divider_start = cursor + design.divider_clearance_mm
-            cursor = divider_start + design.divider_mm
+            divider_start = cursor
+            cursor = divider_start + design.divider_mm + design.divider_clearance_mm
 
         gap = _OPEN_BAY_STRIP_MM if is_open else design.service_gap_mm
         slot = (
@@ -479,9 +488,10 @@ def _layout(
             BayLayout(
                 index=index,
                 kind=bay.kind,
-                gap_start_mm=cursor,
-                slot_start_mm=cursor + gap,
-                slot_end_mm=cursor + gap + slot,
+                slot_start_mm=cursor,
+                slot_end_mm=cursor + slot,
+                gap_start_mm=cursor + slot,
+                gap_end_mm=cursor + slot + gap,
                 standoff_height_mm=standoff,
                 headroom_mm=headroom,
                 board_bottom_z_mm=board_bottom,
@@ -491,9 +501,10 @@ def _layout(
                 divider_start_mm=divider_start,
             )
         )
-        cursor += gap + slot
+        cursor += slot + gap
 
-    return tuple(layouts), cursor + design.end_margin_mm
+    # The last bay's service gap runs to the right wall.
+    return tuple(layouts), cursor
 
 
 def _check_openings(bay: Bay, index: int, slot_width: float) -> tuple[BayOpening, ...]:
@@ -589,22 +600,28 @@ def _boss_columns(
     wall: float,
     inner_width: float,
 ) -> tuple[float, ...]:
-    """Boss centres along X: the two end corners, and one at the start of
-    each gap after the first, clear of the neighbouring Pi."""
+    """Boss centres along X: the two end corners, and one at the end of each
+    gap before the last, clear of the next Pi. Column ``i + 1`` closes bay
+    ``i``'s gap."""
 
-    interior = [_gap_boss_x(layout, radius, wall) for layout in layouts[1:]]
+    interior = [
+        _gap_boss_x(layout, following, radius, wall)
+        for layout, following in pairwise(layouts)
+    ]
 
     return (wall + corner_x, *interior, wall + inner_width - corner_x)
 
 
-def _gap_boss_x(layout: BayLayout, radius: float, wall: float) -> float:
-    """The boss at the start of a bay's gap. Behind a divider it sits against
-    the divider, sunk into it like a corner boss into its walls, so the two
-    fuse; otherwise it stands a millimetre clear of the neighbouring Pi."""
+def _gap_boss_x(
+    layout: BayLayout, following: BayLayout, radius: float, wall: float
+) -> float:
+    """The boss at the end of a bay's gap. Against the next bay's divider it
+    is sunk into it like a corner boss into its walls, so the two fuse;
+    otherwise it stands a millimetre clear of the next Pi."""
 
-    inset = radius - _BOSS_WALL_OVERLAP_MM if layout.divider else radius + 1.0
+    inset = radius - _BOSS_WALL_OVERLAP_MM if following.divider else radius + 1.0
 
-    return wall + layout.gap_start_mm + inset
+    return wall + layout.gap_end_mm - inset
 
 
 def _hole_positions(pi: RaspberryPi5Spec) -> tuple[tuple[float, float], ...]:
@@ -660,10 +677,10 @@ def _pi_envelope(
                 center_y + half_y - port.depth_mm,
                 center_y + half_y + port.overhang_mm,
             )
-        elif port.edge == "negative_x":
+        elif port.edge == "positive_x":
             x_range = (
-                center_x - half_x - port.overhang_mm,
-                center_x - half_x + port.depth_mm,
+                center_x + half_x - port.depth_mm,
+                center_x + half_x + port.overhang_mm,
             )
             y_range = (
                 center_y + port.center_mm - port.width_mm / 2,
@@ -674,7 +691,8 @@ def _pi_envelope(
 
         boxes.append(_box(x_range, y_range, (board_top, top)))
 
-    header_x = center_x + pi.mounting_hole_spacing_x_mm / 2
+    # The header runs along the board's left (negative_x) edge.
+    header_x = center_x - pi.mounting_hole_spacing_x_mm / 2
     boxes.append(
         _box(
             (header_x - pi.header_width_mm / 2, header_x + pi.header_width_mm / 2),
@@ -776,10 +794,11 @@ def _cut_pi_openings(
     radius: float,
     wall: float,
     pi_center_y: float,
+    boss_columns: tuple[float, ...],
 ) -> cq.Workplane:
     """Back-wall openings for each Pi's Ethernet and USB plugs, a front-wall
-    opening for its microSD card, and one at the end of its service gap for
-    the power and HDMI cables."""
+    opening for its microSD card, and one along its service gap for the
+    power and HDMI cables."""
 
     depth = 2 * (wall + 0.5)
     margin = 2 * design.plug_margin_mm
@@ -822,10 +841,10 @@ def _cut_pi_openings(
             ),
         )
 
-        # The gap's front opening starts past the boss at the gap's start
-        # and stops a millimetre short of the Pi's slot.
-        start = _gap_boss_x(layout, radius, wall) + radius + _BOSS_CLEARANCE_MM
-        end = wall + layout.slot_start_mm - 1.0
+        # The gap's front opening starts a millimetre past the Pi's slot and
+        # stops short of the boss that closes the gap.
+        start = wall + layout.slot_end_mm + 1.0
+        end = boss_columns[layout.index + 1] - radius - _BOSS_CLEARANCE_MM
         width = end - start
 
         if width < 6.0:
@@ -861,7 +880,7 @@ def _dividers(
 ) -> list[tuple[Divider, DividerPlacement]]:
     """Each bay's divider and where it stands, refused if it does not fit.
 
-    A divider stands just past the previous bay's header edge, so its notch
+    A divider stands just clear of its own bay's header edge, so its notch
     is centred on that bay's header and rises from that bay's board.
     """
 
@@ -871,9 +890,10 @@ def _dividers(
         if layout.divider is None:
             continue
 
-        left = layouts[layout.index - 1]
-        notch_y = pi_center_y + (pi.header_center_y_mm if left.holds_pi else 0.0)
-        notch_bottom = left.board_top_z_mm if left.holds_pi else design.floor_mm + 2.0
+        notch_y = pi_center_y + (pi.header_center_y_mm if layout.holds_pi else 0.0)
+        notch_bottom = (
+            layout.board_top_z_mm if layout.holds_pi else design.floor_mm + 2.0
+        )
         placement = DividerPlacement(
             x_start_mm=design.wall_mm + layout.divider_start_mm,
             thickness_mm=design.divider_mm,

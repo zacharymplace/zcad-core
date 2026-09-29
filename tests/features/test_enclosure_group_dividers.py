@@ -75,17 +75,20 @@ def test_a_divider_adds_its_clearance_and_thickness_to_the_width() -> None:
     group = row(Divider())
 
     assert group.outer_size_mm[0] == pytest.approx(176.0 + 0.75 + 2.0)
-    # The right-hand Pi still has the same slot; the row just moved over.
-    assert group.bays[1].slot_start_mm - group.bays[1].gap_start_mm == 25.0
+    # Each bay keeps the same slot and service gap; the row just moved over.
+    assert group.bays[0].gap_end_mm - group.bays[0].gap_start_mm == 25.0
+    assert group.bays[1].divider_start_mm == group.bays[0].gap_end_mm
 
 
 def test_the_divider_stands_clear_of_the_pi_beside_it() -> None:
     group = row(Divider(vents=True, notch=True, tie_slots=True))
-    left = group.bays[0]
-    board_edge = group.design.wall_mm + left.slot_end_mm - group.design.slot_pad_mm
-    divider_face = group.design.wall_mm + group.bays[1].divider_start_mm
+    right = group.bays[1]
+    wall, pad = group.design.wall_mm, group.design.slot_pad_mm
+    # The Pi to the divider's right has its header edge toward it.
+    board_edge = wall + right.slot_start_mm + pad
+    divider_face = wall + right.divider_start_mm + group.design.divider_mm
 
-    assert divider_face - board_edge == pytest.approx(0.75 + group.design.slot_pad_mm)
+    assert board_edge - divider_face == pytest.approx(0.75 + pad)
     assert group.checks["hardware_clear_of_base"]
 
 
@@ -115,10 +118,10 @@ def test_vents_are_slots_near_the_top_of_a_full_divider() -> None:
     assert has_material(group.base, x, group.design.wall_mm + 12.0, top(group) - 1.5)
 
 
-def test_the_notch_passes_the_left_pis_header() -> None:
+def test_the_notch_passes_the_right_pis_header() -> None:
     group = row(Divider(notch=True))
     x = middle(group)
-    left = group.bays[0]
+    left = group.bays[1]
     header_y = group.pi_center_y_mm + PI.header_center_y_mm
 
     for offset in (-8.0, 0.0, 8.0):
@@ -181,22 +184,21 @@ def test_a_divider_bonds_into_the_walls_as_one_solid_with_the_lid_seat_clear() -
 def test_the_gap_boss_sits_against_the_divider_and_the_cable_exit_stays_open() -> None:
     group = row(Divider())
     wall = group.design.wall_mm
-    right = group.bays[1]
-    boss_x = wall + right.gap_start_mm + 4.1 - 0.5
+    left = group.bays[0]
+    # The boss closing the left bay's gap, sunk into the divider beyond it.
+    boss_x = wall + left.gap_end_mm - (4.1 - 0.5)
     boss_y = wall + 4.1 - 0.5
-    exit_x = wall + right.slot_start_mm - 1.0 - 4.0
+    exit_x = wall + left.slot_end_mm + 1.0 + 4.0
 
     assert group.passed
     # The ring beside the pilot hole, and the boss's edge sunk into the divider.
-    assert has_material(group.base, boss_x + 3.2, boss_y, top(group) - 8.0)
-    assert has_material(group.base, boss_x - 3.9, boss_y, top(group) - 8.0)
-    assert not has_material(
-        group.base, exit_x, wall / 2, group.bays[1].board_top_z_mm + 4.0
-    )
+    assert has_material(group.base, boss_x - 3.2, boss_y, top(group) - 8.0)
+    assert has_material(group.base, boss_x + 3.9, boss_y, top(group) - 8.0)
+    assert not has_material(group.base, exit_x, wall / 2, left.board_top_z_mm + 4.0)
 
 
 def test_a_divider_beside_an_open_bay_centres_its_notch_mid_cavity() -> None:
-    group = build_group_enclosure(("open", Bay("pi5", divider=Divider(notch=True))))
+    group = build_group_enclosure(("pi5", Bay("open", divider=Divider(notch=True))))
     x = middle(group)
 
     assert group.passed

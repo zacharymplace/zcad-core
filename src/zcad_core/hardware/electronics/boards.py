@@ -14,7 +14,10 @@ from zcad_core.hardware.electronics.displays import (
     DisplaySpec,
     get_reference_oled_128x64,
 )
-from zcad_core.hardware.electronics.raspberry_pi import get_raspberry_pi_pico2
+from zcad_core.hardware.electronics.raspberry_pi import (
+    get_raspberry_pi5,
+    get_raspberry_pi_pico2,
+)
 from zcad_core.hardware.electronics.seeed import get_seeed_xiao_esp32s3
 
 
@@ -39,6 +42,7 @@ _BOARDS: tuple[BoardSpec, ...] = (
     get_adafruit_feather_rp2040(),
     get_arduino_uno_r4_wifi(),
     get_raspberry_pi_pico2(),
+    get_raspberry_pi5(),
     get_seeed_xiao_esp32s3(),
 )
 

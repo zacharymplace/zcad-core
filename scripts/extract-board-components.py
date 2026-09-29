@@ -75,6 +75,12 @@ SOURCES = {
         pcb_solid_index=373,
         quarter_turns=2,
     ),
+    "raspberry-pi-5": Source(
+        board="RASPBERRY_PI_5",
+        step="evidence/raspberry-pi-5/step/rpi-5b_no_graphics.step",
+        pcb_solid_index=2689,
+        quarter_turns=1,
+    ),
     "seeed-xiao-esp32s3": Source(
         board="SEEED_XIAO_ESP32_S3",
         step="evidence/seeed-xiao-esp32s3/step/xiao_esp32s3_z_up.step",

@@ -37,9 +37,10 @@ def test_every_board_has_parts_clear_of_its_pcb(board_identifier: str) -> None:
     assert components
     for part in components:
         part.validate_against_board(board.board_thickness_mm)
-        # Parts lie on the board, give or take an overhanging connector.
-        assert abs(part.center_x_mm) < board.board_width_mm / 2 + 2
-        assert abs(part.center_y_mm) < board.board_length_mm / 2 + 2
+        # Parts lie on the board, give or take an overhanging connector: the
+        # Pi 5's Ethernet jack, LED windows and all, stands 3 mm proud.
+        assert abs(part.center_x_mm) < board.board_width_mm / 2 + 3.5
+        assert abs(part.center_y_mm) < board.board_length_mm / 2 + 3.5
 
 
 @pytest.mark.parametrize(

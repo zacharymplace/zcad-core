@@ -17,6 +17,7 @@ def test_catalogs_list_every_board_and_display() -> None:
     assert list_boards() == (
         "ADAFRUIT_FEATHER_RP2040",
         "ARDUINO_UNO_R4_WIFI",
+        "RASPBERRY_PI_5",
         "RASPBERRY_PI_PICO_2",
         "SEEED_XIAO_ESP32_S3",
     )

@@ -1,7 +1,7 @@
 """Dividers between the bays of a Pi 5 group enclosure.
 
-A divider is a wall across the enclosure, front to back, just past a bay's
-40-pin header edge. It can run the full height to the lid or stop low, and it
+A divider is a wall across the enclosure, front to back, just clear of the
+40-pin header edge of the bay to its right. It can run the full height to the lid or stop low, and it
 can carry vents, a cable pass-through notch, and slots for zip ties.
 
 This module works in plain numbers: it knows nothing of bays, only where a
@@ -39,7 +39,7 @@ class Divider:
     the lid and holds the lid up. A low divider is open at the top, for
     separating cables. ``vents`` cuts vertical slots near the top of a
     full-height divider, so air passes between bays but line of sight does
-    not. ``notch`` cuts a pass-through at the left bay's header, for a ribbon
+    not. ``notch`` cuts a pass-through at the right bay's header, for a ribbon
     or jumper wires. ``tie_slots`` cuts two rows of slot pairs for zip ties,
     to strap what sits beside it to the divider.
     """
