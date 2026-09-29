@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,14 @@ from zcad_core.features.enclosure_group import (
     print_oriented_parts,
 )
 from zcad_core.features.enclosure_group_dividers import Divider
+from zcad_core.features.enclosure_group_viewer import (
+    DATA_FILE,
+    DEFAULT_CONFIGS,
+    PAGE_FILE,
+    ViewerConfig,
+    viewer_data,
+    viewer_page,
+)
 from zcad_core.printing import SliceError, slice_models
 from zcad_core.profiles import load_printer_profile
 
@@ -257,6 +266,55 @@ def _slice(
     }
 
 
+def _group_viewer(args: argparse.Namespace) -> int:
+    """Write the 3D viewer page and its mesh data, for the default set of
+    enclosures or the ``--bays`` rows given."""
+
+    configs = (
+        tuple(
+            ViewerConfig(
+                key=f"custom-{index}",
+                name=spec,
+                blurb="Built from --bays.",
+                bays=_bays(spec),
+            )
+            for index, spec in enumerate(args.bays, 1)
+        )
+        if args.bays
+        else DEFAULT_CONFIGS
+    )
+    directory = args.output_directory
+    targets = {PAGE_FILE: directory / PAGE_FILE, DATA_FILE: directory / DATA_FILE}
+
+    for target in targets.values():
+        if target.exists():
+            raise FileExistsError(f"Refusing to overwrite {target}")
+
+    data = viewer_data(configs)
+    directory.mkdir(parents=True, exist_ok=True)
+    targets[DATA_FILE].write_text(
+        json.dumps(data, separators=(",", ":")), encoding="utf-8"
+    )
+    targets[PAGE_FILE].write_text(
+        viewer_page(standalone=args.standalone), encoding="utf-8"
+    )
+    emit(
+        {
+            "page": str(targets[PAGE_FILE]),
+            "data": str(targets[DATA_FILE]),
+            "data_bytes": targets[DATA_FILE].stat().st_size,
+            "standalone": args.standalone,
+            "configurations": [
+                {"key": entry["key"], "name": entry["name"], "size_mm": entry["size"]}
+                for entry in data
+            ],
+            "view": f"python3 -m http.server --directory {directory}",
+        }
+    )
+
+    return 0
+
+
 def _group_build(args: argparse.Namespace) -> int:
     bays = _bays(args.bays)
     design = GroupDesign(
@@ -397,3 +455,26 @@ def register(
     )
     build.add_argument("--slicer-profile", type=Path, default=DEFAULT_SLICER_PROFILE)
     build.set_defaults(handler=_group_build)
+
+    viewer = commands.add_parser(
+        "viewer",
+        help="write an interactive 3D viewer of the enclosures",
+    )
+    viewer.add_argument("--output-directory", required=True, type=Path)
+    viewer.add_argument(
+        "--bays",
+        action="append",
+        help=(
+            "a row to show, in the syntax of build --bays; repeat for several. "
+            "Without it the viewer shows the five standard configurations."
+        ),
+    )
+    viewer.add_argument(
+        "--standalone",
+        action="store_true",
+        help=(
+            "wrap the page in a document skeleton for a local web server; "
+            "leave it off to publish the page with the Artifact tool"
+        ),
+    )
+    viewer.set_defaults(handler=_group_viewer)
