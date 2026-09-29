@@ -179,8 +179,8 @@ def test_the_cli_takes_per_bay_heights_and_reports_them(
 @pytest.mark.parametrize(
     ("bays", "message"),
     [
-        ("pi5:height=3", "standoff=<mm> or headroom=<mm>"),
-        ("pi5:standoff", "standoff=<mm> or headroom=<mm>"),
+        ("pi5:height=3", "standoff=<mm>, headroom=<mm>"),
+        ("pi5:standoff", "standoff=<mm>, headroom=<mm>"),
         ("pi5:standoff=tall", "needs a number"),
         ("hat", "bay kind must be one of"),
     ],

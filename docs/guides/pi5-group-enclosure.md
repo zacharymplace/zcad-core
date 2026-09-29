@@ -34,7 +34,7 @@ gap-then-slot pattern, so any bay can take a Pi.
 | --- | --- |
 | `pi5` | Four M2.5 standoffs, port openings, vents. Envelope checked. |
 | `reserved` | The same as `pi5`, with no Pi fitted yet. Drop one in later with no reprint. |
-| `open` | A flat shelf, `--open-bay-width-mm` wide (40), for an SSD, a switch, or a power supply. No openings are cut; add your own. |
+| `open` | A flat shelf, `--open-bay-width-mm` wide (40), for an SSD, a switch, or a power supply. Wall openings are cut only where you ask; see [Openings for open bays](#openings-for-open-bays). |
 
 The Pi is held by four M2.5 self-tapping screws through its mounting holes
 into the standoffs. The lid screws into six M3 heat-set inserts (corners and
@@ -65,6 +65,39 @@ a Pi that reaches the lid fails `hardware_clear_of_lid`.
 
 To leave one bay low and another tall in the same print, you need a stepped
 lid; the builder does not make one.
+
+## Openings for open bays
+
+An `open` bay's shelf has solid walls until you ask for a hole, for the cables
+of whatever sits on it:
+
+```bash
+zcad-validation enclosure-group build \
+  --bays "pi5,open:back=20x10@-5/3:front=12x8" \
+  --output-directory exports/shelf
+```
+
+An opening is `front=<width>x<height>` or `back=<width>x<height>`, optionally
+followed by `@<offset>` and `/<bottom>`, all in millimetres:
+
+- `offset` runs along the row from the middle of the shelf (negative is
+  left); it defaults to 0.
+- `bottom` is the opening's lower edge above the floor's top face; it defaults
+  to 0.
+
+So `back=20x10@-5/3` is 20 mm wide and 10 mm tall in the back wall, 5 mm left
+of the shelf's middle, starting 3 mm up. In Python it is
+`BayOpening("back", 20, 10, offset_mm=-5, bottom_mm=3)` in `Bay.openings`. A bay
+can take several openings.
+
+Only the front and back walls take openings; the ends are the join walls. The
+builder refuses:
+
+- an opening on a `pi5` or `reserved` bay, whose openings are set by its ports;
+- one that leaves under 1 mm of wall to either end of the shelf, or under 1 mm
+  under the lid (the box is as tall as its tallest bay needs, so raise
+  `headroom` on a bay if the opening must be taller); and
+- two openings in one wall that overlap.
 
 ## Room to grow
 

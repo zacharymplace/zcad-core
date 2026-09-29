@@ -46,6 +46,10 @@ from zcad_core.hardware import (
 
 BayKind = Literal["pi5", "reserved", "open"]
 BAY_KINDS: tuple[BayKind, ...] = ("pi5", "reserved", "open")
+OpeningWall = Literal["front", "back"]
+OPENING_WALLS: tuple[OpeningWall, ...] = ("front", "back")
+# Wall left between an opening and the shelf's ends, and under the lid.
+_OPENING_RIM_MM = 1.0
 # The card must clear the floor: its depth under the board plus this much.
 _MINIMUM_SD_FLOOR_GAP_MM = 0.4
 
@@ -129,18 +133,38 @@ class GroupDesign:
 
 
 @dataclass(frozen=True)
+class BayOpening:
+    """A rectangular opening through an ``open`` bay's front or back wall.
+
+    ``offset_mm`` runs along X from the middle of the bay's shelf, and
+    ``bottom_mm`` is the opening's lower edge above the floor's top face. It
+    must sit inside the shelf, leave a millimetre of wall to each side, and
+    stop a millimetre short of the lid.
+    """
+
+    wall: OpeningWall
+    width_mm: float
+    height_mm: float
+    offset_mm: float = 0.0
+    bottom_mm: float = 0.0
+
+
+@dataclass(frozen=True)
 class Bay:
     """One bay, with heights that differ from the design's defaults.
 
     ``standoff_height_mm`` lifts a Pi off the floor, for a board mounted
     under it; ``headroom_mm`` is the room its parts need above the PCB, for a
     HAT. The lid is flat, so the box is as tall as its tallest bay needs and
-    the other bays get spare room above their boards.
+    the other bays get spare room above their boards. ``openings`` cut
+    through an ``open`` bay's walls, for the cables of whatever sits on its
+    shelf; a Pi bay's openings are fixed by its ports.
     """
 
     kind: BayKind = "pi5"
     standoff_height_mm: float | None = None
     headroom_mm: float | None = None
+    openings: tuple[BayOpening, ...] = ()
 
 
 BayLike = BayKind | Bay
@@ -161,6 +185,7 @@ class BayLayout:
     headroom_mm: float
     board_bottom_z_mm: float
     board_top_z_mm: float
+    openings: tuple[BayOpening, ...] = ()
 
     @property
     def needed_top_z_mm(self) -> float:
@@ -246,6 +271,7 @@ def build_group_enclosure(
     )
     cavity_top = max(layout.needed_top_z_mm for layout in layouts)
     inner_height = cavity_top - design.floor_mm
+    _require_openings_under_lid(layouts, inner_height)
     wall = design.wall_mm
     pi_center_y = wall + design.front_clearance_mm + pi.board_length_mm / 2
 
@@ -319,6 +345,7 @@ def build_group_enclosure(
         wall=wall,
         pi_center_y=pi_center_y,
     )
+    base = _cut_bay_openings(base, layouts, design)
 
     join_positions: tuple[tuple[float, float], ...] = ()
 
@@ -414,11 +441,65 @@ def _layout(
                 headroom_mm=headroom,
                 board_bottom_z_mm=board_bottom,
                 board_top_z_mm=board_top,
+                openings=_check_openings(bay, index, slot),
             )
         )
         cursor += gap + slot
 
     return tuple(layouts), cursor + design.end_margin_mm
+
+
+def _check_openings(bay: Bay, index: int, slot_width: float) -> tuple[BayOpening, ...]:
+    """A bay's openings, refusing any that cannot be cut where asked."""
+
+    label = f"bay {index} ({bay.kind})"
+
+    if bay.openings and bay.kind != "open":
+        raise ValueError(
+            f"{label}: only an open bay takes openings; a Pi bay's are set by its ports"
+        )
+
+    for opening in bay.openings:
+        if opening.wall not in OPENING_WALLS:
+            raise ValueError(f"{label}: opening wall must be one of {OPENING_WALLS}")
+
+        if opening.width_mm <= 0 or opening.height_mm <= 0:
+            raise ValueError(f"{label}: an opening needs a width and height above zero")
+
+        if opening.bottom_mm < 0:
+            raise ValueError(f"{label}: an opening cannot start below the floor")
+
+        if abs(opening.offset_mm) + opening.width_mm / 2 > (
+            slot_width / 2 - _OPENING_RIM_MM
+        ):
+            raise ValueError(
+                f"{label}: a {opening.width_mm:g} mm opening at offset "
+                f"{opening.offset_mm:g} mm does not fit the {slot_width:g} mm shelf "
+                f"with {_OPENING_RIM_MM:g} mm of wall to each side"
+            )
+
+    for i, first in enumerate(bay.openings):
+        for second in bay.openings[i + 1 :]:
+            if first.wall == second.wall and _overlap(first, second):
+                raise ValueError(
+                    f"{label}: two openings in the {first.wall} wall overlap"
+                )
+
+    return bay.openings
+
+
+def _overlap(first: BayOpening, second: BayOpening) -> bool:
+    def spans(opening: BayOpening) -> tuple[float, float, float, float]:
+        return (
+            opening.offset_mm - opening.width_mm / 2,
+            opening.offset_mm + opening.width_mm / 2,
+            opening.bottom_mm,
+            opening.bottom_mm + opening.height_mm,
+        )
+
+    a, b = spans(first), spans(second)
+
+    return a[0] < b[1] and b[0] < a[1] and a[2] < b[3] and b[2] < a[3]
 
 
 def _heights(
@@ -708,6 +789,53 @@ def _cut_pi_openings(
                 cutter_depth_mm=depth,
             ),
         )
+
+    return base
+
+
+def _require_openings_under_lid(
+    layouts: tuple[BayLayout, ...], inner_height: float
+) -> None:
+    """Refuse an opening that would reach the lid's seat, and say how to
+    make room: the box is as tall as its tallest bay needs."""
+
+    for layout in layouts:
+        for opening in layout.openings:
+            top = opening.bottom_mm + opening.height_mm
+
+            if top > inner_height - _OPENING_RIM_MM:
+                raise ValueError(
+                    f"bay {layout.index}: the opening reaches {top:g} mm but the "
+                    f"box is {inner_height:g} mm tall inside and needs "
+                    f"{_OPENING_RIM_MM:g} mm of wall under the lid; lower the "
+                    "opening or raise headroom_mm on a bay"
+                )
+
+
+def _cut_bay_openings(
+    base: cq.Workplane, layouts: tuple[BayLayout, ...], design: GroupDesign
+) -> cq.Workplane:
+    """The front and back wall openings an ``open`` bay asks for."""
+
+    depth = 2 * (design.wall_mm + 0.5)
+
+    for layout in layouts:
+        for opening in layout.openings:
+            base = cut_connector_opening(
+                base,
+                parameters=ConnectorCutoutParameters(
+                    edge="negative_y" if opening.wall == "front" else "positive_y",
+                    center_offset_mm=(
+                        design.wall_mm + layout.center_x_mm + opening.offset_mm
+                    ),
+                    bottom_z_mm=design.floor_mm + opening.bottom_mm,
+                    width_mm=opening.width_mm,
+                    height_mm=opening.height_mm,
+                    width_clearance_mm=0.0,
+                    height_clearance_mm=0.0,
+                    cutter_depth_mm=depth,
+                ),
+            )
 
     return base
 
