@@ -28,8 +28,12 @@ This repository intentionally contains no product-specific models.
 
 ## Installation
 
+Development and CI use Python 3.11, the oldest version the package supports,
+so the local gate matches CI:
+
 ```bash
-pip install -e ".[dev]"
+python3.11 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
 ```
 
 ## Command-line interface
