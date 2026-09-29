@@ -18,8 +18,11 @@ This repository intentionally contains no product-specific models.
 
 ## Getting started
 
-- `examples/pico2_oled_enclosure.py` designs, checks, and exports a
-  screw-together enclosure with the core engine.
+- `zcad-validation enclosure build --board raspberry_pi_pico_2 --review
+  --output-directory exports/pico2` builds a printable, screw-together
+  enclosure; see `docs/guides/enclosure-builder.md`.
+- `examples/pico2_oled_enclosure.py` designs, checks, and exports an
+  enclosure with the core engine from Python.
 - `docs/guides/validation-lab-workflow.md` takes a board from its vendor STEP
   model to a promoted, validated fixture candidate.
 

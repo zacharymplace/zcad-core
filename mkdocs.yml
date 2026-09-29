@@ -29,6 +29,7 @@ nav:
   - Guides:
       - Validation Lab workflow: guides/validation-lab-workflow.md
       - Engine example: guides/engine-example.md
+      - Enclosure builder: guides/enclosure-builder.md
   - Roadmaps:
       - Validation Lab: roadmaps/validation-lab.md
       - Next phases: roadmaps/next-phases.md

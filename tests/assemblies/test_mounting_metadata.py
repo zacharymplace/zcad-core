@@ -16,6 +16,7 @@ from zcad_core.assemblies import (
 )
 from zcad_core.hardware import (
     RectangularConnectorSpec,
+    get_arduino_uno_r4_wifi,
     get_raspberry_pi_pico2,
     get_seeed_xiao_esp32s3,
 )
@@ -196,3 +197,7 @@ def test_unsupported_mounting_pattern_is_rejected() -> None:
         match="unsupported mounting pattern",
     ):
         assembly_mounting_hole_positions(component)
+
+
+def test_irregular_hole_pattern_has_no_rectangular_metadata() -> None:
+    assert rectangular_board_mounting_metadata(get_arduino_uno_r4_wifi()) is None

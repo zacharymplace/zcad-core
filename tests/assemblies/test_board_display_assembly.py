@@ -9,10 +9,12 @@ from zcad_core.assemblies import (
     DeviceAssembly,
     Placement,
     analyze_board_display_assembly,
+    build_board_assembly,
     build_board_display_assembly,
 )
 from zcad_core.hardware import (
     RectangularConnectorSpec,
+    get_raspberry_pi_pico2,
 )
 
 
@@ -288,4 +290,25 @@ def test_analyzer_rejects_negative_clearance() -> None:
         analyze_board_display_assembly(
             _assembly(),
             minimum_board_display_clearance_mm=-0.1,
+        )
+
+
+def test_board_assembly_has_only_the_board_and_connector() -> None:
+    assembly = build_board_assembly(
+        board=get_raspberry_pi_pico2(),
+        board_placement=Placement(),
+        connector_access_clearance_mm=2.0,
+    )
+
+    assert assembly.identifiers == ("board", "board_connector")
+    assert assembly.get("board").metadata["mounting"]["spacing_x_mm"] == 11.4
+
+
+def test_board_assembly_rejects_duplicate_identifiers() -> None:
+    with pytest.raises(ValueError, match="must be unique"):
+        build_board_assembly(
+            board=get_raspberry_pi_pico2(),
+            board_placement=Placement(),
+            board_identifier="same",
+            connector_identifier="same",
         )

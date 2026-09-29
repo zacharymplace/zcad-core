@@ -6,6 +6,7 @@ import pytest
 from zcad_core.assemblies import (
     DeviceAssembly,
     Placement,
+    build_board_assembly,
     build_board_display_assembly,
 )
 from zcad_core.features import (
@@ -15,7 +16,14 @@ from zcad_core.features import (
     centered_mounting_hole_positions,
 )
 from zcad_core.geometry.intersection import intersection_volume
-from zcad_core.hardware import get_raspberry_pi_pico2, get_reference_oled_128x64
+from zcad_core.hardware import (
+    get_adafruit_feather_rp2040,
+    get_arduino_uno_r4_wifi,
+    get_board,
+    get_raspberry_pi_pico2,
+    get_reference_oled_128x64,
+    list_boards,
+)
 
 BOARD = get_raspberry_pi_pico2()
 DISPLAY = get_reference_oled_128x64()
@@ -54,9 +62,107 @@ def cavity_top(enclosure: Enclosure) -> float:
     return spec.bottom_z_mm + spec.inner_height_mm
 
 
+def board_assembly(
+    board_identifier: str, placement: Placement | None = None
+) -> DeviceAssembly:
+    return build_board_assembly(
+        board=get_board(board_identifier),
+        board_placement=placement or Placement(),
+        connector_access_clearance_mm=2.0,
+    )
+
+
 def test_refuses_bosses_that_would_hit_the_board() -> None:
+    design = EnclosureDesign(side_clearance_mm=2.0)
+
     with pytest.raises(ValueError, match="base intersects 'board'"):
-        build_enclosure(pico2_oled_assembly(), board=BOARD, display=DISPLAY)
+        build_enclosure(
+            pico2_oled_assembly(), board=BOARD, display=DISPLAY, design=design
+        )
+
+
+def test_automatic_side_clearance_widens_one_axis_just_enough(
+    enclosure: Enclosure,
+) -> None:
+    automatic = build_enclosure(pico2_oled_assembly(), board=BOARD, display=DISPLAY)
+
+    def footprint(built: Enclosure) -> float:
+        bounds = solid(built.base).BoundingBox()
+        return bounds.xlen * bounds.ylen
+
+    assert automatic.side_clearance_mm == (2.0, 10.0)
+    assert footprint(automatic) < footprint(enclosure)
+
+
+@pytest.mark.parametrize("board_identifier", list_boards())
+def test_every_catalogued_board_gets_a_clear_enclosure(board_identifier: str) -> None:
+    assembly = board_assembly(board_identifier)
+
+    enclosure = build_enclosure(assembly, board=get_board(board_identifier))
+
+    assert len(enclosure.base.solids().vals()) == 1
+    assert len(enclosure.lid.solids().vals()) == 1
+    assert enclosure.board_support == (
+        "cradle" if board_identifier == "SEEED_XIAO_ESP32_S3" else "standoffs"
+    )
+
+
+def test_irregular_hole_pattern_gets_a_standoff_under_each_hole() -> None:
+    uno = get_arduino_uno_r4_wifi()
+    enclosure = build_enclosure(board_assembly(uno.identifier), board=uno)
+    base = solid(enclosure.base)
+
+    for x, y in uno.mounting_hole_positions_mm:
+        assert not base.isInside(cq.Vector(x, y, -0.5))
+        assert base.isInside(cq.Vector(x + 2.5, y, -0.5))
+
+
+def test_cable_opening_follows_an_off_centre_connector() -> None:
+    uno = get_arduino_uno_r4_wifi()
+    enclosure = build_enclosure(board_assembly(uno.identifier), board=uno)
+    spec = enclosure.specification
+    assert spec.cable_edge == "negative_x"
+    wall_x = spec.center_x_mm - spec.inner_width_mm / 2 - 1.0
+    z = spec.cable_bottom_z_mm + spec.cable_height_mm / 2
+    base = solid(enclosure.base)
+
+    assert not base.isInside(cq.Vector(wall_x, uno.usb_connector.center_offset_mm, z))
+    assert base.isInside(cq.Vector(wall_x, -uno.usb_connector.center_offset_mm, z))
+
+
+def test_cable_opening_passes_a_moulded_plug(enclosure: Enclosure) -> None:
+    spec = enclosure.specification
+    wall_y = spec.center_y_mm - spec.inner_depth_mm / 2 - 1.0
+    z = spec.cable_bottom_z_mm + spec.cable_height_mm / 2
+    base = solid(enclosure.base)
+    half_width = enclosure.design.cable_plug_width_mm / 2 - 0.1
+    half_height = enclosure.design.cable_plug_height_mm / 2 - 0.1
+
+    for dx, dz in (
+        (-half_width, 0),
+        (half_width, 0),
+        (0, -half_height),
+        (0, half_height),
+    ):
+        assert not base.isInside(cq.Vector(dx, wall_y, z + dz))
+
+
+def test_refuses_a_cable_opening_that_would_cut_a_boss() -> None:
+    feather = get_adafruit_feather_rp2040()
+
+    with pytest.raises(ValueError, match="cut a corner boss"):
+        build_enclosure(
+            board_assembly(feather.identifier),
+            board=feather,
+            design=EnclosureDesign(side_clearance_mm=2.0),
+        )
+
+
+def test_refuses_a_rotated_board() -> None:
+    assembly = board_assembly(BOARD.identifier, Placement(rotation_z_deg=90.0))
+
+    with pytest.raises(ValueError, match="must not be rotated"):
+        build_enclosure(assembly, board=BOARD)
 
 
 def test_base_and_lid_enclose_the_cavity(enclosure: Enclosure) -> None:
@@ -68,8 +174,9 @@ def test_base_and_lid_enclose_the_cavity(enclosure: Enclosure) -> None:
         (spec.inner_width_mm + 4, spec.inner_depth_mm + 4, spec.inner_height_mm + 2)
     )
     assert base.zmax == pytest.approx(cavity_top(enclosure))
-    assert (lid.xlen, lid.ylen, lid.zlen) == pytest.approx((base.xlen, base.ylen, 2))
-    assert lid.zmin == pytest.approx(base.zmax)
+    # The lid plate sits on the rim; its display retainer hangs below it.
+    assert (lid.xlen, lid.ylen) == pytest.approx((base.xlen, base.ylen))
+    assert lid.zmax == pytest.approx(base.zmax + CLEAR_DESIGN.lid_mm)
 
 
 def test_corner_bosses_hold_open_insert_pockets_under_lid_holes(
@@ -109,7 +216,7 @@ def test_bottom_and_top_clearances_set_standoff_height_and_lid_gap() -> None:
     display_top = DISPLAY_HEIGHT_MM + DISPLAY.module_depth_mm
 
     assert enclosure.specification.bottom_z_mm == pytest.approx(-3.0)
-    assert solid(enclosure.lid).BoundingBox().zmin == pytest.approx(display_top + 1.0)
+    assert cavity_top(enclosure) == pytest.approx(display_top + 1.0)
 
 
 def test_refuses_a_board_resting_on_the_floor() -> None:
@@ -159,6 +266,7 @@ def test_parts_are_clear_of_every_component(enclosure: Enclosure) -> None:
         ({"side_clearance_mm": -0.1}, "side_clearance_mm must not be negative"),
         ({"bottom_clearance_mm": -0.1}, "bottom_clearance_mm must not be"),
         ({"top_clearance_mm": -0.1}, "top_clearance_mm must not be negative"),
+        ({"cable_plug_width_mm": -1}, "cable_plug_width_mm must not be negative"),
     ],
 )
 def test_design_rejects_invalid_settings(

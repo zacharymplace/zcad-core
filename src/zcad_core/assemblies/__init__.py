@@ -8,6 +8,7 @@ from zcad_core.assemblies.board_display import (
     RectangularBoardSpec,
     RectangularDisplaySpec,
     analyze_board_display_assembly,
+    build_board_assembly,
     build_board_display_assembly,
 )
 from zcad_core.assemblies.boundary import (
@@ -76,6 +77,7 @@ __all__ = [
     "analyze_component_interference",
     "assembly_mounting_hole_positions",
     "board_retention_metadata",
+    "build_board_assembly",
     "build_board_display_assembly",
     "build_board_edge_connector_component",
     "build_rectangular_hardware_component",

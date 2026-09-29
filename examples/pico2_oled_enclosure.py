@@ -5,14 +5,24 @@ This walks the core engine end to end, without the Validation Lab:
 1. Place catalogued hardware (a Pico 2 under a 128x64 OLED) in an assembly.
 2. Check the assembly for interference and minimum clearances.
 3. Build the enclosure from it: a base with board standoffs, heat-set insert
-   bosses, and a cable opening, and a lid with screw holes and a display
-   window. The builder refuses features that would hit any part.
+   bosses, and a cable opening, and a lid with screw holes, a display
+   window, and a retainer that holds the display. The builder picks the
+   side clearance that keeps the bosses clear, and refuses features that
+   would hit any part.
 4. Export both parts through the validated pipeline: STEP, STL, and per-part
    metadata, published only if geometry validation passes.
+5. Write a review package beside them: an exploded GLB, SVG views, and a
+   report of clearances, checks, and the screws to buy.
 
 Run from the repository root:
 
     python examples/pico2_oled_enclosure.py [output-directory]
+
+The same enclosure comes from the command line with::
+
+    zcad-validation enclosure build --board raspberry_pi_pico_2 \
+      --display reference_oled_128x64 --bottom-clearance-mm 3 \
+      --top-clearance-mm 1 --output-directory exports/pico2-oled-enclosure --review
 
 The default output directory is ``exports/pico2-oled-enclosure`` (ignored by
 git). The gate runs this example (``tests/test_examples.py``) so it stays
@@ -31,7 +41,13 @@ from zcad_core.assemblies import (
     build_board_display_assembly,
 )
 from zcad_core.exporters import ExportRequest, ExportResult, export_parts
-from zcad_core.features import Enclosure, EnclosureDesign, build_enclosure
+from zcad_core.features import (
+    Enclosure,
+    EnclosureDesign,
+    EnclosureReview,
+    build_enclosure,
+    export_enclosure_review,
+)
 from zcad_core.hardware import get_raspberry_pi_pico2, get_reference_oled_128x64
 from zcad_core.profiles import load_printer_profile
 
@@ -43,12 +59,11 @@ DISPLAY = get_reference_oled_128x64()
 DISPLAY_HEIGHT_MM = 8.0
 BOARD_DISPLAY_CLEARANCE_MM = 1.0
 CONNECTOR_ACCESS_CLEARANCE_MM = 2.0
-# A 5 mm side clearance keeps the M3 corner bosses clear of the board; at
-# the 2 mm default the builder refuses, naming the board as the part they
-# would hit. The board sits on 3 mm standoffs, 1 mm under the lid's display.
+# The board sits on 3 mm standoffs, with the display 1 mm under the lid.
+# The side clearance is left automatic: the builder widens the long axis
+# until the M3 corner bosses clear the board and display.
 DESIGN = EnclosureDesign(
     fastener="M3",
-    side_clearance_mm=5.0,
     bottom_clearance_mm=3.0,
     top_clearance_mm=1.0,
 )
@@ -80,10 +95,11 @@ def enclosure() -> Enclosure:
     return build_enclosure(assembly(), board=BOARD, display=DISPLAY, design=DESIGN)
 
 
-def main(output_directory: Path) -> ExportResult:
-    parts = enclosure()
+def main(output_directory: Path) -> tuple[ExportResult, EnclosureReview]:
+    placed = assembly()
+    parts = build_enclosure(placed, board=BOARD, display=DISPLAY, design=DESIGN)
 
-    return export_parts(
+    result = export_parts(
         ExportRequest(
             design_name="pico2-oled-enclosure",
             design_type="enclosure",
@@ -94,6 +110,11 @@ def main(output_directory: Path) -> ExportResult:
             parameters={"wall": DESIGN.wall_mm, "floor": DESIGN.floor_mm},
         )
     )
+    review = export_enclosure_review(
+        parts, placed, output_directory=output_directory / "review"
+    )
+
+    return result, review
 
 
 if __name__ == "__main__":
@@ -102,7 +123,8 @@ if __name__ == "__main__":
         if len(sys.argv) > 1
         else REPOSITORY_ROOT / "exports/pico2-oled-enclosure"
     )
-    result = main(target)
+    result, review = main(target)
 
     for part in result.parts:
         print(f"{part.step_path}\n{part.stl_path}\n{part.metadata_path}")
+    print(f"review {'passed' if review.passed else 'FAILED'}: {review.report_path}")

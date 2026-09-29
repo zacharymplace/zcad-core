@@ -1,5 +1,7 @@
 """Tests for reusable PCB mounting features."""
 
+from dataclasses import dataclass
+
 import cadquery as cq
 import pytest
 
@@ -7,11 +9,14 @@ from zcad_core.features import (
     PcbStandoffParameters,
     add_board_standoffs,
     add_pcb_standoff,
+    board_hole_pattern,
     centered_mounting_hole_positions,
 )
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware import (
+    get_arduino_uno_r4_wifi,
     get_raspberry_pi_pico2,
+    get_seeed_xiao_esp32s3,
 )
 
 
@@ -115,3 +120,48 @@ def test_standoff_validation_rejects_thin_body() -> None:
         match="outer diameter",
     ):
         invalid.validate()
+
+
+def test_hole_pattern_of_a_rectangular_board_is_centred() -> None:
+    pattern = board_hole_pattern(get_raspberry_pi_pico2())
+
+    assert pattern is not None
+    assert pattern.positions == centered_mounting_hole_positions(
+        get_raspberry_pi_pico2()
+    )
+    assert pattern.hole_diameter_mm == pytest.approx(2.1)
+    assert pattern.hole_clearance_mm == pytest.approx(0.5)
+
+
+def test_hole_pattern_keeps_irregular_positions() -> None:
+    uno = get_arduino_uno_r4_wifi()
+    pattern = board_hole_pattern(uno)
+
+    assert pattern is not None
+    assert pattern.positions == uno.mounting_hole_positions_mm
+
+
+def test_board_without_holes_has_no_pattern() -> None:
+    assert board_hole_pattern(get_seeed_xiao_esp32s3()) is None
+
+
+def test_hole_pattern_needs_positions_or_spacings() -> None:
+    @dataclass(frozen=True)
+    class HalfSpecified:
+        mounting_hole_diameter_mm: float = 2.0
+        mounting_hole_spacing_x_mm: float = 10.0
+
+    with pytest.raises(ValueError, match="hole positions or both hole spacings"):
+        board_hole_pattern(HalfSpecified())
+
+
+def test_hole_pattern_standoff_matches_from_board() -> None:
+    board = get_raspberry_pi_pico2()
+    pattern = board_hole_pattern(board)
+    assert pattern is not None
+
+    assert pattern.standoff(
+        x=4.0, y=-7.0, base_height_mm=2.0, standoff_height_mm=3.0
+    ) == PcbStandoffParameters.from_board(
+        board=board, x=4.0, y=-7.0, base_height_mm=2.0
+    )

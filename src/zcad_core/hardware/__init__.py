@@ -13,8 +13,13 @@ from zcad_core.hardware.fasteners import (
 )
 
 __all__ = [
+    "BOARD_CATALOG",
+    "DISPLAY_CATALOG",
     "REFERENCE_OLED_128X64",
+    "AdafruitFeatherRp2040Spec",
+    "ArduinoUnoR4WifiSpec",
     "BoardEdge",
+    "BoardSpec",
     "DexcomG7Spec",
     "DisplayMountStyle",
     "DisplaySpec",
@@ -26,13 +31,19 @@ __all__ = [
     "RectangularConnectorSpec",
     "SeeedXiaoEsp32S3Spec",
     "TandemMobiSpec",
+    "get_adafruit_feather_rp2040",
+    "get_arduino_uno_r4_wifi",
+    "get_board",
     "get_dexcom_g7",
+    "get_display",
     "get_fastener",
     "get_magnet",
     "get_raspberry_pi_pico2",
     "get_reference_oled_128x64",
     "get_seeed_xiao_esp32s3",
     "get_tandem_mobi",
+    "list_boards",
+    "list_displays",
     "list_fasteners",
     "list_magnets",
 ]
@@ -42,12 +53,23 @@ from zcad_core.hardware.catalog import (
     HardwareSpec,
 )
 from zcad_core.hardware.electronics import (
+    BOARD_CATALOG,
+    DISPLAY_CATALOG,
+    AdafruitFeatherRp2040Spec,
+    ArduinoUnoR4WifiSpec,
     BoardEdge,
+    BoardSpec,
     RaspberryPiPico2Spec,
     RectangularConnectorSpec,
     SeeedXiaoEsp32S3Spec,
+    get_adafruit_feather_rp2040,
+    get_arduino_uno_r4_wifi,
+    get_board,
+    get_display,
     get_raspberry_pi_pico2,
     get_seeed_xiao_esp32s3,
+    list_boards,
+    list_displays,
 )
 from zcad_core.hardware.magnets import (
     MagnetSpec,

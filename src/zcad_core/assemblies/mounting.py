@@ -37,7 +37,14 @@ class RectangularMountingMetadata(TypedDict):
 def rectangular_board_mounting_metadata(
     board: object,
 ) -> RectangularMountingMetadata | None:
-    """Return mounting metadata when a complete board pattern exists."""
+    """Return mounting metadata when a complete board pattern exists.
+
+    A board that lists irregular holes in ``mounting_hole_positions_mm`` has
+    no rectangular pattern, so it gets none.
+    """
+    if getattr(board, "mounting_hole_positions_mm", None) is not None:
+        return None
+
     hole_fields = {
         "hole_diameter_mm": "mounting_hole_diameter_mm",
         "spacing_x_mm": "mounting_hole_spacing_x_mm",

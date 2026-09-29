@@ -9,6 +9,9 @@ from zcad_core.assemblies.clearance import (
     ClearanceEnvelope,
     ClearancePolicy,
 )
+from zcad_core.assemblies.component import (
+    AssemblyComponent,
+)
 from zcad_core.assemblies.connectors import (
     build_board_edge_connector_component,
 )
@@ -83,21 +86,82 @@ def build_board_display_assembly(
     if board_display_clearance_mm < 0:
         raise ValueError("board_display_clearance_mm must not be negative")
 
-    if connector_access_clearance_mm < 0:
-        raise ValueError("connector_access_clearance_mm must not be negative")
-
-    component_identifiers = (
-        board_identifier,
-        connector_identifier,
-        display_identifier,
+    _require_unique_identifiers(
+        (board_identifier, connector_identifier, display_identifier)
     )
 
-    for identifier in component_identifiers:
+    return DeviceAssembly(
+        (
+            *_board_components(
+                board=board,
+                board_placement=board_placement,
+                board_clearance=ClearanceEnvelope(
+                    positive_z_mm=board_display_clearance_mm,
+                ),
+                connector_access_clearance_mm=connector_access_clearance_mm,
+                board_identifier=board_identifier,
+                connector_identifier=connector_identifier,
+            ),
+            build_rectangular_hardware_component(
+                identifier=display_identifier,
+                hardware_identifier=display.identifier,
+                kind="display",
+                width_mm=display.module_width_mm,
+                depth_mm=display.module_height_mm,
+                height_mm=display.module_depth_mm,
+                placement=display_placement,
+                metadata={
+                    "mount_style": display.mount_style,
+                },
+            ),
+        )
+    )
+
+
+def build_board_assembly(
+    *,
+    board: RectangularBoardSpec,
+    board_placement: Placement,
+    connector_access_clearance_mm: float = 0.0,
+    board_identifier: str = "board",
+    connector_identifier: str = "board_connector",
+) -> DeviceAssembly:
+    """Build a rectangular board and its edge connector, with no display."""
+    _require_unique_identifiers((board_identifier, connector_identifier))
+
+    return DeviceAssembly(
+        _board_components(
+            board=board,
+            board_placement=board_placement,
+            board_clearance=ClearanceEnvelope(),
+            connector_access_clearance_mm=connector_access_clearance_mm,
+            board_identifier=board_identifier,
+            connector_identifier=connector_identifier,
+        )
+    )
+
+
+def _require_unique_identifiers(identifiers: tuple[str, ...]) -> None:
+    for identifier in identifiers:
         if not identifier.strip():
             raise ValueError("component identifiers must not be empty")
 
-    if len(set(component_identifiers)) != len(component_identifiers):
+    if len(set(identifiers)) != len(identifiers):
         raise ValueError("component identifiers must be unique")
+
+
+def _board_components(
+    *,
+    board: RectangularBoardSpec,
+    board_placement: Placement,
+    board_clearance: ClearanceEnvelope,
+    connector_access_clearance_mm: float,
+    board_identifier: str,
+    connector_identifier: str,
+) -> tuple[AssemblyComponent, AssemblyComponent]:
+    """The board, with its mounting and retention metadata, and its connector."""
+    if connector_access_clearance_mm < 0:
+        raise ValueError("connector_access_clearance_mm must not be negative")
 
     connector = board.usb_connector
     board_mounting = rectangular_board_mounting_metadata(board)
@@ -113,46 +177,30 @@ def build_board_display_assembly(
 
     board_metadata = resolved_board_metadata if resolved_board_metadata else None
 
-    return DeviceAssembly(
-        (
-            build_rectangular_hardware_component(
-                identifier=board_identifier,
-                hardware_identifier=board.identifier,
-                kind="pcb",
-                width_mm=board.board_width_mm,
-                depth_mm=board.board_length_mm,
-                height_mm=board.board_thickness_mm,
-                placement=board_placement,
-                clearance_envelope=ClearanceEnvelope(
-                    positive_z_mm=board_display_clearance_mm,
-                ),
-                metadata=board_metadata,
+    return (
+        build_rectangular_hardware_component(
+            identifier=board_identifier,
+            hardware_identifier=board.identifier,
+            kind="pcb",
+            width_mm=board.board_width_mm,
+            depth_mm=board.board_length_mm,
+            height_mm=board.board_thickness_mm,
+            placement=board_placement,
+            clearance_envelope=board_clearance,
+            metadata=board_metadata,
+        ),
+        build_board_edge_connector_component(
+            identifier=connector_identifier,
+            connector=connector,
+            board_width_mm=board.board_width_mm,
+            board_length_mm=board.board_length_mm,
+            board_thickness_mm=board.board_thickness_mm,
+            board_placement=board_placement,
+            clearance_envelope=ClearanceEnvelope.for_edge(
+                edge=connector.board_edge,
+                clearance_mm=connector_access_clearance_mm,
             ),
-            build_board_edge_connector_component(
-                identifier=connector_identifier,
-                connector=connector,
-                board_width_mm=board.board_width_mm,
-                board_length_mm=board.board_length_mm,
-                board_thickness_mm=board.board_thickness_mm,
-                board_placement=board_placement,
-                clearance_envelope=ClearanceEnvelope.for_edge(
-                    edge=connector.board_edge,
-                    clearance_mm=connector_access_clearance_mm,
-                ),
-            ),
-            build_rectangular_hardware_component(
-                identifier=display_identifier,
-                hardware_identifier=display.identifier,
-                kind="display",
-                width_mm=display.module_width_mm,
-                depth_mm=display.module_height_mm,
-                height_mm=display.module_depth_mm,
-                placement=display_placement,
-                metadata={
-                    "mount_style": display.mount_style,
-                },
-            ),
-        )
+        ),
     )
 
 

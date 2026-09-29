@@ -1,5 +1,22 @@
 """Electronics hardware specifications."""
 
+from zcad_core.hardware.electronics.adafruit import (
+    AdafruitFeatherRp2040Spec,
+    get_adafruit_feather_rp2040,
+)
+from zcad_core.hardware.electronics.arduino import (
+    ArduinoUnoR4WifiSpec,
+    get_arduino_uno_r4_wifi,
+)
+from zcad_core.hardware.electronics.boards import (
+    BOARD_CATALOG,
+    DISPLAY_CATALOG,
+    BoardSpec,
+    get_board,
+    get_display,
+    list_boards,
+    list_displays,
+)
 from zcad_core.hardware.electronics.connectors import (
     BoardEdge,
     RectangularConnectorSpec,
@@ -20,14 +37,25 @@ from zcad_core.hardware.electronics.seeed import (
 )
 
 __all__ = [
+    "BOARD_CATALOG",
+    "DISPLAY_CATALOG",
     "REFERENCE_OLED_128X64",
+    "AdafruitFeatherRp2040Spec",
+    "ArduinoUnoR4WifiSpec",
     "BoardEdge",
+    "BoardSpec",
     "DisplayMountStyle",
     "DisplaySpec",
     "RaspberryPiPico2Spec",
     "RectangularConnectorSpec",
     "SeeedXiaoEsp32S3Spec",
+    "get_adafruit_feather_rp2040",
+    "get_arduino_uno_r4_wifi",
+    "get_board",
+    "get_display",
     "get_raspberry_pi_pico2",
     "get_reference_oled_128x64",
     "get_seeed_xiao_esp32s3",
+    "list_boards",
+    "list_displays",
 ]

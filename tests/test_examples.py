@@ -24,7 +24,7 @@ def test_pico2_oled_enclosure_exports_a_validated_base_and_lid(
 ) -> None:
     example = load_example("pico2_oled_enclosure")
 
-    result = example.main(tmp_path)
+    result, review = example.main(tmp_path)
 
     assert [part.part_name for part in result.parts] == ["base", "lid"]
     for part in result.parts:
@@ -34,3 +34,5 @@ def test_pico2_oled_enclosure_exports_a_validated_base_and_lid(
 
     metadata = json.loads(result.parts[0].metadata_path.read_text(encoding="utf-8"))
     assert metadata["design"]["name"] == "pico2-oled-enclosure"
+    assert review.passed
+    assert review.glb_path.is_file()

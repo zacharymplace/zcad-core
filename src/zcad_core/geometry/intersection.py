@@ -11,13 +11,17 @@ from __future__ import annotations
 
 import cadquery as cq
 
+# Bounding boxes of shapes that only touch overlap by float noise; OCC cannot
+# build a box that thin, and there is no volume to measure in it.
+_MINIMUM_OVERLAP_MM = 1e-6
+
 
 def _overlap_box(first: cq.Shape, second: cq.Shape) -> cq.Shape | None:
     a, b = first.BoundingBox(), second.BoundingBox()
     low = (max(a.xmin, b.xmin), max(a.ymin, b.ymin), max(a.zmin, b.zmin))
     high = (min(a.xmax, b.xmax), min(a.ymax, b.ymax), min(a.zmax, b.zmax))
 
-    if any(h <= lo for lo, h in zip(low, high, strict=True)):
+    if any(h - lo <= _MINIMUM_OVERLAP_MM for lo, h in zip(low, high, strict=True)):
         return None
 
     return cq.Solid.makeBox(

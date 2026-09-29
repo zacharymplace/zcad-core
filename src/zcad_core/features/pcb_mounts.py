@@ -115,6 +115,82 @@ def centered_mounting_hole_positions(
     )
 
 
+@dataclass(frozen=True)
+class BoardHolePattern:
+    """A board's mounting holes, about the board centre in its own frame."""
+
+    hole_diameter_mm: float
+    hole_clearance_mm: float
+    positions: tuple[tuple[float, float], ...]
+
+    def standoff(
+        self,
+        *,
+        x: float,
+        y: float,
+        base_height_mm: float,
+        standoff_height_mm: float,
+        base_z_mm: float = 0.0,
+        radial_wall_mm: float = 1.5,
+    ) -> PcbStandoffParameters:
+        """A standoff for one hole of this pattern, placed at ``(x, y)``."""
+        hole_diameter = self.hole_diameter_mm + self.hole_clearance_mm
+
+        return PcbStandoffParameters(
+            x=x,
+            y=y,
+            base_height_mm=base_height_mm,
+            standoff_height_mm=standoff_height_mm,
+            outer_diameter_mm=hole_diameter + 2 * radial_wall_mm,
+            hole_diameter_mm=hole_diameter,
+            base_z_mm=base_z_mm,
+        )
+
+
+def board_hole_pattern(board: object) -> BoardHolePattern | None:
+    """A board's mounting holes, or None for a board without any.
+
+    A board lists irregular holes in ``mounting_hole_positions_mm``;
+    otherwise ``mounting_hole_spacing_x_mm`` and ``_y_mm`` give a centred
+    four-hole rectangle.
+    """
+    diameter = getattr(board, "mounting_hole_diameter_mm", None)
+
+    if diameter is None:
+        return None
+
+    explicit = getattr(board, "mounting_hole_positions_mm", None)
+
+    if explicit is not None:
+        positions = tuple((float(x), float(y)) for x, y in explicit)
+    else:
+        spacing_x = getattr(board, "mounting_hole_spacing_x_mm", None)
+        spacing_y = getattr(board, "mounting_hole_spacing_y_mm", None)
+
+        if spacing_x is None or spacing_y is None:
+            raise ValueError(
+                "a board with a mounting-hole diameter needs hole positions "
+                "or both hole spacings"
+            )
+
+        half_x, half_y = spacing_x / 2, spacing_y / 2
+        positions = (
+            (-half_x, -half_y),
+            (half_x, -half_y),
+            (-half_x, half_y),
+            (half_x, half_y),
+        )
+
+    if not positions:
+        raise ValueError("mounting_hole_positions_mm must not be empty")
+
+    return BoardHolePattern(
+        hole_diameter_mm=float(diameter),
+        hole_clearance_mm=float(getattr(board, "recommended_clearance_mm", 0.5)),
+        positions=positions,
+    )
+
+
 def add_pcb_standoff(
     model: cq.Workplane,
     *,

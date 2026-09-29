@@ -9,7 +9,8 @@ visual reviews (``report`` looks for ``visual-review.json`` beside each
 candidate manifest), and
 ``candidate register``, which writes its export-validation run beside the
 candidate manifest in ``export-validation/``; ``candidate derive`` does the
-same inside ``--output-directory``.
+same inside ``--output-directory``. ``enclosure build`` writes only inside
+its ``--output-directory``.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from collections.abc import Sequence
 
 from zcad_core.cli import (
     candidate,
+    enclosure,
     fixture,
     review,
     revision,
@@ -28,7 +30,16 @@ from zcad_core.cli import (
     trial,
 )
 
-_COMMAND_GROUPS = (target, candidate, fixture, trial, review, revision, status)
+_COMMAND_GROUPS = (
+    target,
+    candidate,
+    fixture,
+    trial,
+    review,
+    revision,
+    status,
+    enclosure,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
