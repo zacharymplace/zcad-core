@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 import cadquery as cq
 
+from zcad_core.geometry.boxes import box_between
 from zcad_core.hardware.electronics.connectors import BoardEdge
 
 # Rotation that turns the cradle's local frame (connector on negative Y)
@@ -109,19 +110,6 @@ def add_board_cradle(
     )
 
 
-def _box(
-    x: tuple[float, float], y: tuple[float, float], z: tuple[float, float]
-) -> cq.Workplane:
-    """A box spanning each pair of coordinates, in either order."""
-    (x0, x1), (y0, y1), (z0, z1) = sorted(x), sorted(y), sorted(z)
-
-    return (
-        cq.Workplane("XY")
-        .box(x1 - x0, y1 - y0, z1 - z0, centered=False)
-        .translate((x0, y0, z0))
-    )
-
-
 def _local_cradle(p: BoardCradleParameters) -> cq.Workplane:
     """The cradle about the origin, connector edge toward negative Y."""
     width, depth = p._local_footprint()
@@ -132,23 +120,23 @@ def _local_cradle(p: BoardCradleParameters) -> cq.Workplane:
     under_board = (p.base_z_mm - 1, p.board_bottom_z_mm + 1)
     inner_w, inner_d = half_w - p.ledge_mm, half_d - p.ledge_mm
 
-    ledge = _box(
+    ledge = box_between(
         (-outer_w, outer_w), (-outer_d, outer_d), (p.base_z_mm, p.board_bottom_z_mm)
-    ).cut(_box((-inner_w, inner_w), (-inner_d, inner_d), under_board))
+    ).cut(box_between((-inner_w, inner_w), (-inner_d, inner_d), under_board))
 
     # Free each clip from the ledge so it can flex.
     slot = p.clip_width_mm / 2 + p.clip_slot_mm
 
     for side in (-1, 1):
         ledge = ledge.cut(
-            _box(
+            box_between(
                 (side * (inner_w - 0.01), side * (outer_w + 1)),
                 (-slot, slot),
                 under_board,
             )
         )
 
-    stop = _box(
+    stop = box_between(
         (-outer_w, outer_w),
         (half_d + p.clearance_mm, outer_d),
         (p.board_bottom_z_mm - 0.01, board_top),
@@ -172,7 +160,7 @@ def _clip(
     lip_top = lip_bottom + p.clip_lip_height_mm
     width = (-p.clip_width_mm / 2, p.clip_width_mm / 2)
 
-    stem = _box((side * inner, side * outer), width, (p.base_z_mm, lip_top))
-    lip = _box((side * reach, side * outer), width, (lip_bottom, lip_top))
+    stem = box_between((side * inner, side * outer), width, (p.base_z_mm, lip_top))
+    lip = box_between((side * reach, side * outer), width, (lip_bottom, lip_top))
 
     return stem.union(lip)

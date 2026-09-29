@@ -14,6 +14,8 @@ from dataclasses import dataclass
 
 import cadquery as cq
 
+from zcad_core.geometry.boxes import box_between
+
 
 @dataclass(frozen=True)
 class DisplayRetainerParameters:
@@ -90,19 +92,6 @@ def add_display_retainer(
     return model.union(retainer)
 
 
-def _box(
-    x: tuple[float, float], y: tuple[float, float], z: tuple[float, float]
-) -> cq.Workplane:
-    """A box spanning each pair of coordinates, in either order."""
-    (x0, x1), (y0, y1), (z0, z1) = sorted(x), sorted(y), sorted(z)
-
-    return (
-        cq.Workplane("XY")
-        .box(x1 - x0, y1 - y0, z1 - z0, centered=False)
-        .translate((x0, y0, z0))
-    )
-
-
 def _local_retainer(p: DisplayRetainerParameters) -> cq.Workplane:
     """The retainer about the module centre."""
     half_w, half_d = p.module_width_mm / 2, p.module_depth_mm / 2
@@ -116,12 +105,12 @@ def _local_retainer(p: DisplayRetainerParameters) -> cq.Workplane:
 
     for sx in (-1, 1):
         for sy in (-1, 1):
-            leg_x = _box(
+            leg_x = box_between(
                 (sx * outer_w, sx * (inner_w - p.corner_leg_mm)),
                 (sy * inner_d, sy * outer_d),
                 (post_bottom, top),
             )
-            leg_y = _box(
+            leg_y = box_between(
                 (sx * inner_w, sx * outer_w),
                 (sy * outer_d, sy * (inner_d - p.corner_leg_mm)),
                 (post_bottom, top),
@@ -130,7 +119,7 @@ def _local_retainer(p: DisplayRetainerParameters) -> cq.Workplane:
 
             if p.module_top_z_mm < p.lid_underside_z_mm:
                 retainer = retainer.union(
-                    _box(
+                    box_between(
                         (sx * half_w, sx * (half_w - p.pad_mm)),
                         (sy * half_d, sy * (half_d - p.pad_mm)),
                         (p.module_top_z_mm, top),
@@ -153,8 +142,8 @@ def _clip(
     lip_bottom = lip_top - p.clip_lip_height_mm
     width = (-p.clip_width_mm / 2, p.clip_width_mm / 2)
 
-    stem = _box((side * inner_w, side * outer), width, (lip_bottom, top))
-    lip = _box((side * reach, side * outer), width, (lip_bottom, lip_top))
+    stem = box_between((side * inner_w, side * outer), width, (lip_bottom, top))
+    lip = box_between((side * reach, side * outer), width, (lip_bottom, lip_top))
 
     return stem.union(lip)
 

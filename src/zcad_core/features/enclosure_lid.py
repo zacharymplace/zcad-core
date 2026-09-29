@@ -23,6 +23,7 @@ from dataclasses import dataclass
 import cadquery as cq
 
 from zcad_core.features.connector_cutouts import ConnectorCutoutParameters
+from zcad_core.geometry.boxes import box_between
 
 LIP_DEPTH_MM = 2.0
 SNAP_SKIRT_DEPTH_MM = 4.5
@@ -77,18 +78,6 @@ class Cavity:
         return self.width_mm if edge.endswith("_y") else self.depth_mm
 
 
-def _box(
-    x: tuple[float, float], y: tuple[float, float], z: tuple[float, float]
-) -> cq.Workplane:
-    (x0, x1), (y0, y1), (z0, z1) = sorted(x), sorted(y), sorted(z)
-
-    return (
-        cq.Workplane("XY")
-        .box(x1 - x0, y1 - y0, z1 - z0, centered=False)
-        .translate((x0, y0, z0))
-    )
-
-
 def _band(
     cavity: Cavity,
     edge: str,
@@ -105,14 +94,14 @@ def _band(
 
     if edge.endswith("_y"):
         face = cavity.center_y_mm + sign * cavity.depth_mm / 2
-        return _box(
+        return box_between(
             (cavity.center_x_mm + along[0], cavity.center_x_mm + along[1]),
             (face - sign * inward[0], face - sign * inward[1]),
             z,
         )
 
     face = cavity.center_x_mm + sign * cavity.width_mm / 2
-    return _box(
+    return box_between(
         (face - sign * inward[0], face - sign * inward[1]),
         (cavity.center_y_mm + along[0], cavity.center_y_mm + along[1]),
         z,
@@ -129,10 +118,10 @@ def skirt(cavity: Cavity, depth_mm: float) -> cq.Workplane:
     z = (cavity.top_z_mm - depth_mm, cavity.top_z_mm + 0.01)
     x, y = cavity.center_x_mm, cavity.center_y_mm
 
-    return _box(
+    return box_between(
         (x - outer_w / 2, x + outer_w / 2), (y - outer_d / 2, y + outer_d / 2), z
     ).cut(
-        _box(
+        box_between(
             (x - inner_w / 2, x + inner_w / 2),
             (y - inner_d / 2, y + inner_d / 2),
             (z[0] - 1, z[1] + 1),
@@ -167,7 +156,7 @@ def notch_skirt(
         inward_x = -reach if x < corner_x else reach
         inward_y = -reach if y < corner_y else reach
         skirt_body = skirt_body.cut(
-            _box((corner_x, x + inward_x), (corner_y, y + inward_y), z)
+            box_between((corner_x, x + inward_x), (corner_y, y + inward_y), z)
         )
 
     for opening in openings:
