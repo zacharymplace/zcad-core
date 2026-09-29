@@ -1,22 +1,26 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
-
-import cadquery as cq
 
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention.backend import (
     CornerCaptureFitCheck,
     as_corner_capture_fit_report,
 )
+from zcad_core.retention.capture_interference import (
+    GeometryInterferenceResult,
+    measure_capture_interference,
+)
 from zcad_core.retention.corner_capture import (
     as_corner_capture_parameters,
 )
-from zcad_core.retention.generator import GENERATOR_VERSION
+from zcad_core.retention.evidence_report import (
+    evidence_report,
+    require_manufacturing,
+    write_evidence_report,
+)
 from zcad_core.retention.manufacturing import (
     ManufacturingPolicy,
     ManufacturingReport,
@@ -30,24 +34,6 @@ from zcad_core.retention.production_execution import (
 from zcad_core.retention.synthetic_backend import (
     SyntheticCornerCaptureBackend,
 )
-
-
-@dataclass(frozen=True)
-class GeometryInterferenceResult:
-    """Intersection measurements for one production execution."""
-
-    pcb_capture_intersection_mm3: float
-    component_capture_intersection_mm3: float
-    tolerance_mm3: float = 1e-6
-
-    @property
-    def passed(self) -> bool:
-        """Whether captures avoid PCB and component material."""
-
-        return (
-            self.pcb_capture_intersection_mm3 <= self.tolerance_mm3
-            and self.component_capture_intersection_mm3 <= self.tolerance_mm3
-        )
 
 
 @dataclass(frozen=True)
@@ -83,47 +69,23 @@ def generate_production_evidence_artifact(
             "Generated capture geometry intersects production board material"
         )
 
-    report_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
     manufacturing = validate_corner_capture_manufacturing(
         as_corner_capture_parameters(execution.execution.parameters),
         policy=(manufacturing_policy or ManufacturingPolicy()),
     )
+    require_manufacturing(manufacturing)
 
-    if not manufacturing.passed:
-        failed_checks = ", ".join(
-            result.check.value for result in manufacturing.failures
-        )
-
-        raise ValueError(
-            "Generated capture geometry failed "
-            f"manufacturing validation: {failed_checks}"
-        )
-
-    report = build_evidence_report(
-        execution=execution,
-        interference=interference,
-        manufacturing=manufacturing,
-    )
-    # The adapter settings that chose the capture corners, so the candidate
-    # can be regenerated exactly (a board may need a non-default keepout).
-    report["generator_version"] = GENERATOR_VERSION
-    report["generation"] = {
-        "corner_keepout_mm": request.corner_keepout_mm,
-        "vertical_margin_mm": request.vertical_margin_mm,
-    }
-
-    report_path.write_text(
-        json.dumps(
-            report,
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
+    write_evidence_report(
+        build_evidence_report(
+            execution=execution,
+            interference=interference,
+            manufacturing=manufacturing,
+        ),
+        report_path,
+        generation={
+            "corner_keepout_mm": request.corner_keepout_mm,
+            "vertical_margin_mm": request.vertical_margin_mm,
+        },
     )
 
     return ProductionEvidenceArtifact(
@@ -141,29 +103,9 @@ def analyze_capture_interference(
 
     parameters = as_corner_capture_parameters(execution.execution.parameters)
 
-    capture_shape = workplane_shape(
-        SyntheticCornerCaptureBackend().build_geometry(parameters)
-    )
-
-    if capture_shape.isNull():
-        raise ValueError("Production execution contains no capture geometry")
-
-    pcb_intersection = _intersection_volume(
-        capture_shape,
-        execution.board_model.pcb,
-    )
-
-    component_intersection = sum(
-        _intersection_volume(
-            capture_shape,
-            component,
-        )
-        for component in (execution.board_model.component_solids)
-    )
-
-    return GeometryInterferenceResult(
-        pcb_capture_intersection_mm3=(pcb_intersection),
-        component_capture_intersection_mm3=(component_intersection),
+    return measure_capture_interference(
+        workplane_shape(SyntheticCornerCaptureBackend().build_geometry(parameters)),
+        execution.board_model,
     )
 
 
@@ -175,116 +117,21 @@ def build_evidence_report(
 ) -> dict[str, object]:
     """Build a deterministic, inspectable evidence record."""
 
-    source_step = execution.board_model.source_step
-    source_sha256 = _sha256(source_step)
-    output_sha256 = _sha256(execution.output_step)
-
-    pcb_bounds = execution.board_model.pcb.BoundingBox()
-
-    parameters = as_corner_capture_parameters(execution.execution.parameters)
-    report = as_corner_capture_fit_report(execution.execution.report)
-
-    fit_results = {
-        result.check.value: {
-            "passed": result.passed,
-            "detail": result.detail,
-        }
-        for result in report.results
-    }
-
-    required_checks = {check.value for check in CornerCaptureFitCheck}
-
-    observed_checks = set(fit_results)
-
-    return {
-        "schema_version": "1.0.0",
-        "generated_at_utc": (datetime.now(UTC).isoformat()),
-        "decision": (
-            "verified_candidate"
-            if execution.passed
-            and interference.passed
-            and manufacturing.passed
-            and observed_checks == required_checks
-            else "rejected"
-        ),
-        "source": {
-            "step_path": str(source_step),
-            "step_sha256": source_sha256,
-            "pcb_solid_index": (execution.board_model.pcb_solid_index),
+    return evidence_report(
+        execution_passed=execution.passed,
+        board_model=execution.board_model,
+        output_step=execution.output_step,
+        fit_results=as_corner_capture_fit_report(execution.execution.report).results,
+        required_checks=CornerCaptureFitCheck,
+        parameters=as_corner_capture_parameters(execution.execution.parameters),
+        interference=interference,
+        manufacturing=manufacturing,
+        selection={
+            "selected_corners": [
+                corner.value for corner in execution.derivation.selected_corners
+            ],
         },
-        "output": {
-            "step_path": str(execution.output_step),
-            "step_sha256": output_sha256,
-        },
-        "pcb": {
-            "x_length_mm": pcb_bounds.xlen,
-            "y_length_mm": pcb_bounds.ylen,
-            "z_length_mm": pcb_bounds.zlen,
-            "component_solid_count": len(execution.board_model.component_solids),
-        },
-        "selected_corners": [
-            corner.value for corner in (execution.derivation.selected_corners)
-        ],
-        "policy": {
-            "arm_width_mm": (parameters.arm_width_mm),
-            "engagement_depth_mm": (parameters.engagement_depth_mm),
-            "board_clearance_mm": (parameters.board_clearance_mm),
-            "vertical_overlap_mm": (parameters.vertical_overlap_mm),
-            "minimum_wall_mm": (parameters.minimum_wall_mm),
-        },
-        "fit_checks": fit_results,
-        "interference": {
-            "passed": interference.passed,
-            "pcb_capture_intersection_mm3": (interference.pcb_capture_intersection_mm3),
-            "component_capture_intersection_mm3": (
-                interference.component_capture_intersection_mm3
-            ),
-            "tolerance_mm3": (interference.tolerance_mm3),
-        },
-        "manufacturing": {
-            "passed": manufacturing.passed,
-            "checks": {
-                result.check.value: {
-                    "passed": result.passed,
-                    "measured_value": (result.measured_value),
-                    "required_value": (result.required_value),
-                    "detail": result.detail,
-                }
-                for result in manufacturing.results
-            },
-        },
-        "metadata_publication": {
-            "approved": False,
-            "reason": (
-                "Visual inspection and physical fit validation are still required."
-            ),
-        },
-    }
-
-
-def _intersection_volume(
-    first: cq.Shape,
-    second: cq.Shape,
-) -> float:
-    intersection = first.intersect(second)
-
-    if intersection.isNull():
-        return 0.0
-
-    return float(intersection.Volume())
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-
-    with path.open("rb") as handle:
-        for block in iter(
-            lambda: handle.read(1024 * 1024),
-            b"",
-        ):
-            digest.update(block)
-
-    return digest.hexdigest()
+    )
 
 
 def recorded_generation_parameters(evidence_path: Path) -> dict[str, float]:

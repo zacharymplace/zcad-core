@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-import cadquery as cq
-
 from zcad_core.retention.backend import (
     CornerCaptureFitCheck,
     CornerCaptureFitReport,
@@ -14,7 +12,6 @@ from zcad_core.retention.corner_capture import (
     CornerCapturePolicy,
 )
 from zcad_core.retention.engine import (
-    RetentionEngine,
     RetentionExecution,
     RetentionStrategy,
 )
@@ -22,6 +19,11 @@ from zcad_core.retention.production_board import (
     ProductionBoardCornerAdapter,
     ProductionBoardModel,
     ProductionCornerDerivation,
+)
+from zcad_core.retention.production_run import (
+    export_retention_step,
+    run_backend,
+    verified_execution,
 )
 from zcad_core.retention.synthetic_backend import (
     SyntheticCornerCaptureBackend,
@@ -92,22 +94,11 @@ def execute_production_corner_capture(
         policy=request.policy,
     )
 
-    engine = RetentionEngine()
-    engine.register(
+    execution = run_backend(
         RetentionStrategy.CORNER_CAPTURE,
-        # SyntheticCornerCaptureBackend narrows RetentionBackend's
-        # object-typed parameters to CornerCaptureParameters, which
-        # Protocol contravariance cannot express structurally; the
-        # engine only ever calls it through this one strategy.
         SyntheticCornerCaptureBackend(),
-    )
-
-    pcb_workplane = cq.Workplane("XY").newObject([board_model.pcb])
-
-    execution = engine.execute(
-        strategy=RetentionStrategy.CORNER_CAPTURE,
-        request=derivation.request,
-        model=pcb_workplane,
+        derivation.request,
+        board_model.pcb,
     )
 
     production_report = _production_evidence_report(
@@ -116,37 +107,11 @@ def execute_production_corner_capture(
         source_step=request.source_step,
     )
 
-    production_execution = RetentionExecution(
-        strategy=execution.strategy,
-        parameters=execution.parameters,
-        model=execution.model,
-        report=production_report,
+    production_execution = verified_execution(
+        execution, production_report, label="corner-capture"
     )
 
-    if not production_execution.passed:
-        failed_checks = ", ".join(
-            result.check.value for result in production_report.failures
-        )
-
-        raise ValueError(
-            f"Production corner-capture execution failed verification: {failed_checks}"
-        )
-
-    request.output_step.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    if not isinstance(production_execution.model, cq.Workplane):
-        raise TypeError("Retention execution did not produce a cadquery Workplane")
-
-    cq.exporters.export(
-        production_execution.model,
-        str(request.output_step),
-    )
-
-    if not request.output_step.is_file():
-        raise RuntimeError("Production STEP export was not created")
+    export_retention_step(production_execution, request.output_step)
 
     return ProductionCornerExecutionResult(
         board_model=board_model,

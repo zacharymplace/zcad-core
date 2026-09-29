@@ -31,13 +31,16 @@ GENERATOR_VERSION = "1.4.0"
 GENERATOR_MODULES = (
     "zcad_core.geometry.cadquery_support",
     "zcad_core.geometry.edge_outline",
+    "zcad_core.geometry.intersection",
     "zcad_core.geometry.types",
+    "zcad_core.retention.capture_interference",
     "zcad_core.retention.corner_capture",
     "zcad_core.retention.edge_capture",
     "zcad_core.retention.production_board",
     "zcad_core.retention.production_edge_board",
     "zcad_core.retention.production_edge_execution",
     "zcad_core.retention.production_execution",
+    "zcad_core.retention.production_run",
     "zcad_core.retention.synthetic_backend",
     "zcad_core.retention.synthetic_edge_backend",
     "zcad_core.retention.validation_fixture",
@@ -46,7 +49,7 @@ GENERATOR_MODULES = (
 # generator_fingerprint() at GENERATOR_VERSION, computed on Python 3.11 (the
 # AST it hashes can differ between Python versions).
 GENERATOR_FINGERPRINT = (
-    "23f95578e58a02e67420da01dc75d5be304e30562e90d6abad87c9d58a37332e"
+    "db0d392fb759939feb16b8a3a02e32be55774100aec3fb527f6372301171ff42"
 )
 
 

@@ -3,9 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-import cadquery as cq
-
 from zcad_core.geometry.cadquery_support import workplane_shape
+from zcad_core.retention.capture_interference import (
+    GeometryInterferenceResult,
+    measure_capture_interference,
+)
 from zcad_core.retention.edge_backend import (
     EdgeCaptureFitCheck,
     EdgeCaptureFitReport,
@@ -16,15 +18,18 @@ from zcad_core.retention.edge_capture import (
     as_edge_capture_parameters,
 )
 from zcad_core.retention.engine import (
-    RetentionEngine,
     RetentionExecution,
     RetentionStrategy,
 )
-from zcad_core.retention.evidence_artifact import GeometryInterferenceResult
 from zcad_core.retention.production_board import ProductionBoardModel
 from zcad_core.retention.production_edge_board import (
     ProductionBoardEdgeAdapter,
     ProductionEdgeDerivation,
+)
+from zcad_core.retention.production_run import (
+    export_retention_step,
+    run_backend,
+    verified_execution,
 )
 from zcad_core.retention.synthetic_edge_backend import SyntheticEdgeCaptureBackend
 
@@ -92,22 +97,11 @@ def execute_production_edge_capture(
         policy=request.policy,
     )
 
-    engine = RetentionEngine()
-    engine.register(
+    execution = run_backend(
         RetentionStrategy.EDGE_CLIP,
-        # SyntheticEdgeCaptureBackend narrows RetentionBackend's
-        # object-typed parameters to EdgeCaptureParameters, which
-        # Protocol contravariance cannot express structurally; the
-        # engine only ever calls it through this one strategy.
         SyntheticEdgeCaptureBackend(),
-    )
-
-    pcb_workplane = cq.Workplane("XY").newObject([board_model.pcb])
-
-    execution = engine.execute(
-        strategy=RetentionStrategy.EDGE_CLIP,
-        request=derivation.request,
-        model=pcb_workplane,
+        derivation.request,
+        board_model.pcb,
     )
 
     parameters = as_edge_capture_parameters(execution.parameters)
@@ -115,22 +109,15 @@ def execute_production_edge_capture(
         SyntheticEdgeCaptureBackend().build_geometry(parameters)
     )
 
-    pcb_intersection = _intersection_volume(capture_shape, board_model.pcb)
-    component_intersection = sum(
-        _intersection_volume(capture_shape, component)
-        for component in board_model.component_solids
-    )
-    interference = GeometryInterferenceResult(
-        pcb_capture_intersection_mm3=pcb_intersection,
-        component_capture_intersection_mm3=component_intersection,
-        tolerance_mm3=_INTERFERENCE_TOLERANCE_MM3,
+    interference = measure_capture_interference(
+        capture_shape, board_model, tolerance_mm3=_INTERFERENCE_TOLERANCE_MM3
     )
 
     if not interference.passed:
         raise ValueError(
             "Generated edge-capture geometry intersects production board "
-            f"material: pcb={pcb_intersection:.6f}mm3, "
-            f"components={component_intersection:.6f}mm3"
+            f"material: pcb={interference.pcb_capture_intersection_mm3:.6f}mm3, "
+            f"components={interference.component_capture_intersection_mm3:.6f}mm3"
         )
 
     production_report = _production_edge_evidence_report(
@@ -139,37 +126,11 @@ def execute_production_edge_capture(
         source_step=request.source_step,
     )
 
-    production_execution = RetentionExecution(
-        strategy=execution.strategy,
-        parameters=execution.parameters,
-        model=execution.model,
-        report=production_report,
+    production_execution = verified_execution(
+        execution, production_report, label="edge-capture"
     )
 
-    if not production_execution.passed:
-        failed_checks = ", ".join(
-            result.check.value for result in production_report.failures
-        )
-
-        raise ValueError(
-            f"Production edge-capture execution failed verification: {failed_checks}"
-        )
-
-    request.output_step.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    if not isinstance(production_execution.model, cq.Workplane):
-        raise TypeError("Retention execution did not produce a cadquery Workplane")
-
-    cq.exporters.export(
-        production_execution.model,
-        str(request.output_step),
-    )
-
-    if not request.output_step.is_file():
-        raise RuntimeError("Production STEP export was not created")
+    export_retention_step(production_execution, request.output_step)
 
     return ProductionEdgeExecutionResult(
         board_model=board_model,
@@ -218,15 +179,3 @@ def _production_edge_evidence_report(
     )
 
     return EdgeCaptureFitReport(results=results)
-
-
-def _intersection_volume(
-    first: cq.Shape,
-    second: cq.Shape,
-) -> float:
-    intersection = first.intersect(second)
-
-    if intersection.isNull():
-        return 0.0
-
-    return float(intersection.Volume())

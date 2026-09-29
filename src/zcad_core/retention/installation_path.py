@@ -8,6 +8,7 @@ from pathlib import Path
 import cadquery as cq
 
 from zcad_core.geometry.cadquery_support import workplane_shape
+from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.retention.corner_capture import (
     BoardCorner,
     as_corner_capture_parameters,
@@ -103,18 +104,6 @@ class InstallationPathReport:
         """Whether at least one sampled path passed."""
 
         return any(result.passed for result in self.results)
-
-
-def _intersection_volume(
-    first: cq.Shape,
-    second: cq.Shape,
-) -> float:
-    intersection = first.intersect(second)
-
-    if intersection.isNull():
-        return 0.0
-
-    return float(intersection.Volume())
 
 
 def _translated_bounds_overlap(
@@ -312,7 +301,7 @@ class _FixtureCollider:
         shape = self._shapes[shape_index]
         moved = shape if offset == (0.0, 0.0, 0.0) else _moved_shape(shape, offset)
 
-        return _intersection_volume(moved, self._obstacles[obstacle_index][0])
+        return intersection_volume(moved, self._obstacles[obstacle_index][0])
 
     def excess_volume(self, offset: Vector3) -> float:
         return sum(

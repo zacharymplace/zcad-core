@@ -9,6 +9,7 @@ from typing import Any
 import cadquery as cq
 
 from zcad_core.geometry.cadquery_support import workplane_shape
+from zcad_core.geometry.intersection import intersection_volume, solid_intersection
 from zcad_core.retention.production_edge_execution import (
     ProductionEdgeExecutionResult,
 )
@@ -84,71 +85,6 @@ def _bounds_payload(
         "z_min_mm": round(bounds.zmin, 3),
         "z_max_mm": round(bounds.zmax, 3),
     }
-
-
-def _overlap_box(first: cq.Shape, second: cq.Shape) -> cq.Shape | None:
-    a, b = first.BoundingBox(), second.BoundingBox()
-    low = (max(a.xmin, b.xmin), max(a.ymin, b.ymin), max(a.zmin, b.zmin))
-    high = (min(a.xmax, b.xmax), min(a.ymax, b.ymax), min(a.zmax, b.zmax))
-
-    if any(h <= lo for lo, h in zip(low, high, strict=True)):
-        return None
-
-    return cq.Solid.makeBox(
-        high[0] - low[0],
-        high[1] - low[1],
-        high[2] - low[2],
-        pnt=cq.Vector(*low),
-    )
-
-
-def _intersection(first: cq.Shape, second: cq.Shape) -> cq.Shape | None:
-    """Largest of several boolean formulations, so a silent failure cannot pass.
-
-    OCC can return an empty intersection for defective vendor solids (for
-    example, multi-shell PCBs) while a clipped formulation finds the overlap.
-    Interference must fail closed, so the largest result wins.
-    """
-
-    box = _overlap_box(first, second)
-
-    if box is None:
-        return None
-
-    candidates = []
-
-    for chain in (
-        (first, second),
-        (second, first),
-        (first, box, second),
-        (second, box, first),
-    ):
-        shape: cq.Shape | None = chain[0]
-
-        for other in chain[1:]:
-            try:
-                shape = shape.intersect(other) if shape is not None else None
-            except ValueError:
-                # cadquery raises on a null boolean result: no overlap here.
-                shape = None
-
-            if shape is None or shape.isNull():
-                shape = None
-                break
-
-        if shape is not None and shape.Volume() > 0:
-            candidates.append(shape)
-
-    return max(candidates, key=lambda shape: shape.Volume(), default=None)
-
-
-def _intersection_volume(
-    first: cq.Shape,
-    second: cq.Shape,
-) -> float:
-    intersection = _intersection(first, second)
-
-    return 0.0 if intersection is None else float(intersection.Volume())
 
 
 def _rests_under_board(component: cq.Shape, pcb_bounds: cq.BoundBox) -> bool:
@@ -285,7 +221,7 @@ def _clearance_report(
         max(fixture_bounds.zmax - lift, 0.0) + 1.0,
         pnt=cq.Vector(fixture_bounds.xmin - 1.0, fixture_bounds.ymin - 1.0, lift),
     )
-    captures = _intersection(fixture, above)
+    captures = solid_intersection(fixture, above)
     capture_gaps: list[tuple[float, int]] = []
 
     if captures is not None:
@@ -354,7 +290,7 @@ def _review_report(
     pcb = execution.board_model.pcb
     components = execution.board_model.component_solids
 
-    pcb_intersection_mm3 = _intersection_volume(
+    pcb_intersection_mm3 = intersection_volume(
         fixture,
         pcb,
     )
@@ -367,7 +303,7 @@ def _review_report(
     gaps: dict[int, float] = {}
 
     for index, component in enumerate(components, start=1):
-        intersection = _intersection(fixture, component)
+        intersection = solid_intersection(fixture, component)
 
         if intersection is None or intersection.Volume() <= tolerance_mm3:
             gap = fixture.distance(component)
