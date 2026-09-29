@@ -60,3 +60,27 @@ def test_uno_holes_lie_inside_the_board() -> None:
         assert abs(x) + margin < uno.board_width_mm / 2
         assert abs(y) + margin < uno.board_length_mm / 2
     uno.usb_connector.validate()
+
+
+def test_the_pi5_declares_its_hdmi_ports_and_card_but_not_its_power_input() -> None:
+    openings = {
+        wall.identifier: wall for wall in get_board("RASPBERRY_PI_5").wall_openings
+    }
+
+    assert set(openings) == {
+        "ETHERNET",
+        "USB3_PAIR",
+        "USB2_PAIR",
+        "MICRO_HDMI_0",
+        "MICRO_HDMI_1",
+        "MICRO_SD",
+    }
+    card = openings["MICRO_SD"]
+    assert card.edge == "negative_y"
+    assert card.bottom_offset_from_board_top_mm + card.height_mm == pytest.approx(-1.4)
+
+
+@pytest.mark.parametrize("identifier", list_boards())
+def test_other_boards_declare_no_wall_openings(identifier: str) -> None:
+    if identifier != "RASPBERRY_PI_5":
+        assert get_board(identifier).wall_openings == ()

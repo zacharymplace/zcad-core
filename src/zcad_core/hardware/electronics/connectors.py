@@ -36,3 +36,22 @@ class RectangularConnectorSpec:
 
         if self.depth_mm <= 0:
             raise ValueError("depth_mm must be greater than zero")
+
+
+@dataclass(frozen=True)
+class WallOpeningSpec:
+    """An opening a board needs in the enclosure wall beside one of its edges.
+
+    It covers what a plug or card must pass that the board's extracted parts
+    do not show, such as a port the vendor model leaves out or a card under
+    the board. ``center_offset_mm`` runs along the edge from the board
+    centre; the opening's size is the plug's or card's, and the enclosure
+    adds its own margin.
+    """
+
+    identifier: str
+    edge: BoardEdge
+    center_offset_mm: float
+    bottom_offset_from_board_top_mm: float
+    width_mm: float
+    height_mm: float

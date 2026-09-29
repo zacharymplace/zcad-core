@@ -8,6 +8,7 @@ from zcad_core.hardware.electronics.board_components import (
 )
 from zcad_core.hardware.electronics.connectors import (
     RectangularConnectorSpec,
+    WallOpeningSpec,
 )
 
 
@@ -53,6 +54,8 @@ class AdafruitFeatherRp2040Spec:
     components: tuple[BoardComponentSpec, ...] = field(
         default_factory=lambda: load_board_components("adafruit-feather-rp2040")
     )
+    # Every part it needs reached through a wall is among the components.
+    wall_openings: tuple[WallOpeningSpec, ...] = ()
 
     recommended_standoff_height_mm: float = 3.0
     recommended_clearance_mm: float = 0.5

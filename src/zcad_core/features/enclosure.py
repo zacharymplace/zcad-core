@@ -88,6 +88,9 @@ LID_ATTACHMENTS = ("screws", "snap")
 _COUNTERSINK_HEAD_ALLOWANCE_MM = 0.0
 # The builder's default fits, before hole compensation widens them.
 _OPENING_CLEARANCE_MM = 0.6
+# A board's declared wall openings pass a plug's shell, not just the socket:
+# this much wider on each side and taller, as the group enclosure's ports.
+_PLUG_MARGIN_MM = 1.5
 _CRADLE_CLEARANCE_MM = 0.3
 _RETAINER_CLEARANCE_MM = 0.3
 
@@ -237,6 +240,7 @@ def build_enclosure(
             board_identifier=board_identifier,
             connector_identifier=connector_identifier,
             display_identifier=display_identifier if display is not None else None,
+            board=board,
         )
     else:
         spec = _specification(
@@ -278,7 +282,7 @@ def build_enclosure(
         hole_compensation_mm=design.hole_compensation_mm,
     )
     base = _clear_parts_under_board(base, spec, assembly, board_identifier)
-    openings = _openings(spec, design, assembly, board_identifier)
+    openings = _openings(spec, design, assembly, board, board_identifier)
     base = _cut_openings(base, openings, design, fastener, positions)
     cavity = _cavity(spec, design)
     base = _lid_options_in_base(base, cavity, design, fastener, positions, openings)
@@ -434,6 +438,7 @@ def _automatic_specification(
     board_identifier: str,
     connector_identifier: str,
     display_identifier: str | None,
+    board: BoardSpec,
 ) -> tuple[EnclosureSpecification, tuple[float, float]]:
     """The smallest cavity whose corner bosses, and lid skirt if it has one,
     clear the hardware, the board's supports, and the cable opening, with
@@ -461,7 +466,7 @@ def _automatic_specification(
         positions = _corner_boss_positions(spec, fastener, design)
 
         if _opening_hits_boss(
-            _openings(spec, design, assembly, board_identifier),
+            _openings(spec, design, assembly, board, board_identifier),
             design,
             fastener,
             positions,
@@ -638,12 +643,14 @@ def _openings(
     spec: EnclosureSpecification,
     design: EnclosureDesign,
     assembly: DeviceAssembly,
+    board: BoardSpec,
     board_identifier: str,
 ) -> list[ConnectorCutoutParameters]:
-    """The cable opening, and one for each board part reached through a
-    wall, such as a barrel jack."""
+    """The cable opening, the board's declared wall openings, and one for
+    each other board part reached through a wall, such as a barrel jack."""
 
-    openings = [_cable_opening(spec, design)]
+    declared = _declared_openings(design, assembly, board, board_identifier)
+    openings = [_cable_opening(spec, design), *declared]
     board_top = _bounds(assembly, board_identifier).zmax
 
     for component in assembly.components:
@@ -659,23 +666,74 @@ def _openings(
             continue
 
         along_y = edge in ("negative_y", "positive_y")
-        openings.append(
-            ConnectorCutoutParameters(
-                edge=edge,
-                center_offset_mm=(
-                    (bounds.xmin + bounds.xmax) / 2
-                    if along_y
-                    else (bounds.ymin + bounds.ymax) / 2
-                ),
-                bottom_z_mm=bounds.zmin,
-                width_mm=bounds.xlen if along_y else bounds.ylen,
-                height_mm=bounds.zlen,
-                cutter_depth_mm=2 * (design.wall_mm + _OPENING_OVERCUT_MM),
-                width_clearance_mm=_OPENING_CLEARANCE_MM + design.hole_compensation_mm,
-            )
+        opening = ConnectorCutoutParameters(
+            edge=edge,
+            center_offset_mm=(
+                (bounds.xmin + bounds.xmax) / 2
+                if along_y
+                else (bounds.ymin + bounds.ymax) / 2
+            ),
+            bottom_z_mm=bounds.zmin,
+            width_mm=bounds.xlen if along_y else bounds.ylen,
+            height_mm=bounds.zlen,
+            cutter_depth_mm=2 * (design.wall_mm + _OPENING_OVERCUT_MM),
+            width_clearance_mm=_OPENING_CLEARANCE_MM + design.hole_compensation_mm,
         )
 
+        # A declared opening already passes the plug for this part.
+        if not any(_overlap(opening, other) for other in declared):
+            openings.append(opening)
+
     return openings
+
+
+def _declared_openings(
+    design: EnclosureDesign,
+    assembly: DeviceAssembly,
+    board: BoardSpec,
+    board_identifier: str,
+) -> list[ConnectorCutoutParameters]:
+    """The openings the board declares, placed with it and grown for the
+    plug that passes each."""
+
+    if not board.wall_openings:
+        return []
+
+    bounds = _bounds(assembly, board_identifier)
+    center_x = (bounds.xmin + bounds.xmax) / 2
+    center_y = (bounds.ymin + bounds.ymax) / 2
+
+    return [
+        ConnectorCutoutParameters(
+            edge=wall.edge,
+            center_offset_mm=wall.center_offset_mm
+            + (center_x if wall.edge in ("negative_y", "positive_y") else center_y),
+            bottom_z_mm=bounds.zmax
+            + wall.bottom_offset_from_board_top_mm
+            - _PLUG_MARGIN_MM / 2,
+            width_mm=wall.width_mm,
+            height_mm=wall.height_mm,
+            width_clearance_mm=2 * _PLUG_MARGIN_MM + design.hole_compensation_mm,
+            height_clearance_mm=_PLUG_MARGIN_MM,
+            cutter_depth_mm=2 * (design.wall_mm + _OPENING_OVERCUT_MM),
+        )
+        for wall in board.wall_openings
+    ]
+
+
+def _overlap(a: ConnectorCutoutParameters, b: ConnectorCutoutParameters) -> bool:
+    """Whether two openings in the same wall overlap."""
+
+    along = (
+        abs(a.center_offset_mm - b.center_offset_mm)
+        < (a.opening_width_mm + b.opening_width_mm) / 2
+    )
+    up = (
+        a.bottom_z_mm < b.bottom_z_mm + b.opening_height_mm
+        and b.bottom_z_mm < a.bottom_z_mm + a.opening_height_mm
+    )
+
+    return a.edge == b.edge and along and up
 
 
 def _bounds(assembly: DeviceAssembly, identifier: str) -> cq.BoundBox:
