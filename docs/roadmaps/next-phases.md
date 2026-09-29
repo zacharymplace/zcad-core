@@ -88,6 +88,21 @@ around it, now closed:
   minutes.
 - **One Python version.** The development venv runs Python 3.11, matching
   CI and `requires-python`, instead of 3.14.
+- **mypy 2.3.** `src` and `scripts` type-check under mypy 2.3 with no code
+  changes.
+
+### Pending upgrade: cadquery 2.9 and OCP 8
+
+`cadquery-ocp` 8.0 is released, but the latest cadquery, 2.8.0, requires
+`cadquery-ocp<8.0` and fails on import with OCP 8. cadquery's development
+branch (2.9.0.dev0) already requires `cadquery-ocp==8.0.1.*`.
+
+zcad-core is ready for it: against cadquery 2.9.0.dev0 and OCP 8.0.1 in a
+throwaway venv (2026-09-28), all 672 tests pass, including the vendor-STEP
+tests, and mypy is clean. When cadquery 2.9 is released, raise the pin in
+`pyproject.toml` to `cadquery>=2.9,<3`, reinstall, and run the full gate.
+Do not depend on cadquery's development branch in the meantime; fixtures
+would rest on an unreleased geometry kernel.
 
 ## Operating principles
 
