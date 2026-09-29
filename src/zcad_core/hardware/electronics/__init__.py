@@ -24,6 +24,7 @@ from zcad_core.hardware.electronics.boards import (
 from zcad_core.hardware.electronics.connectors import (
     BoardEdge,
     RectangularConnectorSpec,
+    WallOpeningSpec,
 )
 from zcad_core.hardware.electronics.displays import (
     ADAFRUIT_EINK_200X200_1_54IN,
@@ -63,6 +64,7 @@ __all__ = [
     "RaspberryPiPico2Spec",
     "RectangularConnectorSpec",
     "SeeedXiaoEsp32S3Spec",
+    "WallOpeningSpec",
     "get_adafruit_feather_rp2040",
     "get_arduino_uno_r4_wifi",
     "get_board",

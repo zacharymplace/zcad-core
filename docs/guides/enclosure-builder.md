@@ -210,6 +210,7 @@ Scratch builds can go anywhere, such as `exports/`, which git ignores.
 | --- | --- | --- |
 | `ADAFRUIT_FEATHER_RP2040` | Standoffs | Measured from the vendor STEP |
 | `ARDUINO_UNO_R4_WIFI` | Standoffs | Provisional: outline, USB-C, and parts from the vendor STEP, holes from the UNO drawing |
+| `RASPBERRY_PI_5` | Standoffs | Raspberry Pi's mechanical drawing (RP-008347); parts from the vendor STEP |
 | `RASPBERRY_PI_PICO_2` | Standoffs | Datasheet; parts from the vendor STEP |
 | `SEEED_XIAO_ESP32_S3` | Cradle | Provisional: DXF outline; thickness and parts from the vendor STEP |
 
@@ -223,6 +224,15 @@ buttons, battery connectors, shield cans, and the pins under the board. So:
 - standoffs are notched clear of pins under the board; and
 - a part that overhangs an edge, like the UNO R4 WiFi's barrel jack, gets
   its own opening in that wall.
+
+A board can also declare wall openings the vendor model cannot show. The
+Pi 5's STEP leaves out its micro-HDMI bodies and its microSD card, so its
+spec lists every port from Raspberry Pi's drawing, and the card under the
+board. Each declared opening is 1.5 mm wider on each side and 1.5 mm taller
+than its socket, so a plug's shell passes, and it takes in any part opening
+it overlaps, such as the Ethernet jack's LED windows. The USB-C input is
+the cable opening, as on every board. Between the Pi 5's back-wall openings
+the wall is only about 1 mm wide.
 
 `scripts/extract-board-components.py` writes the parts to
 `src/zcad_core/hardware/data/board-components/`, recording the vendor

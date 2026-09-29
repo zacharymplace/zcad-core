@@ -6,7 +6,10 @@ from zcad_core.hardware.catalog import HardwareCatalog
 from zcad_core.hardware.electronics.adafruit import get_adafruit_feather_rp2040
 from zcad_core.hardware.electronics.arduino import get_arduino_uno_r4_wifi
 from zcad_core.hardware.electronics.board_components import BoardComponentSpec
-from zcad_core.hardware.electronics.connectors import RectangularConnectorSpec
+from zcad_core.hardware.electronics.connectors import (
+    RectangularConnectorSpec,
+    WallOpeningSpec,
+)
 from zcad_core.hardware.electronics.displays import (
     ADAFRUIT_EINK_200X200_1_54IN,
     ADAFRUIT_OLED_128X64_1_3IN,
@@ -36,6 +39,8 @@ class BoardSpec(Protocol):
     def usb_connector(self) -> RectangularConnectorSpec: ...
     @property
     def components(self) -> tuple[BoardComponentSpec, ...]: ...
+    @property
+    def wall_openings(self) -> tuple[WallOpeningSpec, ...]: ...
 
 
 _BOARDS: tuple[BoardSpec, ...] = (

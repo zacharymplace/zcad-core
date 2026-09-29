@@ -9,6 +9,7 @@ from zcad_core.hardware.electronics.board_components import (
 from zcad_core.hardware.electronics.connectors import (
     BoardEdge,
     RectangularConnectorSpec,
+    WallOpeningSpec,
 )
 
 
@@ -49,6 +50,8 @@ class RaspberryPiPico2Spec:
     components: tuple[BoardComponentSpec, ...] = field(
         default_factory=lambda: load_board_components("raspberry-pi-pico-2")
     )
+    # Every part it needs reached through a wall is among the components.
+    wall_openings: tuple[WallOpeningSpec, ...] = ()
 
     recommended_standoff_height_mm: float = 3.0
     recommended_clearance_mm: float = 0.5
@@ -160,6 +163,38 @@ class RaspberryPi5Spec:
     sd_card_width_mm: float = 12.0
     sd_card_overhang_mm: float = 2.5
     sd_card_depth_below_board_mm: float = 1.6
+
+    @property
+    def wall_openings(self) -> tuple[WallOpeningSpec, ...]:
+        """Openings for the single-board enclosure: every port but the power
+        input, which the enclosure's cable opening serves, and the microSD
+        card. The vendor model leaves out the micro-HDMI bodies and the card,
+        so the extracted parts cannot mark them."""
+
+        ports = tuple(
+            WallOpeningSpec(
+                identifier=port.identifier,
+                edge=port.edge,
+                center_offset_mm=port.center_mm,
+                bottom_offset_from_board_top_mm=0.0,
+                width_mm=port.width_mm,
+                height_mm=port.height_mm,
+            )
+            for port in self.ports
+            if port.identifier != self.usb_connector.identifier
+        )
+        sd_card = WallOpeningSpec(
+            identifier="MICRO_SD",
+            edge="negative_y",
+            center_offset_mm=0.0,
+            bottom_offset_from_board_top_mm=-(
+                self.board_thickness_mm + self.sd_card_depth_below_board_mm
+            ),
+            width_mm=self.sd_card_width_mm,
+            height_mm=self.sd_card_depth_below_board_mm,
+        )
+
+        return (*ports, sd_card)
 
 
 _PI5 = RaspberryPi5Spec()

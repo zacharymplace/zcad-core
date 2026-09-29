@@ -154,6 +154,37 @@ def test_barrel_jack_gets_its_own_opening() -> None:
     assert not solid(enclosure.base).isInside(centre)
 
 
+def test_a_lone_pi5_gets_an_opening_for_every_port_and_its_card() -> None:
+    _, enclosure = board_only("RASPBERRY_PI_5")
+    spec = enclosure.specification
+    base = solid(enclosure.base)
+    board_top = 1.4  # the board sits at the origin, 1.4 mm thick
+    front_y = spec.center_y_mm - spec.inner_depth_mm / 2 - 1.0
+    right_x = spec.center_x_mm + spec.inner_width_mm / 2 + 1.0
+
+    # Both micro-HDMI ports, which the vendor model leaves out, open beside
+    # the USB-C power input; the wall between them stays.
+    for y in (-16.7, -3.3):
+        assert not base.isInside(cq.Vector(right_x, y, board_top + 1.7))
+    assert base.isInside(cq.Vector(right_x, -10.0, board_top + 1.7))
+
+    # The microSD card, under the board, and the power button above it.
+    assert not base.isInside(cq.Vector(0.0, front_y, -0.8))
+    assert not base.isInside(cq.Vector(9.6, front_y, board_top + 1.6))
+
+
+def test_a_declared_opening_takes_in_the_parts_it_covers() -> None:
+    _, enclosure = board_only("RASPBERRY_PI_5")
+    back = sorted(
+        round(opening.center_offset_mm, 1)
+        for opening in enclosure.openings
+        if opening.edge == "positive_y"
+    )
+
+    # The Ethernet jack's LED windows get no openings of their own.
+    assert back == [-19.0, -1.1, 17.8]
+
+
 def test_cable_opening_follows_an_off_centre_connector() -> None:
     uno = get_arduino_uno_r4_wifi()
     _, enclosure = board_only(uno.identifier)
