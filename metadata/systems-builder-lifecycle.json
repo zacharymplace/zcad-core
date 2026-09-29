@@ -8,12 +8,12 @@
     "repository": "zacharymplace/zcad-core",
     "path": ".",
     "branch": "main",
-    "commit": "83f53a9"
+    "commit": "a98d06c"
   },
   "evidence": [
     {
       "kind": "validation",
-      "reference": "scripts/check.sh (ruff format and ruff check over src, tests, and scripts; mypy over src, scripts, and tests; pytest; run by .githooks/pre-push; --fast skips slow vendor-STEP tests)",
+      "reference": "scripts/check.sh (ruff format and ruff check, with a complexity limit of 12, over src, tests, scripts, and examples; mypy over src, scripts, tests, and examples; pytest; run by .githooks/pre-push; --fast skips slow vendor-STEP tests)",
       "result": "pass"
     },
     {
@@ -80,9 +80,24 @@
       "kind": "capability",
       "reference": "src/zcad_core/retention/generator.py",
       "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "docs/guides/validation-lab-workflow.md",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "examples/pico2_oled_tray.py",
+      "result": "pass"
+    },
+    {
+      "kind": "capability",
+      "reference": "src/zcad_core/geometry/intersection.py",
+      "result": "pass"
     }
   ],
-  "last_verified_at": "2026-09-29T03:31:42Z",
+  "last_verified_at": "2026-09-29T04:46:36Z",
   "next_action": {
     "description": "Phase 2 of docs/roadmaps/next-phases.md: print and test-fit the four print-ready, visually reviewed candidates (Feather RP2040 r004, Pico 2 r002, XIAO ESP32-S3 r003, UNO R4 WiFi r005), check each review's reservations, record each trial with `zcad-validation trial complete`, then register and promote passing candidates.",
     "command": "scripts/check.sh"
@@ -133,6 +148,11 @@
     "append-only-trial-records",
     "recorded-generation-settings",
     "generator-version-fingerprint",
-    "type-checked-tests"
+    "type-checked-tests",
+    "workflow-guide",
+    "runnable-engine-example",
+    "fail-closed-interference",
+    "complexity-limit",
+    "modular-cli"
   ]
 }
