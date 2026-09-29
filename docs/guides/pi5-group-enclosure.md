@@ -190,6 +190,35 @@ The default pair, on the A1 mini PETG profile, slices to about 2 h 11 min and
 73 g for the base, and 1 h 14 min and 45 g for the lid: about 3.5 hours and
 118 g in all. Existing slice output is never overwritten.
 
+## Viewing in 3D
+
+```bash
+zcad-validation enclosure-group viewer --output-directory exports/viewer \
+  --standalone
+python3 -m http.server --directory exports/viewer
+```
+
+writes `index.html` and `enclosures.json` into the folder. Open
+`http://localhost:8000` (a browser refuses to load the data file from
+`file://`). The page shows five standard configurations: the default pair, a
+divided pair, a low divider, a raised bay, and a pair with an open shelf. You
+can rotate and zoom, set the lid to on, lifted, or off, hide the Pi envelopes,
+cut the box open with a plane, and show dimensions: the overall size, and along
+the front edge each bay's service gap and slot. It also shows whether the row
+fits the A1 mini's bed.
+
+- `--bays` shows your own rows instead, in the syntax of `build --bays`. Repeat
+  it for several: `--bays "pi5,pi5:divider=notch" --bays "pi5,open"`.
+- Every configuration is built and checked first. A row the builder refuses, or
+  one that fails a fit check, stops the command and is named in the error.
+- The command never overwrites `index.html` or `enclosures.json`.
+- Without `--standalone`, the page is the fragment the Artifact tool wraps when
+  you publish it, so publish `index.html` with `enclosures.json` as a
+  supporting file. Regenerate the data after any design change: the viewer
+  shows a snapshot of the code when you ran the command.
+- The page loads its 3D library from cdnjs and jsDelivr, pinned to one version
+  with integrity hashes, so it needs a network connection.
+
 ## First print checklist
 
 Print the base first and test-fit before printing the lid. With a real Pi 5:

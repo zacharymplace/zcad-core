@@ -34,7 +34,11 @@ where = ["src"]
 include = ["zcad_core*"]
 
 [tool.setuptools.package-data]
-zcad_core = ["py.typed", "hardware/data/board-components/*.json"]
+zcad_core = [
+  "py.typed",
+  "hardware/data/board-components/*.json",
+  "features/data/*.html",
+]
 
 [tool.ruff]
 line-length = 88

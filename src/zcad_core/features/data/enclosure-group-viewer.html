@@ -1,0 +1,501 @@
+<title>Pi 5 Enclosure Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a large 3D stage on the left, a control and readout panel on the right; stacked on a phone. */
+:root {
+  --ground: #eceff2;
+  --panel: #ffffff;
+  --stage: #f6f8fa;
+  --ink: #18212b;
+  --ink-2: #566270;
+  --line: #d3d9e0;
+  --accent: #1d5fc4;
+  --accent-ink: #ffffff;
+  --ok: #1f7a4a;
+  --warn: #a4570d;
+  --edge: rgba(24, 33, 43, 0.28);
+  --dim: #b4530b;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0f1419;
+    --panel: #171d24;
+    --stage: #1c232b;
+    --ink: #e5eaef;
+    --ink-2: #9aa6b2;
+    --line: #2b343e;
+    --accent: #6ea4f2;
+    --accent-ink: #0d1218;
+    --ok: #5ec48a;
+    --warn: #e0a15a;
+    --edge: rgba(229, 234, 239, 0.3);
+    --dim: #f0a35e;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0f1419;
+  --panel: #171d24;
+  --stage: #1c232b;
+  --ink: #e5eaef;
+  --ink-2: #9aa6b2;
+  --line: #2b343e;
+  --accent: #6ea4f2;
+  --accent-ink: #0d1218;
+  --ok: #5ec48a;
+  --warn: #e0a15a;
+  --edge: rgba(229, 234, 239, 0.3);
+  --dim: #f0a35e;
+  color-scheme: dark;
+}
+body { background: var(--ground); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.5; padding-inline: 16px; padding-block: 20px 32px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--ink-2); font-size: 13px; }
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--line); border-radius: 6px; height: clamp(380px, 68vh, 680px); overflow: hidden; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+.stage canvas:active { cursor: grabbing; }
+.stage .labels { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.dimlabel { position: absolute; transform: translate(-50%, -50%); font: 500 11px var(--font-data); color: var(--dim); background: var(--stage); padding: 1px 4px; border-radius: 3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hint { margin: 0; font-size: 12px; line-height: 1.4; color: var(--ink-2); }
+.stage .status { position: absolute; inset: 0; display: grid; place-items: center; color: var(--ink-2); font-size: 13px; padding: 16px; text-align: center; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px; display: grid; gap: 16px; min-width: 0; }
+.group { display: grid; gap: 8px; min-width: 0; }
+.label { font: 500 11px var(--font-data); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+.seg button { font: inherit; font-size: 13px; padding: 6px 4px; background: transparent; color: var(--ink); border: 0; border-left: 1px solid var(--line); cursor: pointer; }
+.seg button:first-child { border-left: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.seg button:focus-visible, .cfg input:focus-visible + span, input[type="range"]:focus-visible, .check input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cfg { display: grid; gap: 6px; }
+.cfg label { display: grid; grid-template-columns: 16px 1fr; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 5px; cursor: pointer; align-items: start; }
+.cfg label:has(input:checked) { border-color: var(--accent); }
+.cfg input { margin: 3px 0 0; accent-color: var(--accent); }
+.cfg .name { font-weight: 500; }
+.cfg .blurb { display: block; color: var(--ink-2); font-size: 12px; line-height: 1.4; }
+.check { display: flex; gap: 8px; align-items: center; }
+.check input { accent-color: var(--accent); }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.row output { font-family: var(--font-data); color: var(--ink-2); }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
+dt { color: var(--ink-2); }
+dd { margin: 0; font-family: var(--font-data); text-align: right; font-variant-numeric: tabular-nums; }
+.fit { font-family: var(--font-body); font-weight: 500; }
+.fit.ok { color: var(--ok); }
+.fit.no { color: var(--warn); }
+.bays { width: 100%; border-collapse: collapse; font-size: 12px; }
+.bays th, .bays td { text-align: left; padding: 4px 6px 4px 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.bays th { font: 500 10px var(--font-data); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+.bays td:nth-child(n+2), .bays th:nth-child(n+2) { text-align: right; font-family: var(--font-data); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+@media (max-width: 860px) { .main { grid-template-columns: minmax(0, 1fr); } .stage { height: clamp(300px, 55vh, 460px); } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Pi 5 enclosure viewer</h1>
+    <p>Generated from zcad-core. Drag to rotate, scroll to zoom, right-drag to pan.</p>
+  </header>
+  <div class="main">
+    <div class="stage" id="stage">
+      <canvas id="view" aria-label="3D model of the enclosure"></canvas>
+      <div class="labels" id="labels" aria-hidden="true"></div>
+      <div class="status" id="status">Loading models…</div>
+    </div>
+    <aside class="panel">
+      <div class="group">
+        <div class="label">Configuration</div>
+        <div class="cfg" id="cfg" role="radiogroup" aria-label="Configuration"></div>
+      </div>
+      <div class="group">
+        <div class="label">Lid</div>
+        <div class="seg" id="lidSeg" role="group" aria-label="Lid">
+          <button type="button" data-lid="on" aria-pressed="false">On</button>
+          <button type="button" data-lid="lifted" aria-pressed="true">Lifted</button>
+          <button type="button" data-lid="off" aria-pressed="false">Off</button>
+        </div>
+        <label class="check"><input type="checkbox" id="showPis" checked> Show Pi 5 envelopes</label>
+        <label class="check"><input type="checkbox" id="showDims" checked> Show dimensions</label>
+        <p class="hint">Along the front edge: each bay's service gap, then its slot. Lines are in millimetres.</p>
+        <label for="cut" class="row"><span>Cut plane</span><output id="cutOut">off</output></label>
+        <input type="range" id="cut" min="0" max="100" value="100" step="1">
+      </div>
+      <div class="group">
+        <div class="label">View</div>
+        <div class="seg" id="viewSeg" role="group" aria-label="Camera view">
+          <button type="button" data-view="iso" aria-pressed="true">Iso</button>
+          <button type="button" data-view="top" aria-pressed="false">Top</button>
+          <button type="button" data-view="front" aria-pressed="false">Front</button>
+          <button type="button" data-view="back" aria-pressed="false">Back</button>
+        </div>
+      </div>
+      <div class="group">
+        <div class="label">Size</div>
+        <dl id="size"></dl>
+      </div>
+      <div class="group">
+        <div class="label">Bays, left to right</div>
+        <table class="bays" id="bays"></table>
+      </div>
+      <div class="legend">
+        <span><i style="background:#9aa6b3"></i>Base</span>
+        <span><i style="background:#5b8def"></i>Lid</span>
+        <span><i style="background:#22a05b"></i>Pi 5 envelope</span>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" integrity="sha384-wagZhIFgY4hD+7awjQjR4e2E294y6J2HSnd8eTNc15ZubTeQeVRZwhQJ+W6hnBsf" crossorigin="anonymous"></script>
+<script>
+(function () {
+  var BED = 180;
+  var LIFT = 30;
+  var stage = document.getElementById("stage");
+  var canvas = document.getElementById("view");
+  var statusEl = document.getElementById("status");
+  var cfgEl = document.getElementById("cfg");
+  var cutEl = document.getElementById("cut");
+  var cutOut = document.getElementById("cutOut");
+  var pisEl = document.getElementById("showPis");
+  var dimsEl = document.getElementById("showDims");
+  var labelsEl = document.getElementById("labels");
+
+  var data = [];
+  var current = null;
+  var state = { key: "pair", lid: "lifted", view: "iso" };
+  var built = null;
+
+  function fail(message) {
+    statusEl.hidden = false;
+    statusEl.textContent = message;
+  }
+  if (typeof THREE === "undefined" || !THREE.OrbitControls) {
+    fail("The 3D library did not load. Reload the page.");
+    return;
+  }
+
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.localClippingEnabled = true;
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(32, 1, 1, 2000);
+  camera.up.set(0, 0, 1);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a94a0, 0.85));
+  var sun = new THREE.DirectionalLight(0xffffff, 0.75);
+  sun.position.set(-120, -160, 260);
+  scene.add(sun);
+  var controls = new THREE.OrbitControls(camera, canvas);
+  controls.enableDamping = false;
+  controls.addEventListener("change", render);
+
+  var plane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 1e6);
+  var edgeMaterials = [];
+
+  function bytes(b64) {
+    var s = atob(b64), out = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+    return out.buffer;
+  }
+  function geometry(part) {
+    var g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(bytes(part.v)), 3));
+    g.setIndex(new THREE.BufferAttribute(new Uint16Array(bytes(part.i)), 1));
+    g.computeVertexNormals();
+    return g;
+  }
+  function edgeColor() {
+    var v = getComputedStyle(document.documentElement).getPropertyValue("--edge").trim();
+    return v || "rgba(0,0,0,0.3)";
+  }
+  function paintEdges() {
+    var c = new THREE.Color(), a = 0.3;
+    var m = /rgba?\(([^)]+)\)/.exec(edgeColor());
+    if (m) {
+      var p = m[1].split(",").map(parseFloat);
+      c.setRGB(p[0] / 255, p[1] / 255, p[2] / 255);
+      if (p.length > 3) a = p[3];
+    }
+    edgeMaterials.forEach(function (em) { em.color.copy(c); em.opacity = a; em.needsUpdate = true; });
+    dimMaterial.color.set(dimColor());
+    render();
+  }
+  function mesh(part, color, opts) {
+    var g = geometry(part);
+    var mat = new THREE.MeshStandardMaterial({
+      color: color, roughness: 0.75, metalness: 0.0, side: THREE.DoubleSide,
+      transparent: !!opts.opacity, opacity: opts.opacity || 1, depthWrite: !opts.opacity,
+      clippingPlanes: [plane]
+    });
+    var group = new THREE.Group();
+    group.add(new THREE.Mesh(g, mat));
+    var em = new THREE.LineBasicMaterial({ transparent: true, clippingPlanes: [plane] });
+    edgeMaterials.push(em);
+    group.add(new THREE.LineSegments(new THREE.EdgesGeometry(g, 35), em));
+    return group;
+  }
+
+  var dimMaterial = new THREE.LineBasicMaterial({ transparent: true, depthTest: false });
+  var dimLabels = [];
+
+  function dimColor() {
+    return getComputedStyle(document.documentElement).getPropertyValue("--dim").trim() || "#b4530b";
+  }
+
+  function buildDims(cfg) {
+    var W = cfg.size[0], D = cfg.size[1], H = cfg.size[2], wall = cfg.wall;
+    var pts = [];
+    dimLabels.forEach(function (l) { l.el.remove(); });
+    dimLabels = [];
+
+    function seg(a, b) { pts.push(a[0], a[1], a[2], b[0], b[1], b[2]); }
+    function tick(p, d, len) {
+      seg([p[0] - d[0] * len, p[1] - d[1] * len, p[2] - d[2] * len], [p[0] + d[0] * len, p[1] + d[1] * len, p[2] + d[2] * len]);
+    }
+    function label(text, p) {
+      var el = document.createElement("div");
+      el.className = "dimlabel";
+      el.textContent = text;
+      labelsEl.appendChild(el);
+      dimLabels.push({ el: el, pos: new THREE.Vector3(p[0], p[1], p[2]) });
+    }
+
+    var chainY = -14, totalY = -28, sideX = W + 16, cornerOffset = -14;
+
+    // Overall width, with extension lines from the outer corners.
+    seg([0, 0, 0], [0, totalY - 3, 0]);
+    seg([W, 0, 0], [W, totalY - 3, 0]);
+    seg([0, totalY, 0], [W, totalY, 0]);
+    tick([0, totalY, 0], [0, 1, 0], 3);
+    tick([W, totalY, 0], [0, 1, 0], 3);
+    label(fmt(W), [W / 2, totalY, 0]);
+
+    // Chain along the front edge: each bay's gap, then its slot.
+    var cursor = wall;
+    var marks = [cursor];
+    function span(a, b, text) {
+      seg([a, chainY, 0], [b, chainY, 0]);
+      marks.push(b);
+      if (b - a >= 8 && text) label(text, [(a + b) / 2, chainY, 0]);
+    }
+    cfg.bays.forEach(function (b) {
+      var gs = b.gap[0] + wall, ss = b.gap[1] + wall, se = b.slot[1] + wall;
+      if (gs - cursor > 0.05) span(cursor, gs, "");
+      span(gs, ss, fmt(ss - gs));
+      span(ss, se, (b.kind === "open" ? "shelf " : "") + fmt(se - ss));
+      cursor = se;
+    });
+    if (W - wall - cursor > 0.05) span(cursor, W - wall, fmt(W - wall - cursor));
+    marks.forEach(function (x) { tick([x, chainY, 0], [0, 1, 0], 2.5); });
+
+    // Depth, along the right side.
+    seg([W, 0, 0], [sideX + 3, 0, 0]);
+    seg([W, D, 0], [sideX + 3, D, 0]);
+    seg([sideX, 0, 0], [sideX, D, 0]);
+    tick([sideX, 0, 0], [1, 0, 0], 3);
+    tick([sideX, D, 0], [1, 0, 0], 3);
+    label(fmt(D), [sideX, D / 2, 0]);
+
+    // Height of the base, at the front-left corner.
+    var c = cornerOffset;
+    seg([0, 0, 0], [c - 3, c - 3, 0]);
+    seg([0, 0, H], [c - 3, c - 3, H]);
+    seg([c, c, 0], [c, c, H]);
+    tick([c, c, 0], [0.7071, 0.7071, 0], 3);
+    tick([c, c, H], [0.7071, 0.7071, 0], 3);
+    label(fmt(H), [c, c, H / 2]);
+
+    var g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pts), 3));
+    var lines = new THREE.LineSegments(g, dimMaterial);
+    lines.renderOrder = 10;
+    return lines;
+  }
+
+  var tmp = new THREE.Vector3();
+  function placeLabels() {
+    var w = stage.clientWidth, h = stage.clientHeight;
+    var show = dimsEl.checked;
+    labelsEl.hidden = !show;
+    if (!show) return;
+    dimLabels.forEach(function (l) {
+      tmp.copy(l.pos).project(camera);
+      var hidden = tmp.z > 1 || tmp.z < -1;
+      l.el.hidden = hidden;
+      if (!hidden) {
+        l.el.style.left = ((tmp.x * 0.5 + 0.5) * w) + "px";
+        l.el.style.top = ((-tmp.y * 0.5 + 0.5) * h) + "px";
+      }
+    });
+  }
+
+  function clearBuilt() {
+    if (!built) return;
+    scene.remove(built.root);
+    if (built.dims) { scene.remove(built.dims); built.dims.geometry.dispose(); }
+    built.root.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    edgeMaterials = [];
+    built = null;
+  }
+
+  function build(cfg) {
+    clearBuilt();
+    var root = new THREE.Group();
+    var base = mesh(cfg.base, 0x9aa6b3, {});
+    var lid = mesh(cfg.lid, 0x5b8def, { opacity: 0.55 });
+    var pis = new THREE.Group();
+    cfg.pis.forEach(function (p) { pis.add(mesh(p, 0x22a05b, {})); });
+    root.add(base, lid, pis);
+    scene.add(root);
+    var dims = buildDims(cfg);
+    scene.add(dims);
+    built = { root: root, base: base, lid: lid, pis: pis, dims: dims };
+    cutEl.max = String(Math.ceil(cfg.size[2] + LIFT));
+    paintEdges();
+  }
+
+  function frame(view) {
+    var s = current.size, cx = s[0] / 2, cy = s[1] / 2, cz = s[2] / 2;
+    var span = Math.max(s[0] + 44, (s[1] + 44) * 1.15) * 1.02;
+    var dir = { iso: [-0.55, -0.85, 0.75], top: [0, -0.001, 1], front: [0, -1, 0.12], back: [0, 1, 0.12] }[view];
+    var n = Math.hypot(dir[0], dir[1], dir[2]);
+    var aspect = camera.aspect || 1.6;
+    var dist = span / (2 * Math.tan((camera.fov * Math.PI) / 360)) / Math.min(1, aspect / 1.4) * 0.95;
+    controls.target.set(cx, cy, cz);
+    camera.position.set(cx + (dir[0] / n) * dist, cy + (dir[1] / n) * dist, cz + (dir[2] / n) * dist);
+    camera.lookAt(controls.target);
+    controls.update();
+    render();
+  }
+
+  function applyState() {
+    if (!built) return;
+    built.lid.visible = state.lid !== "off";
+    built.lid.position.z = state.lid === "lifted" ? LIFT : 0;
+    built.pis.visible = pisEl.checked;
+    built.dims.visible = dimsEl.checked;
+    var max = Number(cutEl.max), v = Number(cutEl.value);
+    if (v >= max) {
+      plane.constant = 1e6;
+      cutOut.textContent = "off";
+    } else {
+      plane.constant = v;
+      cutOut.textContent = v + " mm";
+    }
+    document.querySelectorAll("#lidSeg button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lid === state.lid)); });
+    document.querySelectorAll("#viewSeg button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.view === state.view)); });
+    render();
+  }
+
+  function fmt(n) { return (Math.round(n * 10) / 10).toString(); }
+
+  function readout() {
+    var s = current.size;
+    var fits = (s[0] <= BED && s[1] <= BED) || (s[1] <= BED && s[0] <= BED);
+    var dl = document.getElementById("size");
+    dl.innerHTML = "";
+    [["Width", fmt(s[0]) + " mm"], ["Depth", fmt(s[1]) + " mm"], ["Height", fmt(s[2]) + " mm"]].forEach(function (r) {
+      var dt = document.createElement("dt"), dd = document.createElement("dd");
+      dt.textContent = r[0]; dd.textContent = r[1]; dl.append(dt, dd);
+    });
+    var dt = document.createElement("dt"), dd = document.createElement("dd");
+    dt.textContent = "A1 mini bed (180 mm)";
+    dd.className = "fit " + (fits ? "ok" : "no");
+    dd.textContent = fits ? "Fits" : "Too wide";
+    dl.append(dt, dd);
+
+    var t = document.getElementById("bays");
+    t.innerHTML = "<tr><th>Bay</th><th>Standoff</th><th>Above board</th></tr>";
+    current.bays.forEach(function (b, i) {
+      var tr = document.createElement("tr");
+      var name = b.kind === "open" ? "Open shelf" : (b.kind === "pi5" ? "Pi 5" : "Reserved");
+      if (b.divider) name += " · divider";
+      var cells = [(i + 1) + ". " + name, b.kind === "open" ? "-" : fmt(b.standoff) + " mm", b.kind === "open" ? "-" : fmt(b.room) + " mm"];
+      cells.forEach(function (c) { var td = document.createElement("td"); td.textContent = c; tr.appendChild(td); });
+      t.appendChild(tr);
+    });
+  }
+
+  function select(key) {
+    current = data.filter(function (c) { return c.key === key; })[0];
+    state.key = key;
+    build(current);
+    readout();
+    cutEl.value = cutEl.max;
+    applyState();
+    frame(state.view);
+  }
+
+  function resize() {
+    var w = stage.clientWidth, h = stage.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    render();
+  }
+
+  var pending = false;
+  function render() {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function () {
+      pending = false;
+      renderer.render(scene, camera);
+      placeLabels();
+    });
+  }
+
+  function makeConfigs() {
+    data.forEach(function (c, i) {
+      var label = document.createElement("label");
+      var input = document.createElement("input");
+      input.type = "radio"; input.name = "cfg"; input.value = c.key; input.checked = i === 0;
+      var text = document.createElement("span");
+      var name = document.createElement("span"); name.className = "name"; name.textContent = c.name;
+      var blurb = document.createElement("span"); blurb.className = "blurb"; blurb.textContent = c.blurb;
+      text.append(name, blurb);
+      label.append(input, text);
+      input.addEventListener("change", function () { select(c.key); });
+      cfgEl.appendChild(label);
+    });
+  }
+
+  document.getElementById("lidSeg").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    state.lid = b.dataset.lid; applyState();
+  });
+  document.getElementById("viewSeg").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    state.view = b.dataset.view; applyState(); frame(state.view);
+  });
+  pisEl.addEventListener("change", applyState);
+  dimsEl.addEventListener("change", applyState);
+  cutEl.addEventListener("input", applyState);
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(stage);
+  window.addEventListener("resize", resize);
+  if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { setTimeout(paintEdges, 0); });
+  new MutationObserver(function () { setTimeout(paintEdges, 0); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  fetch("enclosures.json")
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (json) {
+      data = json;
+      makeConfigs();
+      statusEl.hidden = true;
+      resize();
+      select(data[0].key);
+    })
+    .catch(function () { fail("Could not load the model data."); });
+})();
+</script>
