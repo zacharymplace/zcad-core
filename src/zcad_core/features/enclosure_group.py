@@ -688,14 +688,17 @@ def _pi_envelope(
     boxes.append(
         _box(
             (
-                center_x - pi.cooler_width_mm / 2,
-                center_x + pi.cooler_width_mm / 2,
+                center_x + pi.cooler_center_x_mm - pi.cooler_width_mm / 2,
+                center_x + pi.cooler_center_x_mm + pi.cooler_width_mm / 2,
             ),
             (
                 center_y + pi.cooler_center_y_mm - pi.cooler_length_mm / 2,
                 center_y + pi.cooler_center_y_mm + pi.cooler_length_mm / 2,
             ),
-            (board_top, board_top + pi.cooler_height_mm),
+            (
+                board_top + pi.cooler_bottom_above_board_mm,
+                board_top + pi.cooler_height_mm,
+            ),
         )
     )
     boxes.append(
@@ -1035,20 +1038,20 @@ def _lid(
         if not layout.holds_pi:
             continue
 
-        center_x = wall + layout.center_x_mm
-        soc_y = pi_center_y + pi.cooler_center_y_mm
+        fan_x = wall + layout.center_x_mm + pi.fan_center_x_mm
+        fan_y = pi_center_y + pi.fan_center_y_mm
 
         for index in range(_VENT_SLOTS):
             offset = (index - (_VENT_SLOTS - 1) / 2) * _VENT_PITCH_MM
             lid = lid.cut(
                 _box(
                     (
-                        center_x - _VENT_LENGTH_MM / 2,
-                        center_x + _VENT_LENGTH_MM / 2,
+                        fan_x - _VENT_LENGTH_MM / 2,
+                        fan_x + _VENT_LENGTH_MM / 2,
                     ),
                     (
-                        soc_y + offset - _VENT_WIDTH_MM / 2,
-                        soc_y + offset + _VENT_WIDTH_MM / 2,
+                        fan_y + offset - _VENT_WIDTH_MM / 2,
+                        fan_y + offset + _VENT_WIDTH_MM / 2,
                     ),
                     (cavity_top - 1.0, cavity_top + design.lid_mm + 1.0),
                 )
