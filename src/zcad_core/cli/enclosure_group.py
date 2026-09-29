@@ -19,11 +19,16 @@ from zcad_core.features.enclosure_group import (
     GroupEnclosure,
     OpeningWall,
     build_group_enclosure,
+    print_oriented_parts,
 )
 from zcad_core.features.enclosure_group_dividers import Divider
+from zcad_core.printing import SliceError, slice_models
 from zcad_core.profiles import load_printer_profile
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
+DEFAULT_SLICER_PROFILE = Path(
+    "profiles/slicers/bambu-studio-a1-mini-petg-validation.json"
+)
 _REVIEW_LID_LIFT_MM = 25.0
 
 
@@ -207,6 +212,51 @@ def _require_fits_bed(group: GroupEnclosure, profile: dict[str, Any]) -> None:
         )
 
 
+def _slice(
+    args: argparse.Namespace, group: GroupEnclosure, name: str
+) -> dict[str, object]:
+    """Write print-oriented STLs and slice the base and the lid, each on a
+    plate of its own: together they would not fit the bed."""
+
+    print_directory = args.output_directory / "print"
+    print_directory.mkdir()
+    plates: dict[str, dict[str, object]] = {}
+    minutes = 0
+    grams = 0.0
+
+    for part, shape in print_oriented_parts(group).items():
+        model = print_directory / f"{name}-{part}.stl"
+        cq.exporters.export(shape, str(model))
+
+        try:
+            sliced = slice_models(
+                [model],
+                args.output_directory / "slice" / part,
+                slicer_profile_path=args.slicer_profile,
+                summary_fields={"design_name": name, "part": part},
+            )
+        except SliceError as error:
+            raise ValueError(str(error)) from error
+
+        summary = sliced.summary
+        part_minutes = round(summary["estimated_print_time_seconds"] / 60)
+        part_grams = round(summary["filament_used_g"], 1)
+        minutes += part_minutes
+        grams += part_grams
+        plates[part] = {
+            "gcode": str(sliced.gcode_path),
+            "estimated_print_minutes": part_minutes,
+            "filament_used_g": part_grams,
+            "slicer_warning": summary["slicer_warning"],
+        }
+
+    return {
+        "plates": plates,
+        "total_print_minutes": minutes,
+        "total_filament_g": round(grams, 1),
+    }
+
+
 def _group_build(args: argparse.Namespace) -> int:
     bays = _bays(args.bays)
     design = GroupDesign(
@@ -250,6 +300,7 @@ def _group_build(args: argparse.Namespace) -> int:
         if group.recommended_join_screw_mm
         else None
     )
+    printed = _slice(args, group, name) if args.slice and group.passed else None
     emit(
         {
             "design_name": name,
@@ -268,6 +319,7 @@ def _group_build(args: argparse.Namespace) -> int:
                 "pi_mount": "M2.5 self-tapping, 4 per Pi",
             },
             "review_step": str(review_path),
+            "print": printed,
             "parts": {
                 part.part_name: {
                     "step": str(part.step_path),
@@ -334,4 +386,14 @@ def register(
         action="store_false",
         help="omit the bolt features that join a second unit",
     )
+    build.add_argument(
+        "--slice",
+        action="store_true",
+        help=(
+            "also slice the base and the lid with Bambu Studio, each on its own "
+            "plate, into <output-directory>/slice/<part>, and report print time "
+            "and filament"
+        ),
+    )
+    build.add_argument("--slicer-profile", type=Path, default=DEFAULT_SLICER_PROFILE)
     build.set_defaults(handler=_group_build)

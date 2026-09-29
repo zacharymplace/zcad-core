@@ -1057,6 +1057,16 @@ def _lid(
     return lid
 
 
+def print_oriented_parts(group: GroupEnclosure) -> dict[str, cq.Shape]:
+    """Each part as it goes on the bed: the base on its floor, the lid on its
+    outer face, so the face you see sits against the plate."""
+
+    return {
+        "base": _shape(group.base),
+        "lid": _shape(group.lid).rotate((0, 0, 0), (1, 0, 0), 180),
+    }
+
+
 def _shape(model: cq.Workplane) -> cq.Shape:
     shapes = [value for value in model.vals() if isinstance(value, cq.Shape)]
 
