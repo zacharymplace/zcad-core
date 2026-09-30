@@ -4,7 +4,8 @@
 src/zcad_core/
 ├── assemblies    board, display, and connector assemblies; enclosure derivation
 ├── exporters     validated STEP/STL export with staged publication
-├── features      enclosure features, the enclosure builder, and its review
+├── features      enclosure features; the single-board and Pi 5 group enclosure
+│                 builders, their reviews, print trials, and the 3D viewer
 ├── geometry      board-edge analysis and fail-closed solid intersection
 ├── hardware      catalogued boards (with vendor-model parts), displays, fasteners
 ├── metadata      per-part build records
@@ -16,3 +17,24 @@ src/zcad_core/
 ```
 
 Product libraries live outside this repository.
+
+## Two enclosure builders
+
+`features.enclosure` builds a base and lid around one board and an optional
+display, from a `DeviceAssembly` derived from the catalog. `features.enclosure_group`
+builds one base and lid around a row of bays, each holding a Raspberry Pi 5,
+keeping a place for one, or left open for other hardware. It works from a
+hand-built `RaspberryPi5Spec` (from Raspberry Pi's mechanical drawings, with its
+orientation taken from their STEP model) rather than a derived assembly, and
+reuses the same insert-boss, standoff, and
+wall-opening features. Its dividers are in `features.enclosure_group_dividers`,
+and the data and page for the 3D viewer in `features.enclosure_group_viewer`.
+
+## Where data lives
+
+- `hardware/data/board-components/`: each board's parts as boxes, extracted from
+  its vendor STEP model by `scripts/extract-board-components.py`.
+- `features/data/`: the page template for the 3D viewer.
+- `evidence/`: vendor models and Validation Lab evidence, local to a checkout
+  and not in this repository. The tests that need it are marked `slow` and skip
+  where it is absent.
