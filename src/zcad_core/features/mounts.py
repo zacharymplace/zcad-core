@@ -18,7 +18,7 @@ import cadquery as cq
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware import FastenerSpec, get_fastener
 
-MOUNTS = ("keyhole", "vesa75", "vesa100")
+MOUNTS = ("keyhole", "vesa75", "vesa100", "din")
 
 # Floor left above an insert pocket, so the pocket never breaks into the cavity.
 POCKET_ROOF_MM = 1.0
@@ -45,6 +45,34 @@ VESA_HEAD_DIAMETER_MM = 8.0
 VESA_HEAD_HEIGHT_MM = 3.1
 # How far a VESA screw should reach into the device, past the plate.
 VESA_ENGAGEMENT_MM = 10.0
+# DIN rail TS35: 35 mm wide, flanges 1.0 to 1.5 mm thick and 4 mm wide (a
+# 27 mm web between them), 7.5 or 15 mm deep. The plate's outer face sits on
+# the flanges; a hook on each side reaches under a flange. The fixed hook is
+# toward +Y and the latch toward -Y, so the enclosure hangs with +Y up on a
+# horizontal rail, which runs along X.
+DIN_RAIL_WIDTH_MM = 35.0
+DIN_FLANGE_WIDTH_MM = 4.0
+DIN_FLANGE_THICKNESS_MM = 1.5
+# Room between a flange's edge and a hook's wall, and between the flange and
+# the lip that grips it.
+_DIN_EDGE_CLEARANCE_MM = 0.3
+_DIN_GRIP_CLEARANCE_MM = 0.2
+_DIN_LIP_WIDTH_MM = 2.5
+_DIN_LIP_THICKNESS_MM = 2.0
+_DIN_WALL_MM = 2.0
+_DIN_FIXED_HOOK_WIDTH_MM = 20.0
+_DIN_LATCH_HOOK_WIDTH_MM = 8.0
+# The latch is a tongue cut from the plate, bending in the plate's plane so
+# its stress runs along the printed layers. Its free end swings clear of the
+# flange by the lip's width, plus this margin.
+FLEXURE_THICKNESS_MM = 1.6
+_DIN_SWING_MARGIN_MM = 0.3
+# A design strain limit for a printed PETG tongue, well under the material's
+# yield; provisional until a print trial measures it.
+FLEXURE_STRAIN_LIMIT = 0.015
+_DIN_INNER_SLIT_MM = 0.8
+_DIN_END_SLIT_MM = 1.0
+_DIN_ROOT_MM = 3.0
 _COUNTERSINK_FLOOR_MM = 1.2
 _SCREW_LENGTHS_MM = (4, 5, 6, 8, 10, 12, 16, 20)
 _HEAD_DIAMETER_FACTOR = 2.0
@@ -69,6 +97,18 @@ class MountPads:
 
 
 @dataclass(frozen=True)
+class Flexure:
+    """A cantilever tongue: its size, how far its tip swings, and the strain
+    at its root, as a fraction (0.015 is 1.5 %)."""
+
+    thickness_mm: float
+    length_mm: float
+    deflection_mm: float
+    strain: float
+    strain_limit: float
+
+
+@dataclass(frozen=True)
 class MountPlate:
     """A built plate and the screws that hold it on."""
 
@@ -79,6 +119,9 @@ class MountPlate:
     # The screws that hold the plate to what it mounts on, when the plate
     # has them (a VESA plate's M4 screws); a keyhole plate's are the wall's.
     device_screws: str | None = None
+    # How the plate attaches to a rail, and the printed spring that latches it.
+    attachment: str | None = None
+    flexure: Flexure | None = None
 
 
 def pad_height_mm(fastener: FastenerSpec, floor_mm: float) -> float:
@@ -172,6 +215,14 @@ def build_mount(
     if kind in VESA_PATTERNS_MM:
         return _vesa_plate(
             kind,
+            pads,
+            fastener=fastener,
+            plate_mm=plate_mm,
+            compensation=hole_compensation_mm,
+        )
+
+    if kind == "din":
+        return _din_plate(
             pads,
             fastener=fastener,
             plate_mm=plate_mm,
@@ -389,6 +440,186 @@ def _vesa_plate(
             f"{screw.identifier} x {device_screw} mm, 4 on a "
             f"{spacing:.0f} x {spacing:.0f} mm pattern"
         ),
+    )
+
+
+def flexure_for(deflection_mm: float, reach_mm: float) -> Flexure:
+    """The tongue for a deflection at a load point ``reach_mm`` from its root,
+    with the strain an end-loaded cantilever sees: 3 t d / (2 L^2)."""
+
+    strain = 3 * FLEXURE_THICKNESS_MM * deflection_mm / (2 * reach_mm**2)
+
+    return Flexure(
+        thickness_mm=FLEXURE_THICKNESS_MM,
+        length_mm=reach_mm,
+        deflection_mm=deflection_mm,
+        strain=strain,
+        strain_limit=FLEXURE_STRAIN_LIMIT,
+    )
+
+
+def flexure_payload(flexure: Flexure | None) -> dict[str, float] | None:
+    """A flexure as the build output reports it."""
+
+    if flexure is None:
+        return None
+
+    return {
+        "thickness_mm": flexure.thickness_mm,
+        "length_mm": flexure.length_mm,
+        "deflection_mm": flexure.deflection_mm,
+        "strain_percent": round(100 * flexure.strain, 2),
+        "strain_limit_percent": round(100 * flexure.strain_limit, 2),
+    }
+
+
+def _hook(
+    x_span: tuple[float, float],
+    wall_y: tuple[float, float],
+    lip_y: tuple[float, float],
+    *,
+    bottom: float,
+) -> cq.Workplane:
+    """A wall standing off the plate's outer face, with a lip at its far end
+    that turns toward the rail to reach under a flange."""
+
+    reach_z = DIN_FLANGE_THICKNESS_MM + _DIN_GRIP_CLEARANCE_MM + _DIN_LIP_THICKNESS_MM
+    x0, x1 = x_span
+    # The wall runs 0.5 mm into the plate so the two fuse.
+    wall = cq.Solid.makeBox(
+        x1 - x0,
+        wall_y[1] - wall_y[0],
+        reach_z + 0.5,
+        pnt=cq.Vector(x0, wall_y[0], bottom - reach_z),
+    )
+    lip = cq.Solid.makeBox(
+        x1 - x0,
+        lip_y[1] - lip_y[0],
+        _DIN_LIP_THICKNESS_MM,
+        pnt=cq.Vector(x0, lip_y[0], bottom - reach_z),
+    )
+
+    return cq.Workplane("XY").add(wall).union(cq.Workplane("XY").add(lip))
+
+
+def _din_plate(
+    pads: MountPads,
+    *,
+    fastener: FastenerSpec,
+    plate_mm: float,
+    compensation: float,
+) -> MountPlate:
+    """A plate that clips onto a 35 mm DIN rail: a fixed hook at +Y and a
+    latch at -Y whose tongue is cut from the plate.
+
+    Print it enclosure face down, hooks up: the tongue then bends in the
+    layer plane, and each lip overhangs by 2.5 mm, inside the manufacturing
+    limit for unsupported overhang.
+    """
+
+    if plate_mm < FLEXURE_THICKNESS_MM + 1.0:
+        raise ValueError("The plate is too thin to carry a latch tongue")
+
+    xs = [x for x, _ in pads.positions]
+    ys = [y for _, y in pads.positions]
+    cx = (min(xs) + max(xs)) / 2
+    cy = (min(ys) + max(ys)) / 2
+    half = DIN_RAIL_WIDTH_MM / 2 + _DIN_EDGE_CLEARANCE_MM
+    t = FLEXURE_THICKNESS_MM
+    swing = _DIN_LIP_WIDTH_MM + _DIN_SWING_MARGIN_MM
+    outer_slit = swing + 0.5 + compensation
+    inner_slit = _DIN_INNER_SLIT_MM + compensation
+    end_slit = _DIN_END_SLIT_MM + compensation
+
+    # The shortest tongue that keeps the strain within its limit, measured to
+    # the latch hook's centre, where the flange pushes.
+    reach = math.ceil(math.sqrt(3 * t * swing / (2 * FLEXURE_STRAIN_LIMIT)))
+    length = reach + _DIN_LATCH_HOOK_WIDTH_MM / 2 + 1.0
+    flexure = flexure_for(swing, reach)
+
+    if flexure.strain > FLEXURE_STRAIN_LIMIT:
+        raise ValueError("The latch tongue would strain past its limit")
+
+    # The tongue runs from its free end to its root; plate lies past both.
+    x_free = cx - length / 2
+    x_root = cx + length / 2
+    latch_inner = cy - half
+    tongue_low = latch_inner - t
+    slot_low = tongue_low - outer_slit
+    hook_inner = cy + half
+    fixed_high = hook_inner + _DIN_WALL_MM
+
+    pad_x0, pad_x1, pad_y0, pad_y1 = _pad_bounds(pads)
+    bounds = (
+        min(pad_x0, x_free - end_slit - _PLATE_MARGIN_MM),
+        max(pad_x1, x_root + _DIN_ROOT_MM),
+        min(pad_y0, slot_low - _PLATE_MARGIN_MM),
+        max(pad_y1, fixed_high + _PLATE_MARGIN_MM),
+    )
+    plate, bottom = _seat_plate(
+        pads,
+        bounds,
+        fastener=fastener,
+        plate_mm=plate_mm,
+        compensation=compensation,
+    )
+
+    slot_x0 = x_free - end_slit
+    slot = (slot_x0, x_root, slot_low, latch_inner + inner_slit)
+    head = fastener.nominal_diameter_mm * _HEAD_DIAMETER_FACTOR
+
+    for px, py in pads.positions:
+        if _gap_to_rectangle(px, py, *slot) < head / 2 + _FEATURE_WALL_MM:
+            raise ValueError(
+                "The latch slot would come within 2 mm of a screw hole; the "
+                "plate is too small for a DIN clip"
+            )
+
+    z0 = bottom - 1.0
+    depth = plate_mm + 2.0
+    # The tongue is what a U-shaped slot leaves standing.
+    plate = _cut(
+        plate,
+        cq.Solid.makeBox(
+            x_root - slot_x0, outer_slit, depth, pnt=cq.Vector(slot_x0, slot_low, z0)
+        ),
+        cq.Solid.makeBox(
+            x_root - slot_x0,
+            inner_slit,
+            depth,
+            pnt=cq.Vector(slot_x0, latch_inner, z0),
+        ),
+        cq.Solid.makeBox(end_slit, t, depth, pnt=cq.Vector(slot_x0, tongue_low, z0)),
+    )
+    fixed = _DIN_FIXED_HOOK_WIDTH_MM
+    plate = plate.union(
+        _hook(
+            (cx - fixed / 2, cx + fixed / 2),
+            (hook_inner, fixed_high),
+            (hook_inner - _DIN_LIP_WIDTH_MM, hook_inner),
+            bottom=bottom,
+        )
+    ).union(
+        _hook(
+            (x_free, x_free + _DIN_LATCH_HOOK_WIDTH_MM),
+            (tongue_low, latch_inner),
+            (latch_inner, latch_inner + _DIN_LIP_WIDTH_MM),
+            bottom=bottom,
+        )
+    )
+    x0, x1, y0, y1 = bounds
+
+    return MountPlate(
+        plate=plate,
+        thickness_mm=plate_mm,
+        recommended_screw_mm=_screw_length(plate_mm + pads.pocket_depth_mm),
+        size_mm=(x1 - x0, y1 - y0),
+        attachment=(
+            "35 mm DIN rail (TS35): hook the +Y edge over the top flange, press "
+            "the -Y edge on until the latch clicks; release with a flat "
+            "screwdriver in the latch slot"
+        ),
+        flexure=flexure,
     )
 
 
