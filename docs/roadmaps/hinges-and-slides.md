@@ -8,7 +8,9 @@ open, for a box that is opened often, such as a battery box, a field device,
 or anything with a card or a switch inside. A slide lid opens by pushing it
 along the box, with nothing to lose and no fasteners.
 
-This is a design, not built work. Nothing below exists in the code yet.
+Phase 1, the pin hinge and its catch, is built, and differs from the first
+design in several ways, each from building it (see *What phase 1 changed*
+below). The slide lid is still design only.
 
 ## Where it fits
 
@@ -45,13 +47,13 @@ length, as it does the screws'.
   that direction. The export's bed check already refuses a part that no
   longer fits; the rack-ear work found that out the hard way, so the hinge
   height is counted in the footprint before export.
-- The lid opens to about 100 degrees, held by a stop where the lid's plate
-  meets the top of the back wall.
-- The skirt is left off the hinge side, so it does not catch the wall as the
-  lid swings.
-- The closure is a snap catch on the opposite long wall, a tongue cut from
-  the lid like the DIN clip's latch. It uses the same strain check
-  (`flexure_for`) against the same provisional limit.
+- The lid opens to 100 degrees; the sweep check proves it swings that far
+  clear. There is no stop: the lid is not held open.
+- There is no skirt, so nothing inside the box catches the wall as the lid
+  swings.
+- The closure is a snap catch on the opposite long wall. It uses the same
+  strain check (`flexure_for`) against the same provisional limit as the DIN
+  clip's latch.
 
 ## Decision: a slide lid in a rebate, with a detent
 
@@ -93,7 +95,7 @@ The parts pass through the same export pipeline as the enclosure.
 
 ## Phases
 
-1. **Pin hinge and snap catch**, single-board enclosure: the hinge module,
+1. **Pin hinge and snap catch (built)**, single-board enclosure: the hinge module,
    the `"hinge"` lid attachment, the swing envelope check, the pin in the
    hardware output, `--lid hinge`.
 2. **Slide lid**, single-board enclosure: the thickened band, the grooves,
@@ -103,6 +105,29 @@ The parts pass through the same export pipeline as the enclosure.
 4. **Review and trials**: the hinge's swing and the slide's travel in the
    exploded review model, and trial measurements for pin fit and slide force
    in the Validation Lab.
+
+### What phase 1 changed
+
+- **The catch hangs outside the wall, not cut from the lid.** The design
+  cut a tongue from the lid's plate, like the DIN clip's latch. That cannot
+  work here. The axis is behind the hinge wall, so as the front edge lifts,
+  everything below the axis moves toward the front wall, by about b^2 / 2a
+  for a part b below the axis and a from it. A tongue or skirt inside the
+  front wall digs into it after a degree or two. Outside the wall it moves
+  away. So the catch is a tongue hanging from a tab on the lid's front edge,
+  with a hook that snaps under a bump on the wall, and a lip to pull it by.
+  It grows the lid by 3.1 mm at the front, over the catch's width.
+- **The wall must be tall enough.** Keeping the strain within the limit
+  takes a 10 mm tongue, so the wall has to be at least 11.7 mm. The Pico 2's
+  default box is 10.2 mm, so a hinged Pico needs `--bottom-clearance-mm 6` or
+  a display; the build says so.
+- **The walls stand a millimetre further off.** A hinged lid's display
+  retainer swings toward the front wall by about 1 mm, so the automatic side
+  clearance starts at 3 mm for a hinged lid, not 2.
+- **The pin is an M3 screw and nut.** A filament pin is not built: its hole
+  would need to be tighter, and no print has shown what tightness.
+- **A display is swept as part of the lid.** It screws to the lid's posts, so
+  it swings with it; as a fixed part it would falsely block the sweep.
 
 Each phase is one PR. Phases 1 and 2 add lid attachments, so existing builds
 and records are unchanged unless a design asks for them.

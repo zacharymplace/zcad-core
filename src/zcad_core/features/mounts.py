@@ -453,14 +453,18 @@ def _vesa_plate(
     )
 
 
-def flexure_for(deflection_mm: float, reach_mm: float) -> Flexure:
+def flexure_for(
+    deflection_mm: float,
+    reach_mm: float,
+    thickness_mm: float = FLEXURE_THICKNESS_MM,
+) -> Flexure:
     """The tongue for a deflection at a load point ``reach_mm`` from its root,
     with the strain an end-loaded cantilever sees: 3 t d / (2 L^2)."""
 
-    strain = 3 * FLEXURE_THICKNESS_MM * deflection_mm / (2 * reach_mm**2)
+    strain = 3 * thickness_mm * deflection_mm / (2 * reach_mm**2)
 
     return Flexure(
-        thickness_mm=FLEXURE_THICKNESS_MM,
+        thickness_mm=thickness_mm,
         length_mm=reach_mm,
         deflection_mm=deflection_mm,
         strain=strain,
