@@ -23,6 +23,7 @@ from zcad_core.hardware import (
     get_adafruit_feather_rp2040,
     get_arduino_uno_r4_wifi,
     get_board,
+    get_raspberry_pi5,
     get_raspberry_pi_pico2,
     get_reference_oled_128x64,
     list_boards,
@@ -183,6 +184,55 @@ def test_a_declared_opening_takes_in_the_parts_it_covers() -> None:
 
     # The Ethernet jack's LED windows get no openings of their own.
     assert back == [-19.0, -1.1, 17.8]
+
+
+def cooled_pi5(display: bool = False) -> Enclosure:
+    pi = get_raspberry_pi5().with_active_cooler()
+
+    if not display:
+        assembly = build_board_assembly(
+            board=pi, board_placement=Placement(), connector_access_clearance_mm=2.0
+        )
+        return build_enclosure(assembly, board=pi)
+
+    assembly = build_board_display_assembly(
+        board=pi,
+        display=DISPLAY,
+        board_placement=Placement(),
+        display_placement=Placement(z_mm=20.0),
+        connector_access_clearance_mm=2.0,
+    )
+    return build_enclosure(assembly, board=pi, display=DISPLAY)
+
+
+def lid_point(enclosure: Enclosure, x: float, y: float) -> cq.Vector:
+    spec = enclosure.specification
+    top = spec.bottom_z_mm + spec.inner_height_mm
+
+    return cq.Vector(x, y, top + enclosure.design.lid_mm / 2)
+
+
+def test_the_lid_vents_a_fitted_active_coolers_fan() -> None:
+    enclosure = cooled_pi5()
+    lid = solid(enclosure.lid)
+    fan_x, fan_y = -4.6, 0.1
+
+    # Six slots across the fan's 30 mm square, 5 mm apart, with lid between.
+    for offset in (-12.5, -7.5, -2.5, 2.5, 7.5, 12.5):
+        assert not lid.isInside(lid_point(enclosure, fan_x, fan_y + offset))
+    assert lid.isInside(lid_point(enclosure, fan_x, fan_y))
+    assert lid.isInside(lid_point(enclosure, fan_x, fan_y + 15.5))
+
+
+def test_a_pi5_without_its_cooler_keeps_a_closed_lid() -> None:
+    _, enclosure = board_only("RASPBERRY_PI_5")
+
+    assert solid(enclosure.lid).isInside(lid_point(enclosure, -4.6, 2.6))
+
+
+def test_a_display_over_the_fan_is_refused() -> None:
+    with pytest.raises(ValueError, match="display covers the lid vent"):
+        cooled_pi5(display=True)
 
 
 def test_cable_opening_follows_an_off_centre_connector() -> None:

@@ -66,6 +66,15 @@ pin header or flex cable. Turn either off with `display_retainer=False`
 The builder refuses combinations that do not fit, such as more slots than
 a wall holds, or vents on walls too low to fit them under a skirt.
 
+**Active Cooler.** `--active-cooler` fits a Raspberry Pi 5's Active Cooler
+(`get_raspberry_pi5().with_active_cooler()` from Python). The cooler joins
+the board's parts, so the enclosure and any display are checked against
+it. Its 30 mm fan draws air from above, so the lid gets six 2.4 mm slots at
+a 5 mm pitch across the fan. A display over the fan would starve it, so
+the builder refuses one there. The cooler's top is 12.5 mm above the board,
+under the USB stacks, so it adds no height. The build record notes the
+cooler, so a revision rebuilds with it.
+
 **Cable opening.** The opening passes a cable's moulded plug body, not just
 the connector, so the plug reaches the connector through the wall and the
 gap inside it. The defaults (12.5 x 7.5 mm) fit common USB-C and micro-USB

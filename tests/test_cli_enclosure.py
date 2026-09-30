@@ -127,6 +127,37 @@ def test_build_refuses_an_unknown_board(
     assert "Unsupported board: nope" in capsys.readouterr().err
 
 
+def test_build_fits_a_pi5_active_cooler_and_records_it(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    exit_code, output = build(
+        capsys, tmp_path, "--board", "raspberry_pi_5", "--active-cooler"
+    )
+
+    assert exit_code == 0
+    record = json.loads(Path(output["build_record"]).read_text("utf-8"))
+    assert record["assembly"]["active_cooler"] is True
+
+
+def test_build_refuses_a_cooler_for_a_board_without_one(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    exit_code = main(
+        [
+            "enclosure",
+            "build",
+            "--board",
+            "raspberry_pi_pico_2",
+            "--active-cooler",
+            "--output-directory",
+            str(tmp_path),
+        ]
+    )
+
+    assert exit_code == 1
+    assert "RASPBERRY_PI_PICO_2 takes no Active Cooler" in capsys.readouterr().err
+
+
 def test_build_refuses_a_display_resting_on_the_board(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:

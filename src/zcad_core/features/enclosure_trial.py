@@ -179,15 +179,16 @@ def write_build_record(
     display: DisplaySpec | None,
     part_stls: dict[str, Path],
     printer_profile_id: str,
-    assembly_settings: dict[str, float] | None = None,
+    assembly_settings: dict[str, float | bool] | None = None,
     revision_of: dict[str, Any] | None = None,
     compensation_profile: dict[str, Any] | None = None,
 ) -> Path:
     """Write ``enclosure.json``; refuses to replace one.
 
     ``assembly_settings`` records how the hardware was placed (display
-    height and clearances), so a revision can rebuild the same assembly;
-    ``revision_of`` records the build and trial a revision came from.
+    height, clearances, and any fitted cooler), so a revision can rebuild the
+    same assembly; ``revision_of`` records the build and trial a revision
+    came from.
     """
 
     path = output_directory / BUILD_RECORD

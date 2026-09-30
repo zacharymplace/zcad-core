@@ -7,6 +7,7 @@ from zcad_core.hardware import (
     get_arduino_uno_r4_wifi,
     get_board,
     get_display,
+    get_raspberry_pi5,
     get_reference_oled_128x64,
     list_boards,
     list_displays,
@@ -84,3 +85,17 @@ def test_the_pi5_declares_its_hdmi_ports_and_card_but_not_its_power_input() -> N
 def test_other_boards_declare_no_wall_openings(identifier: str) -> None:
     if identifier != "RASPBERRY_PI_5":
         assert get_board(identifier).wall_openings == ()
+
+
+def test_a_fitted_active_cooler_adds_the_cooler_and_a_vented_fan() -> None:
+    pi = get_raspberry_pi5()
+    cooled = pi.with_active_cooler()
+    added = {part.identifier: part for part in cooled.components[len(pi.components) :]}
+
+    assert set(added) == {"active-cooler", "active-cooler-fan"}
+    assert added["active-cooler-fan"].lid_vent
+    assert not added["active-cooler"].lid_vent
+    fan = added["active-cooler-fan"]
+    assert fan.bottom_offset_from_board_top_mm + fan.height_mm == pi.cooler_height_mm
+    # The bare board is unchanged.
+    assert not any(part.lid_vent for part in pi.components)
