@@ -77,6 +77,25 @@ pin header or flex cable. Turn either off with `display_retainer=False`
   with a display pulls on whatever connects it to the board: leave slack.
   No cycle life is claimed; a printed PETG hinge wears, and a trial has to
   count openings.
+- `--lid slide` (`lid_attachment="slide"`) makes the lid a plate that slides
+  along grooves cut in the two long walls. The long walls are raised 3.4 mm
+  above the cavity and thickened 1.6 mm outward, so the box grows by 3.2 mm
+  across and 1.4 mm in height; a 45 degree slope under the thickening keeps
+  it printable. The far short wall is raised too and is the lid's stop; the
+  near one, the entry, is cut down to the groove's floor, and is one with no
+  opening, the +Y or +X one if both are free. The gap around the lid is
+  `--slide-clearance-mm` (`slide_clearance_mm`, 0.2 by default); the export
+  checks it against the printer profile's `sliding_clearance_per_side` and
+  warns when it is less. A tongue on each edge of the lid, cut in its plane so
+  its stress runs along the layers, carries a rounded bump that clicks into a
+  dimple in the groove to hold the lid shut; its strain is checked like the
+  DIN clip's. Push the lid's end to open it. There are no bosses or skirt. Before the
+  build returns, the lid is slid out in 5 mm steps and the build is refused if
+  it meets the base or a part inside. Nothing may hang from a sliding lid
+  below the entry wall, because it would hit that wall as the lid slides out,
+  so a slide lid cannot hold a display: use a hinged or screwed lid for one.
+  An opening in a long wall is refused if it would cut the groove's floor, and
+  vents stay below the thickening, so the wall must be tall enough for them.
 - `--vent-slots N` (`vent_slots`) cuts N vertical slots, 1.6 mm wide at a
   4 mm pitch, through each long wall that carries no opening, below the
   lid's skirt and clear of the corners.
@@ -164,8 +183,9 @@ cables.
 - `cable_plug_width_mm`, `cable_plug_height_mm`: the plug body the opening
   must pass.
 - `mount`, `mount_plate_mm`: a mount plate and its thickness (none, 4).
-- `lid_attachment`, `hinge_pin`: how the lid is held (`screws`, `snap`, or
-  `hinge`), and the hinge's pin (`M3`).
+- `lid_attachment`, `hinge_pin`, `slide_clearance_mm`: how the lid is held
+  (`screws`, `snap`, `hinge`, or `slide`), the hinge's pin (`M3`), and the
+  gap around a sliding lid (0.2).
 - `hole_compensation_mm`: how much wider than intended to model every hole
   and opening (screw holes, insert pockets, pilot holes, windows, cable
   openings, and the cradle and retainer fits), for a printer that prints

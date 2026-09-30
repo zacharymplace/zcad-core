@@ -56,6 +56,12 @@ from zcad_core.features.insert_bosses import (
     add_heat_set_insert_boss,
 )
 from zcad_core.features.lid_hinge import HINGE_WEB_DEPTH_MM, HingeReport, add_hinge
+from zcad_core.features.lid_slide import (
+    SLIDE_VENT_DROP_MM,
+    SlideReport,
+    add_slide,
+    slide_clearance_error,
+)
 from zcad_core.features.mounts import (
     MOUNTS,
     MountPads,
@@ -100,7 +106,7 @@ _DISPLAY_POST_WALL_MM = 1.2
 # Printers print holes small far more often than large, and the cradle's
 # 0.3 mm fit leaves little room to shrink.
 HOLE_COMPENSATION_RANGE_MM = (-0.2, 1.0)
-LID_ATTACHMENTS = ("screws", "snap", "hinge")
+LID_ATTACHMENTS = ("screws", "snap", "hinge", "slide")
 # A flat-head screw's head is about twice its thread (ISO 10642 M3: 6 mm).
 _COUNTERSINK_HEAD_ALLOWANCE_MM = 0.0
 # The builder's default fits, before hole compensation widens them.
@@ -152,9 +158,13 @@ class EnclosureDesign:
     # make up for a printer that prints them undersized. A trial measures
     # the intended sizes; ``enclosure revise`` sets this from the shortfall.
     hole_compensation_mm: float = 0.0
-    # "screws" into heat-set inserts, a "snap" lid with no fasteners, or a
-    # "hinge" lid on a pin that closes with a catch.
+    # "screws" into heat-set inserts, a "snap" lid with no fasteners, a
+    # "hinge" lid on a pin that closes with a catch, or a "slide" lid that
+    # runs in grooves and is held by a detent.
     lid_attachment: str = "screws"
+    # The gap, per side, around a sliding lid; the printer profile recommends
+    # one, and the export checks this against it.
+    slide_clearance_mm: float = 0.2
     # The fastener used as the hinge pin (with a nut), for a "hinge" lid.
     hinge_pin: str = "M3"
     # Sink flat-head lid screws flush (screwed lids only).
@@ -207,9 +217,20 @@ class EnclosureDesign:
 
         snap = self.lid_attachment == "snap"
         hinge = self.lid_attachment == "hinge"
+        slide = self.lid_attachment == "slide"
 
-        if (snap or hinge) and self.countersunk_screws:
-            raise ValueError("A snap-fit or hinged lid has no screws to countersink")
+        if (snap or hinge or slide) and self.countersunk_screws:
+            raise ValueError(
+                "A snap-fit, hinged, or sliding lid has no screws to countersink"
+            )
+
+        if slide and self.locating_lip:
+            raise ValueError("A sliding lid has no lip: it would catch in its grooves")
+
+        error = slide_clearance_error(self.slide_clearance_mm) if slide else None
+
+        if error is not None:
+            raise ValueError(error)
 
         if snap and self.locating_lip:
             raise ValueError("A snap-fit lid already locates on its skirt")
@@ -256,6 +277,8 @@ class Enclosure:
     mount: MountPlate | None = None
     # The hinge and its catch, for a hinged lid.
     hinge: HingeReport | None = None
+    # The grooves and detent, for a sliding lid.
+    slide: SlideReport | None = None
 
 
 def build_enclosure(
@@ -380,6 +403,34 @@ def build_enclosure(
             ),
         )
 
+    slide = None
+
+    if design.lid_attachment == "slide":
+        base, lid, slide = add_slide(
+            base,
+            lid,
+            cavity,
+            lid_mm=design.lid_mm,
+            clearance_mm=design.slide_clearance_mm,
+            hole_compensation_mm=design.hole_compensation_mm,
+            openings=openings,
+            hardware={
+                component.identifier: _all_solids(component.transformed_geometry())
+                for component in assembly.components
+                if component.identifier != display_identifier
+            },
+            # What the lid holds slides with it, and must clear the entry wall.
+            carried=(
+                {
+                    display_identifier: _all_solids(
+                        assembly.get(display_identifier).transformed_geometry()
+                    )
+                }
+                if display is not None
+                else None
+            ),
+        )
+
     pads = None
     mount = None
 
@@ -424,6 +475,7 @@ def build_enclosure(
         mount_pads=pads,
         mount=mount,
         hinge=hinge,
+        slide=slide,
     )
 
 
@@ -1149,6 +1201,7 @@ def _lid_options_in_base(
                     if skirt is not None
                     else VENT_RIM_MM
                     + (HINGE_WEB_DEPTH_MM if design.lid_attachment == "hinge" else 0.0)
+                    + (SLIDE_VENT_DROP_MM if design.lid_attachment == "slide" else 0.0)
                 ),
                 corner_keepout_mm=(
                     2 * _boss_radius(fastener, design) + 1.0 if positions else 3.0
