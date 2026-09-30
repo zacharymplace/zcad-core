@@ -11,6 +11,7 @@ import cadquery as cq
 from zcad_core.features.connector_cutouts import (
     ConnectorCutoutParameters,
     cut_connector_opening,
+    merge_close_openings,
 )
 from zcad_core.features.enclosure_group_model import (
     OPENING_RIM_MM,
@@ -48,24 +49,23 @@ def cut_pi_openings(
             continue
 
         center_x = wall + layout.center_x_mm
-
-        for port in pi.ports:
-            if port.edge != "positive_y":
-                continue
-
-            base = cut_connector_opening(
-                base,
-                parameters=ConnectorCutoutParameters(
-                    edge="positive_y",
-                    center_offset_mm=center_x + port.center_mm,
-                    bottom_z_mm=layout.board_top_z_mm - 0.5,
-                    width_mm=port.width_mm,
-                    height_mm=port.height_mm,
-                    width_clearance_mm=margin,
-                    height_clearance_mm=design.plug_margin_mm,
-                    cutter_depth_mm=depth,
-                ),
+        back = [
+            ConnectorCutoutParameters(
+                edge="positive_y",
+                center_offset_mm=center_x + port.center_mm,
+                bottom_z_mm=layout.board_top_z_mm - 0.5,
+                width_mm=port.width_mm,
+                height_mm=port.height_mm,
+                width_clearance_mm=margin,
+                height_clearance_mm=design.plug_margin_mm,
+                cutter_depth_mm=depth,
             )
+            for port in pi.ports
+            if port.edge == "positive_y"
+        ]
+
+        for opening in merge_close_openings(back, design.minimum_opening_web_mm):
+            base = cut_connector_opening(base, parameters=opening)
 
         base = cut_connector_opening(
             base,

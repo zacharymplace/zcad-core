@@ -186,3 +186,104 @@ def cut_connector_opening(
     )
 
     return model.cut(cutter)
+
+
+# Below this, a strip of wall between two openings prints as a thin, weak
+# web; the openings are merged into one instead.
+MINIMUM_OPENING_WEB_MM = 2.0
+
+
+def merge_close_openings(
+    openings: list[ConnectorCutoutParameters], minimum_web_mm: float
+) -> list[ConnectorCutoutParameters]:
+    """Openings in the same wall, side by side or one above the other, that
+    would leave less than ``minimum_web_mm`` of wall between them, merged
+    into one rectangle over both; the rest unchanged and in their order.
+    Zero merges nothing."""
+
+    if minimum_web_mm < 0:
+        raise ValueError("minimum_web_mm must not be negative")
+
+    merged = list(openings)
+    changed = minimum_web_mm > 0
+
+    while changed:
+        changed = False
+
+        for i, first in enumerate(merged):
+            for j in range(i + 1, len(merged)):
+                second = merged[j]
+
+                if _too_close(first, second, minimum_web_mm):
+                    merged[i] = _span(first, second)
+                    del merged[j]
+                    changed = True
+                    break
+
+            if changed:
+                break
+
+    return merged
+
+
+def _extent(opening: ConnectorCutoutParameters) -> tuple[float, float, float, float]:
+    """Along the wall, then up it: the finished opening's edges."""
+
+    half = opening.opening_width_mm / 2
+    top = opening.bottom_z_mm + opening.opening_height_mm
+
+    return (
+        opening.center_offset_mm - half,
+        opening.center_offset_mm + half,
+        opening.bottom_z_mm,
+        top,
+    )
+
+
+def _too_close(
+    first: ConnectorCutoutParameters,
+    second: ConnectorCutoutParameters,
+    minimum_web_mm: float,
+) -> bool:
+    if first.edge != second.edge:
+        return False
+
+    a0, a1, az0, az1 = _extent(first)
+    b0, b1, bz0, bz1 = _extent(second)
+    side_by_side = az0 < bz1 and bz0 < az1
+    stacked = a0 < b1 and b0 < a1
+
+    # Openings that face each other across a strip of wall, beside or above
+    # one another; ones that only meet corner to corner leave it whole.
+    if side_by_side:
+        return max(b0 - a1, a0 - b1) < minimum_web_mm
+
+    if stacked:
+        return max(bz0 - az1, az0 - bz1) < minimum_web_mm
+
+    return False
+
+
+def _span(
+    first: ConnectorCutoutParameters, second: ConnectorCutoutParameters
+) -> ConnectorCutoutParameters:
+    """One opening over both, its clearances already in its size."""
+
+    a0, a1, az0, az1 = _extent(first)
+    b0, b1, bz0, bz1 = _extent(second)
+    start, end = min(a0, b0), max(a1, b1)
+    bottom, top = min(az0, bz0), max(az1, bz1)
+
+    return ConnectorCutoutParameters(
+        edge=first.edge,
+        center_offset_mm=(start + end) / 2,
+        bottom_z_mm=bottom,
+        width_mm=end - start,
+        height_mm=top - bottom,
+        width_clearance_mm=0.0,
+        height_clearance_mm=0.0,
+        cutter_depth_mm=max(first.cutter_depth_mm, second.cutter_depth_mm),
+        cutter_overtravel_mm=max(
+            first.cutter_overtravel_mm, second.cutter_overtravel_mm
+        ),
+    )

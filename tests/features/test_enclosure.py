@@ -177,7 +177,13 @@ def test_a_lone_pi5_gets_an_opening_for_every_port_and_its_card() -> None:
 
 
 def test_a_declared_opening_takes_in_the_parts_it_covers() -> None:
-    _, enclosure = board_only("RASPBERRY_PI_5")
+    pi = get_raspberry_pi5()
+    assembly = build_board_assembly(
+        board=pi, board_placement=Placement(), connector_access_clearance_mm=2.0
+    )
+    enclosure = build_enclosure(
+        assembly, board=pi, design=EnclosureDesign(minimum_opening_web_mm=0)
+    )
     back = sorted(
         round(opening.center_offset_mm, 1)
         for opening in enclosure.openings
@@ -186,6 +192,22 @@ def test_a_declared_opening_takes_in_the_parts_it_covers() -> None:
 
     # The Ethernet jack's LED windows get no openings of their own.
     assert back == [-19.0, -1.1, 17.8]
+
+
+def test_openings_too_close_for_a_sound_wall_between_them_merge() -> None:
+    _, enclosure = board_only("RASPBERRY_PI_5")
+    walls = {
+        edge: [o for o in enclosure.openings if o.edge == edge]
+        for edge in ("positive_y", "negative_y", "positive_x")
+    }
+
+    # The Ethernet and both USB pairs, about 1 mm apart, become one opening
+    # across the back; the card slot and the power button above it, 0.7 mm
+    # apart, one in the front. The HDMI ports, 3.4 mm apart, stay separate.
+    assert len(walls["positive_y"]) == 1
+    assert walls["positive_y"][0].opening_width_mm == pytest.approx(54.7, abs=0.1)
+    assert len(walls["negative_y"]) == 1
+    assert len(walls["positive_x"]) == 3
 
 
 def cooled_pi5(display: bool = False) -> Enclosure:

@@ -7,6 +7,7 @@ from zcad_core.features.board_cradle import (
 from zcad_core.features.connector_cutouts import (
     ConnectorCutoutParameters,
     cut_connector_opening,
+    merge_close_openings,
 )
 from zcad_core.features.display_cutouts import (
     DisplayBezelParameters,
@@ -77,5 +78,6 @@ __all__ = [
     "cut_connector_opening",
     "cut_display_window",
     "export_enclosure_review",
+    "merge_close_openings",
     "recommended_screw_length_mm",
 ]

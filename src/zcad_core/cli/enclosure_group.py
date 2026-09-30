@@ -11,6 +11,7 @@ import cadquery as cq
 
 from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
+from zcad_core.features.connector_cutouts import MINIMUM_OPENING_WEB_MM
 from zcad_core.features.enclosure_group import (
     BAY_KINDS,
     OPENING_WALLS,
@@ -328,6 +329,7 @@ def _group_build(args: argparse.Namespace) -> int:
         open_bay_width_mm=args.open_bay_width_mm,
         vents=args.vents,
         join_bolts=args.join_bolts,
+        minimum_opening_web_mm=args.minimum_opening_web_mm,
     )
     group = build_group_enclosure(bays, design=design)
     name = args.name or f"pi5-group-{len(bays)}bay"
@@ -439,6 +441,15 @@ def register(
     build.add_argument("--service-gap-mm", type=float, default=25.0)
     build.add_argument("--open-bay-width-mm", type=float, default=40.0)
     build.add_argument("--no-vents", dest="vents", action="store_false")
+    build.add_argument(
+        "--minimum-opening-web-mm",
+        type=float,
+        default=MINIMUM_OPENING_WEB_MM,
+        help=(
+            "merge a Pi's back-wall openings that would leave less wall than "
+            "this between them; 0 keeps them apart"
+        ),
+    )
     build.add_argument(
         "--no-join-bolts",
         dest="join_bolts",
