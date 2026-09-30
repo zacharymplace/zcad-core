@@ -67,10 +67,12 @@ Each review's reservations are for its physical trial to settle:
 | XIAO ESP32-S3 r003 | A diagonal push does not slide the board out (planar diagonal paths are collision-free and engagement is 0.3 mm); the 0.261 mm gap between a capture and the part beside USB-C; a 0.47 mm USB-C lip |
 | UNO R4 WiFi r005 | The 0.25 mm clip-to-header gap; lift at the unclipped positive_y edge, which relies on pin friction; a 1.14 mm USB-C lip |
 
-The base lip under an edge connector appears on all four boards: the
-fixture's 2 mm perimeter margin runs under any connector that overhangs the
-PCB edge. If the trials confirm it blocks plugs, fix it once in the
-generator with a relief under overhanging connectors.
+The base lip under an edge connector appeared on all four boards: the
+fixture's 2 mm perimeter margin ran under any connector that overhangs the
+PCB edge. Fixtures now cut a relief through the base beyond each overhung
+edge, across the connector's width plus 0.5 mm a side
+(`ValidationFixturePolicy.connector_relief_clearance_mm`). The reviews above
+predate it, and the four candidates need new revisions before they print.
 
 ### Tracks
 

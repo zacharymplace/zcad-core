@@ -34,6 +34,11 @@ class ValidationFixturePolicy:
     # pads rest on it, matching the design review's seating allowance.
     underside_seating_mm: float = 0.05
     underside_clearance_mm: float = 0.5
+    # A part reaching this far past a PCB edge is a connector a cable plugs
+    # into; the base is cut away beyond that edge, across the part's width
+    # plus this clearance each side, so the plug can seat fully.
+    connector_overhang_mm: float = 0.2
+    connector_relief_clearance_mm: float = 0.5
 
     def __post_init__(self) -> None:
         if self.base_thickness_mm <= 0:
@@ -47,6 +52,12 @@ class ValidationFixturePolicy:
 
         if self.underside_clearance_mm < 0:
             raise ValueError("underside_clearance_mm cannot be negative")
+
+        if self.connector_overhang_mm < 0:
+            raise ValueError("connector_overhang_mm cannot be negative")
+
+        if self.connector_relief_clearance_mm < 0:
+            raise ValueError("connector_relief_clearance_mm cannot be negative")
 
 
 def _build_base(
@@ -95,6 +106,50 @@ def _build_base(
             ),
         )
         base = base.cut(hole)
+
+    return _cut_connector_reliefs(base, board_model, policy)
+
+
+def _cut_connector_reliefs(
+    base: cq.Workplane,
+    board_model: ProductionBoardModel,
+    policy: ValidationFixturePolicy,
+) -> cq.Workplane:
+    """Remove the base beyond each edge a connector overhangs.
+
+    The perimeter margin would otherwise run under a connector's mouth and
+    stop a plug short of seating. The relief starts at the PCB edge, so the
+    base under the board is untouched.
+    """
+
+    pcb = board_model.pcb.BoundingBox()
+    clearance = policy.connector_relief_clearance_mm
+    depth = policy.perimeter_margin_mm + 1.0
+    height = policy.base_thickness_mm + 2.0
+    z0 = pcb.zmin - policy.base_thickness_mm - 1.0
+
+    threshold = policy.connector_overhang_mm
+
+    for component in board_model.component_solids:
+        bounds = component.BoundingBox()
+        # (x, y, xlen, ylen) of each relief box, one per overhung edge.
+        boxes = []
+        across_y = (bounds.ymin - clearance, bounds.ylen + 2.0 * clearance)
+        across_x = (bounds.xmin - clearance, bounds.xlen + 2.0 * clearance)
+
+        if pcb.xmin - bounds.xmin > threshold:
+            boxes.append((pcb.xmin - depth, across_y[0], depth, across_y[1]))
+        if bounds.xmax - pcb.xmax > threshold:
+            boxes.append((pcb.xmax, across_y[0], depth, across_y[1]))
+        if pcb.ymin - bounds.ymin > threshold:
+            boxes.append((across_x[0], pcb.ymin - depth, across_x[1], depth))
+        if bounds.ymax - pcb.ymax > threshold:
+            boxes.append((across_x[0], pcb.ymax, across_x[1], depth))
+
+        for x, y, xlen, ylen in boxes:
+            base = base.cut(
+                cq.Solid.makeBox(xlen, ylen, height, pnt=cq.Vector(x, y, z0))
+            )
 
     return base
 
