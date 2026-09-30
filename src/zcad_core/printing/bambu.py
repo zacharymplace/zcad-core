@@ -7,7 +7,7 @@ files give them: Bambu may arrange them (translate, and spin about Z) but
 never re-orients them. Writes to the output directory:
 
 - ``slice-summary.json``: Bambu version, presets, applied settings, model and
-  G-code hashes, and slice metrics
+  G-code hashes, slice metrics, and the source commit it was cut from
 - ``plate_1.gcode`` and Bambu's ``result.json``
 - the flattened ``machine.json``, ``process.json``, and ``filament.json``
 
@@ -27,8 +27,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from zcad_core.printing.provenance import source_provenance
+
 BAMBU_STUDIO = Path("/Applications/BambuStudio.app")
-SLICE_SUMMARY_SCHEMA_VERSION = "1.1.0"
+SLICE_SUMMARY_SCHEMA_VERSION = "1.2.0"
 
 # Project profile ids -> Bambu system presets, keyed by nozzle diameter.
 MACHINE_PRESETS = {("bambu-lab-a1-mini", 0.4): "Bambu Lab A1 mini 0.4 nozzle"}
@@ -183,6 +185,7 @@ def slice_models(
         "feature_type_times_seconds": plate["feature_type_times"],
         "slicer_warning": plate.get("warning_message", ""),
         "sliced_at_utc": datetime.now(UTC).isoformat(),
+        "source": source_provenance(),
         **(summary_fields or {}),
     }
     summary_path = output_directory / "slice-summary.json"

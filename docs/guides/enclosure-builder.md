@@ -165,6 +165,23 @@ nominal dimensions to measure. `--slice` then:
   here; and
 - opens `trials/trial-001/`.
 
+**Is a slice still current?** The G-code keeps its geometry after the
+code that made it has moved on, so a fix does nothing for a slice made
+before it. `slice-summary.json` records the git commit it was sliced from
+and whether `src/zcad_core` or `profiles/` had uncommitted changes. Before
+printing an older slice, check it:
+
+```bash
+zcad-validation slice check exports/pico2-enclosure
+```
+
+It finds every `slice-summary.json` under the paths it is given and calls
+each `current`, `stale` (the sources changed since; it lists the commits,
+or the files after a rebase), or `unknown` (sliced before slices recorded
+their source, or from uncommitted changes). It exits 1 unless all are
+current. `enclosure trial start` reports the same for the slice beside its
+build record.
+
 After printing and assembling, fill in the trial's `observations.json`
 (`pass` or `fail` for each check that applies: clean print, inserts, lid
 closure, board seated and held, cable plugs in, other openings clear,

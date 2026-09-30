@@ -212,6 +212,12 @@ The default pair, on the A1 mini PETG profile, slices to about 2 h 11 min and
 73 g for the base, and 1 h 14 min and 45 g for the lid: about 3.5 hours and
 118 g in all. Existing slice output is never overwritten.
 
+Before printing a slice made earlier, run `zcad-validation slice check
+exports/pi5-pair`: it reports the slice `stale` if the geometry has changed
+since, and `unknown` if it predates slices recording their source, as any
+made before the Pi 5 was unmirrored do. Rebuild and slice again in either
+case.
+
 ## Viewing in 3D
 
 ```bash
