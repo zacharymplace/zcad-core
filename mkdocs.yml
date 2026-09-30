@@ -35,6 +35,7 @@ nav:
       - Validation Lab: roadmaps/validation-lab.md
       - Next phases: roadmaps/next-phases.md
       - Mounting systems: roadmaps/mounting-systems.md
+      - Hinged and sliding lids: roadmaps/hinges-and-slides.md
   - API Reference:
       - Overview: reference/index.md
       - assemblies: reference/assemblies.md
