@@ -1,4 +1,4 @@
-"""The zcad-validation command: the Validation Lab and the enclosure builder.
+"""The zcad-validation command: the Validation Lab and the enclosure builders.
 
 Thin argparse wrapper over the already-tested ``zcad_core.retention``
 lifecycle functions and the enclosure builder in ``zcad_core.features``. Every command reads and writes explicit file paths;
@@ -10,8 +10,9 @@ candidate manifest), and
 ``candidate register``, which writes its export-validation run beside the
 candidate manifest in ``export-validation/``; ``candidate derive`` does the
 same inside ``--output-directory``. ``enclosure build`` writes only inside
-its ``--output-directory``, and ``enclosure trial`` only inside the trials
-folder beside a build record.
+its ``--output-directory``, ``enclosure trial`` only inside the trials
+folder beside a build record, and ``enclosure-group build`` and ``viewer`` only
+inside their ``--output-directory``.
 """
 
 from __future__ import annotations

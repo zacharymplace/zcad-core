@@ -33,13 +33,16 @@ publication-eligible.
 
 1. **No printer access.** Phase 2 needs a print and test fit of each
    candidate, recorded with `zcad-validation trial complete`. An enclosure
-   should go on the same print run (see the enclosure builder below).
+   should go on the same print run (see the enclosure builder below), and the
+   Pi 5 group enclosure's base is the one worth printing first (see its section
+   below).
 2. **GitHub Actions is disabled for the account**, so CI never runs on
    GitHub. The same gates run locally: `scripts/check.sh`, enforced by the
    `.githooks/pre-push` hook (enable per checkout with
    `git config core.hooksPath .githooks`). The hook is also the only place
-   the 19 tests that load vendor STEP models from `evidence/` run, since they
-   skip wherever `evidence/` is absent; they are marked `slow`, and
+   the tests that load vendor STEP models from `evidence/` run, since they
+   skip wherever `evidence/` is absent, as it is in a linked worktree; they
+   are marked `slow`, and
    `scripts/check.sh --fast` skips them for a quicker local loop. Tests run
    in parallel with pytest-xdist: the full gate takes about a minute and
    `--fast` under 40 seconds (2026-09-29).
@@ -80,6 +83,9 @@ generator with a relief under overhanging connectors.
 - **Enclosure builder** (new, 2026-09-29; see below): screw-together
   enclosures built from catalogued hardware, from Python or
   `zcad-validation enclosure build`.
+- **Pi 5 group enclosure** (new, 2026-09-29; see below): one enclosure around
+  a row of Raspberry Pi 5 boards, with bays that hold a Pi, keep a place for
+  one, or hold other hardware, from `zcad-validation enclosure-group`.
 - **Validated export pipeline**: geometry inspection, design validation
   reports, STEP round-trip and STL topology checks, staged publication with
   rollback, and STL clearance and material probes. As of Phase 1, every
@@ -118,6 +124,44 @@ Open items, in order:
    `enclosure trial complete`, then `enclosure revise` proposes and builds
    the next revision from its measurements.
 2. **Lid options**: snap-fit lid, locating lip, countersunk holes, vents.
+
+### Pi 5 group enclosure (2026-09-29)
+
+One base and lid around a row of bays, from `build_group_enclosure` or
+`zcad-validation enclosure-group build`. Guide:
+`docs/guides/pi5-group-enclosure.md`.
+
+- **Bays**: `pi5` (four M2.5 standoffs, port openings, vents), `reserved` (the
+  same, with no Pi fitted, so one drops in later), and `open` (a flat shelf).
+  Each Pi has a service gap on its right for its USB-C and micro-HDMI plugs,
+  back-wall openings for Ethernet and USB, and a microSD opening.
+- **Per bay**: its own standoff height and headroom (a board mounted under a
+  Pi, a HAT), and wall openings for an `open` bay.
+- **Dividers** between bays: solid, vented, low, with a header notch and
+  zip-tie slots.
+- **Growth**: identical units bolt together, so a row can pass the printer's
+  bed. The default pair is 176 x 96 x 25.4 mm and fits the A1 mini.
+- **Checks**: the base and lid do not touch, each Pi's envelope clears both,
+  and each part is one solid. Slicing puts each part on its own plate: the
+  default pair is about 3 h 24 min and 118 g of PETG on the A1 mini profile.
+- **Viewer**: `enclosure-group viewer` writes an interactive 3D view with the
+  lid, the Pi envelopes, a cut plane, and dimensions.
+- **Pi 5 spec**: from Raspberry Pi's mechanical drawings, with its orientation
+  taken from their STEP model. An earlier version was mirrored left to right,
+  which put the USB-C and HDMI cables on the wrong side; it was corrected
+  before anything was printed.
+
+Open items, in order:
+
+1. **Print the pair's base** and test-fit a real Pi 5 before printing the lid.
+   The guide's checklist covers the standoffs, ports, microSD slot, and the
+   Active Cooler's height, which is inferred from the drawing rather than
+   dimensioned. Correct `RaspberryPi5Spec` from what fits.
+2. **Trials and revisions**: `enclosure trial` and `enclosure revise` work on
+   the single-board `Enclosure`; the group enclosure has no trial record yet,
+   and needs print measurements to design one around.
+3. **Joined units and HATs** are unproven in plastic: the join bolts, and the
+   headroom and standoff heights for a HAT or an under-board drive.
 
 ### Gaps closed since 2026-09-27
 
