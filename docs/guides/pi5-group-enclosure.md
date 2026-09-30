@@ -21,7 +21,7 @@ Every Pi sits portrait:
 
 | Edge | Faces |
 | --- | --- |
-| Ethernet and USB | the back wall, through one opening per port |
+| Ethernet and USB | the back wall, through one opening across all three (they sit about 1 mm apart, too little wall to print; `--minimum-opening-web-mm 0` cuts one per port) |
 | microSD end | the front wall, through one opening |
 | USB-C power and micro-HDMI | a 25 mm service gap on the Pi's right |
 | 40-pin header | the previous bay's gap, or the left end |

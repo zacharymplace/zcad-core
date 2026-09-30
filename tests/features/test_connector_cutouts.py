@@ -10,6 +10,7 @@ from zcad_core.assemblies import (
 from zcad_core.features import (
     ConnectorCutoutParameters,
     cut_connector_opening,
+    merge_close_openings,
 )
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware import (
@@ -209,3 +210,52 @@ def test_component_constructor_uses_catalog_dimensions() -> None:
 
     assert parameters.width_mm == pytest.approx(9.0)
     assert parameters.height_mm == pytest.approx(3.5)
+
+
+def opening(
+    center: float, width: float = 10.0, bottom: float = 0.0, edge: str = "positive_y"
+) -> ConnectorCutoutParameters:
+    return ConnectorCutoutParameters(
+        edge=edge,  # type: ignore[arg-type]
+        center_offset_mm=center,
+        bottom_z_mm=bottom,
+        width_mm=width,
+        height_mm=5.0,
+        width_clearance_mm=0.0,
+        height_clearance_mm=0.0,
+    )
+
+
+def test_openings_side_by_side_merge_only_below_the_minimum_web() -> None:
+    # 1 mm of wall between the first pair, 2 mm between the second.
+    thin = merge_close_openings([opening(0.0), opening(11.0)], 2.0)
+    sound = merge_close_openings([opening(0.0), opening(12.0)], 2.0)
+
+    assert len(thin) == 1
+    assert thin[0].center_offset_mm == pytest.approx(5.5)
+    assert thin[0].opening_width_mm == pytest.approx(21.0)
+    assert len(sound) == 2
+
+
+def test_openings_one_above_the_other_merge_too() -> None:
+    (merged,) = merge_close_openings([opening(0.0), opening(2.0, bottom=5.5)], 2.0)
+
+    assert merged.bottom_z_mm == pytest.approx(0.0)
+    assert merged.opening_height_mm == pytest.approx(10.5)
+    assert merged.opening_width_mm == pytest.approx(12.0)
+
+
+def test_openings_meeting_only_at_a_corner_or_in_other_walls_stay_apart() -> None:
+    corner = [opening(0.0), opening(10.5, bottom=5.5)]
+    walls = [opening(0.0), opening(0.5, edge="negative_y")]
+
+    assert len(merge_close_openings(corner, 2.0)) == 2
+    assert len(merge_close_openings(walls, 2.0)) == 2
+
+
+def test_a_zero_minimum_merges_nothing_and_a_negative_one_is_refused() -> None:
+    overlapping = [opening(0.0), opening(1.0)]
+
+    assert merge_close_openings(overlapping, 0.0) == overlapping
+    with pytest.raises(ValueError, match="must not be negative"):
+        merge_close_openings(overlapping, -1.0)

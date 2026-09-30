@@ -135,6 +135,19 @@ def test_the_pi5_holes_sit_toward_the_microsd_end_as_the_vendor_model_has_them()
     assert pi.header_center_y_mm == pytest.approx(-10.0)
 
 
+def test_a_pis_back_openings_merge_rather_than_leave_a_thin_web(
+    pair: GroupEnclosure,
+) -> None:
+    # 1 mm of wall would stand between the USB 3 pair and the Ethernet jack.
+    web_x = pair.design.wall_mm + pair.bays[0].center_x_mm + 7.75
+    back_y = pair.outer_size_mm[1] - pair.design.wall_mm / 2
+    z = pair.bays[0].board_top_z_mm + 5.0
+    apart = build_group_enclosure(design=GroupDesign(minimum_opening_web_mm=0))
+
+    assert not has_material(pair.base, web_x, back_y, z)
+    assert has_material(apart.base, web_x, back_y, z)
+
+
 def test_every_pi_part_clears_the_base_and_lid(pair: GroupEnclosure) -> None:
     assert pair.checks["parts_clear_of_base"]
     assert pair.checks["parts_clear_of_lid"]

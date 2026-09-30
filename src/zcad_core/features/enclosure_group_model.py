@@ -11,6 +11,7 @@ from typing import Literal
 
 import cadquery as cq
 
+from zcad_core.features.connector_cutouts import MINIMUM_OPENING_WEB_MM
 from zcad_core.features.enclosure_group_dividers import Divider
 from zcad_core.hardware import FastenerSpec
 
@@ -60,6 +61,10 @@ class GroupDesign:
     divider_clearance_mm: float = 0.75
     divider_notch_width_mm: float = 20.0
     divider_notch_height_mm: float = 10.0
+    # A Pi's back-wall openings closer than this merge into one, so no thin
+    # web of wall is left between its Ethernet and USB plugs; zero keeps
+    # them apart.
+    minimum_opening_web_mm: float = MINIMUM_OPENING_WEB_MM
 
     def validate(self) -> None:
         for name in (
@@ -88,6 +93,7 @@ class GroupDesign:
             "slot_pad_mm",
             "plug_margin_mm",
             "divider_clearance_mm",
+            "minimum_opening_web_mm",
         ):
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} must not be negative")

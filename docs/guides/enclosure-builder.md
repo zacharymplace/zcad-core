@@ -262,8 +262,15 @@ spec lists every port from Raspberry Pi's drawing, and the card under the
 board. Each declared opening is 1.5 mm wider on each side and 1.5 mm taller
 than its socket, so a plug's shell passes, and it takes in any part opening
 it overlaps, such as the Ethernet jack's LED windows. The USB-C input is
-the cable opening, as on every board. Between the Pi 5's back-wall openings
-the wall is only about 1 mm wide.
+the cable opening, as on every board.
+
+Openings in one wall that would leave less than 2 mm of wall between them,
+side by side or one above the other, merge into one opening over both, so
+no thin web is left to snap (`--minimum-opening-web-mm`; 0 keeps every
+opening apart). On the Pi 5 the Ethernet and both USB pairs, about 1 mm
+apart, become one 54.7 mm opening across the back, and the microSD slot
+and the power button above it one opening in the front. No other catalogued
+board has openings that close.
 
 `scripts/extract-board-components.py` writes the parts to
 `src/zcad_core/hardware/data/board-components/`, recording the vendor

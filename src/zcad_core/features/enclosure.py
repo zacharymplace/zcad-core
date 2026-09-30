@@ -23,8 +23,10 @@ from zcad_core.assemblies import (
 )
 from zcad_core.features.board_cradle import BoardCradleParameters, add_board_cradle
 from zcad_core.features.connector_cutouts import (
+    MINIMUM_OPENING_WEB_MM,
     ConnectorCutoutParameters,
     cut_connector_opening,
+    merge_close_openings,
 )
 from zcad_core.features.display_cutouts import (
     DisplayWindowParameters,
@@ -144,6 +146,9 @@ class EnclosureDesign:
     locating_lip: bool = False
     # Vertical vent slots in each long wall that carries no opening.
     vent_slots: int = 0
+    # Openings in one wall closer than this merge into one, so no thin web
+    # of wall is left between them; zero keeps every opening apart.
+    minimum_opening_web_mm: float = MINIMUM_OPENING_WEB_MM
 
     def validate(self) -> None:
         for name in ("wall_mm", "floor_mm", "lid_mm", "boss_radial_wall_mm"):
@@ -168,6 +173,7 @@ class EnclosureDesign:
             "top_clearance_mm",
             "cable_plug_width_mm",
             "cable_plug_height_mm",
+            "minimum_opening_web_mm",
         ):
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} must not be negative")
@@ -692,7 +698,7 @@ def _openings(
         if not any(_overlap(opening, other) for other in declared):
             openings.append(opening)
 
-    return openings
+    return merge_close_openings(openings, design.minimum_opening_web_mm)
 
 
 def _declared_openings(

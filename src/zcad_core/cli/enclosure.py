@@ -25,6 +25,7 @@ from zcad_core.features import (
     build_enclosure,
     export_enclosure_review,
 )
+from zcad_core.features.connector_cutouts import MINIMUM_OPENING_WEB_MM
 from zcad_core.features.enclosure import HOLE_COMPENSATION_RANGE_MM, LID_ATTACHMENTS
 from zcad_core.features.enclosure_revision import propose_revision, revised_name
 from zcad_core.features.enclosure_trial import (
@@ -178,6 +179,7 @@ def _design(args: argparse.Namespace) -> EnclosureDesign:
         countersunk_screws=args.countersunk,
         locating_lip=args.locating_lip,
         vent_slots=args.vent_slots,
+        minimum_opening_web_mm=args.minimum_opening_web_mm,
     )
 
 
@@ -512,6 +514,15 @@ def register(
         type=int,
         default=0,
         help="vent slots in each long wall that carries no opening",
+    )
+    build.add_argument(
+        "--minimum-opening-web-mm",
+        type=float,
+        default=MINIMUM_OPENING_WEB_MM,
+        help=(
+            "merge openings in one wall that would leave less wall than this "
+            "between them; 0 keeps them apart"
+        ),
     )
     build.add_argument(
         "--compensation-profile",
