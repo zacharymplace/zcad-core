@@ -34,6 +34,7 @@ from zcad_core.features.enclosure_group_dividers import (
 from zcad_core.features.enclosure_group_envelope import (
     make_box,
     pi_envelope,
+    pi_parts,
     single_shape,
 )
 from zcad_core.features.enclosure_group_layout import (
@@ -184,6 +185,7 @@ def build_group_enclosure(
 
     standoff_fastener = get_fastener(_PI_STANDOFF_FASTENER)
     hardware: dict[str, cq.Shape] = {}
+    parts: dict[str, dict[str, cq.Shape]] = {}
 
     for layout in layouts:
         if not layout.holds_pi:
@@ -211,6 +213,9 @@ def build_group_enclosure(
             pi_center_y,
             layout.board_bottom_z_mm,
             layout.board_top_z_mm,
+        )
+        parts[f"bay-{layout.index}"] = pi_parts(
+            pi, center_x, pi_center_y, layout.board_top_z_mm
         )
 
     base = cut_pi_openings(
@@ -257,6 +262,9 @@ def build_group_enclosure(
     )
 
     checks = _checks(base, lid, hardware)
+    collisions = _part_collisions(base, lid, parts)
+    checks["parts_clear_of_base"] = not any(c.endswith("base") for c in collisions)
+    checks["parts_clear_of_lid"] = not any(c.endswith("lid") for c in collisions)
     lid_screw = _longest_screw(design.lid_mm + insert_depth)
     join_screw = _longest_screw(2 * wall + insert_depth) if design.join_bolts else None
 
@@ -275,7 +283,34 @@ def build_group_enclosure(
         checks=checks,
         recommended_lid_screw_mm=lid_screw,
         recommended_join_screw_mm=join_screw,
+        part_collisions=collisions,
     )
+
+
+def _part_collisions(
+    base: cq.Workplane,
+    lid: cq.Workplane,
+    parts: dict[str, dict[str, cq.Shape]],
+) -> tuple[str, ...]:
+    """Each Pi part that runs into the base or the lid. A bay's parts are
+    tried together first, and one by one only when they meet something."""
+
+    collisions: list[str] = []
+
+    for name, solid in (("base", single_shape(base)), ("lid", single_shape(lid))):
+        for bay, shapes in parts.items():
+            together = cq.Compound.makeCompound(list(shapes.values()))
+
+            if intersection_volume(solid, together) <= _INTERFERENCE_TOLERANCE_MM3:
+                continue
+
+            collisions.extend(
+                f"{bay} {part} meets the {name}"
+                for part, shape in shapes.items()
+                if intersection_volume(solid, shape) > _INTERFERENCE_TOLERANCE_MM3
+            )
+
+    return tuple(collisions)
 
 
 def _dividers(

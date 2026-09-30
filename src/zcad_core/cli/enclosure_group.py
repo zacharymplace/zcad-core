@@ -366,6 +366,7 @@ def _group_build(args: argparse.Namespace) -> int:
             "bay_heights": _bay_summary(group),
             "outer_size_mm": list(group.outer_size_mm),
             "checks": group.checks,
+            "part_collisions": list(group.part_collisions),
             "validation_status": (result.validation_report or {}).get(
                 "evaluated_status"
             ),

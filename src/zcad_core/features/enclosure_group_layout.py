@@ -213,9 +213,7 @@ def gap_boss_x(
 
 
 def hole_positions(pi: RaspberryPi5Spec) -> tuple[tuple[float, float], ...]:
-    """The Pi's mounting holes about its centre, portrait."""
+    """The Pi's mounting holes about its board centre, portrait; the pattern
+    sits toward the microSD end, not centred."""
 
-    half_x = pi.mounting_hole_spacing_x_mm / 2
-    half_y = pi.mounting_hole_spacing_y_mm / 2
-
-    return tuple((sx * half_x, sy * half_y) for sx in (-1, 1) for sy in (-1, 1))
+    return pi.mounting_hole_positions_mm

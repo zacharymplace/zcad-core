@@ -32,7 +32,7 @@ slot-then-gap pattern, so any bay can take a Pi.
 
 | Bay | Builds |
 | --- | --- |
-| `pi5` | Four M2.5 standoffs, port openings, vents. Envelope checked. |
+| `pi5` | Four M2.5 standoffs, port openings, vents. Envelope and every extracted part checked. |
 | `reserved` | The same as `pi5`, with no Pi fitted yet. Drop one in later with no reprint. |
 | `open` | A flat shelf, `--open-bay-width-mm` wide (40), for an SSD, a switch, or a power supply. Wall openings are cut only where you ask; see [Openings for open bays](#openings-for-open-bays). |
 
@@ -287,6 +287,15 @@ to contain each, so a mirrored or turned spec fails. If you replace the model,
 re-run `scripts/extract-pi5-vendor-features.py`; a slow test fails when the
 recorded numbers no longer match it.
 
+The hole pattern is not centred on the board: like a HAT's, it sits 3.5 mm
+from the microSD end, so the holes are at y = -39 and +19 mm about the board
+centre, where Raspberry Pi's STEP model has them. An earlier version centred
+the pattern, which put every standoff 10 mm off its hole.
+
 The checks are: the base and lid do not touch, each Pi's envelope clears both
-parts, and each part is one solid. They do not check cable bend room or
+parts, each of the Pi's 62 parts extracted from the vendor model clears both
+(`parts_clear_of_base`, `parts_clear_of_lid`), and each part is one solid.
+The summary's `part_collisions` names any part that fails, as
+`bay-0 bottom-45 meets the base`. The parts are checked 0.1 mm smaller a side,
+the rounding of the model's boxes. The checks do not cover cable bend room or
 airflow.

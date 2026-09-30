@@ -117,12 +117,14 @@ def test_every_catalogued_board_gets_a_clear_enclosure(board_identifier: str) ->
     )
 
 
-def test_irregular_hole_pattern_gets_a_standoff_under_each_hole() -> None:
-    uno = get_arduino_uno_r4_wifi()
-    _, enclosure = board_only(uno.identifier)
+@pytest.mark.parametrize("board", [get_arduino_uno_r4_wifi(), get_raspberry_pi5()])
+def test_irregular_hole_pattern_gets_a_standoff_under_each_hole(board: object) -> None:
+    # The UNO's holes are no rectangle; the Pi 5's sit 10 mm off centre.
+    positions = board.mounting_hole_positions_mm  # type: ignore[attr-defined]
+    _, enclosure = board_only(board.identifier)  # type: ignore[attr-defined]
     base = solid(enclosure.base)
 
-    for x, y in uno.mounting_hole_positions_mm:
+    for x, y in positions:
         assert not base.isInside(cq.Vector(x, y, -0.5))
         # Material rings the hole, though a standoff beside header pins is
         # notched clear of them.

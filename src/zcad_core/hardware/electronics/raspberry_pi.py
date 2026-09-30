@@ -116,6 +116,15 @@ class RaspberryPi5Spec:
     mounting_hole_diameter_mm: float = 2.7
     mounting_hole_spacing_x_mm: float = 49.0
     mounting_hole_spacing_y_mm: float = 58.0
+    # The pattern is not centred on the board: like the HAT footprint, it sits
+    # 3.5 mm from the microSD end, 10 mm toward it (the header's centre too).
+    # Raspberry Pi's STEP model has the holes here.
+    mounting_hole_positions_mm: tuple[tuple[float, float], ...] = (
+        (-24.5, -39.0),
+        (24.5, -39.0),
+        (-24.5, 19.0),
+        (24.5, 19.0),
+    )
     recommended_standoff_height_mm: float = 4.0
     recommended_clearance_mm: float = 0.0
 

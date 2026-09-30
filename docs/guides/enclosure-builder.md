@@ -264,8 +264,10 @@ the wall is only about 1 mm wide.
 `src/zcad_core/hardware/data/board-components/`, recording the vendor
 model's SHA-256. It merges parts of a similar height lying within 2 mm of
 each other and ignores parts under 0.5 mm, so the boxes are slightly
-generous. Re-run it after replacing a vendor model; it needs the evidence
-checkout.
+generous. It never merges parts on either side of a mounting hole into one
+box over it: the board keeps its holes clear, and such a box would notch or
+collide with the standoff there. Re-run it after replacing a vendor model;
+it needs the evidence checkout.
 
 | Display | Mounting | Source |
 | --- | --- | --- |

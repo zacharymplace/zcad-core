@@ -68,9 +68,9 @@
     },
     {
       "identifier": "top-07",
-      "center_x_mm": 1.675,
+      "center_x_mm": 1.425,
       "center_y_mm": 16.715,
-      "width_mm": 46.35,
+      "width_mm": 45.85,
       "depth_mm": 23.72,
       "bottom_offset_from_board_top_mm": 0.0,
       "height_mm": 1.48,
@@ -427,7 +427,27 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-43",
+      "identifier": "top-43",
+      "center_x_mm": 24.75,
+      "center_y_mm": 6.904,
+      "width_mm": 0.2,
+      "depth_mm": 2.497,
+      "bottom_offset_from_board_top_mm": 0.03,
+      "height_mm": 0.725,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-44",
+      "center_x_mm": 24.75,
+      "center_y_mm": 13.104,
+      "width_mm": 0.2,
+      "depth_mm": 2.497,
+      "bottom_offset_from_board_top_mm": 0.03,
+      "height_mm": 0.725,
+      "access_edge": null
+    },
+    {
+      "identifier": "bottom-45",
       "center_x_mm": -25.5,
       "center_y_mm": 25.0,
       "width_mm": 1.6,
@@ -437,7 +457,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-44",
+      "identifier": "bottom-46",
       "center_x_mm": -24.5,
       "center_y_mm": -10.0,
       "width_mm": 3.18,
@@ -447,7 +467,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-45",
+      "identifier": "bottom-47",
       "center_x_mm": -16.413,
       "center_y_mm": -11.65,
       "width_mm": 1.475,
@@ -457,7 +477,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-46",
+      "identifier": "bottom-48",
       "center_x_mm": -14.8,
       "center_y_mm": -17.65,
       "width_mm": 1.6,
@@ -467,7 +487,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-47",
+      "identifier": "bottom-49",
       "center_x_mm": -12.187,
       "center_y_mm": -2.176,
       "width_mm": 6.226,
@@ -477,7 +497,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-48",
+      "identifier": "bottom-50",
       "center_x_mm": -7.712,
       "center_y_mm": 17.275,
       "width_mm": 13.675,
@@ -487,7 +507,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-49",
+      "identifier": "bottom-51",
       "center_x_mm": -10.6,
       "center_y_mm": -6.3,
       "width_mm": 1.052,
@@ -497,7 +517,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-50",
+      "identifier": "bottom-52",
       "center_x_mm": -8.9,
       "center_y_mm": -14.525,
       "width_mm": 1.8,
@@ -507,7 +527,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-51",
+      "identifier": "bottom-53",
       "center_x_mm": -0.555,
       "center_y_mm": -32.425,
       "width_mm": 12.889,
@@ -517,7 +537,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-52",
+      "identifier": "bottom-54",
       "center_x_mm": 8.275,
       "center_y_mm": -9.575,
       "width_mm": 17.85,
@@ -527,17 +547,27 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-53",
-      "center_x_mm": 13.694,
-      "center_y_mm": 31.419,
-      "width_mm": 24.041,
-      "depth_mm": 28.262,
+      "identifier": "bottom-55",
+      "center_x_mm": 5.2,
+      "center_y_mm": 21.819,
+      "width_mm": 7.052,
+      "depth_mm": 9.062,
+      "bottom_offset_from_board_top_mm": -2.23,
+      "height_mm": 0.8,
+      "access_edge": null
+    },
+    {
+      "identifier": "bottom-56",
+      "center_x_mm": 17.75,
+      "center_y_mm": 34.75,
+      "width_mm": 15.93,
+      "depth_mm": 21.6,
       "bottom_offset_from_board_top_mm": -2.68,
       "height_mm": 1.28,
       "access_edge": "positive_y"
     },
     {
-      "identifier": "bottom-54",
+      "identifier": "bottom-57",
       "center_x_mm": 12.4,
       "center_y_mm": -37.4,
       "width_mm": 1.4,
@@ -547,7 +577,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-55",
+      "identifier": "bottom-58",
       "center_x_mm": 12.4,
       "center_y_mm": -25.2,
       "width_mm": 1.4,
@@ -557,7 +587,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-56",
+      "identifier": "bottom-59",
       "center_x_mm": 12.7,
       "center_y_mm": -31.65,
       "width_mm": 1.2,
@@ -567,7 +597,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-57",
+      "identifier": "bottom-60",
       "center_x_mm": 20.35,
       "center_y_mm": -31.15,
       "width_mm": 8.6,
@@ -577,7 +607,17 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-58",
+      "identifier": "bottom-61",
+      "center_x_mm": 18.5,
+      "center_y_mm": 19.0,
+      "width_mm": 3.18,
+      "depth_mm": 3.18,
+      "bottom_offset_from_board_top_mm": -1.994,
+      "height_mm": 0.594,
+      "access_edge": null
+    },
+    {
+      "identifier": "bottom-62",
       "center_x_mm": 18.4,
       "center_y_mm": -22.9,
       "width_mm": 1.0,
