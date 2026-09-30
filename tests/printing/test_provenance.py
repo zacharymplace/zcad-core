@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from zcad_core.metadata.git import git_environment
 from zcad_core.printing import slice_freshness, source_provenance
-from zcad_core.printing.provenance import git_environment
 
 
 def git(repository: Path, *arguments: str) -> str:
