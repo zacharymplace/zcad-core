@@ -55,6 +55,15 @@ from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
 )
+from zcad_core.features.mounts import (
+    MOUNTS,
+    MountPads,
+    MountPlate,
+    add_mount_pads,
+    build_mount,
+    mount_pads,
+    require_mount_clear,
+)
 from zcad_core.features.pcb_mounts import (
     BoardHolePattern,
     add_pcb_standoff,
@@ -149,8 +158,14 @@ class EnclosureDesign:
     # Openings in one wall closer than this merge into one, so no thin web
     # of wall is left between them; zero keeps every opening apart.
     minimum_opening_web_mm: float = MINIMUM_OPENING_WEB_MM
+    # A mount plate that bolts to four pads under the floor; none by default.
+    mount: str | None = None
+    mount_plate_mm: float = 4.0
 
     def validate(self) -> None:
+        if self.mount is not None and self.mount not in MOUNTS:
+            raise ValueError(f"mount must be one of {MOUNTS}")
+
         for name in ("wall_mm", "floor_mm", "lid_mm", "boss_radial_wall_mm"):
             if getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be greater than zero")
@@ -221,6 +236,10 @@ class Enclosure:
     display_screw_reach_mm: float | None = None
     # The cable opening first, then one per board part reached through a wall.
     openings: tuple[ConnectorCutoutParameters, ...] = ()
+    # The pads under the floor and the plate that bolts to them, when the
+    # design asks for a mount.
+    mount_pads: MountPads | None = None
+    mount: MountPlate | None = None
 
 
 def build_enclosure(
@@ -316,6 +335,32 @@ def build_enclosure(
     lid = _cut_lid_vents(
         lid, assembly, board_identifier, display_identifier, cavity_top, design
     )
+
+    pads = None
+    mount = None
+
+    if design.mount is not None:
+        half_x = spec.inner_width_mm / 2 + design.wall_mm
+        half_y = spec.inner_depth_mm / 2 + design.wall_mm
+        pads = mount_pads(
+            x_span_mm=(spec.center_x_mm - half_x, spec.center_x_mm + half_x),
+            y_span_mm=(spec.center_y_mm - half_y, spec.center_y_mm + half_y),
+            floor_underside_z_mm=spec.bottom_z_mm - design.floor_mm,
+            floor_mm=design.floor_mm,
+            wall_mm=design.wall_mm,
+            fastener=fastener,
+            hole_compensation_mm=design.hole_compensation_mm,
+        )
+        base = add_mount_pads(base, pads)
+        mount = build_mount(
+            design.mount,
+            pads,
+            fastener=fastener,
+            plate_mm=design.mount_plate_mm,
+            hole_compensation_mm=design.hole_compensation_mm,
+        )
+        require_mount_clear(base, mount)
+
     _require_clear_of_assembly(assembly, base=base, lid=lid)
     _require_parts_clear(base, lid)
 
@@ -332,6 +377,8 @@ def build_enclosure(
         openings=tuple(openings),
         display_screw_count=display_screws[0] if display_screws else 0,
         display_screw_reach_mm=display_screws[1] if display_screws else None,
+        mount_pads=pads,
+        mount=mount,
     )
 
 

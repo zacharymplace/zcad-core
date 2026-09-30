@@ -36,6 +36,7 @@ from zcad_core.features.enclosure_trial import (
     start_enclosure_trial,
     write_build_record,
 )
+from zcad_core.features.mounts import MOUNTS
 from zcad_core.hardware import (
     BoardSpec,
     DisplaySpec,
@@ -180,7 +181,32 @@ def _design(args: argparse.Namespace) -> EnclosureDesign:
         locating_lip=args.locating_lip,
         vent_slots=args.vent_slots,
         minimum_opening_web_mm=args.minimum_opening_web_mm,
+        mount=args.mount,
+        mount_plate_mm=args.mount_plate_mm,
     )
+
+
+def _parts(enclosure: Enclosure) -> dict[str, cq.Workplane]:
+    parts = {"base": enclosure.base, "lid": enclosure.lid}
+
+    if enclosure.mount is not None:
+        parts["mount"] = enclosure.mount.plate
+
+    return parts
+
+
+def _mount_payload(enclosure: Enclosure) -> dict[str, object] | None:
+    if enclosure.mount is None or enclosure.mount_pads is None:
+        return None
+
+    return {
+        "kind": enclosure.design.mount,
+        "screws": f"{enclosure.fastener.identifier} countersunk x "
+        f"{enclosure.mount.recommended_screw_mm} mm, "
+        f"{len(enclosure.mount_pads.positions)} per plate",
+        "pad_height_mm": enclosure.mount_pads.height_mm,
+        "plate_size_mm": list(enclosure.mount.size_mm),
+    }
 
 
 def _enclosure_build(args: argparse.Namespace) -> int:
@@ -209,7 +235,7 @@ def _build(
         ExportRequest(
             design_name=name,
             design_type="enclosure",
-            parts={"base": enclosure.base, "lid": enclosure.lid},
+            parts=_parts(enclosure),
             output_directory=args.output_directory,
             repository_root=Path.cwd(),
             printer_profile=printer_profile,
@@ -251,6 +277,7 @@ def _build(
         "display_height_mm": display_height,
         "board_support": enclosure.board_support,
         "display_support": enclosure.display_support,
+        "mount": _mount_payload(enclosure),
         "side_clearance_mm": list(enclosure.side_clearance_mm),
         "validation_status": (result.validation_report or {}).get("evaluated_status"),
         "build_record": str(build_record),
@@ -509,6 +536,13 @@ def register(
             "vents the lid over its fan"
         ),
     )
+    build.add_argument(
+        "--mount",
+        choices=MOUNTS,
+        default=None,
+        help="add four mount pads under the floor and a plate that bolts to them",
+    )
+    build.add_argument("--mount-plate-mm", type=float, default=4.0)
     build.add_argument(
         "--vent-slots",
         type=int,

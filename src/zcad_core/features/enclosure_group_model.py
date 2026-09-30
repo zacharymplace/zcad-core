@@ -13,6 +13,7 @@ import cadquery as cq
 
 from zcad_core.features.connector_cutouts import MINIMUM_OPENING_WEB_MM
 from zcad_core.features.enclosure_group_dividers import Divider
+from zcad_core.features.mounts import MOUNTS, MountPads, MountPlate
 from zcad_core.hardware import FastenerSpec
 
 BayKind = Literal["pi5", "reserved", "open"]
@@ -65,8 +66,14 @@ class GroupDesign:
     # web of wall is left between its Ethernet and USB plugs; zero keeps
     # them apart.
     minimum_opening_web_mm: float = MINIMUM_OPENING_WEB_MM
+    # A mount plate that bolts to four pads under the floor; none by default.
+    mount: str | None = None
+    mount_plate_mm: float = 4.0
 
     def validate(self) -> None:
+        if self.mount is not None and self.mount not in MOUNTS:
+            raise ValueError(f"mount must be one of {MOUNTS}")
+
         for name in (
             "wall_mm",
             "floor_mm",
@@ -200,6 +207,10 @@ class GroupEnclosure:
     # Each of a Pi's extracted parts that runs into the base or lid, as
     # "bay-<n> <part> meets the <base|lid>"; empty when the parts all clear.
     part_collisions: tuple[str, ...] = ()
+    # The pads under the floor and the plate that bolts to them, when the
+    # design asks for a mount.
+    mount_pads: MountPads | None = None
+    mount: MountPlate | None = None
 
     @property
     def cavity_top_z_mm(self) -> float:

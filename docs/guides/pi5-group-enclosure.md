@@ -218,6 +218,15 @@ since, and `unknown` if it predates slices recording their source, as any
 made before the Pi 5 was unmirrored do. Rebuild and slice again in either
 case.
 
+## Mounting
+
+`--mount keyhole` (`GroupDesign(mount="keyhole")`) adds four mount pads under
+the floor and a keyhole plate as a third part, as the
+[enclosure builder](enclosure-builder.md) describes. The pads sit at the
+corners of the whole footprint, not under the dividers, so any layout of
+bays takes one. A row is one unit's width, so a row split across units
+needs a plate for each unit.
+
 ## Viewing in 3D
 
 ```bash

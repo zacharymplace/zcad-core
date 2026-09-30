@@ -35,6 +35,14 @@ from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
 )
+from zcad_core.features.mounts import (
+    MOUNTS,
+    MountPads,
+    MountPlate,
+    add_mount_pads,
+    build_mount,
+    mount_pads,
+)
 from zcad_core.features.pcb_mounts import (
     BoardHolePattern,
     MountableBoardSpec,
@@ -50,6 +58,7 @@ from zcad_core.features.snap_retention import (
 )
 
 __all__ = [
+    "MOUNTS",
     "BoardCradleParameters",
     "BoardHolePattern",
     "ConnectorCutoutParameters",
@@ -61,6 +70,8 @@ __all__ = [
     "EnclosureDesign",
     "EnclosureReview",
     "InsertBossParameters",
+    "MountPads",
+    "MountPlate",
     "MountableBoardSpec",
     "PcbStandoffParameters",
     "SnapRetentionClipParameters",
@@ -70,14 +81,17 @@ __all__ = [
     "add_display_posts",
     "add_display_retainer",
     "add_heat_set_insert_boss",
+    "add_mount_pads",
     "add_pcb_standoff",
     "add_snap_retention_clip",
     "board_hole_pattern",
     "build_enclosure",
+    "build_mount",
     "centered_mounting_hole_positions",
     "cut_connector_opening",
     "cut_display_window",
     "export_enclosure_review",
     "merge_close_openings",
+    "mount_pads",
     "recommended_screw_length_mm",
 ]
