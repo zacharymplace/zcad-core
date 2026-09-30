@@ -66,7 +66,16 @@ from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
 )
+from zcad_core.features.mount_rack import (
+    FrontPads,
+    add_front_pads,
+    build_rack_ears,
+    front_pads,
+    is_rack,
+)
 from zcad_core.features.mounts import (
+    MountPads,
+    MountPlate,
     add_mount_pads,
     build_mount,
     mount_pads,
@@ -267,23 +276,13 @@ def build_group_enclosure(
         pi_center_y=pi_center_y,
     )
 
-    pads = None
-    mount = None
-
-    if design.mount is not None:
-        pads = mount_pads(
-            x_span_mm=(0.0, outer[0]),
-            y_span_mm=(0.0, outer[1]),
-            floor_underside_z_mm=0.0,
-            floor_mm=design.floor_mm,
-            wall_mm=wall,
-            fastener=fastener,
-        )
-        base = add_mount_pads(base, pads)
-        mount = build_mount(
-            design.mount, pads, fastener=fastener, plate_mm=design.mount_plate_mm
-        )
-        require_mount_clear(base, mount)
+    base, pads, mount = _add_mount(
+        base,
+        design=design,
+        fastener=fastener,
+        outer=outer,
+        height_mm=cavity_top + design.lid_mm,
+    )
 
     checks = _checks(base, lid, hardware)
     collisions = _part_collisions(base, lid, parts)
@@ -311,6 +310,56 @@ def build_group_enclosure(
         mount_pads=pads,
         mount=mount,
     )
+
+
+def _add_mount(
+    base: cq.Workplane,
+    *,
+    design: GroupDesign,
+    fastener: FastenerSpec,
+    outer: tuple[float, float, float],
+    height_mm: float,
+) -> tuple[cq.Workplane, MountPads | FrontPads | None, MountPlate | None]:
+    """The base with the pads for the design's mount, the pads, and the
+    mount's plate or ears; unchanged and empty when the design has none."""
+
+    if design.mount is None:
+        return base, None, None
+
+    if is_rack(design.mount):
+        front = front_pads(
+            base,
+            outer_size_mm=outer,
+            enclosure_height_mm=height_mm,
+            wall_mm=design.wall_mm,
+            fastener=fastener,
+        )
+        base = add_front_pads(base, front)
+        ears = build_rack_ears(
+            front,
+            enclosure_height_mm=height_mm,
+            fastener=fastener,
+            plate_mm=design.mount_plate_mm,
+        )
+        require_mount_clear(base, ears)
+
+        return base, front, ears
+
+    pads = mount_pads(
+        x_span_mm=(0.0, outer[0]),
+        y_span_mm=(0.0, outer[1]),
+        floor_underside_z_mm=0.0,
+        floor_mm=design.floor_mm,
+        wall_mm=design.wall_mm,
+        fastener=fastener,
+    )
+    base = add_mount_pads(base, pads)
+    plate = build_mount(
+        design.mount, pads, fastener=fastener, plate_mm=design.mount_plate_mm
+    )
+    require_mount_clear(base, plate)
+
+    return base, pads, plate
 
 
 def _part_collisions(
