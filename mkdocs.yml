@@ -36,6 +36,7 @@ nav:
       - Next phases: roadmaps/next-phases.md
       - Mounting systems: roadmaps/mounting-systems.md
       - Hinged and sliding lids: roadmaps/hinges-and-slides.md
+      - Thermal features: roadmaps/thermal-features.md
   - API Reference:
       - Overview: reference/index.md
       - assemblies: reference/assemblies.md
