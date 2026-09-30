@@ -178,6 +178,7 @@ def _design(args: argparse.Namespace) -> EnclosureDesign:
         hole_compensation_mm=compensation,
         lid_attachment=args.lid,
         hinge_pin=args.hinge_pin,
+        slide_clearance_mm=args.slide_clearance_mm,
         countersunk_screws=args.countersunk,
         locating_lip=args.locating_lip,
         vent_slots=args.vent_slots,
@@ -210,6 +211,21 @@ def _mount_payload(enclosure: Enclosure) -> dict[str, object] | None:
         "flexure": flexure_payload(enclosure.mount.flexure),
         "pad_height_mm": enclosure.mount_pads.height_mm,
         "plate_size_mm": list(enclosure.mount.size_mm),
+    }
+
+
+def _slide_payload(enclosure: Enclosure) -> dict[str, object] | None:
+    slide = enclosure.slide
+
+    if slide is None:
+        return None
+
+    return {
+        "entry_wall": slide.entry_edge,
+        "clearance_mm": slide.clearance_mm,
+        "lid_length_mm": round(slide.lid_length_mm, 1),
+        "wall_top_above_cavity_mm": round(slide.wall_top_above_cavity_mm, 1),
+        "detent": flexure_payload(slide.detent),
     }
 
 
@@ -268,6 +284,11 @@ def _build(
                 "top_clearance_mm": design.top_clearance_mm,
                 "wall_mm": design.wall_mm,
                 "fastener": design.fastener,
+                **(
+                    {"lid_clearance": design.slide_clearance_mm}
+                    if design.lid_attachment == "slide"
+                    else {}
+                ),
             },
         )
     )
@@ -300,6 +321,7 @@ def _build(
         "display_support": enclosure.display_support,
         "mount": _mount_payload(enclosure),
         "hinge": _hinge_payload(enclosure),
+        "slide": _slide_payload(enclosure),
         "side_clearance_mm": list(enclosure.side_clearance_mm),
         "validation_status": (result.validation_report or {}).get("evaluated_status"),
         "build_record": str(build_record),
@@ -539,9 +561,15 @@ def register(
         choices=LID_ATTACHMENTS,
         default="screws",
         help=(
-            "screw the lid into heat-set inserts, snap it on, or hinge it on a "
-            "pin and close it with a catch"
+            "screw the lid into heat-set inserts, snap it on, hinge it on a "
+            "pin and close it with a catch, or slide it in grooves"
         ),
+    )
+    build.add_argument(
+        "--slide-clearance-mm",
+        type=float,
+        default=0.2,
+        help="the gap per side around a sliding lid",
     )
     build.add_argument(
         "--hinge-pin",

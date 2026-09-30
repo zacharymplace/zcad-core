@@ -157,6 +157,17 @@ def _lid_fasteners(enclosure: Enclosure) -> dict[str, Any]:
             "catch_strain_percent": round(100 * hinge.catch.strain, 2),
         }
 
+    slide = enclosure.slide
+
+    if slide is not None:
+        return {
+            "lid": "sliding",
+            "count": 0,
+            "entry": slide.entry_edge,
+            "clearance_mm": slide.clearance_mm,
+            "detent_strain_percent": round(100 * slide.detent.strain, 2),
+        }
+
     if not enclosure.fastener_positions:
         return {"lid": "snap-fit", "count": 0}
 

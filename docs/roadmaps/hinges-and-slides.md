@@ -8,9 +8,9 @@ open, for a box that is opened often, such as a battery box, a field device,
 or anything with a card or a switch inside. A slide lid opens by pushing it
 along the box, with nothing to lose and no fasteners.
 
-Phase 1, the pin hinge and its catch, is built, and differs from the first
-design in several ways, each from building it (see *What phase 1 changed*
-below). The slide lid is still design only.
+Phases 1 (the pin hinge and its catch) and 2 (the slide lid) are built, and
+each differs from the first design in ways found by building it (see *What
+phase 1 changed* and *What phase 2 changed* below).
 
 ## Where it fits
 
@@ -98,7 +98,7 @@ The parts pass through the same export pipeline as the enclosure.
 1. **Pin hinge and snap catch (built)**, single-board enclosure: the hinge module,
    the `"hinge"` lid attachment, the swing envelope check, the pin in the
    hardware output, `--lid hinge`.
-2. **Slide lid**, single-board enclosure: the thickened band, the grooves,
+2. **Slide lid (built)**, single-board enclosure: the thickened band, the grooves,
    the detent, `--lid slide`.
 3. **Pi 5 group enclosure**: a hinge along its back wall and a slide along
    its row, each with the group's dividers and cable openings in the way.
@@ -128,6 +128,29 @@ The parts pass through the same export pipeline as the enclosure.
   would need to be tighter, and no print has shown what tightness.
 - **A display is swept as part of the lid.** It screws to the lid's posts, so
   it swings with it; as a fixed part it would falsely block the sweep.
+
+### What phase 2 changed
+
+- **The rebate goes outward, as proposed.** The long walls are raised 3.4 mm
+  above the cavity and thickened 1.6 mm, so the box grows 3.2 mm across and
+  1.4 mm in height.
+- **The detent is a pair of in-plane tongues and dimples.** Each edge of the
+  lid has a 1.6 mm tongue, cut by a U-shaped slot, with a rounded bump that
+  clicks into a dimple in the groove. They bend in the lid's plane, so their
+  stress runs along the layers, and they are the DIN clip's flexure again.
+  There is no finger notch: the lid's end stands above the lowered entry
+  wall, so a thumb pushes it.
+- **A slide lid cannot hold a display.** Anything hanging below the entry
+  wall's top hits that wall as the lid slides out, and the display's retainer
+  posts do. The travel check refuses it by name and points to a hinged or
+  screwed lid. A display would need the entry wall cut all the way down, which
+  also opens the cavity.
+- **Openings and vents.** An opening in a long wall that would cut the
+  groove's floor is refused, and vents stay below the thickening, so a short
+  wall cannot take them.
+- **The fit is checked at export.** The enclosure declares its
+  `lid_clearance`, and the validation report warns if it is under the printer
+  profile's `sliding_clearance_per_side`.
 
 Each phase is one PR. Phases 1 and 2 add lid attachments, so existing builds
 and records are unchanged unless a design asks for them.
