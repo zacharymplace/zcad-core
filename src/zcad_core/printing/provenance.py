@@ -14,6 +14,7 @@ that was later rebased onto main still compares cleanly.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -22,6 +23,18 @@ from typing import Any, Literal
 # Everything that shapes a part or how it is sliced.
 GEOMETRY_PATHS = ("src/zcad_core", "profiles")
 _PACKAGE_DIRECTORY = Path(__file__).resolve().parents[1]
+_REPOSITORY_VARIABLES = frozenset(
+    {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_NAMESPACE",
+        "GIT_PREFIX",
+    }
+)
 
 SliceStatus = Literal["current", "stale", "unknown"]
 
@@ -119,6 +132,18 @@ def _commits_since(root: Path, commit: str) -> tuple[str, ...]:
     return tuple(log.splitlines()) if log else ()
 
 
+def git_environment() -> dict[str, str]:
+    """This process's environment without the variables that point git at a
+    repository. A git hook sets ``GIT_DIR``, which overrides ``-C``: left in,
+    git would read, or write, the repository running the hook instead."""
+
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if name not in _REPOSITORY_VARIABLES
+    }
+
+
 def _git(directory: Path, *arguments: str) -> str | None:
     """Run git in ``directory``: its trimmed output, or None when it fails."""
 
@@ -128,6 +153,7 @@ def _git(directory: Path, *arguments: str) -> str | None:
             capture_output=True,
             text=True,
             check=False,
+            env=git_environment(),
         )
     except OSError:
         return None
