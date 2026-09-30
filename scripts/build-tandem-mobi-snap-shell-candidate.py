@@ -10,12 +10,23 @@ still unknown. The resulting target and candidate are explicitly flagged
 ``provisional_synthetic_candidate`` and are not eligible for promotion or
 physical trials until they are replaced by a caliper-verified capture (see
 docs/roadmaps/validation-lab.md).
+
+With no arguments it registers the target and r001. A later revision names
+its parent and why, such as after the spec's dimensions change; it writes
+its own placeholder envelope beside r001's, so r001's pinned files never
+change, and records its relationship to the parent:
+
+    python scripts/build-tandem-mobi-snap-shell-candidate.py \\
+        --revision r002 --parent r001 --reason "..."
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -26,6 +37,7 @@ from zcad_core.retention import (
     CandidateRevision,
     RetentionEngine,
     RetentionStrategy,
+    RevisionRelationshipType,
     SnapShellLocation,
     SnapShellPolicy,
     SnapShellRequest,
@@ -33,7 +45,9 @@ from zcad_core.retention import (
     ValidationTarget,
     as_snap_shell_fit_report,
     candidate_identifier,
+    load_candidate_revision,
     load_manifest,
+    persist_candidate_revision,
     run_candidate_export_validation,
     sha256_file,
     write_immutable_manifest,
@@ -42,32 +56,61 @@ from zcad_core.retention import (
 ROOT = Path(__file__).resolve().parents[1]
 
 TARGET_ID = "tandem-mobi-pump"
-REVISION = "r001"
+FIRST_REVISION = "r001"
 STRATEGY = "snap-shell"
 
-EVIDENCE_ROOT = ROOT / "evidence" / TARGET_ID
 
-SOURCE_STEP = EVIDENCE_ROOT / "step" / "tandem-mobi-placeholder-envelope.step"
+@dataclass(frozen=True)
+class RevisionPaths:
+    """Where one revision's files go, under a repository root."""
 
-LAB_ROOT = EVIDENCE_ROOT / "validation-lab"
+    root: Path
+    revision: str
 
-TARGET_MANIFEST = LAB_ROOT / "target.json"
+    @property
+    def lab(self) -> Path:
+        return self.root / "evidence" / TARGET_ID / "validation-lab"
 
-CANDIDATE_ROOT = LAB_ROOT / "candidates" / REVISION
+    @property
+    def source_step(self) -> Path:
+        # r001 keeps the name it was registered with.
+        suffix = "" if self.revision == FIRST_REVISION else f"-{self.revision}"
+        return (
+            self.root
+            / "evidence"
+            / TARGET_ID
+            / "step"
+            / f"tandem-mobi-placeholder-envelope{suffix}.step"
+        )
 
-AUTOMATED_REPORT = CANDIDATE_ROOT / "automated-validation.json"
+    @property
+    def target_manifest(self) -> Path:
+        return self.lab / "target.json"
 
-RETENTION_STEP = CANDIDATE_ROOT / "retention.step"
+    @property
+    def candidate_root(self) -> Path:
+        return self.lab / "candidates" / self.revision
 
-CANDIDATE_MANIFEST = CANDIDATE_ROOT / "candidate.json"
+    @property
+    def automated_report(self) -> Path:
+        return self.candidate_root / "automated-validation.json"
 
-PRINTER_PROFILE = ROOT / "profiles" / "printers" / "bambu-lab-a1-mini.json"
+    @property
+    def retention_step(self) -> Path:
+        return self.candidate_root / "retention.step"
+
+    @property
+    def candidate_manifest(self) -> Path:
+        return self.candidate_root / "candidate.json"
+
+    def relative(self, path: Path) -> str:
+        return str(path.relative_to(self.root))
 
 
-def git_commit() -> str:
+def git_commit(root: Path) -> str:
     result = subprocess.run(
         ["git", "rev-parse", "HEAD"],
-        cwd=ROOT,
+        cwd=root,
         check=True,
         capture_output=True,
         text=True,
@@ -135,22 +178,70 @@ def snap_shell_locations() -> tuple[SnapShellLocation, ...]:
     )
 
 
-def main() -> None:
-    # Check before exporting anything: the STEP files and report below are
-    # written before the immutable manifests, so a rerun against an existing
-    # revision would clobber its pinned artifacts and only then fail.
-    existing = [path for path in (TARGET_MANIFEST, CANDIDATE_MANIFEST) if path.exists()]
+def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--revision", default=FIRST_REVISION)
+    parser.add_argument("--parent", help="the revision this one follows, as r001")
+    parser.add_argument(
+        "--relationship",
+        choices=[kind.value for kind in RevisionRelationshipType],
+        default=RevisionRelationshipType.SUPERSEDES.value,
+    )
+    parser.add_argument("--reason", help="why this revision exists; needs --parent")
+    args = parser.parse_args(argv)
+
+    if args.revision == FIRST_REVISION and args.parent:
+        parser.error(f"{FIRST_REVISION} is the first revision and has no parent")
+
+    if args.revision != FIRST_REVISION and not (args.parent and args.reason):
+        parser.error(f"{args.revision} needs --parent and --reason")
+
+    return args
+
+
+def _require_new(paths: RevisionPaths, parent: RevisionPaths | None) -> None:
+    """Refuse before exporting anything: the STEP files and report are
+    written before the immutable manifests, so a rerun against an existing
+    revision would clobber its pinned artifacts and only then fail."""
+
+    pinned = [paths.candidate_manifest, paths.source_step, paths.retention_step]
+
+    if parent is None:
+        pinned.append(paths.target_manifest)
+
+    existing = [path for path in pinned if path.exists()]
+
     if existing:
         raise SystemExit(
-            "Refusing to regenerate over immutable manifests: "
-            + ", ".join(str(path.relative_to(ROOT)) for path in existing)
+            "Refusing to regenerate over pinned files: "
+            + ", ".join(paths.relative(path) for path in existing)
         )
+
+    if parent is not None:
+        missing = [
+            path
+            for path in (paths.target_manifest, parent.candidate_manifest)
+            if not path.exists()
+        ]
+
+        if missing:
+            raise SystemExit(
+                "A revision needs its target and parent registered first: "
+                + ", ".join(paths.relative(path) for path in missing)
+            )
+
+
+def main(argv: Sequence[str] | None = None, root: Path = ROOT) -> None:
+    args = _arguments(argv)
+    paths = RevisionPaths(root, args.revision)
+    parent = RevisionPaths(root, args.parent) if args.parent else None
+    _require_new(paths, parent)
 
     spec = get_tandem_mobi()
 
     envelope = build_placeholder_envelope()
-    SOURCE_STEP.parent.mkdir(parents=True, exist_ok=True)
-    cq.exporters.export(envelope, str(SOURCE_STEP))
+    paths.source_step.parent.mkdir(parents=True, exist_ok=True)
+    cq.exporters.export(envelope, str(paths.source_step))
 
     policy = SnapShellPolicy()
     locations = snap_shell_locations()
@@ -176,12 +267,12 @@ def main() -> None:
 
     fit_report = as_snap_shell_fit_report(execution.report)
 
-    RETENTION_STEP.parent.mkdir(parents=True, exist_ok=True)
-    cq.exporters.export(execution.model, str(RETENTION_STEP))
+    paths.retention_step.parent.mkdir(parents=True, exist_ok=True)
+    cq.exporters.export(execution.model, str(paths.retention_step))
 
     created_at = datetime.now(UTC).isoformat()
-    source_sha256 = sha256_file(SOURCE_STEP)
-    output_sha256 = sha256_file(RETENTION_STEP)
+    source_sha256 = sha256_file(paths.source_step)
+    output_sha256 = sha256_file(paths.retention_step)
 
     decision = "provisional_synthetic_candidate" if execution.passed else "rejected"
 
@@ -197,12 +288,12 @@ def main() -> None:
         "geometry_evidence_status": spec.geometry_evidence_status,
         "geometry_source": spec.geometry_source,
         "source": {
-            "step_path": str(SOURCE_STEP.relative_to(ROOT)),
+            "step_path": paths.relative(paths.source_step),
             "step_sha256": source_sha256,
             "pcb_solid_index": 1,
         },
         "output": {
-            "step_path": str(RETENTION_STEP.relative_to(ROOT)),
+            "step_path": paths.relative(paths.retention_step),
             "step_sha256": output_sha256,
         },
         "device": {
@@ -240,24 +331,25 @@ def main() -> None:
         },
     }
 
-    AUTOMATED_REPORT.parent.mkdir(parents=True, exist_ok=True)
-    AUTOMATED_REPORT.write_text(
+    paths.automated_report.parent.mkdir(parents=True, exist_ok=True)
+    paths.automated_report.write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
 
-    target = ValidationTarget(
-        schema_version="1.0.0",
-        target_id=TARGET_ID,
-        display_name="Tandem Mobi Pump",
-        manufacturer="Tandem Diabetes Care",
-        product_family="Mobi",
-        source_model_path=str(SOURCE_STEP.relative_to(ROOT)),
-        source_model_sha256=source_sha256,
-        pcb_solid_index=1,
-        created_at_utc=created_at,
-    )
-    write_immutable_manifest(target, output_path=TARGET_MANIFEST)
+    if parent is None:
+        target = ValidationTarget(
+            schema_version="1.0.0",
+            target_id=TARGET_ID,
+            display_name="Tandem Mobi Pump",
+            manufacturer="Tandem Diabetes Care",
+            product_family="Mobi",
+            source_model_path=paths.relative(paths.source_step),
+            source_model_sha256=source_sha256,
+            pcb_solid_index=1,
+            created_at_utc=created_at,
+        )
+        write_immutable_manifest(target, output_path=paths.target_manifest)
 
     retention_policy = {
         "clip_width_mm": policy.clip_width_mm,
@@ -277,42 +369,58 @@ def main() -> None:
         candidate_id=candidate_identifier(
             target_id=TARGET_ID,
             strategy=STRATEGY,
-            revision=REVISION,
+            revision=args.revision,
         ),
         target_id=TARGET_ID,
-        revision=REVISION,
+        revision=args.revision,
         source_sha256=source_sha256,
         output_sha256=output_sha256,
-        git_commit=git_commit(),
+        git_commit=git_commit(root),
         generator_version="1.0.0",
         retention_policy=retention_policy,
         derived_parameters=derived_parameters,
         selected_corners=tuple(location.label for location in locations),
         automated_decision=decision,
-        automated_evidence_path=str(AUTOMATED_REPORT.relative_to(ROOT)),
-        fixture_artifact_path=str(RETENTION_STEP.relative_to(ROOT)),
+        automated_evidence_path=paths.relative(paths.automated_report),
+        fixture_artifact_path=paths.relative(paths.retention_step),
         created_at_utc=created_at,
         strategy=STRATEGY,
     )
-    write_immutable_manifest(candidate, output_path=CANDIDATE_MANIFEST)
+
+    if parent is None:
+        write_immutable_manifest(candidate, output_path=paths.candidate_manifest)
+    else:
+        persist_candidate_revision(
+            parent_candidate=load_candidate_revision(parent.candidate_manifest),
+            candidate=candidate,
+            relationship=RevisionRelationshipType(args.relationship),
+            reason=args.reason,
+            output_directory=paths.candidate_root,
+        )
 
     # The shell does not embed the placeholder envelope, so no reference board.
     export_validation, export_validation_path = run_candidate_export_validation(
         candidate=candidate,
-        retention_step=RETENTION_STEP,
-        validation_root=CANDIDATE_ROOT / "export-validation",
-        printer_profile=load_manifest(PRINTER_PROFILE),
-        repository_root=ROOT,
+        retention_step=paths.retention_step,
+        validation_root=paths.candidate_root / "export-validation",
+        printer_profile=load_manifest(
+            root / "profiles/printers/bambu-lab-a1-mini.json"
+        ),
+        repository_root=root,
         validated_at_utc=created_at,
     )
 
     print("=== TANDEM MOBI SNAP-SHELL CANDIDATE (synthetic, placeholder geometry) ===")
+    print(
+        f"Revision: {args.revision}"
+        + (f" ({args.relationship} {args.parent})" if parent else "")
+    )
     print(f"Passed: {execution.passed}")
     print(f"Decision: {decision}")
     print(f"Locations: {', '.join(location.label for location in locations)}")
-    print(f"Target manifest: {TARGET_MANIFEST}")
-    print(f"Candidate manifest: {CANDIDATE_MANIFEST}")
-    print(f"Retention STEP: {RETENTION_STEP}")
+    print(f"Target manifest: {paths.target_manifest}")
+    print(f"Candidate manifest: {paths.candidate_manifest}")
+    print(f"Retention STEP: {paths.retention_step}")
     print(f"Export validation: {export_validation.evaluated_status}")
     print(f"Export-validation record: {export_validation_path}")
 
