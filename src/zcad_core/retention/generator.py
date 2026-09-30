@@ -12,6 +12,7 @@ History:
 - 1.2.0: capture geometry and fixture base built up from the PCB's underside
 - 1.3.0: clearance holes through the base under parts reaching below the PCB
 - 1.4.0: edge-clip spans keep ``board_clearance_mm`` from component footprints
+- 1.5.0: fixture base cut away beyond each edge a connector overhangs
 
 When a change to :data:`GENERATOR_MODULES` alters generated geometry, bump
 :data:`GENERATOR_VERSION`, add a history line, and update
@@ -26,7 +27,7 @@ import hashlib
 import importlib.util
 from pathlib import Path
 
-GENERATOR_VERSION = "1.4.0"
+GENERATOR_VERSION = "1.5.0"
 
 GENERATOR_MODULES = (
     "zcad_core.geometry.cadquery_support",
@@ -49,7 +50,7 @@ GENERATOR_MODULES = (
 # generator_fingerprint() at GENERATOR_VERSION, computed on Python 3.11 (the
 # AST it hashes can differ between Python versions).
 GENERATOR_FINGERPRINT = (
-    "95bc1b220f4a564894e8862b76ebdceb9daea9d181f896cdd5f1305199d99a32"
+    "4c77806857d31da7c271f1a43e949cc3f705fdf1898a12dbc1b5fc32cc93725b"
 )
 
 

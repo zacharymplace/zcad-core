@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import cadquery as cq
 
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.retention.edge_capture import EdgeCapturePolicy
+from zcad_core.retention.production_board import import_production_board_model
 from zcad_core.retention.production_edge_execution import (
     ProductionEdgeExecutionRequest,
     ProductionEdgeExecutionResult,
@@ -13,6 +15,7 @@ from zcad_core.retention.production_edge_execution import (
 )
 from zcad_core.retention.validation_fixture import (
     ValidationFixturePolicy,
+    _build_base,
     build_edge_validation_fixture,
     export_edge_validation_fixture,
 )
@@ -121,3 +124,28 @@ def test_fixture_exports_stl(
     assert artifact.stl_path == output_path
     assert output_path.is_file()
     assert output_path.stat().st_size > 0
+
+
+def test_base_is_relieved_beyond_an_overhanging_connector(
+    tmp_path: Path,
+) -> None:
+    pcb = cq.Workplane("XY").box(40.0, 30.0, 1.6).translate((0.0, 0.0, 0.8))
+    # A 10 mm wide connector hanging 2 mm past the positive-x edge.
+    usb = cq.Workplane("XY").box(8.0, 10.0, 3.0).translate((18.0, 0.0, 3.1))
+    assembly = cq.Assembly()
+    assembly.add(pcb, name="pcb")
+    assembly.add(usb, name="usb")
+    source = tmp_path / "board.step"
+    assembly.export(str(source), exportType="STEP")
+
+    model = import_production_board_model(source_step=source, pcb_solid_index=1)
+    base = cast(
+        cq.Solid, workplane_shape(_build_base(model, ValidationFixturePolicy()))
+    )
+
+    def solid_at(x: float, y: float) -> bool:
+        return base.isInside(cq.Vector(x, y, -1.0))
+
+    assert solid_at(19.0, 10.0)  # margin beside the connector stays
+    assert not solid_at(21.0, 0.0)  # margin under the plug is cut away
+    assert solid_at(0.0, 0.0)  # base under the board is untouched
