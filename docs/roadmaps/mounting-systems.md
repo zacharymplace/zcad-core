@@ -8,7 +8,8 @@ monitor arm, a DIN rail, or a rack. One mount design then serves every
 enclosure, including the Pi 5 group, instead of each product growing its own
 brackets.
 
-This is a design, not built work. Nothing below exists in the code yet.
+Phase 1 (the interface and the keyhole plate) is built; phases 2 to 4 are
+design only.
 
 ## Decision: one interface, many mounts
 
@@ -85,7 +86,7 @@ STL, metadata, and validation against the printer profile.
 
 ## Phases
 
-1. **Interface and keyhole plate.** Mount pads on the single-board enclosure
+1. **Interface and keyhole plate (built).** Mount pads on the single-board enclosure
    and the group; `mount_pad_positions` in the build record; the keyhole
    plate; `--mount keyhole` on `enclosure build` and `enclosure-group
    build`.
@@ -106,11 +107,10 @@ builds of anything already reviewed.
   the Validation Lab already models; a mount target would be added there
   once a printer is available.
 
-## Open questions
+## Decisions
 
-- Whether the pad pattern should be user-settable for a chosen mount (for
-  example, pads at a VESA spacing directly) instead of always at the
-  corners. Corners are simpler; VESA 75 fits only small enclosures
-  otherwise.
-- Whether the group enclosure's pads should sit under its dividers for
-  strength. That constrains where bays can be.
+- Pads always sit at the corners of the footprint. A mount with its own
+  spacing (VESA 75 on a small enclosure) gets a plate larger than the
+  enclosure rather than moved pads.
+- The group enclosure's pads do not follow its dividers, so the bay layout
+  is never constrained by the mount.

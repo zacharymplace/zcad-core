@@ -66,6 +66,12 @@ from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
 )
+from zcad_core.features.mounts import (
+    add_mount_pads,
+    build_mount,
+    mount_pads,
+    require_mount_clear,
+)
 from zcad_core.features.pcb_mounts import PcbStandoffParameters, add_pcb_standoff
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware import (
@@ -261,6 +267,24 @@ def build_group_enclosure(
         pi_center_y=pi_center_y,
     )
 
+    pads = None
+    mount = None
+
+    if design.mount is not None:
+        pads = mount_pads(
+            x_span_mm=(0.0, outer[0]),
+            y_span_mm=(0.0, outer[1]),
+            floor_underside_z_mm=0.0,
+            floor_mm=design.floor_mm,
+            wall_mm=wall,
+            fastener=fastener,
+        )
+        base = add_mount_pads(base, pads)
+        mount = build_mount(
+            design.mount, pads, fastener=fastener, plate_mm=design.mount_plate_mm
+        )
+        require_mount_clear(base, mount)
+
     checks = _checks(base, lid, hardware)
     collisions = _part_collisions(base, lid, parts)
     checks["parts_clear_of_base"] = not any(c.endswith("base") for c in collisions)
@@ -284,6 +308,8 @@ def build_group_enclosure(
         recommended_lid_screw_mm=lid_screw,
         recommended_join_screw_mm=join_screw,
         part_collisions=collisions,
+        mount_pads=pads,
+        mount=mount,
     )
 
 

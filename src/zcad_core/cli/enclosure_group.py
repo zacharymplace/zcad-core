@@ -32,6 +32,7 @@ from zcad_core.features.enclosure_group_viewer import (
     viewer_data,
     viewer_page,
 )
+from zcad_core.features.mounts import MOUNTS
 from zcad_core.printing import SliceError, slice_models
 from zcad_core.profiles import load_printer_profile
 
@@ -316,6 +317,15 @@ def _group_viewer(args: argparse.Namespace) -> int:
     return 0
 
 
+def _parts(group: GroupEnclosure) -> dict[str, cq.Workplane]:
+    parts = {"base": group.base, "lid": group.lid}
+
+    if group.mount is not None:
+        parts["mount"] = group.mount.plate
+
+    return parts
+
+
 def _group_build(args: argparse.Namespace) -> int:
     bays = _bays(args.bays)
     design = GroupDesign(
@@ -330,6 +340,8 @@ def _group_build(args: argparse.Namespace) -> int:
         vents=args.vents,
         join_bolts=args.join_bolts,
         minimum_opening_web_mm=args.minimum_opening_web_mm,
+        mount=args.mount,
+        mount_plate_mm=args.mount_plate_mm,
     )
     group = build_group_enclosure(bays, design=design)
     name = args.name or f"pi5-group-{len(bays)}bay"
@@ -339,7 +351,7 @@ def _group_build(args: argparse.Namespace) -> int:
         ExportRequest(
             design_name=name,
             design_type="enclosure",
-            parts={"base": group.base, "lid": group.lid},
+            parts=_parts(group),
             output_directory=args.output_directory,
             repository_root=Path.cwd(),
             printer_profile=profile,
@@ -378,6 +390,13 @@ def _group_build(args: argparse.Namespace) -> int:
                 f"{len(group.lid_boss_positions)} per unit",
                 "join": join,
                 "pi_mount": "M2.5 self-tapping, 4 per Pi",
+                "mount": (
+                    f"{group.fastener.identifier} countersunk x "
+                    f"{group.mount.recommended_screw_mm} mm, "
+                    f"{len(group.mount_pads.positions)} per plate"
+                    if group.mount is not None and group.mount_pads is not None
+                    else None
+                ),
             },
             "review_step": str(review_path),
             "print": printed,
@@ -425,6 +444,13 @@ def register(
     build.add_argument("--wall-mm", type=float, default=2.0)
     build.add_argument("--floor-mm", type=float, default=2.0)
     build.add_argument("--lid-mm", type=float, default=3.0)
+    build.add_argument(
+        "--mount",
+        choices=MOUNTS,
+        default=None,
+        help="add four mount pads under the floor and a plate that bolts to them",
+    )
+    build.add_argument("--mount-plate-mm", type=float, default=4.0)
     build.add_argument("--fastener", default="M3")
     build.add_argument(
         "--standoff-height-mm",
