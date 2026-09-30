@@ -227,6 +227,21 @@ corners of the whole footprint, not under the dividers, so any layout of
 bays takes one. A row is one unit's width, so a row split across units
 needs a plate for each unit.
 
+`--mount rack` (`GroupDesign(mount="rack")`) builds rack ears instead: two
+pads stacked at each end of the front wall, and two flat flanges, exported as
+`mount-left` and `mount-right`, that screw to them and reach out to a 19 inch
+rack's rails. The flanges are a 1U panel (43.66 mm tall) with three EIA-310
+holes each, 465.1 mm apart, and the enclosure sits centred in the rack, 8 mm
+behind its face. The pads stand out of the front, so the base is no wider
+than before. A pair of bays (176 mm) gives 165 mm ears, which fit the A1
+mini's bed. The build refuses an enclosure that is taller than 1U (41.7 mm
+with the lid) or wider than the rack's 450.85 mm opening, a pad that would
+cover an opening in the front wall, and ears longer than the printer's bed;
+one bay is about 88 mm wide and its ears would be about 197 mm, so it needs
+a bigger printer. Print each ear flat. No strength is modelled: the two pads
+at each end hold the enclosure's weight, and a trial has to show that they
+can.
+
 ## Viewing in 3D
 
 ```bash

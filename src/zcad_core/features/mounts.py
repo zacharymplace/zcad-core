@@ -25,11 +25,11 @@ POCKET_ROOF_MM = 1.0
 # The least room between the floor and the plate, for a wall screw's head.
 MINIMUM_PAD_HEIGHT_MM = 3.5
 # A pad sinks this far into the floor so it fuses to it.
-_PAD_EMBED_MM = 0.5
+PAD_EMBED_MM = 0.5
 # Plate edge beyond the pads' outer faces, and the wall between a keyhole and
 # a screw hole.
 _PLATE_MARGIN_MM = 2.0
-_FEATURE_WALL_MM = 2.0
+FEATURE_WALL_MM = 2.0
 # Keyhole: a #6 wall screw's head passes the large hole; its shank slides up
 # the slot. The plate hangs with the slot's open end toward -Y.
 KEYHOLE_HEAD_DIAMETER_MM = 9.0
@@ -75,7 +75,7 @@ _DIN_END_SLIT_MM = 1.0
 _DIN_ROOT_MM = 3.0
 _COUNTERSINK_FLOOR_MM = 1.2
 _SCREW_LENGTHS_MM = (4, 5, 6, 8, 10, 12, 16, 20)
-_HEAD_DIAMETER_FACTOR = 2.0
+HEAD_DIAMETER_FACTOR = 2.0
 _INTERFERENCE_TOLERANCE_MM3 = 1e-6
 
 
@@ -122,11 +122,21 @@ class MountPlate:
     # How the plate attaches to a rail, and the printed spring that latches it.
     attachment: str | None = None
     flexure: Flexure | None = None
+    # A mount that is several printable pieces, such as a pair of rack ears,
+    # names each; ``plate`` is then the first. Otherwise the plate is the
+    # one part, "mount".
+    pieces: dict[str, cq.Workplane] | None = None
+
+    @property
+    def parts(self) -> dict[str, cq.Workplane]:
+        """Every printable piece of the mount, by part name."""
+
+        return self.pieces if self.pieces is not None else {"mount": self.plate}
 
 
 def pad_height_mm(fastener: FastenerSpec, floor_mm: float) -> float:
     """The pad height that leaves ``POCKET_ROOF_MM`` of floor over the pocket."""
-    depth = _insert(fastener)[1]
+    depth = insert_dimensions(fastener)[1]
 
     return max(depth + POCKET_ROOF_MM - floor_mm, MINIMUM_PAD_HEIGHT_MM)
 
@@ -144,7 +154,7 @@ def mount_pads(
     """Pads at the corners of the outer footprint, each inset by the wall
     thickness plus its radius, so the pad sits under the wall's inner face."""
 
-    insert_diameter, depth = _insert(fastener)
+    insert_diameter, depth = insert_dimensions(fastener)
     pocket = insert_diameter + hole_compensation_mm
     diameter = insert_diameter + 2 * 1.8
     inset = wall_mm + diameter / 2
@@ -179,7 +189,7 @@ def add_mount_pads(base: cq.Workplane, pads: MountPads) -> cq.Workplane:
         pad = cq.Workplane("XY").add(
             cq.Solid.makeCylinder(
                 pads.diameter_mm / 2,
-                pads.height_mm + _PAD_EMBED_MM,
+                pads.height_mm + PAD_EMBED_MM,
                 pnt=cq.Vector(x, y, pads.mating_z_mm),
             )
         )
@@ -238,13 +248,13 @@ def require_mount_clear(base: cq.Workplane, mount: MountPlate) -> None:
     """Refuse a plate that shares volume with the base; it may only touch the
     pads' bottom faces."""
 
-    overlap = intersection_volume(
-        _solids(base),
-        _solids(mount.plate),
-    )
+    for name, piece in mount.parts.items():
+        overlap = intersection_volume(_solids(base), _solids(piece))
 
-    if overlap > _INTERFERENCE_TOLERANCE_MM3:
-        raise ValueError(f"The mount plate intersects the base by {overlap:.3f} mm3")
+        if overlap > _INTERFERENCE_TOLERANCE_MM3:
+            raise ValueError(
+                f"The {name} part intersects the base by {overlap:.3f} mm3"
+            )
 
 
 def _solids(model: cq.Workplane) -> cq.Shape:
@@ -258,8 +268,8 @@ def _solids(model: cq.Workplane) -> cq.Shape:
     )
 
 
-def _countersink_depth(fastener: FastenerSpec, plate_mm: float) -> float:
-    head = fastener.nominal_diameter_mm * _HEAD_DIAMETER_FACTOR
+def countersink_depth(fastener: FastenerSpec, plate_mm: float) -> float:
+    head = fastener.nominal_diameter_mm * HEAD_DIAMETER_FACTOR
     depth = (head - fastener.clearance_hole_mm) / 2
 
     if depth > plate_mm - _COUNTERSINK_FLOOR_MM:
@@ -290,8 +300,8 @@ def _seat_plate(
     """A blank of ``bounds`` seated on the pads, with the pads' screw holes
     cut and countersunk on its outer face; also the plate's bottom z."""
 
-    head = fastener.nominal_diameter_mm * _HEAD_DIAMETER_FACTOR
-    cone_depth = _countersink_depth(fastener, plate_mm)
+    head = fastener.nominal_diameter_mm * HEAD_DIAMETER_FACTOR
+    cone_depth = countersink_depth(fastener, plate_mm)
     x0, x1, y0, y1 = bounds
     bottom = pads.mating_z_mm - plate_mm
     plate = (
@@ -302,7 +312,7 @@ def _seat_plate(
     screw_hole = fastener.clearance_hole_mm + compensation
 
     for x, y in pads.positions:
-        plate = _cut(
+        plate = cut_all(
             plate,
             cq.Solid.makeCylinder(
                 screw_hole / 2, plate_mm + 2.0, pnt=cq.Vector(x, y, bottom - 1.0)
@@ -320,7 +330,7 @@ def _seat_plate(
     return plate, bottom
 
 
-def _cut(plate: cq.Workplane, *cutters: cq.Shape) -> cq.Workplane:
+def cut_all(plate: cq.Workplane, *cutters: cq.Shape) -> cq.Workplane:
     for cutter in cutters:
         plate = plate.cut(cq.Workplane("XY").add(cutter))
 
@@ -345,17 +355,17 @@ def _keyhole_plate(
         plate_mm=plate_mm,
         compensation=compensation,
     )
-    head = fastener.nominal_diameter_mm * _HEAD_DIAMETER_FACTOR
+    head = fastener.nominal_diameter_mm * HEAD_DIAMETER_FACTOR
 
     for x, y in _keyhole_positions(pads, bounds, head):
-        plate = _cut(plate, *_keyhole_cutters(x, y, bottom, plate_mm, compensation))
+        plate = cut_all(plate, *_keyhole_cutters(x, y, bottom, plate_mm, compensation))
 
     x0, x1, y0, y1 = bounds
 
     return MountPlate(
         plate=plate,
         thickness_mm=plate_mm,
-        recommended_screw_mm=_screw_length(plate_mm + pads.pocket_depth_mm),
+        recommended_screw_mm=standard_screw_length(plate_mm + pads.pocket_depth_mm),
         size_mm=(x1 - x0, y1 - y0),
     )
 
@@ -395,11 +405,11 @@ def _vesa_plate(
         for px, py in pads.positions:
             gap = math.hypot(hx - px, hy - py) - head_radius - pads.diameter_mm / 2
 
-            if gap < _FEATURE_WALL_MM:
+            if gap < FEATURE_WALL_MM:
                 raise ValueError(
                     f"A {VESA_SCREW} screw head on the {spacing:.0f} mm pattern "
                     f"leaves {max(gap, 0.0):.1f} mm to a mount pad, and "
-                    f"{_FEATURE_WALL_MM:.0f} mm is needed; use a larger "
+                    f"{FEATURE_WALL_MM:.0f} mm is needed; use a larger "
                     "pattern or a smaller enclosure"
                 )
 
@@ -421,20 +431,20 @@ def _vesa_plate(
     hole = screw.clearance_hole_mm + compensation
 
     for hx, hy in holes:
-        plate = _cut(
+        plate = cut_all(
             plate,
             cq.Solid.makeCylinder(
                 hole / 2, plate_mm + 2.0, pnt=cq.Vector(hx, hy, bottom - 1.0)
             ),
         )
 
-    device_screw = _screw_length(plate_mm + VESA_ENGAGEMENT_MM)
+    device_screw = standard_screw_length(plate_mm + VESA_ENGAGEMENT_MM)
     x0, x1, y0, y1 = bounds
 
     return MountPlate(
         plate=plate,
         thickness_mm=plate_mm,
-        recommended_screw_mm=_screw_length(plate_mm + pads.pocket_depth_mm),
+        recommended_screw_mm=standard_screw_length(plate_mm + pads.pocket_depth_mm),
         size_mm=(x1 - x0, y1 - y0),
         device_screws=(
             f"{screw.identifier} x {device_screw} mm, 4 on a "
@@ -566,10 +576,10 @@ def _din_plate(
 
     slot_x0 = x_free - end_slit
     slot = (slot_x0, x_root, slot_low, latch_inner + inner_slit)
-    head = fastener.nominal_diameter_mm * _HEAD_DIAMETER_FACTOR
+    head = fastener.nominal_diameter_mm * HEAD_DIAMETER_FACTOR
 
     for px, py in pads.positions:
-        if _gap_to_rectangle(px, py, *slot) < head / 2 + _FEATURE_WALL_MM:
+        if gap_to_rectangle(px, py, *slot) < head / 2 + FEATURE_WALL_MM:
             raise ValueError(
                 "The latch slot would come within 2 mm of a screw hole; the "
                 "plate is too small for a DIN clip"
@@ -578,7 +588,7 @@ def _din_plate(
     z0 = bottom - 1.0
     depth = plate_mm + 2.0
     # The tongue is what a U-shaped slot leaves standing.
-    plate = _cut(
+    plate = cut_all(
         plate,
         cq.Solid.makeBox(
             x_root - slot_x0, outer_slit, depth, pnt=cq.Vector(slot_x0, slot_low, z0)
@@ -612,7 +622,7 @@ def _din_plate(
     return MountPlate(
         plate=plate,
         thickness_mm=plate_mm,
-        recommended_screw_mm=_screw_length(plate_mm + pads.pocket_depth_mm),
+        recommended_screw_mm=standard_screw_length(plate_mm + pads.pocket_depth_mm),
         size_mm=(x1 - x0, y1 - y0),
         attachment=(
             "35 mm DIN rail (TS35): hook the +Y edge over the top flange, press "
@@ -643,7 +653,7 @@ def _keyhole_positions(
     below = KEYHOLE_TRAVEL_MM + KEYHOLE_SLOT_WIDTH_MM / 2
     offset = min((max(xs) - min(xs)) / 2, 40.0) * 0.6
     y = center_y - (radius - below) / 2
-    wall = _FEATURE_WALL_MM
+    wall = FEATURE_WALL_MM
 
     for x in (center_x - offset, center_x + offset):
         left, right, low, high = x - radius, x + radius, y - below, y + radius
@@ -655,8 +665,7 @@ def _keyhole_positions(
             and high <= y1 - wall
         )
         clear = all(
-            _gap_to_rectangle(px, py, left, right, low, high)
-            >= screw_head_mm / 2 + wall
+            gap_to_rectangle(px, py, left, right, low, high) >= screw_head_mm / 2 + wall
             for px, py in pads.positions
         )
 
@@ -669,7 +678,7 @@ def _keyhole_positions(
     return ((center_x - offset, y), (center_x + offset, y))
 
 
-def _gap_to_rectangle(
+def gap_to_rectangle(
     px: float, py: float, left: float, right: float, low: float, high: float
 ) -> float:
     """Distance from a point to a rectangle; zero inside it."""
@@ -695,7 +704,7 @@ def _keyhole_cutters(
     ]
 
 
-def _insert(fastener: FastenerSpec) -> tuple[float, float]:
+def insert_dimensions(fastener: FastenerSpec) -> tuple[float, float]:
     diameter = fastener.heat_set_insert_diameter_mm
     depth = fastener.heat_set_insert_depth_mm
 
@@ -707,7 +716,7 @@ def _insert(fastener: FastenerSpec) -> tuple[float, float]:
     return diameter, depth
 
 
-def _screw_length(reach_mm: float) -> int:
+def standard_screw_length(reach_mm: float) -> int:
     fitting = [length for length in _SCREW_LENGTHS_MM if length <= reach_mm]
 
     if not fitting:

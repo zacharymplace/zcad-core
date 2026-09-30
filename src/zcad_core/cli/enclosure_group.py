@@ -24,6 +24,7 @@ from zcad_core.features.enclosure_group import (
     print_oriented_parts,
 )
 from zcad_core.features.enclosure_group_dividers import Divider
+from zcad_core.features.enclosure_group_model import GROUP_MOUNTS
 from zcad_core.features.enclosure_group_viewer import (
     DATA_FILE,
     DEFAULT_CONFIGS,
@@ -32,7 +33,8 @@ from zcad_core.features.enclosure_group_viewer import (
     viewer_data,
     viewer_page,
 )
-from zcad_core.features.mounts import MOUNTS, flexure_payload
+from zcad_core.features.mounts import flexure_payload
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.printing import SliceError, slice_models
 from zcad_core.profiles import load_printer_profile
 
@@ -222,6 +224,30 @@ def _require_fits_bed(group: GroupEnclosure, profile: dict[str, Any]) -> None:
             "the join screws from the next unit's right wall."
         )
 
+    _require_ears_fit_bed(group, volume)
+
+
+def _require_ears_fit_bed(group: GroupEnclosure, volume: dict[str, Any]) -> None:
+    """Refuse rack ears longer than the bed: they are one piece each."""
+
+    if group.mount is None or group.mount.pieces is None:
+        return
+
+    bed = sorted((volume["x"], volume["y"]))
+
+    for name, piece in group.mount.pieces.items():
+        bounds = workplane_shape(piece).BoundingBox()
+        small, large = sorted((bounds.xlen, bounds.ylen, bounds.zlen))[1:]
+
+        if large > bed[1] or small > bed[0]:
+            raise ValueError(
+                f"The {name} part is {large:.0f} x {small:.0f} mm; the "
+                f"printer's bed is {bed[1]:.0f} x {bed[0]:.0f} mm. An ear "
+                "reaches from the enclosure to the rack's edge, so a narrower "
+                "enclosure needs longer ears; build a wider one or use another "
+                "mount."
+            )
+
 
 def _slice(
     args: argparse.Namespace, group: GroupEnclosure, name: str
@@ -321,7 +347,7 @@ def _parts(group: GroupEnclosure) -> dict[str, cq.Workplane]:
     parts = {"base": group.base, "lid": group.lid}
 
     if group.mount is not None:
-        parts["mount"] = group.mount.plate
+        parts.update(group.mount.parts)
 
     return parts
 
@@ -393,7 +419,7 @@ def _group_build(args: argparse.Namespace) -> int:
                 "mount": (
                     f"{group.fastener.identifier} countersunk x "
                     f"{group.mount.recommended_screw_mm} mm, "
-                    f"{len(group.mount_pads.positions)} per plate"
+                    f"{len(group.mount_pads.positions)} per part"
                     if group.mount is not None and group.mount_pads is not None
                     else None
                 ),
@@ -451,7 +477,7 @@ def register(
     build.add_argument("--lid-mm", type=float, default=3.0)
     build.add_argument(
         "--mount",
-        choices=MOUNTS,
+        choices=GROUP_MOUNTS,
         default=None,
         help="add four mount pads under the floor and a plate that bolts to them",
     )

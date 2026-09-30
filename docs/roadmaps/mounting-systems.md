@@ -8,8 +8,8 @@ monitor arm, a DIN rail, or a rack. One mount design then serves every
 enclosure, including the Pi 5 group, instead of each product growing its own
 brackets.
 
-Phases 1 (the interface and the keyhole plate), 2 (the VESA plates), and 3
-(the DIN clip) are built; phase 4 is design only.
+All four phases are built: the interface and the keyhole plate, the VESA
+plates, the DIN clip, and the rack ears.
 
 ## Decision: one interface, many mounts
 
@@ -59,11 +59,18 @@ fields, so one mount generator reads either.
 | Keyhole plate | Flat plate with two keyhole slots, hung on wall screws | 8 mm head, 4 mm shank, slot travel at least 10 mm | Simplest; first to build |
 | VESA plate | Plate with a 75 x 75 or 100 x 100 mm M4 hole pattern | VESA MIS-D | Plate grows to cover the pattern; a footprint whose pads sit near the pattern needs the other size |
 | DIN clip | Plate with a fixed hook and a spring-latch hook | 35 mm rail, TS35 x 7.5 | The latch is a printed flexure; its thickness is the risk |
-| Rack ears | Pair of flanges bolted to the enclosure's sides, with EIA hole spacing | 19 inch, 1U = 44.45 mm, holes at 6.35 / 22.225 / 38.1 mm | The enclosure must fit in 1U; the Pi 5 group is the target |
+| Rack ears | Pair of flat flanges bolted to the front wall, with EIA hole spacing | 19 inch, 1U = 44.45 mm, holes at 6.35 / 22.225 / 38.1 mm | Group enclosures only; the enclosure must fit in 1U, and each ear must fit the bed |
 
-Rack ears are the odd one out. They attach to the side walls, not the
-underside, so they need their own pads on the side walls and only fit an
-enclosure that is at most 1U tall. They come last.
+Rack ears are the odd one out. They attach to the front wall, not the
+underside, so they need their own pads there, and they only fit an enclosure
+that is at most 1U tall. The design first put the pads on the side walls,
+with an L-shaped ear. That grew the base by the pad height on each side: the
+Pi 5 pair, 176 mm wide, would become 184 mm and stop fitting the 180 mm bed.
+Front pads add depth instead, so the base keeps its width. The pads are two
+stacked at each end, at the wall's corner where it is solid (the cable
+openings are near the ends, lower down); the stack's height resists the
+enclosure pitching forward off the ears. They are built for the group only,
+because the single-board enclosure's walls carry openings that vary by board.
 
 ## Checks
 
@@ -95,7 +102,12 @@ STL, metadata, and validation against the printer profile.
    a 1.6 mm tongue cut from the plate, bending in the layer plane; its
    strain is 3 t d / (2 L^2) against a provisional 1.5 % limit for printed
    PETG, which no print has measured.
-4. **Rack ears.** Adds side-wall pads and the 1U fit check.
+4. **Rack ears (built).** Adds front-wall pads, two flat ears exported as
+   `mount-left` and `mount-right`, the 1U fit check, and a bed check for
+   the ears' length. An ear reaches from the enclosure to the rack's edge,
+   so a narrow enclosure needs a long ear: the 176 mm pair gives 165 mm
+   ears, but a single 88 mm bay would need about 197 mm and is refused on
+   a 180 mm bed.
 
 Each phase is one PR. Phase 1 changes existing enclosure geometry, so it
 also needs a version bump for the enclosure builder's records and revised
