@@ -397,6 +397,7 @@ def _group_build(args: argparse.Namespace) -> int:
                     if group.mount is not None and group.mount_pads is not None
                     else None
                 ),
+                "mount_device": group.mount.device_screws if group.mount else None,
             },
             "review_step": str(review_path),
             "print": printed,

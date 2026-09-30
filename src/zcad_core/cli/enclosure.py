@@ -204,6 +204,7 @@ def _mount_payload(enclosure: Enclosure) -> dict[str, object] | None:
         "screws": f"{enclosure.fastener.identifier} countersunk x "
         f"{enclosure.mount.recommended_screw_mm} mm, "
         f"{len(enclosure.mount_pads.positions)} per plate",
+        "device_screws": enclosure.mount.device_screws,
         "pad_height_mm": enclosure.mount_pads.height_mm,
         "plate_size_mm": list(enclosure.mount.size_mm),
     }
