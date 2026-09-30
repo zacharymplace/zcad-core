@@ -242,6 +242,19 @@ a bigger printer. Print each ear flat. No strength is modelled: the two pads
 at each end hold the enclosure's weight, and a trial has to show that they
 can.
 
+## Temperature estimate
+
+The build prints an estimate of the closed row's air temperature under
+`thermal`, counting 3.0 W for each fitted Pi 5 (an idle figure from community
+measurements; Raspberry Pi publishes none, and no load figure was found) and
+nothing for a `reserved` or `open` bay. The pair, at 176 x 96 x 28.4 mm, is
+about 0.049 m2, so its two Pis at idle raise the air by about 15 degrees: 40
+degrees C from a 25 degree room, which is a minimum, because a loaded Pi
+gives off more. Declare what you know with `--power-w` (an SSD, a switch) and
+the room with `--ambient-c`. The estimate credits no vents and is off by half
+either way; see the [builder guide](enclosure-builder.md#temperature-estimate).
+A row estimated past PETG's 60 degree limit is refused unless `--allow-hot`.
+
 ## Viewing in 3D
 
 ```bash

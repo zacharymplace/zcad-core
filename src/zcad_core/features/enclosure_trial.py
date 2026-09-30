@@ -209,6 +209,7 @@ def write_build_record(
         "side_clearance_mm": list(enclosure.side_clearance_mm),
         "board_support": enclosure.board_support,
         "display_support": enclosure.display_support,
+        "thermal": enclosure.thermal.to_dict() if enclosure.thermal else None,
         "printer_profile_id": printer_profile_id,
         "parts": {
             name: {"stl_path": str(stl), "stl_sha256": sha256(stl)}

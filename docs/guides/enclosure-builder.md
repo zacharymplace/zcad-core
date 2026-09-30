@@ -167,6 +167,29 @@ the connector, so the plug reaches the connector through the wall and the
 gap inside it. The defaults (12.5 x 7.5 mm) fit common USB-C and micro-USB
 cables.
 
+## Temperature estimate
+
+Every build prints an estimate of the air temperature inside the closed box,
+under `thermal`, and records it in `enclosure.json`. It is a lumped balance:
+the power the parts give off, divided by the box's outer surface times 8
+W/m2K (still air, the pessimistic end), added to the room's temperature. It
+credits no vents, ignores conduction and hot spots, and is off by half either
+way; a thermocouple on a printed box is the only real answer.
+
+The power comes from the catalog, each figure with its source. Only two parts
+have one: the Pico 2 (62.1 mW typical, 71.3 mW peak, from its datasheet) and
+the Pi 5 (3.0 W idle, a community measurement on the Raspberry Pi forums, with
+no peak). Every other board, every display, and the Active Cooler's fan are
+unknown, never zero, and the build names them; the estimate is then "at
+least", a lower bound. Add what the catalog lacks with `--power-w`, such as a
+hat or an SSD, and the room with `--ambient-c` (25).
+
+The limit is the material profile's `max_service_c`: 60 degrees C for PETG, a
+provisional design value, well under the 70 to 80 at which it softens
+(`--material-profile` picks the profile). The status is `warn` from 85 per
+cent of the limit in degrees C and `fail` above it. A failing box is refused
+unless you pass `--allow-hot`, because you have measured and know better.
+
 ## Design settings
 
 `EnclosureDesign` holds the settings, in millimetres:
@@ -183,6 +206,8 @@ cables.
 - `cable_plug_width_mm`, `cable_plug_height_mm`: the plug body the opening
   must pass.
 - `mount`, `mount_plate_mm`: a mount plate and its thickness (none, 4).
+- `declared_power_w`, `ambient_c`, `service_limit_c`, `allow_hot`: the
+  temperature estimate's extra power, room, material limit, and override.
 - `lid_attachment`, `hinge_pin`, `slide_clearance_mm`: how the lid is held
   (`screws`, `snap`, `hinge`, or `slide`), the hinge's pin (`M3`), and the
   gap around a sliding lid (0.2).

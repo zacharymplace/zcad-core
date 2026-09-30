@@ -93,7 +93,30 @@ def load_material_profile(
     ):
         raise ValueError("density_g_cm3 must be greater than zero")
 
+    limit = profile.get("max_service_c")
+
+    if limit is not None and (
+        isinstance(limit, bool) or not isinstance(limit, int | float) or limit <= 0
+    ):
+        raise ValueError("max_service_c must be greater than zero")
+
     return profile
+
+
+def material_service_limit_c(
+    material_profile_id: str, directory: Path = Path("profiles/materials")
+) -> float | None:
+    """The continuous air temperature a material profile allows, or ``None``
+    when the profile is absent or sets none."""
+
+    path = directory / f"{material_profile_id}.json"
+
+    if not path.is_file():
+        return None
+
+    limit = load_material_profile(path).get("max_service_c")
+
+    return float(limit) if limit is not None else None
 
 
 def load_slicer_profile(

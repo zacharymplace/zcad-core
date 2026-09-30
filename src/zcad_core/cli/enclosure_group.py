@@ -33,10 +33,17 @@ from zcad_core.features.enclosure_group_viewer import (
     viewer_data,
     viewer_page,
 )
+from zcad_core.features.enclosure_thermal import (
+    DEFAULT_AMBIENT_C,
+    DEFAULT_SERVICE_LIMIT_C,
+    ThermalEstimate,
+    estimate_thermal,
+    require_not_too_hot,
+)
 from zcad_core.features.mounts import flexure_payload
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.printing import SliceError, slice_models
-from zcad_core.profiles import load_printer_profile
+from zcad_core.profiles import load_printer_profile, material_service_limit_c
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
 DEFAULT_SLICER_PROFILE = Path(
@@ -352,6 +359,26 @@ def _parts(group: GroupEnclosure) -> dict[str, cq.Workplane]:
     return parts
 
 
+def _group_thermal(group: GroupEnclosure, args: argparse.Namespace) -> ThermalEstimate:
+    """The temperature estimate for the row, counting each fitted Pi; a
+    reserved bay is empty until a Pi goes in it."""
+
+    width, depth, _ = group.outer_size_mm
+    height = group.cavity_top_z_mm + group.design.lid_mm
+    fitted = [layout for layout in group.bays if layout.kind == "pi5"]
+    estimate = estimate_thermal(
+        ["RASPBERRY_PI_5"] * len(fitted),
+        outer_size_mm=(width, depth, height),
+        declared_power_w=args.power_w,
+        ambient_c=args.ambient_c,
+        limit_c=material_service_limit_c(args.material_profile)
+        or DEFAULT_SERVICE_LIMIT_C,
+    )
+    require_not_too_hot(estimate, allow_hot=args.allow_hot)
+
+    return estimate
+
+
 def _group_build(args: argparse.Namespace) -> int:
     bays = _bays(args.bays)
     design = GroupDesign(
@@ -370,6 +397,7 @@ def _group_build(args: argparse.Namespace) -> int:
         mount_plate_mm=args.mount_plate_mm,
     )
     group = build_group_enclosure(bays, design=design)
+    thermal = _group_thermal(group, args)
     name = args.name or f"pi5-group-{len(bays)}bay"
     profile = load_printer_profile(args.printer_profile)
     _require_fits_bed(group, profile)
@@ -405,6 +433,7 @@ def _group_build(args: argparse.Namespace) -> int:
             "bays": [bay.kind for bay in bays],
             "bay_heights": _bay_summary(group),
             "outer_size_mm": list(group.outer_size_mm),
+            "thermal": thermal.to_dict(),
             "checks": group.checks,
             "part_collisions": list(group.part_collisions),
             "validation_status": (result.validation_report or {}).get(
@@ -475,6 +504,28 @@ def register(
     build.add_argument("--wall-mm", type=float, default=2.0)
     build.add_argument("--floor-mm", type=float, default=2.0)
     build.add_argument("--lid-mm", type=float, default=3.0)
+    build.add_argument(
+        "--power-w",
+        type=float,
+        default=0.0,
+        help="power, in watts, that the catalog lacks: an SSD, a switch, a supply",
+    )
+    build.add_argument(
+        "--ambient-c",
+        type=float,
+        default=DEFAULT_AMBIENT_C,
+        help="the room's temperature, for the temperature estimate",
+    )
+    build.add_argument(
+        "--material-profile",
+        default="petg",
+        help="the material, whose profile sets the limit for the air inside",
+    )
+    build.add_argument(
+        "--allow-hot",
+        action="store_true",
+        help="build a box the temperature estimate says is too hot",
+    )
     build.add_argument(
         "--mount",
         choices=GROUP_MOUNTS,

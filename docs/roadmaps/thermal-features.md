@@ -11,7 +11,9 @@ catalog flags as drawing air from above, and the group's five lid slots over
 each fan. It has no idea how much heat a design must shed, so it cannot say
 whether it sheds enough.
 
-This is a design, not built work. Nothing below exists in the code yet.
+Phase 1, the power figures and the temperature estimate, is built, and differs
+from the first design in several ways (see *What phase 1 changed* below).
+Phases 2 to 4 are design only.
 
 ## Decision: an estimate first, and the geometry second
 
@@ -114,7 +116,7 @@ A fan is hardware, so it goes in the catalog beside the boards:
 
 ## Phases
 
-1. **Power, limit, and the estimate**: the catalog's dissipation figures with
+1. **Power, limit, and the estimate (built)**: the catalog's dissipation figures with
    sources, `max_service_c` in the material profile, the lumped estimate and
    its report in the build output, `--power-w` and `--ambient-c`. No
    geometry.
@@ -127,6 +129,39 @@ A fan is hardware, so it goes in the catalog beside the boards:
    through the same machinery, the exploded review model showing the air path,
    and thermal trial records, so a measured temperature can correct the
    estimate's coefficient the way a measured hole corrects hole compensation.
+
+### What phase 1 changed
+
+- **Two sourced figures, and a lot of unknowns.** The Raspberry Pi Pico 2
+  datasheet's own table gives 62.1 mW typical and 71.3 mW peak, so those are
+  the catalog's first vendor figures. Raspberry Pi publishes no Pi 5
+  dissipation, only its supply's 5 V at 5 A capability, and the
+  measurements found were community posts on the Raspberry Pi forums: the
+  catalog records 3.0 W idle, from the USB-C-input reading of 2.9 to 3.1 W
+  posted on 17 April 2024, marked `community`, with no peak, because the load
+  figures did not trace to a source that held up (one poster reported never
+  seeing more than 7 W, from a board that was throttling). Every other board,
+  every display, and the Active Cooler's fan have no figure.
+- **Unknown gives a lower bound, not "unavailable".** The design said a design
+  with an unsourced part reports no estimate. Since most parts have no figure,
+  the estimate adds what is known and reports `at least` a temperature, with
+  the unknown parts named. It can prove a box too hot and never that it is
+  cool enough. A design with nothing known and nothing declared is
+  `unavailable`.
+- **A part with no peak lends its typical figure,** and the output says so, so
+  the Pi 5 pair's 40 degrees C is labelled a minimum: it is idle.
+- **The worked example changed.** The design's 66 degrees C used an assumed
+  8 W a Pi. With the one sourced figure the pair, 0.049 m2 and 6 W at idle,
+  rises 15 degrees to 40 degrees C; a load figure is the user's to declare
+  with `--power-w`.
+- **Thresholds are on the temperature.** The status is `warn` from 85 per cent
+  of the limit in degrees C (51 for PETG's 60) and `fail` above it, and a
+  failure refuses the build unless `--allow-hot`, as proposed.
+- **Reserved bays count as empty.** Only fitted Pi bays add power to the
+  group's estimate.
+- **It is in the build record,** under `thermal`, so a later trial can compare
+  a measured temperature with it. The record's schema version is unchanged,
+  since the field is additive.
 
 Each phase is one PR. Phase 1 changes no geometry, so nothing already
 reviewed needs a revised build.
