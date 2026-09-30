@@ -277,6 +277,7 @@ def _board_components(
                 metadata={
                     "board_identifier": board_identifier,
                     "access_edge": part.access_edge,
+                    "lid_vent": part.lid_vent,
                 },
             )
         )

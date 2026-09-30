@@ -34,7 +34,9 @@ from zcad_core.features.enclosure_trial import (
     write_build_record,
 )
 from zcad_core.hardware import (
+    BoardSpec,
     DisplaySpec,
+    RaspberryPi5Spec,
     get_board,
     get_display,
     list_boards,
@@ -47,8 +49,22 @@ from zcad_core.profiles import load_compensation_profile, load_printer_profile
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
 
 
-def _assembly(args: argparse.Namespace, display: DisplaySpec | None) -> DeviceAssembly:
+def _board(args: argparse.Namespace) -> BoardSpec:
     board = get_board(args.board)
+
+    if not getattr(args, "active_cooler", False):
+        return board
+
+    cooled = board.with_active_cooler() if isinstance(board, RaspberryPi5Spec) else None
+
+    if cooled is None:
+        raise ValueError(f"{board.identifier} takes no Active Cooler")
+
+    return cooled
+
+
+def _assembly(args: argparse.Namespace, display: DisplaySpec | None) -> DeviceAssembly:
+    board = _board(args)
 
     if display is None:
         return build_board_assembly(
@@ -134,7 +150,7 @@ def _build(
     design: EnclosureDesign,
     revision_of: dict[str, object] | None = None,
 ) -> tuple[dict[str, object], bool]:
-    board = get_board(args.board)
+    board = _board(args)
     display = get_display(args.display) if args.display else None
     assembly = _assembly(args, display)
     enclosure = build_enclosure(assembly, board=board, display=display, design=design)
@@ -171,6 +187,7 @@ def _build(
             "display_height_mm": args.display_height_mm,
             "board_display_clearance_mm": args.board_display_clearance_mm,
             "connector_access_clearance_mm": args.connector_access_clearance_mm,
+            "active_cooler": getattr(args, "active_cooler", False),
         },
         revision_of=revision_of,
         compensation_profile=(
@@ -239,6 +256,7 @@ def _enclosure_revise(args: argparse.Namespace) -> int:
         connector_access_clearance_mm=assembly.get(
             "connector_access_clearance_mm", 2.0
         ),
+        active_cooler=assembly.get("active_cooler", False),
     )
     payload["build"], passed = _build(
         rebuild,
@@ -421,6 +439,14 @@ def register(
         "--locating-lip",
         action="store_true",
         help="hang a lip under a screwed lid that keys it onto the base",
+    )
+    build.add_argument(
+        "--active-cooler",
+        action="store_true",
+        help=(
+            "fit a Raspberry Pi 5's Active Cooler: the enclosure clears it and "
+            "vents the lid over its fan"
+        ),
     )
     build.add_argument(
         "--vent-slots",

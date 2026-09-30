@@ -1,6 +1,6 @@
 """Raspberry Pi board specifications."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from zcad_core.hardware.electronics.board_components import (
     BoardComponentSpec,
@@ -159,6 +159,7 @@ class RaspberryPi5Spec:
     cooler_height_mm: float = 12.5
     fan_center_x_mm: float = -4.6
     fan_center_y_mm: float = 0.1
+    fan_size_mm: float = 30.0
     # The microSD card hangs under the board and past the negative_y edge.
     sd_card_width_mm: float = 12.0
     sd_card_overhang_mm: float = 2.5
@@ -195,6 +196,37 @@ class RaspberryPi5Spec:
         )
 
         return (*ports, sd_card)
+
+    def with_active_cooler(self) -> "RaspberryPi5Spec":
+        """This board with its Active Cooler fitted, for the single-board
+        enclosure: the cooler as one more part, and its fan as a part that
+        wants a vent in the lid above it."""
+
+        bottom = self.cooler_bottom_above_board_mm
+        height = self.cooler_height_mm - bottom
+        cooler = (
+            BoardComponentSpec(
+                identifier="active-cooler",
+                center_x_mm=self.cooler_center_x_mm,
+                center_y_mm=self.cooler_center_y_mm,
+                width_mm=self.cooler_width_mm,
+                depth_mm=self.cooler_length_mm,
+                bottom_offset_from_board_top_mm=bottom,
+                height_mm=height,
+            ),
+            BoardComponentSpec(
+                identifier="active-cooler-fan",
+                center_x_mm=self.fan_center_x_mm,
+                center_y_mm=self.fan_center_y_mm,
+                width_mm=self.fan_size_mm,
+                depth_mm=self.fan_size_mm,
+                bottom_offset_from_board_top_mm=bottom,
+                height_mm=height,
+                lid_vent=True,
+            ),
+        )
+
+        return replace(self, components=(*self.components, *cooler))
 
 
 _PI5 = RaspberryPi5Spec()

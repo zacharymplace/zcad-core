@@ -58,6 +58,7 @@ from zcad_core.features.pcb_mounts import (
     add_pcb_standoff,
     board_hole_pattern,
 )
+from zcad_core.geometry.boxes import box_between
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware import BoardSpec, DisplaySpec, FastenerSpec, get_fastener
 
@@ -91,6 +92,10 @@ _OPENING_CLEARANCE_MM = 0.6
 # A board's declared wall openings pass a plug's shell, not just the socket:
 # this much wider on each side and taller, as the group enclosure's ports.
 _PLUG_MARGIN_MM = 1.5
+# Slots through the lid over a part that draws air from above, such as a
+# cooler's fan, as the group enclosure's.
+_LID_VENT_WIDTH_MM = 2.4
+_LID_VENT_PITCH_MM = 5.0
 _CRADLE_CLEARANCE_MM = 0.3
 _RETAINER_CLEARANCE_MM = 0.3
 
@@ -302,6 +307,9 @@ def build_enclosure(
             cavity_top=cavity_top,
         )
 
+    lid = _cut_lid_vents(
+        lid, assembly, board_identifier, display_identifier, cavity_top, design
+    )
     _require_clear_of_assembly(assembly, base=base, lid=lid)
     _require_parts_clear(base, lid)
 
@@ -923,6 +931,57 @@ def _corner_fills(
         )
 
     return fills.combine()
+
+
+def _cut_lid_vents(
+    lid: cq.Workplane,
+    assembly: DeviceAssembly,
+    board_identifier: str,
+    display_identifier: str,
+    cavity_top: float,
+    design: EnclosureDesign,
+) -> cq.Workplane:
+    """Slots through the lid across the footprint of each board part that
+    draws air from above; refused where the display would cover them."""
+
+    for component in assembly.components:
+        metadata = component.metadata
+
+        if metadata.get("board_identifier") != board_identifier or not metadata.get(
+            "lid_vent"
+        ):
+            continue
+
+        vent = _bounds(assembly, component.identifier)
+
+        if display_identifier in assembly.identifiers:
+            display = _bounds(assembly, display_identifier)
+
+            if (
+                vent.xmin < display.xmax
+                and display.xmin < vent.xmax
+                and vent.ymin < display.ymax
+                and display.ymin < vent.ymax
+            ):
+                raise ValueError(
+                    f"The display covers the lid vent over '{component.identifier}'; "
+                    "a fan under it would draw no air"
+                )
+
+        count = int((vent.ylen - _LID_VENT_WIDTH_MM) // _LID_VENT_PITCH_MM) + 1
+        middle = (vent.ymin + vent.ymax) / 2
+
+        for index in range(count):
+            y = middle + (index - (count - 1) / 2) * _LID_VENT_PITCH_MM
+            lid = lid.cut(
+                box_between(
+                    (vent.xmin, vent.xmax),
+                    (y - _LID_VENT_WIDTH_MM / 2, y + _LID_VENT_WIDTH_MM / 2),
+                    (cavity_top - 1.0, cavity_top + design.lid_mm + 1.0),
+                )
+            )
+
+    return lid
 
 
 def _lid(

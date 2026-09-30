@@ -34,6 +34,9 @@ class BoardComponentSpec:
     # A part that overhangs this edge, such as a barrel jack, needs an
     # opening in the enclosure wall there.
     access_edge: BoardEdge | None = None
+    # A part that draws air from above, such as a cooler's fan, needs vent
+    # slots in the lid over it.
+    lid_vent: bool = False
 
     def validate(self) -> None:
         if not self.identifier.strip():
