@@ -8,14 +8,18 @@ from pathlib import Path
 import pytest
 
 from zcad_core.printing import slice_freshness, source_provenance
+from zcad_core.printing.provenance import git_environment
 
 
 def git(repository: Path, *arguments: str) -> str:
+    # The pre-push hook runs these tests with GIT_DIR set; without clearing
+    # it, git would act on the project's repository instead of this one.
     return subprocess.run(
         ["git", "-C", str(repository), *arguments],
         capture_output=True,
         text=True,
         check=True,
+        env=git_environment(),
     ).stdout.strip()
 
 
@@ -24,7 +28,17 @@ def commit(repository: Path, path: str, text: str, message: str) -> str:
     file.parent.mkdir(parents=True, exist_ok=True)
     file.write_text(text, encoding="utf-8")
     git(repository, "add", path)
-    git(repository, "commit", "-q", "-m", message)
+    git(
+        repository,
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@example.com",
+        "commit",
+        "-q",
+        "-m",
+        message,
+    )
 
     return git(repository, "rev-parse", "HEAD")
 
@@ -32,8 +46,6 @@ def commit(repository: Path, path: str, text: str, message: str) -> str:
 @pytest.fixture
 def repository(tmp_path: Path) -> Path:
     git(tmp_path, "init", "-q", "-b", "main")
-    git(tmp_path, "config", "user.email", "test@example.com")
-    git(tmp_path, "config", "user.name", "Test")
     commit(tmp_path, "src/zcad_core/lid.py", "RIDGE = 0.3\n", "Add the lid")
     commit(tmp_path, "profiles/printer.json", "{}\n", "Add a printer")
 
@@ -129,3 +141,21 @@ def test_outside_a_git_checkout_nothing_is_recorded(tmp_path: Path) -> None:
         "git_commit": None,
         "uncommitted_changes": None,
     }
+
+
+def test_a_hooks_git_dir_does_not_redirect_to_another_repository(
+    repository: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    other = tmp_path_factory.mktemp("other")
+    git(other, "init", "-q", "-b", "main")
+    commit(other, "README.md", "other\n", "Other repository")
+    config = (other / ".git" / "config").read_text("utf-8")
+    # As a pre-push hook leaves it for the tests it runs.
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+
+    assert source_provenance(repository)["git_commit"] == git(
+        repository, "rev-parse", "HEAD"
+    )
+    assert (other / ".git" / "config").read_text("utf-8") == config
