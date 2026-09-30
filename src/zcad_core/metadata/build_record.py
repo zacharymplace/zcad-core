@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from zcad_core.metadata.git import git_environment
+
 
 def current_git_commit(
     repository_root: Path,
@@ -20,6 +22,7 @@ def current_git_commit(
         capture_output=True,
         text=True,
         check=False,
+        env=git_environment(),
     )
 
     if result.returncode != 0:

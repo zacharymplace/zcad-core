@@ -34,6 +34,12 @@ else
   python=python3
 fi
 
+# A hook exports GIT_DIR and friends, which override `git -C` and `cwd`: a
+# test that runs git on a scratch repository would otherwise act on this one
+# (git init sets core.bare, git config writes here). Nothing below needs them.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_OBJECT_DIRECTORY \
+  GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_NAMESPACE GIT_PREFIX
+
 echo "==> ruff format --check"
 "$python" -m ruff format --check src tests scripts examples
 
