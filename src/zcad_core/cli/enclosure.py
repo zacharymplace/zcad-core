@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import cadquery as cq
@@ -43,7 +44,7 @@ from zcad_core.hardware import (
     list_displays,
     list_fasteners,
 )
-from zcad_core.printing import SliceError, slice_models
+from zcad_core.printing import SliceError, slice_freshness, slice_models
 from zcad_core.profiles import load_compensation_profile, load_printer_profile
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
@@ -335,13 +336,19 @@ def _slice(
 
 def _trial_start(args: argparse.Namespace) -> int:
     trial = start_enclosure_trial(args.build_record)
-    emit(
-        {
-            "trial": str(trial),
-            "observations": str(trial / "observations.json"),
-            "measurements": str(trial / "measurements.json"),
-        }
-    )
+    payload: dict[str, object] = {
+        "trial": str(trial),
+        "observations": str(trial / "observations.json"),
+        "measurements": str(trial / "measurements.json"),
+    }
+    # A slice beside the build record may predate a fix to the geometry.
+    summary = args.build_record.parent / "slice" / "slice-summary.json"
+
+    if summary.is_file():
+        freshness = slice_freshness(json.loads(summary.read_text(encoding="utf-8")))
+        payload["slice"] = {"summary": str(summary), **freshness.as_dict()}
+
+    emit(payload)
 
     return 0
 

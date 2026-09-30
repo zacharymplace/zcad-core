@@ -256,6 +256,25 @@ def test_build_writes_a_build_record_and_trials_complete(
     assert json.loads(Path(completed["trial_record"]).read_text("utf-8"))["passed"]
 
 
+def test_trial_start_reports_whether_the_slice_beside_it_is_current(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    exit_code, output = build(capsys, tmp_path, "--board", "raspberry_pi_pico_2")
+    assert exit_code == 0
+    # A slice from before slices recorded their source.
+    (tmp_path / "slice").mkdir()
+    (tmp_path / "slice" / "slice-summary.json").write_text(
+        json.dumps({"schema_version": "1.1.0"}), "utf-8"
+    )
+
+    exit_code, started = run(
+        capsys, "enclosure", "trial", "start", "--build-record", output["build_record"]
+    )
+
+    assert exit_code == 0
+    assert started["slice"]["status"] == "unknown"
+
+
 @pytest.mark.slow
 @pytest.mark.skipif(not BAMBU_STUDIO.is_dir(), reason="Bambu Studio is not installed")
 def test_build_slices_both_parts_ready_to_print(

@@ -12,7 +12,7 @@ candidate manifest in ``export-validation/``; ``candidate derive`` does the
 same inside ``--output-directory``. ``enclosure build`` writes only inside
 its ``--output-directory``, ``enclosure trial`` only inside the trials
 folder beside a build record, and ``enclosure-group build`` and ``viewer`` only
-inside their ``--output-directory``.
+inside their ``--output-directory``. ``slice check`` only reads.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from zcad_core.cli import (
     fixture,
     review,
     revision,
+    slice_check,
     status,
     target,
     trial,
@@ -45,6 +46,7 @@ _COMMAND_GROUPS = (
     enclosure,
     enclosure_group,
     compensation,
+    slice_check,
 )
 
 
@@ -53,7 +55,8 @@ def build_parser() -> argparse.ArgumentParser:
         prog="zcad-validation",
         description=(
             "Validation Lab fixtures (target, candidate, fixture, trial, review, "
-            "revision, status, report) and printable enclosures (enclosure)."
+            "revision, status, report), printable enclosures (enclosure), and "
+            "slice checks (slice)."
         ),
     )
     subcommands = parser.add_subparsers(dest="command", required=True)

@@ -90,4 +90,5 @@ def test_slices_two_parts_onto_one_plate(tmp_path: Path) -> None:
         str(model) for model in models
     ]
     assert result.summary["filament_used_g"] > 0
+    assert set(result.summary["source"]) == {"git_commit", "uncommitted_changes"}
     assert json.loads(result.summary_path.read_text("utf-8")) == result.summary
