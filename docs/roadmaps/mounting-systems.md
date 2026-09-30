@@ -8,8 +8,8 @@ monitor arm, a DIN rail, or a rack. One mount design then serves every
 enclosure, including the Pi 5 group, instead of each product growing its own
 brackets.
 
-Phase 1 (the interface and the keyhole plate) is built; phases 2 to 4 are
-design only.
+Phases 1 (the interface and the keyhole plate) and 2 (the VESA plates) are
+built; phases 3 and 4 are design only.
 
 ## Decision: one interface, many mounts
 
@@ -57,7 +57,7 @@ fields, so one mount generator reads either.
 | Mount | What it is | Standard it follows | Notes |
 | --- | --- | --- | --- |
 | Keyhole plate | Flat plate with two keyhole slots, hung on wall screws | 8 mm head, 4 mm shank, slot travel at least 10 mm | Simplest; first to build |
-| VESA plate | Plate with a 75 x 75 or 100 x 100 mm M4 hole pattern | VESA MIS-D | Plate grows to cover the pattern, so large enclosures need the 100 mm one |
+| VESA plate | Plate with a 75 x 75 or 100 x 100 mm M4 hole pattern | VESA MIS-D | Plate grows to cover the pattern; a footprint whose pads sit near the pattern needs the other size |
 | DIN clip | Plate with a fixed hook and a spring-latch hook | 35 mm rail, TS35 x 7.5 | The latch is a printed flexure; its thickness is the risk |
 | Rack ears | Pair of flanges bolted to the enclosure's sides, with EIA hole spacing | 19 inch, 1U = 44.45 mm, holes at 6.35 / 22.225 / 38.1 mm | The enclosure must fit in 1U; the Pi 5 group is the target |
 
@@ -90,7 +90,7 @@ STL, metadata, and validation against the printer profile.
    and the group; `mount_pad_positions` in the build record; the keyhole
    plate; `--mount keyhole` on `enclosure build` and `enclosure-group
    build`.
-2. **VESA plate.** Reuses the interface; adds the hole-pattern checks.
+2. **VESA plate (built).** Reuses the interface; adds the hole-pattern checks.
 3. **DIN clip.** Adds the flexure and its thickness check.
 4. **Rack ears.** Adds side-wall pads and the 1U fit check.
 

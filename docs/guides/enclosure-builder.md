@@ -66,7 +66,7 @@ pin header or flex cable. Turn either off with `display_retainer=False`
 The builder refuses combinations that do not fit, such as more slots than
 a wall holds, or vents on walls too low to fit them under a skirt.
 
-**Mounting.** `--mount keyhole` (`mount="keyhole"`) adds four pads under
+**Mounting.** `--mount keyhole` (`mount="keyhole"`) or `--mount vesa75` / `--mount vesa100` adds four pads under
 the floor, one at each corner of the footprint, and a third part, the
 **mount plate**, that bolts to them. Each pad carries a heat-set insert
 pocket (the pocket leaves 1 mm of floor above it, so it never opens into the
@@ -77,12 +77,25 @@ the countersink. The keyhole plate has two keyholes on its centreline: a
 9 mm hole for a wall screw's head and a 4.5 mm slot running 10 mm toward the
 plate's -Y edge, so the enclosure hangs with +Y up and slides down onto the
 screws. A wall screw's head sits in the gap between the plate and the floor.
-The build prints the screw for the plate (M3 x 8 mm by default). The plate
-is refused if a keyhole would come within 2 mm of a screw hole or an edge,
-which small enclosures cannot avoid; the plate then needs a larger
-footprint. The mount is part of the design, so a revision keeps it. No
-strength is modelled: hang only what a printed plate can carry, and treat
-the plate as unproven until a trial says otherwise. See the
+The build prints the screw for the plate (M3 x 8 mm by default).
+
+The VESA plates follow VESA MIS-D: four holes on a 75 x 75 or 100 x 100 mm
+square, centred on the pads, for M4 screws that go through the plate from
+the enclosure side into the device's threaded holes, their heads in the gap
+under the floor. The plate grows to cover the pattern, so on a small
+enclosure it is larger than the enclosure (87 x 87 mm for VESA 75 on a Pico
+2). The build prints the M4 screw (plate thickness plus 8 mm of thread, 12
+mm for a 4 mm plate) and is refused if a screw head would come within 2 mm
+of a pad, which a footprint near the pattern's size cannot avoid; try the
+other pattern.
+
+The keyhole plate is refused if a keyhole would come within 2 mm of a screw
+hole or an edge, which small enclosures cannot avoid; the plate then needs a
+larger footprint.
+
+Every mount is part of the design, so a revision keeps it. No strength is
+modelled: hang only what a printed plate can carry, and treat the plate as
+unproven until a trial says otherwise. See the
 [mounting roadmap](../roadmaps/mounting-systems.md).
 
 **Active Cooler.** `--active-cooler` fits a Raspberry Pi 5's Active Cooler

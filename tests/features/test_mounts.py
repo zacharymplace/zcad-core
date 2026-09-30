@@ -224,3 +224,57 @@ def test_cli_exports_the_mount_as_a_third_part(
     assert output["mount"]["screws"].startswith("M3 countersunk x 8 mm")
     record = json.loads((tmp_path / "enclosure.json").read_text())
     assert record["design"]["mount"] == "keyhole"
+
+
+@pytest.mark.parametrize(("kind", "spacing"), [("vesa75", 75.0), ("vesa100", 100.0)])
+def test_vesa_plate_has_the_standard_square_pattern_of_m4_holes(
+    kind: str, spacing: float
+) -> None:
+    pads = pads_for(width=33.0, depth=77.0)
+    mount = build_mount(kind, pads, fastener=M3)
+    mid = pads.mating_z_mm - 2.0
+    xs = [x for x, _ in pads.positions]
+    ys = [y for _, y in pads.positions]
+    cx = (min(xs) + max(xs)) / 2
+    cy = (min(ys) + max(ys)) / 2
+    half = spacing / 2
+
+    for dx in (-half, half):
+        for dy in (-half, half):
+            assert not has_material(mount.plate, cx + dx, cy + dy, mid)
+            # M4 clearance is 4.5 mm: clear at 2.0 mm out, solid at 2.5 mm.
+            assert not has_material(mount.plate, cx + dx + 2.0, cy + dy, mid)
+            assert has_material(mount.plate, cx + dx + 2.5, cy + dy, mid)
+
+    bounds = workplane_shape(mount.plate).BoundingBox()
+
+    # The plate grows to cover the pattern, past a small enclosure's footprint.
+    assert bounds.xlen > spacing and bounds.ylen > spacing
+    assert (
+        mount.device_screws
+        == f"M4 x 12 mm, 4 on a {spacing:.0f} x {spacing:.0f} mm pattern"
+    )
+    # The pad screws still hold the plate on, countersunk on its outer face.
+    x, y = pads.positions[0]
+    assert not has_material(mount.plate, x, y, mid)
+
+
+def test_vesa_screw_heads_clear_the_pads() -> None:
+    pads = pads_for(width=90.0, depth=90.0)
+
+    with pytest.raises(ValueError, match="mount pad"):
+        build_mount("vesa75", pads, fastener=M3)
+    # The larger pattern clears the same pads.
+    assert build_mount("vesa100", pads, fastener=M3).device_screws is not None
+
+
+def test_keyhole_plate_has_no_device_screws() -> None:
+    assert build_mount("keyhole", pads_for(), fastener=M3).device_screws is None
+
+
+def test_group_with_a_vesa_mount_keeps_every_check() -> None:
+    group = build_group_enclosure(design=GroupDesign(mount="vesa75"))
+
+    assert group.passed
+    assert group.mount is not None
+    assert group.mount.device_screws is not None

@@ -16,9 +16,9 @@ from dataclasses import dataclass
 import cadquery as cq
 
 from zcad_core.geometry.intersection import intersection_volume
-from zcad_core.hardware import FastenerSpec
+from zcad_core.hardware import FastenerSpec, get_fastener
 
-MOUNTS = ("keyhole",)
+MOUNTS = ("keyhole", "vesa75", "vesa100")
 
 # Floor left above an insert pocket, so the pocket never breaks into the cavity.
 POCKET_ROOF_MM = 1.0
@@ -36,6 +36,15 @@ KEYHOLE_HEAD_DIAMETER_MM = 9.0
 KEYHOLE_SLOT_WIDTH_MM = 4.5
 KEYHOLE_TRAVEL_MM = 10.0
 KEYHOLE_HEAD_HEIGHT_MM = 3.0
+# VESA MIS-D: a square pattern of M4 threaded holes in the device. The plate
+# carries the screws' clearance holes, and their heads sit on the plate's
+# enclosure side, in the gap under the floor.
+VESA_PATTERNS_MM = {"vesa75": 75.0, "vesa100": 100.0}
+VESA_SCREW = "M4"
+VESA_HEAD_DIAMETER_MM = 8.0
+VESA_HEAD_HEIGHT_MM = 3.1
+# How far a VESA screw should reach into the device, past the plate.
+VESA_ENGAGEMENT_MM = 10.0
 _COUNTERSINK_FLOOR_MM = 1.2
 _SCREW_LENGTHS_MM = (4, 5, 6, 8, 10, 12, 16, 20)
 _HEAD_DIAMETER_FACTOR = 2.0
@@ -67,6 +76,9 @@ class MountPlate:
     thickness_mm: float
     recommended_screw_mm: int
     size_mm: tuple[float, float]
+    # The screws that hold the plate to what it mounts on, when the plate
+    # has them (a VESA plate's M4 screws); a keyhole plate's are the wall's.
+    device_screws: str | None = None
 
 
 def pad_height_mm(fastener: FastenerSpec, floor_mm: float) -> float:
@@ -157,6 +169,15 @@ def build_mount(
     if kind not in MOUNTS:
         raise ValueError(f"mount must be one of {MOUNTS}")
 
+    if kind in VESA_PATTERNS_MM:
+        return _vesa_plate(
+            kind,
+            pads,
+            fastener=fastener,
+            plate_mm=plate_mm,
+            compensation=hole_compensation_mm,
+        )
+
     return _keyhole_plate(
         pads, fastener=fastener, plate_mm=plate_mm, compensation=hole_compensation_mm
     )
@@ -186,6 +207,75 @@ def _solids(model: cq.Workplane) -> cq.Shape:
     )
 
 
+def _countersink_depth(fastener: FastenerSpec, plate_mm: float) -> float:
+    head = fastener.nominal_diameter_mm * _HEAD_DIAMETER_FACTOR
+    depth = (head - fastener.clearance_hole_mm) / 2
+
+    if depth > plate_mm - _COUNTERSINK_FLOOR_MM:
+        raise ValueError(
+            f"A countersunk {fastener.identifier} head needs a plate at least "
+            f"{depth + _COUNTERSINK_FLOOR_MM:.1f} mm thick"
+        )
+
+    return depth
+
+
+def _pad_bounds(pads: MountPads) -> tuple[float, float, float, float]:
+    reach = pads.diameter_mm / 2 + _PLATE_MARGIN_MM
+    xs = [x for x, _ in pads.positions]
+    ys = [y for _, y in pads.positions]
+
+    return min(xs) - reach, max(xs) + reach, min(ys) - reach, max(ys) + reach
+
+
+def _seat_plate(
+    pads: MountPads,
+    bounds: tuple[float, float, float, float],
+    *,
+    fastener: FastenerSpec,
+    plate_mm: float,
+    compensation: float,
+) -> tuple[cq.Workplane, float]:
+    """A blank of ``bounds`` seated on the pads, with the pads' screw holes
+    cut and countersunk on its outer face; also the plate's bottom z."""
+
+    head = fastener.nominal_diameter_mm * _HEAD_DIAMETER_FACTOR
+    cone_depth = _countersink_depth(fastener, plate_mm)
+    x0, x1, y0, y1 = bounds
+    bottom = pads.mating_z_mm - plate_mm
+    plate = (
+        cq.Workplane("XY")
+        .box(x1 - x0, y1 - y0, plate_mm, centered=False)
+        .translate((x0, y0, bottom))
+    )
+    screw_hole = fastener.clearance_hole_mm + compensation
+
+    for x, y in pads.positions:
+        plate = _cut(
+            plate,
+            cq.Solid.makeCylinder(
+                screw_hole / 2, plate_mm + 2.0, pnt=cq.Vector(x, y, bottom - 1.0)
+            ),
+            # The cone opens on the plate's outer face, to sink a flat head
+            # flush.
+            cq.Solid.makeCone(
+                head / 2 + 0.01,
+                screw_hole / 2,
+                cone_depth + 0.01,
+                pnt=cq.Vector(x, y, bottom - 0.01),
+            ),
+        )
+
+    return plate, bottom
+
+
+def _cut(plate: cq.Workplane, *cutters: cq.Shape) -> cq.Workplane:
+    for cutter in cutters:
+        plate = plate.cut(cq.Workplane("XY").add(cutter))
+
+    return plate
+
+
 def _keyhole_plate(
     pads: MountPads,
     *,
@@ -193,64 +283,112 @@ def _keyhole_plate(
     plate_mm: float,
     compensation: float,
 ) -> MountPlate:
-    head = fastener.nominal_diameter_mm * _HEAD_DIAMETER_FACTOR
-    cone_depth = (head - fastener.clearance_hole_mm) / 2
-
-    if cone_depth > plate_mm - _COUNTERSINK_FLOOR_MM:
-        raise ValueError(
-            f"A countersunk {fastener.identifier} head needs a plate at least "
-            f"{cone_depth + _COUNTERSINK_FLOOR_MM:.1f} mm thick"
-        )
-
     if pads.height_mm < KEYHOLE_HEAD_HEIGHT_MM + 0.5:
         raise ValueError("The pads are too short for a wall screw's head")
 
-    xs = [x for x, _ in pads.positions]
-    ys = [y for _, y in pads.positions]
-    reach = pads.diameter_mm / 2 + _PLATE_MARGIN_MM
-    x0, x1 = min(xs) - reach, max(xs) + reach
-    y0, y1 = min(ys) - reach, max(ys) + reach
-    top = pads.mating_z_mm
-    bottom = top - plate_mm
-
-    plate = (
-        cq.Workplane("XY")
-        .box(x1 - x0, y1 - y0, plate_mm, centered=False)
-        .translate((x0, y0, bottom))
+    bounds = _pad_bounds(pads)
+    plate, bottom = _seat_plate(
+        pads,
+        bounds,
+        fastener=fastener,
+        plate_mm=plate_mm,
+        compensation=compensation,
     )
+    head = fastener.nominal_diameter_mm * _HEAD_DIAMETER_FACTOR
 
-    screw_hole = fastener.clearance_hole_mm + compensation
-    cutters: list[cq.Shape] = []
+    for x, y in _keyhole_positions(pads, bounds, head):
+        plate = _cut(plate, *_keyhole_cutters(x, y, bottom, plate_mm, compensation))
 
-    for x, y in pads.positions:
-        cutters.append(
-            cq.Solid.makeCylinder(
-                screw_hole / 2, plate_mm + 2.0, pnt=cq.Vector(x, y, bottom - 1.0)
-            )
-        )
-        # The cone opens on the plate's outer face, to sink a flat head flush.
-        cutters.append(
-            cq.Solid.makeCone(
-                head / 2 + 0.01,
-                screw_hole / 2,
-                cone_depth + 0.01,
-                pnt=cq.Vector(x, y, bottom - 0.01),
-            )
-        )
-
-    keyholes = _keyhole_positions(pads, (x0, x1, y0, y1), head)
-
-    for x, y in keyholes:
-        cutters.extend(_keyhole_cutters(x, y, bottom, plate_mm, compensation))
-
-    for cutter in cutters:
-        plate = plate.cut(cq.Workplane("XY").add(cutter))
+    x0, x1, y0, y1 = bounds
 
     return MountPlate(
         plate=plate,
         thickness_mm=plate_mm,
         recommended_screw_mm=_screw_length(plate_mm + pads.pocket_depth_mm),
         size_mm=(x1 - x0, y1 - y0),
+    )
+
+
+def _vesa_plate(
+    kind: str,
+    pads: MountPads,
+    *,
+    fastener: FastenerSpec,
+    plate_mm: float,
+    compensation: float,
+) -> MountPlate:
+    """A plate with a VESA MIS-D hole pattern centred on the pads.
+
+    The plate grows to cover the pattern, so it can be larger than the
+    enclosure. The M4 screws go through it from the enclosure side, their
+    heads in the gap under the floor, so the heads must clear the pads.
+    """
+
+    if pads.height_mm < VESA_HEAD_HEIGHT_MM + 0.5:
+        raise ValueError("The pads are too short for a VESA screw's head")
+
+    spacing = VESA_PATTERNS_MM[kind]
+    screw = get_fastener(VESA_SCREW)
+    xs = [x for x, _ in pads.positions]
+    ys = [y for _, y in pads.positions]
+    center_x = (min(xs) + max(xs)) / 2
+    center_y = (min(ys) + max(ys)) / 2
+    half = spacing / 2
+    holes = tuple(
+        (center_x + dx * half, center_y + dy * half)
+        for dx, dy in ((-1, -1), (1, -1), (1, 1), (-1, 1))
+    )
+    head_radius = VESA_HEAD_DIAMETER_MM / 2
+
+    for hx, hy in holes:
+        for px, py in pads.positions:
+            gap = math.hypot(hx - px, hy - py) - head_radius - pads.diameter_mm / 2
+
+            if gap < _FEATURE_WALL_MM:
+                raise ValueError(
+                    f"A {VESA_SCREW} screw head on the {spacing:.0f} mm pattern "
+                    f"leaves {max(gap, 0.0):.1f} mm to a mount pad, and "
+                    f"{_FEATURE_WALL_MM:.0f} mm is needed; use a larger "
+                    "pattern or a smaller enclosure"
+                )
+
+    pad_x0, pad_x1, pad_y0, pad_y1 = _pad_bounds(pads)
+    edge = head_radius + _PLATE_MARGIN_MM
+    bounds = (
+        min(pad_x0, center_x - half - edge),
+        max(pad_x1, center_x + half + edge),
+        min(pad_y0, center_y - half - edge),
+        max(pad_y1, center_y + half + edge),
+    )
+    plate, bottom = _seat_plate(
+        pads,
+        bounds,
+        fastener=fastener,
+        plate_mm=plate_mm,
+        compensation=compensation,
+    )
+    hole = screw.clearance_hole_mm + compensation
+
+    for hx, hy in holes:
+        plate = _cut(
+            plate,
+            cq.Solid.makeCylinder(
+                hole / 2, plate_mm + 2.0, pnt=cq.Vector(hx, hy, bottom - 1.0)
+            ),
+        )
+
+    device_screw = _screw_length(plate_mm + VESA_ENGAGEMENT_MM)
+    x0, x1, y0, y1 = bounds
+
+    return MountPlate(
+        plate=plate,
+        thickness_mm=plate_mm,
+        recommended_screw_mm=_screw_length(plate_mm + pads.pocket_depth_mm),
+        size_mm=(x1 - x0, y1 - y0),
+        device_screws=(
+            f"{screw.identifier} x {device_screw} mm, 4 on a "
+            f"{spacing:.0f} x {spacing:.0f} mm pattern"
+        ),
     )
 
 
