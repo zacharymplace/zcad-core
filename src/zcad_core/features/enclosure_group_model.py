@@ -191,6 +191,9 @@ class GroupEnclosure:
     checks: dict[str, bool]
     recommended_lid_screw_mm: int
     recommended_join_screw_mm: int | None
+    # Each of a Pi's extracted parts that runs into the base or lid, as
+    # "bay-<n> <part> meets the <base|lid>"; empty when the parts all clear.
+    part_collisions: tuple[str, ...] = ()
 
     @property
     def cavity_top_z_mm(self) -> float:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import cadquery as cq
@@ -13,7 +14,7 @@ from zcad_core.features.enclosure_group import (
     build_group_enclosure,
 )
 from zcad_core.geometry.intersection import intersection_volume
-from zcad_core.hardware import get_raspberry_pi5
+from zcad_core.hardware import BoardComponentSpec, get_raspberry_pi5
 
 PRINTER_PROFILE = (
     Path(__file__).resolve().parents[2] / "profiles/printers/bambu-lab-a1-mini.json"
@@ -108,14 +109,83 @@ def test_each_pi_sits_on_four_standoffs_with_a_pilot_hole(pair: GroupEnclosure) 
     for bay in pair.bays:
         center_x = wall + bay.center_x_mm
 
-        for sx in (-1, 1):
-            for sy in (-1, 1):
-                x = center_x + sx * pi.mounting_hole_spacing_x_mm / 2
-                y = pair.pi_center_y_mm + sy * pi.mounting_hole_spacing_y_mm / 2
-                z = pair.design.floor_mm + pair.design.standoff_height_mm / 2
+        for hx, hy in pi.mounting_hole_positions_mm:
+            x = center_x + hx
+            y = pair.pi_center_y_mm + hy
+            z = pair.design.floor_mm + pair.design.standoff_height_mm / 2
 
-                assert has_material(pair.base, x + 2.5, y, z)
-                assert not has_material(pair.base, x, y, z)
+            assert has_material(pair.base, x + 2.5, y, z)
+            assert not has_material(pair.base, x, y, z)
+
+
+def test_the_pi5_holes_sit_toward_the_microsd_end_as_the_vendor_model_has_them() -> (
+    None
+):
+    pi = get_raspberry_pi5()
+
+    # Raspberry Pi's STEP model: 3.5 mm from the microSD end and the long
+    # edges, 58 x 49 mm apart, so the pattern centres 10 mm from the board's
+    # centre, as the header does.
+    assert sorted(pi.mounting_hole_positions_mm) == [
+        (-24.5, -39.0),
+        (-24.5, 19.0),
+        (24.5, -39.0),
+        (24.5, 19.0),
+    ]
+    assert pi.header_center_y_mm == pytest.approx(-10.0)
+
+
+def test_every_pi_part_clears_the_base_and_lid(pair: GroupEnclosure) -> None:
+    assert pair.checks["parts_clear_of_base"]
+    assert pair.checks["parts_clear_of_lid"]
+    assert pair.part_collisions == ()
+
+
+def test_standoffs_off_the_holes_run_into_the_parts_under_the_board() -> None:
+    # The pattern centred on the board, as this builder once had it.
+    centred = replace(
+        get_raspberry_pi5(),
+        mounting_hole_positions_mm=(
+            (-24.5, -29.0),
+            (24.5, -29.0),
+            (-24.5, 29.0),
+            (24.5, 29.0),
+        ),
+    )
+    group = build_group_enclosure(pi=centred)
+
+    assert not group.passed
+    assert not group.checks["parts_clear_of_base"]
+    # Parts under the board, in both bays, all on the standoffs' side.
+    assert {collision.split()[0] for collision in group.part_collisions} == {
+        "bay-0",
+        "bay-1",
+    }
+    assert all(
+        collision.split()[1].startswith("bottom-")
+        and collision.endswith("meets the base")
+        for collision in group.part_collisions
+    )
+
+
+def test_a_part_too_tall_for_the_bay_runs_into_the_lid() -> None:
+    pi = get_raspberry_pi5()
+    tall = BoardComponentSpec(
+        identifier="top-tall",
+        center_x_mm=0.0,
+        center_y_mm=0.0,
+        width_mm=5.0,
+        depth_mm=5.0,
+        bottom_offset_from_board_top_mm=0.0,
+        height_mm=40.0,
+    )
+    group = build_group_enclosure(pi=replace(pi, components=(*pi.components, tall)))
+
+    assert not group.checks["parts_clear_of_lid"]
+    assert group.part_collisions == (
+        "bay-0 top-tall meets the lid",
+        "bay-1 top-tall meets the lid",
+    )
 
 
 def test_growing_the_row_adds_a_bay_without_changing_the_others() -> None:

@@ -1,7 +1,8 @@
 """A Raspberry Pi 5 as solid boxes, and the box helpers the enclosure uses.
 
 The envelope is what the enclosure must clear: the board, its ports, the
-header, the Active Cooler, and the microSD card."""
+header, the Active Cooler, and the microSD card. The Pi's extracted parts,
+every other component on the board, must clear it too."""
 
 from __future__ import annotations
 
@@ -108,6 +109,31 @@ def pi_envelope(
     )
 
     return single_shape(cq.Workplane("XY").add(boxes).combine())
+
+
+# The vendor model's parts are boxes rounded to its drawing; shrinking each
+# this much per side keeps a sliver of rounding from reading as a collision.
+PART_TOLERANCE_MM = 0.1
+
+
+def pi_parts(
+    pi: RaspberryPi5Spec, center_x: float, center_y: float, board_top: float
+) -> dict[str, cq.Shape]:
+    """Each of the Pi's extracted parts as a box, keyed by its identifier,
+    shrunk by ``PART_TOLERANCE_MM`` a side, or a quarter of a thin side."""
+
+    def span(start: float, size: float) -> tuple[float, float]:
+        inset = min(PART_TOLERANCE_MM, size / 4)
+        return start + inset, start + size - inset
+
+    return {
+        part.identifier: make_box(
+            span(center_x + part.center_x_mm - part.width_mm / 2, part.width_mm),
+            span(center_y + part.center_y_mm - part.depth_mm / 2, part.depth_mm),
+            span(board_top + part.bottom_offset_from_board_top_mm, part.height_mm),
+        )
+        for part in pi.components
+    }
 
 
 def single_shape(model: cq.Workplane) -> cq.Shape:

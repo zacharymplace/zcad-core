@@ -9,7 +9,9 @@ board's catalog spec loads. For each vendor model it:
   that far below it, and drops the part that is the catalogued USB connector;
 - splits a part through the board into a box above it and one below it;
 - merges parts of a similar height lying within 2 mm of each other, so a
-  tall header does not swallow the low parts around it;
+  tall header does not swallow the low parts around it, but never into a
+  box over a mounting hole none of them covers, since a board keeps its
+  holes clear and a standoff or screw stands there;
 - marks a part that overhangs a board edge as needing access through that
   edge, like a barrel jack; and
 - maps the result into the catalog spec's frame: centred on the board, the
@@ -33,6 +35,7 @@ from typing import Any
 
 import cadquery as cq
 
+from zcad_core.features.pcb_mounts import board_hole_pattern
 from zcad_core.hardware import BoardSpec, get_board
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -114,7 +117,13 @@ def _touching(a: Box, b: Box) -> bool:
     )
 
 
-def _merge(boxes: list[Box], same_tier: bool) -> list[Box]:
+def _covers(box: Box, point: tuple[float, float]) -> bool:
+    return box[0] <= point[0] <= box[1] and box[2] <= point[1] <= box[3]
+
+
+def _merge(
+    boxes: list[Box], same_tier: bool, holes: tuple[tuple[float, float], ...]
+) -> list[Box]:
     merged = list(boxes)
     changed = True
 
@@ -125,15 +134,26 @@ def _merge(boxes: list[Box], same_tier: bool) -> list[Box]:
             for j in range(i + 1, len(merged)):
                 b = merged[j]
 
-                if _touching(a, b) and (not same_tier or _tier(a) == _tier(b)):
-                    merged[i] = (
-                        min(a[0], b[0]),
-                        max(a[1], b[1]),
-                        min(a[2], b[2]),
-                        max(a[3], b[3]),
-                        min(a[4], b[4]),
-                        max(a[5], b[5]),
-                    )
+                if not _touching(a, b) or (same_tier and _tier(a) != _tier(b)):
+                    continue
+
+                union = (
+                    min(a[0], b[0]),
+                    max(a[1], b[1]),
+                    min(a[2], b[2]),
+                    max(a[3], b[3]),
+                    min(a[4], b[4]),
+                    max(a[5], b[5]),
+                )
+
+                # Parts on either side of a hole stay apart.
+                if not any(
+                    _covers(union, hole)
+                    and not _covers(a, hole)
+                    and not _covers(b, hole)
+                    for hole in holes
+                ):
+                    merged[i] = union
                     del merged[j]
                     changed = True
                     break
@@ -233,7 +253,11 @@ def extract(target: str) -> dict[str, Any]:
         raise ValueError(f"{target}: no part matches the catalogued USB connector")
 
     above = [box for box in above if not _is_usb(box, board)]
-    boxes = _merge(above, same_tier=True) + _merge(below, same_tier=False)
+    pattern = board_hole_pattern(board)
+    holes = pattern.positions if pattern is not None else ()
+    boxes = _merge(above, same_tier=True, holes=holes) + _merge(
+        below, same_tier=False, holes=holes
+    )
     components = []
 
     for number, (x0, x1, y0, y1, z0, z1) in enumerate(boxes, start=1):

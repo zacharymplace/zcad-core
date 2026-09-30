@@ -41,8 +41,9 @@ def standoff_xy(group: GroupEnclosure, index: int) -> tuple[float, float]:
 
     pi = get_raspberry_pi5()
     bay = group.bays[index]
-    x = group.design.wall_mm + bay.center_x_mm - pi.mounting_hole_spacing_x_mm / 2
-    y = group.pi_center_y_mm - pi.mounting_hole_spacing_y_mm / 2
+    hx, hy = pi.mounting_hole_positions_mm[0]
+    x = group.design.wall_mm + bay.center_x_mm + hx
+    y = group.pi_center_y_mm + hy
 
     return x - 2.5, y
 
