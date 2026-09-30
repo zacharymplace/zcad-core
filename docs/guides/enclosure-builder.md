@@ -59,6 +59,24 @@ pin header or flex cable. Turn either off with `display_retainer=False`
   click into grooves in the long walls, and the skirt is slit beside each
   ridge so that stretch flexes. With no bosses, the cavity only needs room
   for the skirt, so snap enclosures are often smaller.
+- `--lid hinge` (`lid_attachment="hinge"`) hangs the lid from one long wall
+  on a row of knuckles around a pin, and closes it with a catch on the
+  opposite wall. The pin is an M3 screw and nut (`--hinge-pin` picks another
+  size), and the build prints its length. There are no bosses or skirt, so
+  the cavity can be smaller, but the hinge side grows by about 7 mm for its
+  barrels and the catch side of the lid by 3 mm for its tongue. The hinge goes
+  on a long wall with no opening, the back one if both are free. The catch
+  is a tongue hanging outside the front wall, with a hook that snaps under a
+  bump; pull its lip to open it. Its strain is checked like the DIN clip's
+  latch. The catch needs a wall at least 11.7 mm tall (a hinged Pico 2 needs
+  `--bottom-clearance-mm 6`), and the walls stand 3 mm off the hardware, not
+  2, because a display's retainer swings toward the front wall as the lid
+  opens. Before the build returns, the lid is swung open in 10 degree steps
+  to 100 degrees, with a display swinging along with it, and the build is
+  refused if the lid or display meets the base or any part. A hinged lid
+  with a display pulls on whatever connects it to the board: leave slack.
+  No cycle life is claimed; a printed PETG hinge wears, and a trial has to
+  count openings.
 - `--vent-slots N` (`vent_slots`) cuts N vertical slots, 1.6 mm wide at a
   4 mm pitch, through each long wall that carries no opening, below the
   lid's skirt and clear of the corners.
@@ -146,6 +164,8 @@ cables.
 - `cable_plug_width_mm`, `cable_plug_height_mm`: the plug body the opening
   must pass.
 - `mount`, `mount_plate_mm`: a mount plate and its thickness (none, 4).
+- `lid_attachment`, `hinge_pin`: how the lid is held (`screws`, `snap`, or
+  `hinge`), and the hinge's pin (`M3`).
 - `hole_compensation_mm`: how much wider than intended to model every hole
   and opening (screw holes, insert pockets, pilot holes, windows, cable
   openings, and the cradle and retainer fits), for a printer that prints

@@ -55,6 +55,7 @@ from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
 )
+from zcad_core.features.lid_hinge import HINGE_WEB_DEPTH_MM, HingeReport, add_hinge
 from zcad_core.features.mounts import (
     MOUNTS,
     MountPads,
@@ -87,6 +88,10 @@ _OPENING_OVERCUT_MM = 0.5
 # must also clear the board outline grown by the support margin, so
 # standoffs and cradle clips never fuse to a boss.
 _MINIMUM_SIDE_CLEARANCE_MM = 2.0
+# A hinged lid swings what hangs from it toward the closure wall by about
+# b^2 / 2a, for b below the axis and a from it: 1 mm or so for a display's
+# retainer, so the walls stand a millimetre further off.
+_HINGE_SIDE_CLEARANCE_MM = 3.0
 _AUTOMATIC_WIDENING_MM = tuple(0.5 * step for step in range(25))
 _SUPPORT_MARGIN_MM = 2.0
 # Supports are notched this far clear of the parts under the board.
@@ -95,7 +100,7 @@ _DISPLAY_POST_WALL_MM = 1.2
 # Printers print holes small far more often than large, and the cradle's
 # 0.3 mm fit leaves little room to shrink.
 HOLE_COMPENSATION_RANGE_MM = (-0.2, 1.0)
-LID_ATTACHMENTS = ("screws", "snap")
+LID_ATTACHMENTS = ("screws", "snap", "hinge")
 # A flat-head screw's head is about twice its thread (ISO 10642 M3: 6 mm).
 _COUNTERSINK_HEAD_ALLOWANCE_MM = 0.0
 # The builder's default fits, before hole compensation widens them.
@@ -147,8 +152,11 @@ class EnclosureDesign:
     # make up for a printer that prints them undersized. A trial measures
     # the intended sizes; ``enclosure revise`` sets this from the shortfall.
     hole_compensation_mm: float = 0.0
-    # "screws" into heat-set inserts, or a "snap" lid with no fasteners.
+    # "screws" into heat-set inserts, a "snap" lid with no fasteners, or a
+    # "hinge" lid on a pin that closes with a catch.
     lid_attachment: str = "screws"
+    # The fastener used as the hinge pin (with a nut), for a "hinge" lid.
+    hinge_pin: str = "M3"
     # Sink flat-head lid screws flush (screwed lids only).
     countersunk_screws: bool = False
     # A skirt under a screwed lid that keys it onto the base.
@@ -198,12 +206,18 @@ class EnclosureDesign:
             raise ValueError(f"lid_attachment must be one of {LID_ATTACHMENTS}")
 
         snap = self.lid_attachment == "snap"
+        hinge = self.lid_attachment == "hinge"
 
-        if snap and self.countersunk_screws:
-            raise ValueError("A snap-fit lid has no screws to countersink")
+        if (snap or hinge) and self.countersunk_screws:
+            raise ValueError("A snap-fit or hinged lid has no screws to countersink")
 
         if snap and self.locating_lip:
             raise ValueError("A snap-fit lid already locates on its skirt")
+
+        if hinge and self.locating_lip:
+            raise ValueError(
+                "A hinged lid has no lip: it would catch as the lid swings"
+            )
 
         if self.vent_slots < 0:
             raise ValueError("vent_slots must not be negative")
@@ -240,6 +254,8 @@ class Enclosure:
     # design asks for a mount.
     mount_pads: MountPads | None = None
     mount: MountPlate | None = None
+    # The hinge and its catch, for a hinged lid.
+    hinge: HingeReport | None = None
 
 
 def build_enclosure(
@@ -336,6 +352,34 @@ def build_enclosure(
         lid, assembly, board_identifier, display_identifier, cavity_top, design
     )
 
+    hinge = None
+
+    if design.lid_attachment == "hinge":
+        base, lid, hinge = add_hinge(
+            base,
+            lid,
+            cavity,
+            lid_mm=design.lid_mm,
+            pin=get_fastener(design.hinge_pin),
+            hole_compensation_mm=design.hole_compensation_mm,
+            openings=openings,
+            hardware={
+                component.identifier: _all_solids(component.transformed_geometry())
+                for component in assembly.components
+                if component.identifier != display_identifier
+            },
+            # A display screws to the lid's posts, so it swings with it.
+            carried=(
+                {
+                    display_identifier: _all_solids(
+                        assembly.get(display_identifier).transformed_geometry()
+                    )
+                }
+                if display is not None
+                else None
+            ),
+        )
+
     pads = None
     mount = None
 
@@ -379,6 +423,7 @@ def build_enclosure(
         display_screw_reach_mm=display_screws[1] if display_screws else None,
         mount_pads=pads,
         mount=mount,
+        hinge=hinge,
     )
 
 
@@ -508,7 +553,7 @@ def _automatic_specification(
     obstacles = _boss_obstacles(assembly, board_identifier, display_identifier)
     radius = _boss_radius(fastener, design)
     minimum = _specification(
-        assembly, design, _MINIMUM_SIDE_CLEARANCE_MM, connector_identifier
+        assembly, design, _minimum_side_clearance(design), connector_identifier
     )
     widenings = sorted(
         ((x, y) for x in _AUTOMATIC_WIDENING_MM for y in _AUTOMATIC_WIDENING_MM),
@@ -552,11 +597,19 @@ def _automatic_specification(
             for obstacle in obstacles
         ):
             return spec, (
-                _MINIMUM_SIDE_CLEARANCE_MM + widen_x,
-                _MINIMUM_SIDE_CLEARANCE_MM + widen_y,
+                _minimum_side_clearance(design) + widen_x,
+                _minimum_side_clearance(design) + widen_y,
             )
 
     raise ValueError("No side clearance clears the corner bosses; set one")
+
+
+def _minimum_side_clearance(design: EnclosureDesign) -> float:
+    return (
+        _HINGE_SIDE_CLEARANCE_MM
+        if design.lid_attachment == "hinge"
+        else _MINIMUM_SIDE_CLEARANCE_MM
+    )
 
 
 def _cavity(spec: EnclosureSpecification, design: EnclosureDesign) -> Cavity:
@@ -896,9 +949,9 @@ def _corner_boss_positions(
     design: EnclosureDesign,
 ) -> tuple[tuple[float, float], ...]:
     """Boss centres at each cavity corner, sunk slightly into both walls;
-    none for a snap-fit lid."""
+    none for a snap-fit or hinged lid."""
 
-    if design.lid_attachment == "snap":
+    if design.lid_attachment != "screws":
         return ()
 
     insert_diameter = fastener.heat_set_insert_diameter_mm
@@ -1091,7 +1144,12 @@ def _lid_options_in_base(
                 slots_per_wall=design.vent_slots,
                 blocked_edges=[opening.edge for opening in openings],
                 top_z_mm=cavity.top_z_mm
-                - (skirt + 1.0 if skirt is not None else VENT_RIM_MM),
+                - (
+                    skirt + 1.0
+                    if skirt is not None
+                    else VENT_RIM_MM
+                    + (HINGE_WEB_DEPTH_MM if design.lid_attachment == "hinge" else 0.0)
+                ),
                 corner_keepout_mm=(
                     2 * _boss_radius(fastener, design) + 1.0 if positions else 3.0
                 ),

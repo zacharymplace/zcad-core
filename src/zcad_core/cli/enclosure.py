@@ -177,6 +177,7 @@ def _design(args: argparse.Namespace) -> EnclosureDesign:
         display_fastener=args.display_fastener,
         hole_compensation_mm=compensation,
         lid_attachment=args.lid,
+        hinge_pin=args.hinge_pin,
         countersunk_screws=args.countersunk,
         locating_lip=args.locating_lip,
         vent_slots=args.vent_slots,
@@ -209,6 +210,23 @@ def _mount_payload(enclosure: Enclosure) -> dict[str, object] | None:
         "flexure": flexure_payload(enclosure.mount.flexure),
         "pad_height_mm": enclosure.mount_pads.height_mm,
         "plate_size_mm": list(enclosure.mount.size_mm),
+    }
+
+
+def _hinge_payload(enclosure: Enclosure) -> dict[str, object] | None:
+    hinge = enclosure.hinge
+
+    if hinge is None:
+        return None
+
+    return {
+        "hinge_wall": hinge.hinge_edge,
+        "catch_wall": hinge.closure_edge,
+        "knuckles": hinge.knuckles,
+        "pin": f"{hinge.pin} x {hinge.pin_length_mm} mm screw and nut",
+        "swing_degrees": hinge.swing_degrees,
+        "catch": flexure_payload(hinge.catch),
+        "wall_needed_mm": round(hinge.wall_needed_mm, 1),
     }
 
 
@@ -281,6 +299,7 @@ def _build(
         "board_support": enclosure.board_support,
         "display_support": enclosure.display_support,
         "mount": _mount_payload(enclosure),
+        "hinge": _hinge_payload(enclosure),
         "side_clearance_mm": list(enclosure.side_clearance_mm),
         "validation_status": (result.validation_report or {}).get("evaluated_status"),
         "build_record": str(build_record),
@@ -519,7 +538,15 @@ def register(
         "--lid",
         choices=LID_ATTACHMENTS,
         default="screws",
-        help="screw the lid into heat-set inserts, or snap it on",
+        help=(
+            "screw the lid into heat-set inserts, snap it on, or hinge it on a "
+            "pin and close it with a catch"
+        ),
+    )
+    build.add_argument(
+        "--hinge-pin",
+        default="M3",
+        help="the screw (with a nut) that is a hinged lid's pin",
     )
     build.add_argument(
         "--countersunk",

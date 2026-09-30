@@ -142,7 +142,20 @@ def recommended_screw_length_mm(enclosure: Enclosure) -> int:
 
 
 def _lid_fasteners(enclosure: Enclosure) -> dict[str, Any]:
-    """The screws and inserts that hold the lid, or none for a snap lid."""
+    """The screws and inserts that hold the lid, none for a snap lid, or the
+    pin and catch of a hinged one."""
+
+    hinge = enclosure.hinge
+
+    if hinge is not None:
+        return {
+            "lid": "hinged",
+            "count": 0,
+            "pin": f"{hinge.pin} x {hinge.pin_length_mm} mm, with a nut",
+            "knuckles": hinge.knuckles,
+            "swing_degrees": hinge.swing_degrees,
+            "catch_strain_percent": round(100 * hinge.catch.strain, 2),
+        }
 
     if not enclosure.fastener_positions:
         return {"lid": "snap-fit", "count": 0}
