@@ -171,6 +171,28 @@ a low divider.
 - `lid_mm` (3), `wall_mm` (2), `floor_mm` (2).
 - `vents`: five slots in the lid over each Pi's SoC and cooler.
 
+## From Python
+
+Every command-line option has a Python equivalent. A row is a tuple of bays,
+each a kind (`"pi5"`, `"reserved"`, `"open"`) or a `Bay` that adds heights,
+openings, or a divider:
+
+```python
+from zcad_core.features.enclosure_group import Bay, build_group_enclosure
+from zcad_core.features.enclosure_group_dividers import Divider
+
+group = build_group_enclosure(
+    ("pi5", Bay("reserved", divider=Divider(vents=True, notch=True))),
+)
+
+assert group.passed, group.checks
+group.base, group.lid  # CadQuery workplanes, ready to export
+```
+
+`examples/pi5_group_enclosure.py` goes on from there: it exports both parts
+through the validated pipeline and writes the data for the 3D viewer. The gate
+runs it, so it stays current.
+
 ## Printing
 
 ```bash
