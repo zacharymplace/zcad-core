@@ -245,8 +245,13 @@ boxes an enclosure must clear, extracted from the vendor model: headers,
 buttons, battery connectors, shield cans, and the pins under the board. So:
 
 - the cavity grows to fit the tallest part and the pins underneath;
-- a display too close to a tall part is refused (the UNO R4 WiFi's ICSP
-  header reaches a display 8 mm above the board; 14 mm clears it);
+- the display is raised above a tall part: `--display-height-mm` defaults
+  to `auto`, which keeps the display 8 mm above the board's underside,
+  leaving room for its wiring, unless a part under it needs more; then it
+  takes the lowest height, in 0.5 mm steps, that clears every part by
+  `--board-display-clearance-mm` (the UNO R4 WiFi's ICSP header takes it to
+  11.5 mm). The height used is in the summary and the build record. A
+  number sets it outright, and one too low is refused;
 - standoffs are notched clear of pins under the board; and
 - a part that overhangs an edge, like the UNO R4 WiFi's barrel jack, gets
   its own opening in that wall.

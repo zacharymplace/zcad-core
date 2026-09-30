@@ -12,6 +12,7 @@ from zcad_core.assemblies.board_display import (
     board_component_identifiers,
     build_board_assembly,
     build_board_display_assembly,
+    lowest_display_height_mm,
 )
 from zcad_core.assemblies.boundary import (
     EnclosureBoundary,
@@ -87,5 +88,6 @@ __all__ = [
     "build_rectangular_hardware_component",
     "component_pair",
     "derive_enclosure_specification",
+    "lowest_display_height_mm",
     "rectangular_board_mounting_metadata",
 ]

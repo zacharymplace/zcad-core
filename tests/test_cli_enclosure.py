@@ -158,6 +158,64 @@ def test_build_refuses_a_cooler_for_a_board_without_one(
     assert "RASPBERRY_PI_PICO_2 takes no Active Cooler" in capsys.readouterr().err
 
 
+def test_build_raises_a_display_only_as_far_as_the_boards_parts_need(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    # The UNO's tall parts reach the display at the 8 mm default.
+    exit_code, output = build(
+        capsys,
+        tmp_path,
+        "--board",
+        "arduino_uno_r4_wifi",
+        "--display",
+        "adafruit_oled_128x64_1_3in",
+    )
+
+    assert exit_code == 0
+    assert output["display_height_mm"] == 11.5
+    record = json.loads(Path(output["build_record"]).read_text("utf-8"))
+    assert record["assembly"]["display_height_mm"] == 11.5
+
+
+@pytest.mark.parametrize(("value", "height"), [("auto", 8.0), ("9.5", 9.5)])
+def test_build_keeps_8_mm_or_takes_a_height_given(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, value: str, height: float
+) -> None:
+    exit_code, output = build(
+        capsys,
+        tmp_path,
+        "--board",
+        "raspberry_pi_pico_2",
+        "--display",
+        "reference_oled_128x64",
+        "--display-height-mm",
+        value,
+    )
+
+    assert exit_code == 0
+    assert output["display_height_mm"] == height
+
+
+def test_build_refuses_a_height_that_is_neither_a_number_nor_auto(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    with pytest.raises(SystemExit):
+        main(
+            [
+                "enclosure",
+                "build",
+                "--board",
+                "raspberry_pi_pico_2",
+                "--display-height-mm",
+                "tall",
+                "--output-directory",
+                str(tmp_path),
+            ]
+        )
+
+    assert "expected a height in mm or auto, not 'tall'" in capsys.readouterr().err
+
+
 def test_build_refuses_a_display_resting_on_the_board(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:

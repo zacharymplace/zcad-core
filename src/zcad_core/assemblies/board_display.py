@@ -1,5 +1,6 @@
 """Reusable board, edge-connector, and display assemblies."""
 
+import math
 from dataclasses import replace
 from typing import Protocol, runtime_checkable
 
@@ -34,6 +35,7 @@ from zcad_core.assemblies.placement import (
 from zcad_core.assemblies.retention import (
     board_retention_metadata,
 )
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware.electronics.connectors import (
     RectangularConnectorSpec,
 )
@@ -367,4 +369,80 @@ def analyze_board_display_assembly(
                 for identifier in (board_identifier, *parts)
             }
         ),
+    )
+
+
+def lowest_display_height_mm(
+    *,
+    board: RectangularBoardSpec,
+    display: RectangularDisplaySpec,
+    board_placement: Placement,
+    display_placement: Placement,
+    board_display_clearance_mm: float = 0.0,
+    connector_access_clearance_mm: float = 0.0,
+    minimum_mm: float = 0.0,
+    step_mm: float = 0.5,
+    limit_mm: float = 60.0,
+) -> float:
+    """The lowest display height, at least ``minimum_mm`` and otherwise a
+    multiple of ``step_mm``, at which the display clears the board and every
+    part on it by the clearance.
+
+    It starts just above the tallest part under the display's footprint and
+    rises until the board-to-display analysis finds nothing, since a layered
+    display can reach lower than its footprint's top suggests. Raises
+    ``ValueError`` when no height up to ``limit_mm`` clears.
+    """
+
+    if step_mm <= 0:
+        raise ValueError("step_mm must be greater than zero")
+
+    def assembly_at(height: float) -> DeviceAssembly:
+        return build_board_display_assembly(
+            board=board,
+            display=display,
+            board_placement=board_placement,
+            display_placement=replace(display_placement, z_mm=height),
+            board_display_clearance_mm=board_display_clearance_mm,
+            connector_access_clearance_mm=connector_access_clearance_mm,
+        )
+
+    probe = assembly_at(limit_mm)
+    footprint = workplane_shape(
+        probe.get("display").transformed_geometry()
+    ).BoundingBox()
+    tallest = board_placement.z_mm + board.board_thickness_mm
+
+    for component in probe.components:
+        if component.identifier == "display":
+            continue
+
+        bounds = workplane_shape(component.transformed_geometry()).BoundingBox()
+
+        if (
+            bounds.xmin < footprint.xmax
+            and footprint.xmin < bounds.xmax
+            and bounds.ymin < footprint.ymax
+            and footprint.ymin < bounds.ymax
+        ):
+            tallest = max(tallest, bounds.zmax)
+
+    height = max(
+        minimum_mm,
+        math.ceil((tallest + board_display_clearance_mm) / step_mm) * step_mm,
+    )
+
+    while height <= limit_mm:
+        report = analyze_board_display_assembly(
+            assembly_at(height),
+            minimum_board_display_clearance_mm=board_display_clearance_mm,
+        )
+
+        if not report.has_findings:
+            return height
+
+        height += step_mm
+
+    raise ValueError(
+        f"No display height up to {limit_mm:g} mm clears {board.identifier}'s parts"
     )
