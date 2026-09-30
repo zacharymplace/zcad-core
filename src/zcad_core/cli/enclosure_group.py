@@ -32,7 +32,7 @@ from zcad_core.features.enclosure_group_viewer import (
     viewer_data,
     viewer_page,
 )
-from zcad_core.features.mounts import MOUNTS
+from zcad_core.features.mounts import MOUNTS, flexure_payload
 from zcad_core.printing import SliceError, slice_models
 from zcad_core.profiles import load_printer_profile
 
@@ -398,6 +398,10 @@ def _group_build(args: argparse.Namespace) -> int:
                     else None
                 ),
                 "mount_device": group.mount.device_screws if group.mount else None,
+                "mount_attachment": group.mount.attachment if group.mount else None,
+                "mount_flexure": (
+                    flexure_payload(group.mount.flexure) if group.mount else None
+                ),
             },
             "review_step": str(review_path),
             "print": printed,

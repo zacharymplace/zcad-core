@@ -8,8 +8,8 @@ monitor arm, a DIN rail, or a rack. One mount design then serves every
 enclosure, including the Pi 5 group, instead of each product growing its own
 brackets.
 
-Phases 1 (the interface and the keyhole plate) and 2 (the VESA plates) are
-built; phases 3 and 4 are design only.
+Phases 1 (the interface and the keyhole plate), 2 (the VESA plates), and 3
+(the DIN clip) are built; phase 4 is design only.
 
 ## Decision: one interface, many mounts
 
@@ -91,7 +91,10 @@ STL, metadata, and validation against the printer profile.
    plate; `--mount keyhole` on `enclosure build` and `enclosure-group
    build`.
 2. **VESA plate (built).** Reuses the interface; adds the hole-pattern checks.
-3. **DIN clip.** Adds the flexure and its thickness check.
+3. **DIN clip (built).** Adds the flexure and its strain check. The latch is
+   a 1.6 mm tongue cut from the plate, bending in the layer plane; its
+   strain is 3 t d / (2 L^2) against a provisional 1.5 % limit for printed
+   PETG, which no print has measured.
 4. **Rack ears.** Adds side-wall pads and the 1U fit check.
 
 Each phase is one PR. Phase 1 changes existing enclosure geometry, so it

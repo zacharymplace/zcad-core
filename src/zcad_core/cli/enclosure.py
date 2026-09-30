@@ -36,7 +36,7 @@ from zcad_core.features.enclosure_trial import (
     start_enclosure_trial,
     write_build_record,
 )
-from zcad_core.features.mounts import MOUNTS
+from zcad_core.features.mounts import MOUNTS, flexure_payload
 from zcad_core.hardware import (
     BoardSpec,
     DisplaySpec,
@@ -205,6 +205,8 @@ def _mount_payload(enclosure: Enclosure) -> dict[str, object] | None:
         f"{enclosure.mount.recommended_screw_mm} mm, "
         f"{len(enclosure.mount_pads.positions)} per plate",
         "device_screws": enclosure.mount.device_screws,
+        "attachment": enclosure.mount.attachment,
+        "flexure": flexure_payload(enclosure.mount.flexure),
         "pad_height_mm": enclosure.mount_pads.height_mm,
         "plate_size_mm": list(enclosure.mount.size_mm),
     }

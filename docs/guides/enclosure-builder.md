@@ -66,7 +66,8 @@ pin header or flex cable. Turn either off with `display_retainer=False`
 The builder refuses combinations that do not fit, such as more slots than
 a wall holds, or vents on walls too low to fit them under a skirt.
 
-**Mounting.** `--mount keyhole` (`mount="keyhole"`) or `--mount vesa75` / `--mount vesa100` adds four pads under
+**Mounting.** `--mount keyhole` (`mount="keyhole"`), `--mount vesa75`,
+`--mount vesa100`, or `--mount din` adds four pads under
 the floor, one at each corner of the footprint, and a third part, the
 **mount plate**, that bolts to them. Each pad carries a heat-set insert
 pocket (the pocket leaves 1 mm of floor above it, so it never opens into the
@@ -92,6 +93,23 @@ other pattern.
 The keyhole plate is refused if a keyhole would come within 2 mm of a screw
 hole or an edge, which small enclosures cannot avoid; the plate then needs a
 larger footprint.
+
+The DIN plate clips onto a 35 mm TS35 rail that runs along X: a fixed hook at
+the +Y edge reaches under the rail's top flange, and a latch at the -Y edge
+snaps under the bottom one, so the enclosure hangs with +Y up. The hooks
+take flanges 1.0 to 1.5 mm thick, and the plate rests on the flanges. The
+latch is a 1.6 mm tongue cut from the plate by a U-shaped slot, so it is a
+printed spring: it swings 2.8 mm to pass the flange, and the build reports
+its strain (1.4 % against a 1.5 % limit). That limit is a provisional design
+value for printed PETG, not a measurement. Print the plate enclosure-face
+down with the hooks up, so the tongue bends along the layers; each lip
+overhangs by 2.5 mm, inside the 3 mm limit. The exported STL has the hooks
+down, as the plate sits on the rail, so flip it in the slicer. To release,
+push a flat screwdriver into the latch slot and lever the tongue outward.
+The enclosure's footprint must be about 67 mm or more in Y, the direction
+across the rail; any width works, because the plate grows to hold the
+tongue. A shallower one is refused, because the latch slot would meet a
+pad's screw hole.
 
 Every mount is part of the design, so a revision keeps it. No strength is
 modelled: hang only what a printed plate can carry, and treat the plate as
