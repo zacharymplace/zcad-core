@@ -51,6 +51,13 @@ from zcad_core.features.enclosure_lid import (
     snap_ridges,
     vents,
 )
+from zcad_core.features.enclosure_thermal import (
+    DEFAULT_AMBIENT_C,
+    DEFAULT_SERVICE_LIMIT_C,
+    ThermalEstimate,
+    estimate_thermal,
+    require_not_too_hot,
+)
 from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
@@ -167,6 +174,13 @@ class EnclosureDesign:
     slide_clearance_mm: float = 0.2
     # The fastener used as the hinge pin (with a nut), for a "hinge" lid.
     hinge_pin: str = "M3"
+    # For the temperature estimate: power the catalog lacks, in watts (a hat,
+    # an SSD), the room's temperature, and the material's limit for the air
+    # inside. ``allow_hot`` builds a box the estimate says is too hot.
+    declared_power_w: float = 0.0
+    ambient_c: float = DEFAULT_AMBIENT_C
+    service_limit_c: float = DEFAULT_SERVICE_LIMIT_C
+    allow_hot: bool = False
     # Sink flat-head lid screws flush (screwed lids only).
     countersunk_screws: bool = False
     # A skirt under a screwed lid that keys it onto the base.
@@ -200,6 +214,7 @@ class EnclosureDesign:
             raise ValueError("side_clearance_mm must not be negative")
 
         self._validate_lid()
+        self._validate_thermal()
 
         for name in (
             "bottom_clearance_mm",
@@ -210,6 +225,13 @@ class EnclosureDesign:
         ):
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} must not be negative")
+
+    def _validate_thermal(self) -> None:
+        if self.declared_power_w < 0:
+            raise ValueError("declared_power_w must not be negative")
+
+        if self.service_limit_c <= self.ambient_c:
+            raise ValueError("service_limit_c must be above ambient_c")
 
     def _validate_lid(self) -> None:
         if self.lid_attachment not in LID_ATTACHMENTS:
@@ -279,6 +301,8 @@ class Enclosure:
     hinge: HingeReport | None = None
     # The grooves and detent, for a sliding lid.
     slide: SlideReport | None = None
+    # The temperature estimate for the closed box.
+    thermal: ThermalEstimate | None = None
 
 
 def build_enclosure(
@@ -458,6 +482,9 @@ def build_enclosure(
 
     _require_clear_of_assembly(assembly, base=base, lid=lid)
     _require_parts_clear(base, lid)
+    thermal = _thermal_estimate(
+        base, lid, assembly, board=board, display=display, design=design
+    )
 
     return Enclosure(
         base=base,
@@ -476,7 +503,51 @@ def build_enclosure(
         mount=mount,
         hinge=hinge,
         slide=slide,
+        thermal=thermal,
     )
+
+
+def _thermal_estimate(
+    base: cq.Workplane,
+    lid: cq.Workplane,
+    assembly: DeviceAssembly,
+    *,
+    board: BoardSpec,
+    display: DisplaySpec | None,
+    design: EnclosureDesign,
+) -> ThermalEstimate:
+    """Estimate the closed box, refusing one too hot unless allowed."""
+
+    box = _all_solids(base).BoundingBox()
+    cap = _all_solids(lid).BoundingBox()
+    size = (
+        max(box.xmax, cap.xmax) - min(box.xmin, cap.xmin),
+        max(box.ymax, cap.ymax) - min(box.ymin, cap.ymin),
+        max(box.zmax, cap.zmax) - min(box.zmin, cap.zmin),
+    )
+    parts = [board.identifier]
+
+    if display is not None:
+        parts.append(display.identifier)
+
+    # A fitted Active Cooler is one more source of heat, its fan; the catalog
+    # has no figure for it, so the estimate names it as unknown.
+    for component in assembly.components:
+        hardware = component.metadata.get("hardware_identifier")
+
+        if hardware and str(hardware).endswith(":active-cooler-fan"):
+            parts.append(str(hardware))
+
+    estimate = estimate_thermal(
+        parts,
+        outer_size_mm=size,
+        declared_power_w=design.declared_power_w,
+        ambient_c=design.ambient_c,
+        limit_c=design.service_limit_c,
+    )
+    require_not_too_hot(estimate, allow_hot=design.allow_hot)
+
+    return estimate
 
 
 def _add_display_features(

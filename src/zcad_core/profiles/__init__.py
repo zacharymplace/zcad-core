@@ -11,6 +11,7 @@ from zcad_core.profiles.loading import (
     load_material_profile,
     load_printer_profile,
     load_slicer_profile,
+    material_service_limit_c,
 )
 
 __all__ = [
@@ -21,5 +22,6 @@ __all__ = [
     "load_material_profile",
     "load_printer_profile",
     "load_slicer_profile",
+    "material_service_limit_c",
     "write_compensation_profile",
 ]

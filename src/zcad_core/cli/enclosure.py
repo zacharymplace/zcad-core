@@ -28,6 +28,10 @@ from zcad_core.features import (
 from zcad_core.features.connector_cutouts import MINIMUM_OPENING_WEB_MM
 from zcad_core.features.enclosure import HOLE_COMPENSATION_RANGE_MM, LID_ATTACHMENTS
 from zcad_core.features.enclosure_revision import propose_revision, revised_name
+from zcad_core.features.enclosure_thermal import (
+    DEFAULT_AMBIENT_C,
+    DEFAULT_SERVICE_LIMIT_C,
+)
 from zcad_core.features.enclosure_trial import (
     EnclosureTrialDisposition,
     complete_enclosure_trial,
@@ -48,7 +52,11 @@ from zcad_core.hardware import (
     list_fasteners,
 )
 from zcad_core.printing import SliceError, slice_freshness, slice_models
-from zcad_core.profiles import load_compensation_profile, load_printer_profile
+from zcad_core.profiles import (
+    load_compensation_profile,
+    load_printer_profile,
+    material_service_limit_c,
+)
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
 
@@ -179,6 +187,10 @@ def _design(args: argparse.Namespace) -> EnclosureDesign:
         lid_attachment=args.lid,
         hinge_pin=args.hinge_pin,
         slide_clearance_mm=args.slide_clearance_mm,
+        declared_power_w=args.power_w,
+        ambient_c=args.ambient_c,
+        service_limit_c=_service_limit(args.material_profile),
+        allow_hot=args.allow_hot,
         countersunk_screws=args.countersunk,
         locating_lip=args.locating_lip,
         vent_slots=args.vent_slots,
@@ -244,6 +256,12 @@ def _hinge_payload(enclosure: Enclosure) -> dict[str, object] | None:
         "catch": flexure_payload(hinge.catch),
         "wall_needed_mm": round(hinge.wall_needed_mm, 1),
     }
+
+
+def _service_limit(material_profile_id: str) -> float:
+    """The material's continuous-air limit, or the PETG default."""
+
+    return material_service_limit_c(material_profile_id) or DEFAULT_SERVICE_LIMIT_C
 
 
 def _enclosure_build(args: argparse.Namespace) -> int:
@@ -320,6 +338,7 @@ def _build(
         "board_support": enclosure.board_support,
         "display_support": enclosure.display_support,
         "mount": _mount_payload(enclosure),
+        "thermal": enclosure.thermal.to_dict() if enclosure.thermal else None,
         "hinge": _hinge_payload(enclosure),
         "slide": _slide_payload(enclosure),
         "side_clearance_mm": list(enclosure.side_clearance_mm),
@@ -564,6 +583,28 @@ def register(
             "screw the lid into heat-set inserts, snap it on, hinge it on a "
             "pin and close it with a catch, or slide it in grooves"
         ),
+    )
+    build.add_argument(
+        "--power-w",
+        type=float,
+        default=0.0,
+        help="power, in watts, that the catalog lacks: a hat, an SSD, a peripheral",
+    )
+    build.add_argument(
+        "--ambient-c",
+        type=float,
+        default=DEFAULT_AMBIENT_C,
+        help="the room's temperature, for the temperature estimate",
+    )
+    build.add_argument(
+        "--material-profile",
+        default="petg",
+        help="the material, whose profile sets the limit for the air inside",
+    )
+    build.add_argument(
+        "--allow-hot",
+        action="store_true",
+        help="build a box the temperature estimate says is too hot",
     )
     build.add_argument(
         "--slide-clearance-mm",

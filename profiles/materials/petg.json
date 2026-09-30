@@ -5,5 +5,7 @@
   "notes": [
     "Use for durable functional parts.",
     "Keep away from sustained high-temperature surfaces."
-  ]
+  ],
+  "max_service_c": 60,
+  "max_service_c_note": "A provisional design value for the continuous temperature of the air inside an enclosure, well under the 70 to 80 C at which PETG softens. Not a measurement; a thermal trial should replace it."
 }
