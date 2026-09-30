@@ -179,7 +179,7 @@ def write_build_record(
     display: DisplaySpec | None,
     part_stls: dict[str, Path],
     printer_profile_id: str,
-    assembly_settings: dict[str, float | bool] | None = None,
+    assembly_settings: dict[str, float | bool | None] | None = None,
     revision_of: dict[str, Any] | None = None,
     compensation_profile: dict[str, Any] | None = None,
 ) -> Path:

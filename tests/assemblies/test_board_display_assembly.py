@@ -13,12 +13,14 @@ from zcad_core.assemblies import (
     board_component_identifiers,
     build_board_assembly,
     build_board_display_assembly,
+    lowest_display_height_mm,
 )
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware import (
     BoardComponentSpec,
     RectangularConnectorSpec,
     get_arduino_uno_r4_wifi,
+    get_board,
     get_display,
     get_raspberry_pi_pico2,
     get_reference_oled_128x64,
@@ -408,3 +410,48 @@ def test_layered_display_is_a_panel_on_a_pcb() -> None:
     )
     assert not shape.isInside(corner)
     assert shape.isInside(cq.Vector(0, 0, bounds.zmax - panel / 2))
+
+
+def lowest_for(board: str, display: str, **options: float) -> float:
+    return lowest_display_height_mm(
+        board=get_board(board),
+        display=get_display(display),
+        board_placement=Placement(),
+        display_placement=Placement(),
+        board_display_clearance_mm=1.0,
+        connector_access_clearance_mm=2.0,
+        **options,
+    )
+
+
+def test_the_lowest_display_height_clears_the_tallest_part_under_it() -> None:
+    height = lowest_for("ARDUINO_UNO_R4_WIFI", "ADAFRUIT_OLED_128X64_1_3IN")
+
+    # The UNO's tall parts need 11.5 mm; half a step lower does not clear.
+    assert height == 11.5
+    for z, clear in ((height, True), (height - 0.5, False)):
+        assembly = build_board_display_assembly(
+            board=get_board("ARDUINO_UNO_R4_WIFI"),
+            display=get_display("ADAFRUIT_OLED_128X64_1_3IN"),
+            board_placement=Placement(),
+            display_placement=Placement(z_mm=z),
+            board_display_clearance_mm=1.0,
+            connector_access_clearance_mm=2.0,
+        )
+        report = analyze_board_display_assembly(
+            assembly, minimum_board_display_clearance_mm=1.0
+        )
+        assert report.has_findings is not clear
+
+
+def test_the_lowest_display_height_keeps_to_its_minimum() -> None:
+    assert lowest_for("RASPBERRY_PI_PICO_2", "REFERENCE_OLED_128X64") == 5.0
+    assert (
+        lowest_for("RASPBERRY_PI_PICO_2", "REFERENCE_OLED_128X64", minimum_mm=8.0)
+        == 8.0
+    )
+
+
+def test_a_display_height_beyond_the_limit_is_refused() -> None:
+    with pytest.raises(ValueError, match="No display height up to 10 mm clears"):
+        lowest_for("ARDUINO_UNO_R4_WIFI", "ADAFRUIT_OLED_128X64_1_3IN", limit_mm=10.0)

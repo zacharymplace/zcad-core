@@ -14,6 +14,7 @@ from zcad_core.assemblies import (
     analyze_board_display_assembly,
     build_board_assembly,
     build_board_display_assembly,
+    lowest_display_height_mm,
 )
 from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
@@ -64,10 +65,54 @@ def _board(args: argparse.Namespace) -> BoardSpec:
     return cooled
 
 
-def _assembly(args: argparse.Namespace, display: DisplaySpec | None) -> DeviceAssembly:
-    board = _board(args)
+# A display sits this high unless the board's parts need it higher, which
+# leaves room for its wiring; pass a number to set it lower.
+DEFAULT_DISPLAY_HEIGHT_MM = 8.0
+
+
+def _height_or_auto(value: str) -> float | None:
+    """A height in mm, or None for ``auto``."""
+
+    if value.strip().lower() == "auto":
+        return None
+
+    try:
+        return float(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(
+            f"expected a height in mm or auto, not {value!r}"
+        ) from error
+
+
+def _display_height_mm(
+    args: argparse.Namespace, board: BoardSpec, display: DisplaySpec | None
+) -> float | None:
+    """The height asked for, or with ``auto`` the lowest that clears the
+    board's parts; None without a display."""
 
     if display is None:
+        return None
+
+    if args.display_height_mm is not None:
+        return float(args.display_height_mm)
+
+    return lowest_display_height_mm(
+        board=board,
+        display=display,
+        board_placement=Placement(),
+        display_placement=Placement(),
+        board_display_clearance_mm=args.board_display_clearance_mm,
+        connector_access_clearance_mm=args.connector_access_clearance_mm,
+        minimum_mm=DEFAULT_DISPLAY_HEIGHT_MM,
+    )
+
+
+def _assembly(
+    args: argparse.Namespace, display: DisplaySpec | None, display_height: float | None
+) -> DeviceAssembly:
+    board = _board(args)
+
+    if display is None or display_height is None:
         return build_board_assembly(
             board=board,
             board_placement=Placement(),
@@ -78,7 +123,7 @@ def _assembly(args: argparse.Namespace, display: DisplaySpec | None) -> DeviceAs
         board=board,
         display=display,
         board_placement=Placement(),
-        display_placement=Placement(z_mm=args.display_height_mm),
+        display_placement=Placement(z_mm=display_height),
         board_display_clearance_mm=args.board_display_clearance_mm,
         connector_access_clearance_mm=args.connector_access_clearance_mm,
     )
@@ -90,7 +135,7 @@ def _assembly(args: argparse.Namespace, display: DisplaySpec | None) -> DeviceAs
     if report.has_findings:
         raise ValueError(
             "The display is too close to the board or its parts; raise "
-            "--display-height-mm: "
+            "--display-height-mm, or leave it at auto: "
             f"{report.findings}"
         )
 
@@ -153,7 +198,8 @@ def _build(
 ) -> tuple[dict[str, object], bool]:
     board = _board(args)
     display = get_display(args.display) if args.display else None
-    assembly = _assembly(args, display)
+    display_height = _display_height_mm(args, board, display)
+    assembly = _assembly(args, display, display_height)
     enclosure = build_enclosure(assembly, board=board, display=display, design=design)
     name = args.name or f"{board.identifier.lower().replace('_', '-')}-enclosure"
     printer_profile = load_printer_profile(args.printer_profile)
@@ -185,7 +231,8 @@ def _build(
         part_stls={part.part_name: part.stl_path for part in result.parts},
         printer_profile_id=str(printer_profile["profile_id"]),
         assembly_settings={
-            "display_height_mm": args.display_height_mm,
+            # The height used, never "auto", so a revision rebuilds it exactly.
+            "display_height_mm": display_height,
             "board_display_clearance_mm": args.board_display_clearance_mm,
             "connector_access_clearance_mm": args.connector_access_clearance_mm,
             "active_cooler": getattr(args, "active_cooler", False),
@@ -199,6 +246,7 @@ def _build(
     )
     payload: dict[str, object] = {
         "design_name": name,
+        "display_height_mm": display_height,
         "board_support": enclosure.board_support,
         "display_support": enclosure.display_support,
         "side_clearance_mm": list(enclosure.side_clearance_mm),
@@ -407,9 +455,13 @@ def register(
     build.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
     build.add_argument(
         "--display-height-mm",
-        type=float,
-        default=8.0,
-        help="height of the display's underside above the board's underside",
+        type=_height_or_auto,
+        default=None,
+        help=(
+            "height of the display's underside above the board's underside, or "
+            "auto (the default): 8 mm, or the lowest above it, in 0.5 mm steps, "
+            "that clears the board's parts by --board-display-clearance-mm"
+        ),
     )
     build.add_argument("--board-display-clearance-mm", type=float, default=1.0)
     build.add_argument("--connector-access-clearance-mm", type=float, default=2.0)
