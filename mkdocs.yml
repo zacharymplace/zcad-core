@@ -34,6 +34,7 @@ nav:
   - Roadmaps:
       - Validation Lab: roadmaps/validation-lab.md
       - Next phases: roadmaps/next-phases.md
+      - Mounting systems: roadmaps/mounting-systems.md
   - API Reference:
       - Overview: reference/index.md
       - assemblies: reference/assemblies.md
