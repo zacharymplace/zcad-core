@@ -1107,6 +1107,7 @@ def _add_board_support(
             base_z_mm=floor_top - _FLOOR_EMBED_MM,
             connector_edge=spec.cable_edge,
             clearance_mm=_CRADLE_CLEARANCE_MM + hole_compensation_mm / 2,
+            outline_points_mm=getattr(board, "outline_points_mm", None),
         )
 
         return add_board_cradle(base, parameters=cradle), "cradle"

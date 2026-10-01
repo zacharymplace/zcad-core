@@ -8,10 +8,12 @@ a cable push from shoving it back. The connector edge stays open.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 import cadquery as cq
 
 from zcad_core.geometry.boxes import box_between
+from zcad_core.hardware.electronics import board_outline
 from zcad_core.hardware.electronics.connectors import BoardEdge
 
 # Rotation that turns the cradle's local frame (connector on negative Y)
@@ -46,6 +48,12 @@ class BoardCradleParameters:
     clip_slot_mm: float = 1.0
     # Gap under the clip lip, so the board snaps in without preload.
     clip_gap_mm: float = 0.1
+    # The board's outline about its centre, in the same orientation as
+    # ``connector_edge`` is given, when it is not a plain rectangle: the
+    # ledge and the stop then follow it and the clips stand at its sides.
+    outline_points_mm: tuple[tuple[float, float], ...] | None = None
+    # How far along the far edge, from its extreme, the stop wall reaches.
+    stop_band_mm: float = 3.0
 
     def validate(self) -> None:
         positive = (
@@ -85,6 +93,22 @@ class BoardCradleParameters:
         if self.clip_width_mm + 2 * self.clip_slot_mm >= depth:
             raise ValueError("clip_width_mm is too wide for the board edge")
 
+        self._validate_outline(depth)
+
+    def _validate_outline(self, depth: float) -> None:
+        if self.outline_points_mm is None:
+            return
+
+        if len(self.outline_points_mm) < 3:
+            raise ValueError("an outline needs at least three points")
+
+        if depth / 2 - self.stop_band_mm <= (
+            self.clip_width_mm / 2 + self.clip_slot_mm
+        ):
+            raise ValueError(
+                "the board is too short for a cradle that follows its outline"
+            )
+
     def _local_footprint(self) -> tuple[float, float]:
         """Board width across the clips and depth toward the connector."""
         if self.connector_edge in ("negative_y", "positive_y"):
@@ -112,6 +136,9 @@ def add_board_cradle(
 
 def _local_cradle(p: BoardCradleParameters) -> cq.Workplane:
     """The cradle about the origin, connector edge toward negative Y."""
+    if p.outline_points_mm is not None:
+        return _local_outline_cradle(p, p.outline_points_mm)
+
     width, depth = p._local_footprint()
     half_w, half_d = width / 2, depth / 2
     outer_w = half_w + p.clearance_mm + p.wall_mm
@@ -145,6 +172,104 @@ def _local_cradle(p: BoardCradleParameters) -> cq.Workplane:
 
     for side in (-1, 1):
         cradle = cradle.union(_clip(p, side=side, half_w=half_w, board_top=board_top))
+
+    return cradle
+
+
+def _prism(
+    points: tuple[tuple[float, float], ...],
+    z0: float,
+    z1: float,
+    offset_mm: float = 0.0,
+) -> cq.Workplane:
+    """The outline, grown by ``offset_mm`` (shrunk if negative), from ``z0`` to ``z1``."""
+    sketch = cq.Workplane("XY").workplane(offset=z0).polyline(list(points)).close()
+
+    if offset_mm:
+        sketch = sketch.offset2D(offset_mm, "arc")
+
+    return sketch.extrude(z1 - z0)
+
+
+def _local_outline_cradle(
+    p: BoardCradleParameters, board_frame: tuple[tuple[float, float], ...]
+) -> cq.Workplane:
+    """A cradle that follows a polygon outline, connector edge toward negative Y.
+
+    ``board_frame`` is in the orientation the cradle is finally rotated into, so
+    it is turned back to the local one. The ledge is a ring under the edge, the
+    stop a wall round the far end, and each clip stands where the outline
+    crosses the middle of the board, so the outline must be roughly straight
+    there."""
+    points = board_outline.rotated(board_frame, -_EDGE_ROTATION_DEG[p.connector_edge])
+    board_top = p.board_bottom_z_mm + p.board_thickness_mm
+    under_board = (p.base_z_mm - 1, p.board_bottom_z_mm + 1)
+    grow = p.clearance_mm + p.wall_mm
+    ymax = max(y for _, y in points)
+    reach = max(abs(x) for x, _ in points) + grow + 1
+
+    ledge = _prism(points, p.base_z_mm, p.board_bottom_z_mm, grow).cut(
+        _prism(points, under_board[0], under_board[1], -p.ledge_mm)
+    )
+
+    # Each clip stands outside the outermost edge across its width, so a
+    # castellated or notched edge does not put the stem inside the board.
+    half_clip = p.clip_width_mm / 2
+    chords = [
+        c
+        for step in range(13)
+        if (c := board_outline.chord(points, -half_clip + p.clip_width_mm * step / 12))
+    ]
+
+    if not chords:
+        raise ValueError("the outline does not cross the middle of the board")
+
+    slot = half_clip + p.clip_slot_mm
+    edges = {-1: min(c[0] for c in chords), 1: max(c[1] for c in chords)}
+
+    for side, edge in edges.items():
+        # Free each clip from the ledge so it can flex; start well inside the
+        # ledge's inner edge, which is void, in case the outline slopes here.
+        ledge = ledge.cut(
+            box_between(
+                (
+                    side * (abs(edge) - p.ledge_mm - 3.0),
+                    side * reach,
+                ),
+                (-slot, slot),
+                under_board,
+            )
+        )
+
+    # The wall stops short of the board's top face: a part resting there may
+    # overhang a rounded corner, and the board is held at three quarters of
+    # its thickness all the same.
+    wall_top = p.board_bottom_z_mm + 0.75 * p.board_thickness_mm
+    wall = _prism(points, p.board_bottom_z_mm - 0.01, wall_top, grow).cut(
+        _prism(points, p.board_bottom_z_mm - 1, board_top + 1, p.clearance_mm)
+    )
+    stop = wall.intersect(
+        box_between(
+            (-reach, reach),
+            (ymax - p.stop_band_mm, ymax + grow + 1),
+            (p.board_bottom_z_mm - 1, board_top + 1),
+        )
+    )
+    cradle = ledge.union(stop)
+
+    for side, edge in edges.items():
+        cradle = cradle.union(
+            _clip(p, side=side, half_w=abs(edge), board_top=board_top)
+        )
+
+    board = _prism(points, p.board_bottom_z_mm, board_top)
+    clash = cast(cq.Shape, cradle.intersect(board).val())
+
+    if not clash.isNull() and clash.Volume() > 0.01:
+        raise ValueError(
+            "the cradle would overlap the board's outline: its edge is not "
+            "straight enough where the clips stand"
+        )
 
     return cradle
 

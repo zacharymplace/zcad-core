@@ -29,6 +29,11 @@ def _board_check(args: argparse.Namespace) -> int:
             "identifier": board.identifier,
             "size_mm": [board.board_width_mm, board.board_length_mm],
             "thickness_mm": board.board_thickness_mm,
+            "outline": (
+                "rectangle"
+                if board.outline_points_mm is None
+                else f"polygon, {len(board.outline_points_mm)} points"
+            ),
             "mounting_holes": (
                 None
                 if board.mounting_hole_diameter_mm is None
