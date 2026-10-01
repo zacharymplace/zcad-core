@@ -40,6 +40,7 @@ from zcad_core.features.enclosure_trial import (
     start_enclosure_trial,
     write_build_record,
 )
+from zcad_core.features.fan_bay import FAN_DIRECTIONS, FAN_POSITIONS
 from zcad_core.features.mounts import MOUNTS, flexure_payload
 from zcad_core.features.vent_patterns import PATTERNS
 from zcad_core.hardware import (
@@ -50,6 +51,7 @@ from zcad_core.hardware import (
     get_display,
     list_boards,
     list_displays,
+    list_fans,
     list_fasteners,
 )
 from zcad_core.printing import SliceError, slice_freshness, slice_models
@@ -197,6 +199,11 @@ def _design(args: argparse.Namespace) -> EnclosureDesign:
         vent_slots=args.vent_slots,
         vent_pattern=args.vent_pattern,
         vent_area_mm2=args.vent_area_mm2,
+        fan=args.fan,
+        fan_position=args.fan_position,
+        fan_direction=args.fan_direction,
+        fan_offset_x_mm=args.fan_offset_x_mm,
+        fan_offset_y_mm=args.fan_offset_y_mm,
         minimum_opening_web_mm=args.minimum_opening_web_mm,
         mount=args.mount,
         mount_plate_mm=args.mount_plate_mm,
@@ -343,6 +350,7 @@ def _build(
         "mount": _mount_payload(enclosure),
         "thermal": enclosure.thermal.to_dict() if enclosure.thermal else None,
         "vents": enclosure.vents.to_dict() if enclosure.vents else None,
+        "fan": enclosure.fan.to_dict() if enclosure.fan else None,
         "hinge": _hinge_payload(enclosure),
         "slide": _slide_payload(enclosure),
         "side_clearance_mm": list(enclosure.side_clearance_mm),
@@ -514,6 +522,7 @@ def _enclosure_hardware(args: argparse.Namespace) -> int:
         {
             "boards": list(list_boards()),
             "displays": list(list_displays()),
+            "fans": list(list_fans()),
             "fasteners": list(list_fasteners()),
         }
     )
@@ -663,6 +672,39 @@ def register(
             "free area, in mm2, of the inlets low in the long walls; the outlets "
             "in the lid are at least as large"
         ),
+    )
+    build.add_argument(
+        "--fan",
+        choices=list_fans(),
+        default=None,
+        help=(
+            "fit a catalogued fan inside the lid or against a long wall, screwed "
+            "from outside through a guarded round opening"
+        ),
+    )
+    build.add_argument(
+        "--fan-position",
+        choices=FAN_POSITIONS,
+        default="lid",
+        help="where the fan goes: in the lid, or against a long wall",
+    )
+    build.add_argument(
+        "--fan-direction",
+        choices=FAN_DIRECTIONS,
+        default="out",
+        help="which way it blows, into the box or out of it; recorded, not drawn",
+    )
+    build.add_argument(
+        "--fan-offset-x-mm",
+        type=float,
+        default=0.0,
+        help="move the fan from the middle: in X on the lid, along the wall on a wall",
+    )
+    build.add_argument(
+        "--fan-offset-y-mm",
+        type=float,
+        default=0.0,
+        help="move the fan from the middle: in Y on the lid, up the wall on a wall",
     )
     build.add_argument(
         "--vent-slots",

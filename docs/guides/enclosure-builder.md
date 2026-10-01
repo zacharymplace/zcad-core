@@ -182,6 +182,37 @@ the connector, so the plug reaches the connector through the wall and the
 gap inside it. The defaults (12.5 x 7.5 mm) fit common USB-C and micro-USB
 cables.
 
+## Fans
+
+`--fan NAME` (`fan=`) fits a catalogued fan: the Sunon MF30100V1-1000U-A99
+(30 x 30 x 10 mm), the Noctua NF-A4x10 5V (40 x 40 x 11), or the Noctua
+NF-A6x25 5V (60 x 60 x 25); `enclosure hardware` lists them. The fan sits
+inside the box, its frame flat against the lid (`--fan-position lid`, the
+default) or against a long wall (`--fan-position wall`), and is screwed from
+outside: each of four clearance holes in the plate takes a screw into a hole in
+the frame, and the build prints the screw (M3 x 10 mm for the 40 mm fan). The
+opening is round, 90 per cent of the frame, crossed by a guard of 5 mm hex
+cells with 1.2 mm webs, so a finger cannot reach the blades. `--fan-offset-x-mm`
+and `--fan-offset-y-mm` move it from the middle of the lid, or along and up the
+wall. `--fan-direction in|out` records which way it blows; the geometry is the
+same, so mount the fan with its airflow arrow pointing that way.
+
+The build refuses a fan that does not fit, and says why: too big for the lid,
+over the display, or hitting a part or the base. A lid fan hangs 11 mm or more
+below the lid, so over a tall part, such as the Pi 5's USB stack, raise
+`--top-clearance-mm`, and use a snap lid if the corner bosses are in the way. A
+wall fan needs a wall the fan's size plus 3 mm either side. A hinged lid swings
+the fan with it, and a sliding lid cannot carry one. Vents keep off the fan's
+frame, and the wall a fan takes counts as having an opening.
+
+The fan's heat is added to the temperature estimate; its airflow is not,
+because the maker's free-air figure falls by a large and unknown amount in a
+box. The build reports the airflow beside the guard's free area, and whether
+the box's other openings pass at least as much, so the fan has somewhere to
+draw from or push to. **The fans' figures were taken from search excerpts of
+the makers' pages and have not been checked against the pages themselves;**
+the build says so with `datasheet_read: false`.
+
 ## Temperature estimate
 
 Every build prints an estimate of the air temperature inside the closed box,
@@ -221,6 +252,8 @@ unless you pass `--allow-hot`, because you have measured and know better.
 - `cable_plug_width_mm`, `cable_plug_height_mm`: the plug body the opening
   must pass.
 - `mount`, `mount_plate_mm`: a mount plate and its thickness (none, 4).
+- `fan`, `fan_position`, `fan_direction`, `fan_offset_x_mm`,
+  `fan_offset_y_mm`: a catalogued fan and where it goes.
 - `vent_slots`, `vent_pattern`, `vent_area_mm2`: a fixed set of slots, or a
   pattern sized to a free area.
 - `declared_power_w`, `ambient_c`, `service_limit_c`, `allow_hot`: the

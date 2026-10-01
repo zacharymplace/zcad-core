@@ -25,10 +25,10 @@ from zcad_core.features.vent_patterns import (
     CellSpec,
     LidZone,
     WallZone,
-    _cell_area,
     _profile,
     add_lid_outlets,
     add_wall_inlets,
+    cell_area,
     fill_zone,
     grid,
     solid_tester,
@@ -97,13 +97,13 @@ def test_hex_area_and_round_area_follow_the_formulas() -> None:
     hexagon = CellSpec("hex", 5.0, 0.0)
     round_hole = CellSpec("round", 6.0, 6.0)
 
-    assert _cell_area(hexagon, wall=False) == pytest.approx(math.sqrt(3) / 2 * 25.0)
+    assert cell_area(hexagon, wall=False) == pytest.approx(math.sqrt(3) / 2 * 25.0)
     # A 24-sided polygon is a hair under the circle, so the figure is honest.
-    assert _cell_area(round_hole, wall=False) == pytest.approx(math.pi * 9.0, rel=0.02)
-    assert _cell_area(round_hole, wall=False) < math.pi * 9.0
-    assert _cell_area(CellSpec("slots", 2.0, 10.0), wall=True) == pytest.approx(20.0)
+    assert cell_area(round_hole, wall=False) == pytest.approx(math.pi * 9.0, rel=0.02)
+    assert cell_area(round_hole, wall=False) < math.pi * 9.0
+    assert cell_area(CellSpec("slots", 2.0, 10.0), wall=True) == pytest.approx(20.0)
     # A louver's flow area is counted at the cosine of its 45 degree slant.
-    assert _cell_area(CellSpec("louvers", 14.0, 3.0), wall=True) == pytest.approx(
+    assert cell_area(CellSpec("louvers", 14.0, 3.0), wall=True) == pytest.approx(
         14.0 * 3.0 * math.cos(math.radians(45))
     )
 

@@ -211,6 +211,7 @@ def write_build_record(
         "display_support": enclosure.display_support,
         "thermal": enclosure.thermal.to_dict() if enclosure.thermal else None,
         "vents": enclosure.vents.to_dict() if enclosure.vents else None,
+        "fan": enclosure.fan.to_dict() if enclosure.fan else None,
         "printer_profile_id": printer_profile_id,
         "parts": {
             name: {"stl_path": str(stl), "stl_sha256": sha256(stl)}
