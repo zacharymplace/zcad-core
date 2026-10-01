@@ -144,6 +144,52 @@ a low divider.
 `GroupDesign` sets `divider_mm` (2), `divider_clearance_mm` (0.75),
 `divider_notch_width_mm` (20), and `divider_notch_height_mm` (10).
 
+## Hinged and sliding lids
+
+By default the lid screws on. For a row you open often, the lid can hinge or
+slide instead, with no screws to lose:
+
+```bash
+zcad-validation enclosure-group build --bays pi5,pi5 \
+  --lid hinge --headroom-mm 20 --output-directory exports/pi5-hinged
+zcad-validation enclosure-group build --bays pi5,pi5 \
+  --lid slide --output-directory exports/pi5-slide
+```
+
+Neither has the six lid bosses, so the lid has no screw holes and the summary
+lists no lid screw.
+
+**Hinge.** The lid hangs from a row of knuckles along the **back wall** and
+closes with a snap catch outside the **front wall**. It swings 100 degrees and
+the build sweeps that swing through the base and every Pi. The pin is a
+**threaded rod** cut to length, with a nut at each end: a row's hinge is longer
+than any M3 screw (the summary gives the length, 175 mm for two bays). Two
+things to know:
+
+- The knuckles stand on the back wall's top edge, so the Ethernet and USB
+  opening must stop 2.5 mm below it. The default headroom puts it 1.4 mm below,
+  and the build says so and by how much; `--headroom-mm 20` clears it.
+- The catch goes in the widest stretch of front wall clear of the microSD and
+  cable-exit openings, so it never sits over one.
+
+The hinge and catch grow the box by about 8 mm behind and 3 mm in front. A hinge
+longer than a 250 mm rod (three bays) is refused.
+
+**Slide.** The lid slides along the row in grooves in the front and back walls,
+out over one end wall (`--slide-entry positive_x`, the right, by default, or
+`negative_x`), and a detent on each edge holds it shut. The long walls are
+raised 3.4 mm and thickened 1.6 mm. Know that:
+
+- A row must be at least as wide as it is deep, so a lone bay cannot slide:
+  add a bay, or hinge it.
+- Dividers stop half a millimetre short of the lid so it rides clear of them.
+- A row bolted to a neighbour cannot slide out over the end that meets it: pick
+  the free end.
+- Front and back wall openings that reach into the groove's wall are refused;
+  the Pi's own stay open.
+
+A rack-ear or underside mount works with either lid.
+
 ## Room to grow
 
 - **Within the unit:** build with `reserved` bays now, and give a bay the

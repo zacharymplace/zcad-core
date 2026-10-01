@@ -21,11 +21,14 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import cadquery as cq
 
-from zcad_core.features.connector_cutouts import ConnectorCutoutParameters
+from zcad_core.features.connector_cutouts import (
+    ConnectorCutoutParameters,
+    cut_connector_opening,
+)
 from zcad_core.features.enclosure_lid import Cavity
 from zcad_core.features.mounts import FLEXURE_STRAIN_LIMIT, Flexure, flexure_for
 from zcad_core.geometry.intersection import intersection_volume
@@ -145,6 +148,25 @@ def slide_entry(cavity: Cavity, openings: Sequence[ConnectorCutoutParameters]) -
     )
 
 
+def _checked_entry(
+    cavity: Cavity, openings: Sequence[ConnectorCutoutParameters], entry: str
+) -> str:
+    """A named entry wall: one of the short walls, with no opening."""
+
+    if entry not in _SHORT_EDGES[cavity.long_walls_on_y]:
+        raise ValueError(
+            f"The slide's entry must be one of {_SHORT_EDGES[cavity.long_walls_on_y]}, "
+            f"the short walls, not {entry!r}"
+        )
+
+    if entry in {opening.edge for opening in openings}:
+        raise ValueError(
+            f"The {entry} wall carries an opening, so the lid cannot enter there"
+        )
+
+    return entry
+
+
 def _require_openings_under_the_groove(
     cavity: Cavity,
     openings: Sequence[ConnectorCutoutParameters],
@@ -177,9 +199,13 @@ def add_slide(
     openings: Sequence[ConnectorCutoutParameters],
     hardware: Mapping[str, cq.Shape],
     carried: Mapping[str, cq.Shape] | None = None,
+    entry: str | None = None,
 ) -> tuple[cq.Workplane, cq.Workplane, SlideReport]:
     """Turn a base and its plate into a sliding lid, refusing a lid that
-    cannot slide out clear of the base and the parts inside."""
+    cannot slide out clear of the base and the parts inside.
+
+    ``entry`` names the short wall the lid slides out over; left out, one with
+    no opening is chosen."""
 
     error = slide_clearance_error(clearance_mm)
 
@@ -187,7 +213,11 @@ def add_slide(
         raise ValueError(error)
 
     _require_openings_under_the_groove(cavity, openings, clearance_mm)
-    entry = slide_entry(cavity, openings)
+    entry = (
+        slide_entry(cavity, openings)
+        if entry is None
+        else _checked_entry(cavity, openings, entry)
+    )
     along_y = not cavity.long_walls_on_y
     sign = 1.0 if entry.startswith("positive") else -1.0
     half_a = (cavity.depth_mm if along_y else cavity.width_mm) / 2
@@ -253,6 +283,19 @@ def add_slide(
         )
 
     base = base.union(world(added)).cut(world(cuts))
+
+    # The thickening starts below the groove and would fill an opening that
+    # reaches it, so each long-wall opening is cut again, deep enough to go
+    # through the thickened wall.
+    for opening in openings:
+        if opening.edge in cavity.long_edges():
+            base = cut_connector_opening(
+                base,
+                parameters=replace(
+                    opening,
+                    cutter_depth_mm=opening.cutter_depth_mm + 2 * (BULGE_MM + 0.5),
+                ),
+            )
 
     # The lid's plate, cut to sit in the grooves with the clearance all round.
     lid_far = -sign * (half_a - cl)

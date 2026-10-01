@@ -10,6 +10,7 @@ from typing import Any
 import cadquery as cq
 
 from zcad_core.cli._common import emit
+from zcad_core.cli.enclosure import hinge_payload, slide_payload
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.connector_cutouts import MINIMUM_OPENING_WEB_MM
 from zcad_core.features.enclosure_group import (
@@ -24,7 +25,11 @@ from zcad_core.features.enclosure_group import (
     print_oriented_parts,
 )
 from zcad_core.features.enclosure_group_dividers import Divider
-from zcad_core.features.enclosure_group_model import GROUP_MOUNTS
+from zcad_core.features.enclosure_group_model import (
+    GROUP_LID_ATTACHMENTS,
+    GROUP_MOUNTS,
+    SLIDE_ENTRIES,
+)
 from zcad_core.features.enclosure_group_viewer import (
     DATA_FILE,
     DEFAULT_CONFIGS,
@@ -415,6 +420,10 @@ def _group_build(args: argparse.Namespace) -> int:
         mount_plate_mm=args.mount_plate_mm,
         vent_pattern=args.vent_pattern,
         vent_area_mm2=args.vent_area_mm2,
+        lid_attachment=args.lid,
+        slide_clearance_mm=args.slide_clearance_mm,
+        slide_entry=args.slide_entry,
+        hinge_pin=args.hinge_pin,
     )
     group = build_group_enclosure(bays, design=design)
     thermal = _group_thermal(group, args)
@@ -455,15 +464,23 @@ def _group_build(args: argparse.Namespace) -> int:
             "outer_size_mm": list(group.outer_size_mm),
             "thermal": thermal.to_dict(),
             "vents": group.vents.to_dict() if group.vents else None,
+            "lid": design.lid_attachment,
+            "hinge": hinge_payload(group.hinge),
+            "slide": slide_payload(group.slide),
             "checks": group.checks,
             "part_collisions": list(group.part_collisions),
             "validation_status": (result.validation_report or {}).get(
                 "evaluated_status"
             ),
             "screws": {
-                "lid": f"{group.fastener.identifier} x "
-                f"{group.recommended_lid_screw_mm} mm, "
-                f"{len(group.lid_boss_positions)} per unit",
+                "lid": (
+                    f"{group.fastener.identifier} x "
+                    f"{group.recommended_lid_screw_mm} mm, "
+                    f"{len(group.lid_boss_positions)} per unit"
+                    if group.recommended_lid_screw_mm
+                    else None
+                ),
+                "hinge_pin": group.hinge.pin_description if group.hinge else None,
                 "join": join,
                 "pi_mount": "M2.5 self-tapping, 4 per Pi",
                 "mount": (
@@ -581,6 +598,32 @@ def register(
         help="add four mount pads under the floor and a plate that bolts to them",
     )
     build.add_argument("--mount-plate-mm", type=float, default=4.0)
+    build.add_argument(
+        "--lid",
+        choices=GROUP_LID_ATTACHMENTS,
+        default="screws",
+        help=(
+            "screw the lid into heat-set inserts, hinge it along the back wall "
+            "and close it with a catch on the front, or slide it along the row"
+        ),
+    )
+    build.add_argument(
+        "--slide-entry",
+        choices=SLIDE_ENTRIES,
+        default="positive_x",
+        help="the end wall a sliding lid slides out over",
+    )
+    build.add_argument(
+        "--slide-clearance-mm",
+        type=float,
+        default=0.2,
+        help="the gap per side around a sliding lid",
+    )
+    build.add_argument(
+        "--hinge-pin",
+        default="M3",
+        help="the screw or rod (with nuts) that is a hinged lid's pin",
+    )
     build.add_argument("--fastener", default="M3")
     build.add_argument(
         "--standoff-height-mm",

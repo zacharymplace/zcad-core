@@ -26,23 +26,22 @@ _SD_OPENING_HEIGHT_MM = 4.0
 _SD_OPENING_MARGIN_MM = 2.0
 
 
-def cut_pi_openings(
-    base: cq.Workplane,
+def pi_openings(
     *,
     layouts: tuple[BayLayout, ...],
     design: GroupDesign,
     pi: RaspberryPi5Spec,
     radius: float,
     wall: float,
-    pi_center_y: float,
     boss_columns: tuple[float, ...],
-) -> cq.Workplane:
+) -> list[ConnectorCutoutParameters]:
     """Back-wall openings for each Pi's Ethernet and USB plugs, a front-wall
     opening for its microSD card, and one along its service gap for the
     power and HDMI cables."""
 
     depth = 2 * (wall + 0.5)
     margin = 2 * design.plug_margin_mm
+    openings: list[ConnectorCutoutParameters] = []
 
     for layout in layouts:
         if not layout.holds_pi:
@@ -63,13 +62,9 @@ def cut_pi_openings(
             for port in pi.ports
             if port.edge == "positive_y"
         ]
-
-        for opening in merge_close_openings(back, design.minimum_opening_web_mm):
-            base = cut_connector_opening(base, parameters=opening)
-
-        base = cut_connector_opening(
-            base,
-            parameters=ConnectorCutoutParameters(
+        openings.extend(merge_close_openings(back, design.minimum_opening_web_mm))
+        openings.append(
+            ConnectorCutoutParameters(
                 edge="negative_y",
                 center_offset_mm=center_x,
                 bottom_z_mm=layout.board_bottom_z_mm - _SD_OPENING_MARGIN_MM,
@@ -78,7 +73,7 @@ def cut_pi_openings(
                 width_clearance_mm=_SD_OPENING_MARGIN_MM,
                 height_clearance_mm=0.0,
                 cutter_depth_mm=depth,
-            ),
+            )
         )
 
         # The gap's front opening starts a millimetre past the Pi's slot and
@@ -92,9 +87,8 @@ def cut_pi_openings(
                 "service_gap_mm leaves under 6 mm for the power and HDMI cables"
             )
 
-        base = cut_connector_opening(
-            base,
-            parameters=ConnectorCutoutParameters(
+        openings.append(
+            ConnectorCutoutParameters(
                 edge="negative_y",
                 center_offset_mm=(start + end) / 2,
                 bottom_z_mm=layout.board_top_z_mm - 1.0,
@@ -103,10 +97,10 @@ def cut_pi_openings(
                 width_clearance_mm=0.0,
                 height_clearance_mm=0.0,
                 cutter_depth_mm=depth,
-            ),
+            )
         )
 
-    return base
+    return openings
 
 
 def require_openings_under_lid(
@@ -128,29 +122,35 @@ def require_openings_under_lid(
                 )
 
 
-def cut_bay_openings(
-    base: cq.Workplane, layouts: tuple[BayLayout, ...], design: GroupDesign
-) -> cq.Workplane:
+def bay_openings(
+    layouts: tuple[BayLayout, ...], design: GroupDesign
+) -> list[ConnectorCutoutParameters]:
     """The front and back wall openings an ``open`` bay asks for."""
 
     depth = 2 * (design.wall_mm + 0.5)
 
-    for layout in layouts:
-        for opening in layout.openings:
-            base = cut_connector_opening(
-                base,
-                parameters=ConnectorCutoutParameters(
-                    edge="negative_y" if opening.wall == "front" else "positive_y",
-                    center_offset_mm=(
-                        design.wall_mm + layout.center_x_mm + opening.offset_mm
-                    ),
-                    bottom_z_mm=design.floor_mm + opening.bottom_mm,
-                    width_mm=opening.width_mm,
-                    height_mm=opening.height_mm,
-                    width_clearance_mm=0.0,
-                    height_clearance_mm=0.0,
-                    cutter_depth_mm=depth,
-                ),
-            )
+    return [
+        ConnectorCutoutParameters(
+            edge="negative_y" if opening.wall == "front" else "positive_y",
+            center_offset_mm=design.wall_mm + layout.center_x_mm + opening.offset_mm,
+            bottom_z_mm=design.floor_mm + opening.bottom_mm,
+            width_mm=opening.width_mm,
+            height_mm=opening.height_mm,
+            width_clearance_mm=0.0,
+            height_clearance_mm=0.0,
+            cutter_depth_mm=depth,
+        )
+        for layout in layouts
+        for opening in layout.openings
+    ]
+
+
+def cut_openings(
+    base: cq.Workplane, openings: list[ConnectorCutoutParameters]
+) -> cq.Workplane:
+    """Cut each opening through its wall."""
+
+    for opening in openings:
+        base = cut_connector_opening(base, parameters=opening)
 
     return base

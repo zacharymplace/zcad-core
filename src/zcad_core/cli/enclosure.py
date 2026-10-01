@@ -43,6 +43,8 @@ from zcad_core.features.enclosure_trial import (
     write_build_record,
 )
 from zcad_core.features.fan_bay import FAN_DIRECTIONS, FAN_POSITIONS
+from zcad_core.features.lid_hinge import HingeReport
+from zcad_core.features.lid_slide import SlideReport
 from zcad_core.features.mounts import MOUNTS, flexure_payload
 from zcad_core.features.vent_patterns import PATTERNS
 from zcad_core.hardware import (
@@ -258,8 +260,10 @@ def _mount_payload(enclosure: Enclosure) -> dict[str, object] | None:
 
 
 def _slide_payload(enclosure: Enclosure) -> dict[str, object] | None:
-    slide = enclosure.slide
+    return slide_payload(enclosure.slide)
 
+
+def slide_payload(slide: SlideReport | None) -> dict[str, object] | None:
     if slide is None:
         return None
 
@@ -273,8 +277,10 @@ def _slide_payload(enclosure: Enclosure) -> dict[str, object] | None:
 
 
 def _hinge_payload(enclosure: Enclosure) -> dict[str, object] | None:
-    hinge = enclosure.hinge
+    return hinge_payload(enclosure.hinge)
 
+
+def hinge_payload(hinge: HingeReport | None) -> dict[str, object] | None:
     if hinge is None:
         return None
 
@@ -282,7 +288,7 @@ def _hinge_payload(enclosure: Enclosure) -> dict[str, object] | None:
         "hinge_wall": hinge.hinge_edge,
         "catch_wall": hinge.closure_edge,
         "knuckles": hinge.knuckles,
-        "pin": f"{hinge.pin} x {hinge.pin_length_mm} mm screw and nut",
+        "pin": hinge.pin_description,
         "swing_degrees": hinge.swing_degrees,
         "catch": flexure_payload(hinge.catch),
         "wall_needed_mm": round(hinge.wall_needed_mm, 1),
