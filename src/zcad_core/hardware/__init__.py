@@ -9,6 +9,12 @@ from zcad_core.hardware.electronics.displays import (
     DisplaySpec,
     get_reference_oled_128x64,
 )
+from zcad_core.hardware.fans import (
+    FanSource,
+    FanSpec,
+    get_fan,
+    list_fans,
+)
 from zcad_core.hardware.fasteners import (
     FastenerSpec,
     get_fastener,
@@ -30,6 +36,8 @@ __all__ = [
     "DexcomG7Spec",
     "DisplayMountStyle",
     "DisplaySpec",
+    "FanSource",
+    "FanSpec",
     "FastenerSpec",
     "HardwareCatalog",
     "HardwareSpec",
@@ -45,6 +53,7 @@ __all__ = [
     "get_board",
     "get_dexcom_g7",
     "get_display",
+    "get_fan",
     "get_fastener",
     "get_magnet",
     "get_raspberry_pi5",
@@ -54,6 +63,7 @@ __all__ = [
     "get_tandem_mobi",
     "list_boards",
     "list_displays",
+    "list_fans",
     "list_fasteners",
     "list_magnets",
     "load_board_components",

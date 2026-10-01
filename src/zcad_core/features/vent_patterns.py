@@ -24,7 +24,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
-from typing import Literal
+from typing import Literal, cast
 
 import cadquery as cq
 
@@ -180,7 +180,7 @@ def _profile(spec: CellSpec, *, wall: bool) -> list[tuple[float, float]]:
     return [(-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2)]
 
 
-def _cell_area(spec: CellSpec, *, wall: bool) -> float:
+def cell_area(spec: CellSpec, *, wall: bool) -> float:
     if spec.kind == "louvers":
         return _COS_45 * spec.width_mm * spec.height_mm
 
@@ -342,6 +342,36 @@ class WallZone(Zone):
     def point(self, u: float, v: float, depth: float) -> cq.Vector:
         return self._to_world(u, -depth, v)
 
+    def _place(self, shape: cq.Shape) -> cq.Shape:
+        return shape.rotate((0, 0, 0), (0, 0, 1), self._angle).translate(
+            cq.Vector(self._anchor[0], self._anchor[1], 0.0)
+        )
+
+    def drill(self, points: Sequence[tuple[float, float]], radius: float) -> cq.Shape:
+        wall = self.thickness_mm
+        holes = [
+            cq.Solid.makeCylinder(
+                radius,
+                wall + 2.0,
+                pnt=cq.Vector(u, -wall - 1.0, v),
+                dir=cq.Vector(0, 1, 0),
+            )
+            for u, v in points
+        ]
+
+        return self._place(cq.Compound.makeCompound(holes))
+
+    def body(self, u: float, v: float, size: float, thickness: float) -> cq.Shape:
+        wall = self.thickness_mm
+        block = cq.Solid.makeBox(
+            size,
+            thickness,
+            size,
+            pnt=cq.Vector(u - size / 2, -wall - thickness, v - size / 2),
+        )
+
+        return self._place(block)
+
     def cutters(
         self, spec: CellSpec, centers: Sequence[tuple[float, float]]
     ) -> cq.Shape:
@@ -394,6 +424,25 @@ def _louver(spec: CellSpec, u: float, v: float, wall: float) -> cq.Shape:
 
 class LidZone(Zone):
     """The lid over the cavity. ``u`` is X and ``v`` is Y."""
+
+    def drill(self, points: Sequence[tuple[float, float]], radius: float) -> cq.Shape:
+        height = self.thickness_mm + 1.0
+        holes = [
+            cq.Solid.makeCylinder(
+                radius, height, pnt=cq.Vector(u, v, self.cavity.top_z_mm - 0.5)
+            )
+            for u, v in points
+        ]
+
+        return cq.Compound.makeCompound(holes)
+
+    def body(self, u: float, v: float, size: float, thickness: float) -> cq.Shape:
+        return cq.Solid.makeBox(
+            size,
+            size,
+            thickness,
+            pnt=cq.Vector(u - size / 2, v - size / 2, self.cavity.top_z_mm - thickness),
+        )
 
     def __init__(self, cavity: Cavity, *, lid_mm: float, inset_mm: float) -> None:
         self.name = "the lid"
@@ -469,11 +518,12 @@ def _ring(zone: Zone, u: float, v: float, spec: CellSpec) -> list[tuple[float, f
     return points
 
 
-def _accepts(
+def cell_fits(
     zone: Zone,
     spec: CellSpec,
     center: tuple[float, float],
     is_solid: Callable[[cq.Vector], bool],
+    behind_solid: Callable[[cq.Vector], bool] | None = None,
 ) -> bool:
     """Whether a cell can go here: the plate solid all round it, and nothing
     behind it."""
@@ -505,9 +555,11 @@ def _accepts(
     ):
         behind.append((u + du * reach_u, v + dv * reach_v))
 
+    in_the_way = behind_solid or is_solid
+
     for depth in _BEHIND_MM:
         for pu, pv in behind:
-            if is_solid(zone.point(pu, pv, zone.thickness_mm + depth)):
+            if in_the_way(zone.point(pu, pv, zone.thickness_mm + depth)):
                 return False
 
     return True
@@ -519,6 +571,7 @@ def fill_zone(
     target_mm2: float,
     *,
     is_solid: Callable[[cq.Vector], bool],
+    behind_solid: Callable[[cq.Vector], bool] | None = None,
 ) -> VentFill:
     """The smallest cells of ``kind`` that reach ``target_mm2`` of free area in
     the zone, taken from the middle of it outward, where they fit."""
@@ -543,7 +596,7 @@ def fill_zone(
         if spec.kind == "slots" and spec.height_mm < 3.0:
             continue
 
-        area = _cell_area(spec, wall=zone.wall)
+        area = cell_area(spec, wall=zone.wall)
         candidates = sorted(
             grid(spec, zone.region),
             key=lambda c: (c[0] - middle[0]) ** 2 + (c[1] - middle[1]) ** 2,
@@ -551,7 +604,7 @@ def fill_zone(
         chosen: list[tuple[float, float]] = []
 
         for center in candidates:
-            if _accepts(zone, spec, center, is_solid):
+            if cell_fits(zone, spec, center, is_solid, behind_solid):
                 chosen.append(center)
 
                 if len(chosen) * area >= target_mm2:
@@ -607,9 +660,10 @@ def add_wall_inlets(
     blocked_edges: Sequence[str],
     top_z_mm: float,
     corner_keepout_mm: float,
+    obstruction: cq.Shape | None = None,
 ) -> tuple[cq.Workplane, list[VentFill]]:
     """Inlets low in each long wall that carries no opening, sharing the
-    target between them."""
+    target between them; none opens onto ``obstruction``, such as a fan."""
 
     walls = [edge for edge in cavity.long_edges() if edge not in blocked_edges]
 
@@ -635,7 +689,13 @@ def add_wall_inlets(
         share = target_mm2 / len(walls)
 
         try:
-            fill = fill_zone(zone, kind, share, is_solid=is_solid)
+            fill = fill_zone(
+                zone,
+                kind,
+                share,
+                is_solid=is_solid,
+                behind_solid=_with(is_solid, obstruction),
+            )
         except ValueError as error:
             if len(walls) > 1:
                 raise ValueError(
@@ -657,13 +717,35 @@ def add_lid_outlets(
     lid_mm: float,
     kind: str,
     target_mm2: float,
+    obstruction: cq.Shape | None = None,
 ) -> tuple[cq.Workplane, VentFill]:
-    """Outlets through the lid, where it is plain plate."""
+    """Outlets through the lid, where it is plain plate and nothing, such as a
+    fan's frame, stands behind it."""
 
     zone = LidZone(cavity, lid_mm=lid_mm, inset_mm=LID_INSET_MM)
-    fill = fill_zone(zone, kind, target_mm2, is_solid=solid_tester(lid))
+    plate = solid_tester(lid)
+    fill = fill_zone(
+        zone,
+        kind,
+        target_mm2,
+        is_solid=plate,
+        behind_solid=_with(plate, obstruction),
+    )
 
     return cut_fill(lid, zone, fill), fill
+
+
+def _with(
+    test: Callable[[cq.Vector], bool], extra: cq.Shape | None
+) -> Callable[[cq.Vector], bool] | None:
+    """A point test that also counts a shape, or ``None`` to use the plate's."""
+
+    if extra is None:
+        return None
+
+    solid = cast(cq.Solid, extra)
+
+    return lambda point: test(point) or bool(solid.isInside(point))
 
 
 def solid_tester(model: cq.Workplane) -> Callable[[cq.Vector], bool]:

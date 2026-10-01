@@ -18,6 +18,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from zcad_core.hardware.fans import FAN_CATALOG
+
 SourceKind = Literal["vendor", "community"]
 
 
@@ -92,8 +94,43 @@ _FIGURES = (
     ),
 )
 
+
+def _fan_figures() -> tuple[PowerFigure, ...]:
+    """A fan's draw is the heat it adds to the box: its rated voltage times
+    its input current, as the maker lists them."""
+
+    figures = []
+
+    for fan in FAN_CATALOG.entries.values():
+        if fan.typical_w is None:
+            continue
+
+        figures.append(
+            PowerFigure(
+                identifier=fan.identifier,
+                typical_w=fan.typical_w,
+                peak_w=fan.peak_w,
+                source=PowerSource(
+                    kind="vendor",
+                    title=fan.source.title,
+                    url=fan.source.url,
+                    detail=(
+                        f"{fan.rated_v:g} V times the listed input current"
+                        + (
+                            ""
+                            if fan.source.read
+                            else "; from an excerpt, the page itself not read"
+                        )
+                    ),
+                ),
+            )
+        )
+
+    return tuple(figures)
+
+
 POWER_FIGURES: dict[str, PowerFigure] = {
-    figure.identifier: figure for figure in _FIGURES
+    figure.identifier: figure for figure in (*_FIGURES, *_fan_figures())
 }
 
 

@@ -11,10 +11,10 @@ catalog flags as drawing air from above, and the group's five lid slots over
 each fan. It has no idea how much heat a design must shed, so it cannot say
 whether it sheds enough.
 
-Phases 1 (the power figures and the temperature estimate) and 2 (the vent
-pattern generator) are built, and each differs from the first design in ways
-found by building it (see *What phase 1 changed* and *What phase 2 changed*
-below). Phases 3 and 4 are design only.
+Phases 1 (the power figures and the temperature estimate), 2 (the vent
+pattern generator), and 3 (the fan bays) are built, and each differs from the
+first design in ways found by building it (see *What phase 1 changed*, *What
+phase 2 changed*, and *What phase 3 changed* below). Phase 4 is design only.
 
 ## Decision: an estimate first, and the geometry second
 
@@ -124,7 +124,7 @@ A fan is hardware, so it goes in the catalog beside the boards:
 2. **The vent pattern generator (built)**: hex, round, slot, and louver patterns
    sized to a free area, inlet and outlet zones, feet for floor vents, and the
    printability checks. `--vent-slots` remains.
-3. **Fan bays**: the fan catalog, the bay with its guard and mounting holes,
+3. **Fan bays (built)**: the fan catalog, the bay with its guard and mounting holes,
    and the clearance and airflow checks.
 4. **The Pi 5 group, review, and trials**: the group's own vents and fans
    through the same machinery, the exploded review model showing the air path,
@@ -196,6 +196,43 @@ A fan is hardware, so it goes in the catalog beside the boards:
   slant, which is a deliberate undercount.
 - **Refusals say what fits.** A target too big says how much the zone can pass
   where cells fit, and a band too short for any cell says how tall it is.
+
+### What phase 3 changed
+
+- **Three exact fans, whose figures were not read in full.** The design asked
+  for 30, 40, and 60 mm fans in 10 mm thickness, from one maker's datasheets.
+  Noctua makes no 30 mm fan and its 60 mm fans are 15 and 25 mm thick, so the
+  catalog is the Sunon MF30100V1-1000U-A99 (30 x 10), the Noctua NF-A4x10 5V
+  (40 x 11), and the Noctua NF-A6x25 5V (60 x 25). Their figures came from search
+  excerpts of the makers' pages, which then returned HTTP 429 or 403 when
+  opened, so each entry says `read: false` and the build says so. They are
+  probably right, a cross-check holds (the 60 mm fan's listed 0.187 A at 5 V is
+  the 0.935 W the maker lists), and they have not been checked. The 30 mm
+  fan's 24 mm hole spacing is the usual pattern, from retailers' listings, and
+  the screw sizes (M2, M3) are assumptions.
+- **Screwed from outside, like a case fan.** The fan sits inside, its frame
+  flat against the lid or a long wall, and a screw passes through a clearance
+  hole in the plate into a hole in the frame. The opening is round, 90 per
+  cent of the frame, with a guard of 5 mm hex cells and 1.2 mm webs, the
+  vents' own cells kept clear of the plate's features.
+- **A lid fan hangs from the lid,** so it needs headroom: the Pi 5's tall
+  parts meet an 11 mm frame unless `top_clearance_mm` is raised (to 12, say),
+  and the corner bosses stop a 60 mm fan in a Pi 5 box (a snap lid has none).
+  The build refuses and says which. It is swept with a hinged lid and refused
+  by a sliding one, like a display.
+- **A wall fan needs a tall wall:** the frame plus 3 mm either side, 46 mm
+  for the 40 mm fan. The wall it takes is treated as one with an opening, so
+  the hinge, the catch, and the vents keep to the other.
+- **Its heat is counted and its airflow is not.** The fan's draw (voltage
+  times listed current) is added to the estimate, like any part. Its airflow
+  is a free-air figure that a box cuts by a large and unknown amount, and
+  crediting it would make the estimate optimistic where it matters, so it is
+  reported and never used. The estimate stays pessimistic with a fan fitted.
+- **The air path is a report, not a refusal.** A box always has its
+  connector openings, so "no other opening" is never the case; the report
+  says whether the other openings pass at least what the guard does.
+- **No duct.** As the design predicted, it was the thing dropped.
+- **Not in the group enclosure yet:** phase 4.
 
 Each phase is one PR. Phase 1 changes no geometry, so nothing already
 reviewed needs a revised build.

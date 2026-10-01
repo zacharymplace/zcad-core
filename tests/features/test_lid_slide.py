@@ -242,7 +242,7 @@ def test_a_lid_that_holds_a_display_is_refused() -> None:
         connector_access_clearance_mm=2.0,
     )
 
-    with pytest.raises(ValueError, match="a display needs a hinged or screwed lid"):
+    with pytest.raises(ValueError, match="needs a hinged or screwed lid"):
         build_enclosure(
             with_display,
             board=BOARD,

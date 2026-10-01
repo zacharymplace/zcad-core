@@ -380,7 +380,7 @@ def _require_free_travel(
                         f"{mover_name.capitalize()} hits {name} at "
                         f"{travelled:.0f} mm of its slide; nothing may hang "
                         "from a sliding lid below the entry wall, so a display "
-                        "needs a hinged or screwed lid"
+                        "or a fan on the lid needs a hinged or screwed lid"
                     )
 
         travelled += TRAVEL_STEP_MM
