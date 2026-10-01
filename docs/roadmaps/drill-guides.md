@@ -155,8 +155,9 @@ the pooled thermal coefficient is. Until there are trials it reports none.
    and writes them as bores, so a guide can copy a hole pattern from a master
    part onto a part that has none. The bearing choice for a part with no flat
    top. See *What phase 3 changed* below.
-4. **Trials.** Guide trials in the Validation Lab, the pooled positional error,
-   verification, and the guide's page in the docs on how to measure one.
+4. **Trials (built).** Guide trials, the pooled positional error, verification,
+   and the guide's page in the docs on how to measure one. See *What phase 4
+   changed* below.
 
 ### What phase 1 changed
 
@@ -251,6 +252,44 @@ the pooled thermal coefficient is. Until there are trials it reports none.
 - **Not built: a part with no shoulder and no flat top.** A dome on a plain
   pipe has nothing for the guide to rest on at all. That wants a printed
   support or a clamp, which is outside this feature (see *Open questions*).
+
+### What phase 4 changed
+
+- **Trials sit beside the build record, as enclosure trials do.** The design said
+  "in the Validation Lab". The enclosure trials, which this follows, are not in
+  the Lab's candidate-and-fixture workflow either: `guide trial start` writes
+  `trials/trial-NNN/` beside `guide.json`, and `guide trial complete` writes
+  `guide-trial.json`. The checks listed depend on the guide: seating, release,
+  the drill passing, bushings seated (only with bushing bores), and the holes
+  reaching depth.
+- **A trial measures positions in the part's frame, and a printed hole against
+  the model.** For each bore the offset of the drilled hole from its nominal
+  (dx, dy, radial); optionally a pin-gauge reading of the printed bore, or a
+  bushing pocket, against the diameter modelled. A passing trial measures every
+  bore and cannot have a failed check.
+- **Verified means two passing trials of the same build record.** `guide
+  status` says so (exit 1 if not) and a rebuilt guide starts again at none, since
+  its record's hash is new. The build record itself stays `verified: false`:
+  verification is derived from trials, never written back into a record.
+- **The pooled error is a profile, as the thermal coefficient is.** `guide
+  derive` pools the passing trials of one printer and material into
+  `profiles/guides/<printer>-<material>.json`, by bore kind (printed and bushing
+  separately), with the sample count and the mean offset in X and Y as a bias.
+  `guide build --accuracy-profile` reports those figures with their sample sizes
+  beside the clearance bound it computes, records the profile's id, version and
+  hash, and flags a measured error larger than the bound. A profile for another
+  printer or material is refused. The bound is never replaced: the figures are
+  evidence about those prints, and the build says so.
+- **A printed hole's error is pooled too.** How far printed bores and bushing
+  pockets came out against the model is what `hole_oversize` is meant to cancel,
+  so a profile that shows a steady error says the printer profile's figure is
+  off. Acting on it is left to a person.
+- **Nothing is verified yet.** No guide has been printed, so no trial, no
+  profile, and no verified guide exists in the repository; the tests use records
+  made for them.
+
+All four phases are built. A guide for a part that is neither flat-topped nor
+shouldered, a printed clamp, and a bushing catalog remain as listed below.
 
 Each phase is one PR. Phases 1 to 3 add a way in and change no existing build.
 

@@ -41,8 +41,9 @@ from zcad_core.features.guide_file import (
 )
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.geometry.outline_prism import outline_prism
+from zcad_core.profiles.guide_accuracy import GuideAccuracyProfile
 
-GUIDE_RECORD_SCHEMA_VERSION = "3.0.0"
+GUIDE_RECORD_SCHEMA_VERSION = "4.0.0"
 GUIDE_RECORD = "guide.json"
 # How far the guide is lifted off the part per step in the release check.
 RELEASE_STEP_MM = 2.0
@@ -334,7 +335,65 @@ def require_fits_bed(guide: Guide, profile: dict[str, Any]) -> None:
         )
 
 
-def guide_record(guide: Guide, files: dict[str, dict[str, Any]]) -> dict[str, Any]:
+def measured_accuracy(
+    guide: Guide, profile: GuideAccuracyProfile, material_profile_id: str
+) -> dict[str, Any]:
+    """What a guide accuracy profile says about this guide's bores, beside the
+    play bound the build computed. Refuses a profile for another printer or
+    material, whose offsets say nothing about this one."""
+
+    if profile.printer_profile_id != guide.profile_id:
+        raise ValueError(
+            f"The accuracy profile is for printer {profile.printer_profile_id}; "
+            f"this guide is for {guide.profile_id}"
+        )
+
+    if profile.material_profile_id != material_profile_id:
+        raise ValueError(
+            f"The accuracy profile is for {profile.material_profile_id}; this "
+            f"guide is for {material_profile_id}"
+        )
+
+    bores = []
+
+    for item in guide.bores:
+        figure = profile.position(item.bore.kind)
+        bound = guide.play[item.bore.identifier][0]
+        bores.append(
+            {
+                "identifier": item.bore.identifier,
+                "kind": item.bore.kind,
+                "measured": figure,
+                "play_bound_entry_mm": bound,
+                # The measured offsets beating the bound say the profile's
+                # clearances are tighter than the print: a finding, not an error.
+                "measured_exceeds_bound": (
+                    None if figure is None else figure["max"] > bound + 1e-9
+                ),
+            }
+        )
+
+    return {
+        "profile": profile.reference(),
+        "described": profile.describe(),
+        "note": (
+            "Measured offsets of drilled holes from passing trials on this "
+            "printer and material. They are evidence about those prints and how "
+            "they were measured, with the sample sizes given, and not a "
+            "guarantee for this guide."
+        ),
+        "figures": profile.payload["figures"],
+        "bores": bores,
+    }
+
+
+def guide_record(
+    guide: Guide,
+    files: dict[str, dict[str, Any]],
+    *,
+    material_profile_id: str = "",
+    accuracy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """What a build says about itself: the guide file and the part by hash, the
     numbers and tolerances used, the bores as placed, and that nothing here is
     verified."""
@@ -408,6 +467,8 @@ def guide_record(guide: Guide, files: dict[str, dict[str, Any]]) -> dict[str, An
             "gives."
         ),
         "printer_profile_id": guide.profile_id,
+        "material_profile_id": material_profile_id,
+        "measured": accuracy,
         "tolerance_status": guide.tolerance_status,
         "checks": guide.checks,
         # The engine states no accuracy: a trial measures it.
@@ -417,7 +478,12 @@ def guide_record(guide: Guide, files: dict[str, dict[str, Any]]) -> dict[str, An
 
 
 def write_guide_record(
-    guide: Guide, files: dict[str, dict[str, Any]], directory: Path
+    guide: Guide,
+    files: dict[str, dict[str, Any]],
+    directory: Path,
+    *,
+    material_profile_id: str = "",
+    accuracy: dict[str, Any] | None = None,
 ) -> Path:
     """Write ``guide.json`` beside the exported parts; refuses to overwrite."""
 
@@ -427,7 +493,14 @@ def write_guide_record(
         raise FileExistsError(f"Refusing to overwrite build record: {path}")
 
     path.write_text(
-        json.dumps(guide_record(guide, files), indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            guide_record(
+                guide, files, material_profile_id=material_profile_id, accuracy=accuracy
+            ),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
 

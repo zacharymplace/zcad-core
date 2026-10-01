@@ -195,8 +195,80 @@ how far the drill can sit off the bore's axis from the clearances alone, at the
 part's surface and at the bottom of the hole (where the drill's tilt in the bore
 adds to it). This is a **bound from the printer profile's provisional
 tolerances. It is not an accuracy.** A printed guide's accuracy is something a
-trial measures, and trials come in a later release; until then, check the first
-holes on scrap.
+trial measures: see [Trying a guide](#trying-a-guide). Until you have trials,
+check the first holes on scrap.
 
 The guide prints plate down, so its flat face is on the bed and the nest opens
 upward.
+
+## Trying a guide
+
+A printed guide is unverified until a trial has measured it. A trial records one
+print of exactly the part `guide build` exported, drilled into the real thing.
+
+```bash
+zcad-validation guide trial start --build-record exports/my-guide/guide.json
+# print it, fit it, drill, measure; fill in the two files it names
+zcad-validation guide trial complete --trial-directory exports/my-guide/trials/trial-001 \
+  --disposition pass
+```
+
+`trial start` writes `trials/trial-001/` beside the build record with two files:
+
+- **`observations.json`**: a pass or fail for each check that applies to your
+  guide. Does the guide seat on the part without rocking? Does it lift off
+  without catching? Does the drill pass every bore? Does each bushing press in
+  and stay? Does each hole reach its depth with the chuck seated? (The bushing
+  and depth checks appear only if the guide has bushing bores or bores.) The
+  guidance for each is in the file.
+- **`measurements.json`**: for each bore, where the drilled hole's centre
+  actually is. Positions are in the part's frame, and the file says how to turn
+  a distance from the part's left and bottom edges into it. Optionally give the
+  printed bore's diameter (`measured_bore_mm`, from a pin gauge: the largest that
+  enters) or a bushing pocket's (`measured_seat_mm`), to see how far the printer
+  was off the model.
+
+`trial complete` checks that the printed STL still matches the build record,
+that every check is answered, and that the measurements belong to this guide's
+bores, then writes `guide-trial.json` with each bore's offset (dx, dy, and
+radial) from where it was meant to be. A passing trial cannot have a failed check
+and measures **every** bore's position. A failed or inconclusive trial may
+leave bores unmeasured. A completed trial is never overwritten; record the next
+print as the next trial.
+
+**A guide is verified by two passing trials of the same build record.**
+
+```bash
+zcad-validation guide status --build-record exports/my-guide/guide.json
+```
+
+exits 0 if it is verified and 1 if not, and lists the trials. A rebuilt guide has
+a new record, so it starts again with none: change the guide file or the part and
+the old trials no longer count.
+
+### A measured error for the next build
+
+The offsets from passing trials pool into a **guide accuracy profile** for one
+printer and one material:
+
+```bash
+zcad-validation guide derive --evidence-root evidence \
+  --printer-profile-id bambu-lab-a1-mini --material-profile petg
+```
+
+It needs at least two passing trials, and writes
+`profiles/guides/bambu-lab-a1-mini-petg.json`, for printed and bushing bores
+separately: the mean, spread, and largest radial offset, the sample count, and
+the mean offset in X and Y (a bias: holes all landing the same way mean the frame
+or the print is off, not the guide's play). It also pools how far printed bores
+and bushing pockets came out against the model. Deriving again writes the next
+version and keeps the old figures.
+
+Give it to a build with `guide build --accuracy-profile PATH`, with the same
+printer and `--material-profile`. The build reports the measured figures with
+their sample sizes next to its own clearance bound for each bore, says when the
+measured offsets are **bigger** than that bound (the profile's clearances are
+tighter than the print), and records the profile's id, version and hash. A
+profile for another printer or material is refused. It is evidence about those
+prints and how they were measured, and the engine does not turn it into a
+promise for a new guide.
