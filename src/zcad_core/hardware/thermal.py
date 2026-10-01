@@ -10,7 +10,8 @@ ordinary use; ``peak_w`` is a higher figure for load, or ``None`` where the
 source gives none. A ``vendor`` source is the maker's own document; a
 ``community`` source is a measurement someone posted, and is weaker: it says
 who measured what and how, and is to be replaced by a vendor figure when one
-appears.
+appears. A ``user`` source is a figure from a board file, the user's own, with
+whatever source they state.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from typing import Literal
 
 from zcad_core.hardware.fans import FAN_CATALOG
 
-SourceKind = Literal["vendor", "community"]
+SourceKind = Literal["vendor", "community", "user"]
 
 
 @dataclass(frozen=True)

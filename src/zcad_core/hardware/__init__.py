@@ -1,5 +1,13 @@
 """Reusable engineering hardware specifications."""
 
+from zcad_core.hardware.electronics.board_file import (
+    BoardCheck,
+    BoardFileSpec,
+    board_template,
+    check_board_data,
+    check_board_file,
+    load_board,
+)
 from zcad_core.hardware.electronics.displays import (
     ADAFRUIT_EINK_200X200_1_54IN,
     ADAFRUIT_OLED_128X64_1_3IN,
@@ -30,8 +38,10 @@ __all__ = [
     "REFERENCE_OLED_128X64",
     "AdafruitFeatherRp2040Spec",
     "ArduinoUnoR4WifiSpec",
+    "BoardCheck",
     "BoardComponentSpec",
     "BoardEdge",
+    "BoardFileSpec",
     "BoardSpec",
     "DexcomG7Spec",
     "DisplayMountStyle",
@@ -48,6 +58,9 @@ __all__ = [
     "SeeedXiaoEsp32S3Spec",
     "TandemMobiSpec",
     "WallOpeningSpec",
+    "board_template",
+    "check_board_data",
+    "check_board_file",
     "get_adafruit_feather_rp2040",
     "get_arduino_uno_r4_wifi",
     "get_board",
@@ -66,6 +79,7 @@ __all__ = [
     "list_fans",
     "list_fasteners",
     "list_magnets",
+    "load_board",
     "load_board_components",
 ]
 

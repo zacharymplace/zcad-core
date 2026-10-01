@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
 import cadquery as cq
 
@@ -45,6 +46,7 @@ from zcad_core.features.fan_bay import FAN_DIRECTIONS, FAN_POSITIONS
 from zcad_core.features.mounts import MOUNTS, flexure_payload
 from zcad_core.features.vent_patterns import PATTERNS
 from zcad_core.hardware import (
+    BoardFileSpec,
     BoardSpec,
     DisplaySpec,
     RaspberryPi5Spec,
@@ -54,6 +56,7 @@ from zcad_core.hardware import (
     list_displays,
     list_fans,
     list_fasteners,
+    load_board,
 )
 from zcad_core.printing import SliceError, slice_freshness, slice_models
 from zcad_core.profiles import (
@@ -67,7 +70,12 @@ DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
 
 
 def _board(args: argparse.Namespace) -> BoardSpec:
-    board = get_board(args.board)
+    board_file = getattr(args, "board_file", None)
+
+    if (args.board is None) == (board_file is None):
+        raise ValueError("Give one of --board (a catalogued board) and --board-file")
+
+    board = load_board(board_file) if board_file is not None else get_board(args.board)
 
     if not getattr(args, "active_cooler", False):
         return board
@@ -78,6 +86,15 @@ def _board(args: argparse.Namespace) -> BoardSpec:
         raise ValueError(f"{board.identifier} takes no Active Cooler")
 
     return cooled
+
+
+def _board_source(board: BoardSpec) -> dict[str, object]:
+    """Where the board came from: the catalog, or a file the user supplied."""
+
+    if isinstance(board, BoardFileSpec):
+        return board.provenance()
+
+    return {"kind": "catalog", "identifier": board.identifier}
 
 
 # A display sits this high unless the board's parts need it higher, which
@@ -289,6 +306,26 @@ def _service_limit(material_profile_id: str) -> float:
     return material_service_limit_c(material_profile_id) or DEFAULT_SERVICE_LIMIT_C
 
 
+def _revision_board_file(build: dict[str, Any]) -> Path | None:
+    """The board file a revision rebuilds from, refused if it has changed
+    since the build: a revision is meant to change the design, not the board."""
+
+    source = build.get("board_source") or {}
+
+    if source.get("kind") != "file":
+        return None
+
+    path = Path(source["path"])
+
+    if not path.is_file() or sha256(path) != source["sha256"]:
+        raise ValueError(
+            f"The board file {path} is missing or has changed since the build; "
+            "restore it, or build again from the changed file"
+        )
+
+    return path
+
+
 def _enclosure_build(args: argparse.Namespace) -> int:
     """Build, validate, and export an enclosure and its build record, and
     optionally review it and slice it ready to print."""
@@ -361,8 +398,10 @@ def _build(
             if getattr(args, "thermal_profile", None) is not None
             else None
         ),
+        board_source=_board_source(board),
     )
     payload: dict[str, object] = {
+        "board": _board_source(board),
         "design_name": name,
         "display_height_mm": display_height,
         "board_support": enclosure.board_support,
@@ -414,8 +453,10 @@ def _enclosure_revise(args: argparse.Namespace) -> int:
 
     build = revision.build_record
     assembly = build.get("assembly") or {}
+    board_file = _revision_board_file(build)
     rebuild = argparse.Namespace(
-        board=build["board"],
+        board=None if board_file else build["board"],
+        board_file=board_file,
         display=build["display"],
         output_directory=args.output_directory,
         name=revised_name(build["design_name"]),
@@ -568,7 +609,16 @@ def register(
     build = enclosure_commands.add_parser(
         "build", help="build, validate, and export a base and lid"
     )
-    build.add_argument("--board", required=True, help="catalogued board identifier")
+    build.add_argument("--board", help="catalogued board identifier")
+    build.add_argument(
+        "--board-file",
+        type=Path,
+        default=None,
+        help=(
+            "a board described in a JSON file, for a board the catalog lacks; see "
+            "`zcad-validation board check` and `board template`"
+        ),
+    )
     build.add_argument("--display", help="catalogued display identifier")
     build.add_argument("--output-directory", required=True, type=Path)
     build.add_argument("--name", help="design name; defaults to <board>-enclosure")

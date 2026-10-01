@@ -137,10 +137,16 @@ records the model's hash and says when the PCB it found is not rectangular.
 
 ## Phases
 
-1. **Board file, check, and template.** The schema, the loader and its object,
-   `--board-file` on `enclosure build`, `board check`, `board template`, the
-   envelope form, the provenance in the build record, the user power figure,
-   and the guide's page on measuring a board.
+1. **Board file, check, and template. Built.** The schema, the loader and its
+   object, `--board-file` on `enclosure build`, `board check`,
+   `board template`, the envelope form, the provenance in the build record, the
+   user power figure, and the guide's page on measuring a board
+   ([Your own board](../guides/board-file.md)). Deviations from the design as
+   written: the envelope has a top only, because a box under the whole board
+   would cut the standoffs away; a file gives an envelope or components, not
+   both; an unverified board is warned of and recorded, with no
+   acceptance flag; and a revision refuses a board file that has changed since
+   the build.
 2. **STEP import.** `board import`, the generalised extraction, the PCB-solid
    guess, hole detection, the connector review gate, and the catalog script
    moved onto it.

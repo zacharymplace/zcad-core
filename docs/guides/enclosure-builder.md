@@ -24,6 +24,9 @@ a review package in `exports/pico2-enclosure/review/`. The command prints a
 JSON summary and exits non-zero if the review fails a check. Every design
 setting below has a matching flag, such as `--bottom-clearance-mm 3`.
 
+For a board that is not in the catalog, give `--board-file my-board.json`
+instead of `--board`; see [Your own board](board-file.md).
+
 ## What it builds
 
 | Part | Features |
