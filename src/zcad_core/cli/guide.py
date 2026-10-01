@@ -12,6 +12,7 @@ from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.guide import (
     build_guide,
+    measured_accuracy,
     print_oriented,
     require_fits_bed,
     write_guide_record,
@@ -22,8 +23,20 @@ from zcad_core.features.guide_file import (
     inspect_guide_file,
 )
 from zcad_core.features.guide_import import import_guide
+from zcad_core.features.guide_trial import (
+    GuideTrialDisposition,
+    complete_guide_trial,
+    guide_verification,
+    start_guide_trial,
+)
 from zcad_core.hardware.electronics.board_import import MINIMUM_HOLE_MM
 from zcad_core.profiles import load_printer_profile
+from zcad_core.profiles.guide_accuracy import (
+    DEFAULT_MINIMUM_TRIALS,
+    derive_guide_profile,
+    load_guide_profile,
+    write_guide_profile,
+)
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
 
@@ -157,7 +170,20 @@ def _guide_build(args: argparse.Namespace) -> int:
         }
         for exported in result.parts
     }
-    record = write_guide_record(guide, files, args.output_directory)
+    accuracy = (
+        measured_accuracy(
+            guide, load_guide_profile(args.accuracy_profile), args.material_profile
+        )
+        if args.accuracy_profile is not None
+        else None
+    )
+    record = write_guide_record(
+        guide,
+        files,
+        args.output_directory,
+        material_profile_id=args.material_profile,
+        accuracy=accuracy,
+    )
     emit(
         {
             "design_name": name,
@@ -176,6 +202,8 @@ def _guide_build(args: argparse.Namespace) -> int:
             "tolerance_status": guide.tolerance_status,
             "clearance_per_side_mm": guide.clearance_mm,
             "verified": False,
+            "material_profile_id": args.material_profile,
+            "measured_accuracy": accuracy,
             "validation_status": (result.validation_report or {}).get(
                 "evaluated_status"
             ),
@@ -254,4 +282,128 @@ def register(
     build.add_argument("--guide-file", required=True, type=Path)
     build.add_argument("--output-directory", required=True, type=Path)
     build.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
+    build.add_argument(
+        "--material-profile",
+        default="petg",
+        help="the material the guide is printed in, recorded with the build",
+    )
+    build.add_argument(
+        "--accuracy-profile",
+        type=Path,
+        help=(
+            "a profile pooled from guide trials (guide derive): the build reports "
+            "its measured offsets beside the clearance bound"
+        ),
+    )
     build.set_defaults(handler=_guide_build)
+    _register_trials(commands)
+
+
+def _trial_start(args: argparse.Namespace) -> int:
+    trial = start_guide_trial(args.build_record)
+    emit(
+        {
+            "trial": str(trial),
+            "observations": str(trial / "observations.json"),
+            "measurements": str(trial / "measurements.json"),
+        }
+    )
+
+    return 0
+
+
+def _trial_complete(args: argparse.Namespace) -> int:
+    record = complete_guide_trial(
+        args.trial_directory,
+        disposition=GuideTrialDisposition(args.disposition),
+        material_profile_id=args.material_profile,
+        notes=args.notes,
+    )
+    summary = json.loads(record.read_text(encoding="utf-8"))["summary"]
+    emit({"trial_record": str(record), "summary": summary})
+
+    return 0
+
+
+def _guide_status(args: argparse.Namespace) -> int:
+    """Whether a build is verified: two passing trials of this exact build."""
+
+    status = guide_verification(args.build_record)
+    emit(status)
+
+    return 0 if status["verified"] else 1
+
+
+def _guide_derive(args: argparse.Namespace) -> int:
+    """Pool the passing guide trials into the next version of an accuracy
+    profile for one printer and material."""
+
+    output = args.output or Path("profiles/guides") / (
+        f"{args.printer_profile_id}-{args.material_profile}.json"
+    )
+    previous = (
+        json.loads(output.read_text(encoding="utf-8")) if output.exists() else None
+    )
+    profile = derive_guide_profile(
+        args.evidence_root,
+        printer_profile_id=args.printer_profile_id,
+        material_profile_id=args.material_profile,
+        minimum_trials=args.minimum_trials,
+        previous=previous,
+    )
+    write_guide_profile(profile, output)
+    emit(
+        {
+            "profile": str(output),
+            "version": profile["version"],
+            "figures": profile["figures"],
+            "trials": profile["trials"],
+        }
+    )
+
+    return 0
+
+
+def _register_trials(
+    commands: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
+    """Add the guide trial, status, and derive commands."""
+
+    status = commands.add_parser(
+        "status",
+        help="whether a build is verified; exits 1 if it is not",
+    )
+    status.add_argument("--build-record", required=True, type=Path)
+    status.set_defaults(handler=_guide_status)
+    derive = commands.add_parser(
+        "derive", help="pool passing guide trials into a measured accuracy profile"
+    )
+    derive.add_argument("--evidence-root", type=Path, default=Path("evidence"))
+    derive.add_argument("--printer-profile-id", default="bambu-lab-a1-mini")
+    derive.add_argument("--material-profile", default="petg")
+    derive.add_argument("--minimum-trials", type=int, default=DEFAULT_MINIMUM_TRIALS)
+    derive.add_argument(
+        "--output",
+        type=Path,
+        help="defaults to profiles/guides/<printer>-<material>.json",
+    )
+    derive.set_defaults(handler=_guide_derive)
+    trial = commands.add_parser("trial", help="record a print of a built guide")
+    trial_commands = trial.add_subparsers(dest="trial_command", required=True)
+    start = trial_commands.add_parser(
+        "start", help="write the next trial's observation and measurement templates"
+    )
+    start.add_argument("--build-record", required=True, type=Path)
+    start.set_defaults(handler=_trial_start)
+    complete = trial_commands.add_parser(
+        "complete", help="validate a filled-in trial and write its record"
+    )
+    complete.add_argument("--trial-directory", required=True, type=Path)
+    complete.add_argument(
+        "--disposition",
+        required=True,
+        choices=[disposition.value for disposition in GuideTrialDisposition],
+    )
+    complete.add_argument("--material-profile", default="petg")
+    complete.add_argument("--notes", default="")
+    complete.set_defaults(handler=_trial_complete)
