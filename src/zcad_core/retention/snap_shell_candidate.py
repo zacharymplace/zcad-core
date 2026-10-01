@@ -1,0 +1,577 @@
+"""Register a wearable device's snap-shell Validation Lab candidate.
+
+The Dexcom G7 and Tandem Mobi scripts share this. A candidate's body is a
+rectangular envelope: from the device's published dimensions, which makes
+it a ``provisional_synthetic_candidate`` that no trial may use, or from a
+caliper capture (:mod:`zcad_core.hardware.wearables.capture`), which makes
+it a ``verified_candidate``. A capture's file is copied beside the candidate
+and its SHA-256 recorded, and each clip slides along its edge to stand
+clear of every feature the capture lists.
+
+The first revision registers the target as well. A later one names its
+parent and why, writes its own envelope beside the earlier ones so their
+pinned files never change, and records its relationship to the parent.
+Nothing is written when the revision exists, its parent or target is
+missing, or a clip cannot clear a feature.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+
+import cadquery as cq
+
+from zcad_core.hardware.wearables import EdgeFeature, WearableCapture, load_capture
+from zcad_core.retention.engine import RetentionEngine, RetentionStrategy
+from zcad_core.retention.export_validation import run_candidate_export_validation
+from zcad_core.retention.revision_history import RevisionRelationshipType
+from zcad_core.retention.revision_registration import (
+    load_candidate_revision,
+    persist_candidate_revision,
+)
+from zcad_core.retention.snap_shell import SnapShellLocation, SnapShellPolicy
+from zcad_core.retention.snap_shell_backend import (
+    SnapShellRequest,
+    as_snap_shell_fit_report,
+)
+from zcad_core.retention.synthetic_snap_shell_backend import SyntheticSnapShellBackend
+from zcad_core.retention.validation_lab import (
+    CandidateRevision,
+    ValidationTarget,
+    candidate_identifier,
+    load_manifest,
+    sha256_file,
+    write_immutable_manifest,
+)
+
+FIRST_REVISION = "r001"
+STRATEGY = "snap-shell"
+PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
+# A clip keeps this far from a feature, and its middle this far from an
+# edge's ends, where the corner would leave it nothing to hook.
+FEATURE_MARGIN_MM = 1.0
+CORNER_KEEPOUT_MM = 2.0
+_SLIDE_STEP_MM = 0.5
+_EDGE_ROTATION = {"north": 270.0, "south": 90.0, "east": 180.0, "west": 0.0}
+
+
+@dataclass(frozen=True)
+class WearableTarget:
+    """One device's Validation Lab target and how its shell is held."""
+
+    target_id: str
+    device: str
+    display_name: str
+    manufacturer: str
+    product_family: str
+    file_stem: str
+    clip_edges: tuple[str, ...]
+    heading: str
+    placeholder_reason: str
+
+
+@dataclass(frozen=True)
+class Body:
+    """The envelope's size, and where it came from."""
+
+    length_mm: float
+    width_mm: float
+    thickness_mm: float
+    evidence_status: str
+    source: str
+    features: tuple[EdgeFeature, ...] = ()
+    capture: WearableCapture | None = None
+
+
+@dataclass(frozen=True)
+class RevisionPaths:
+    """Where one revision's files go, under a repository root."""
+
+    root: Path
+    target: WearableTarget
+    revision: str
+    from_capture: bool
+
+    @property
+    def lab(self) -> Path:
+        return self.root / "evidence" / self.target.target_id / "validation-lab"
+
+    @property
+    def source_step(self) -> Path:
+        kind = "caliper" if self.from_capture else "placeholder"
+        # The first revision keeps the name it was registered with.
+        suffix = "" if self.revision == FIRST_REVISION else f"-{self.revision}"
+        return (
+            self.root
+            / "evidence"
+            / self.target.target_id
+            / "step"
+            / f"{self.target.file_stem}-{kind}-envelope{suffix}.step"
+        )
+
+    @property
+    def target_manifest(self) -> Path:
+        return self.lab / "target.json"
+
+    @property
+    def candidate_root(self) -> Path:
+        return self.lab / "candidates" / self.revision
+
+    @property
+    def automated_report(self) -> Path:
+        return self.candidate_root / "automated-validation.json"
+
+    @property
+    def retention_step(self) -> Path:
+        return self.candidate_root / "retention.step"
+
+    @property
+    def candidate_manifest(self) -> Path:
+        return self.candidate_root / "candidate.json"
+
+    @property
+    def capture_copy(self) -> Path:
+        return self.candidate_root / "capture.json"
+
+    def relative(self, path: Path) -> str:
+        return str(path.relative_to(self.root))
+
+
+def parse_arguments(argv: Sequence[str] | None, description: str) -> argparse.Namespace:
+    """The options every wearable snap-shell script takes."""
+
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("--revision", default=FIRST_REVISION)
+    parser.add_argument("--parent", help="the revision this one follows, as r001")
+    parser.add_argument(
+        "--relationship",
+        choices=[kind.value for kind in RevisionRelationshipType],
+        default=RevisionRelationshipType.SUPERSEDES.value,
+    )
+    parser.add_argument("--reason", help="why this revision exists; needs --parent")
+    parser.add_argument(
+        "--capture",
+        type=Path,
+        help="a caliper capture to build from; see docs/guides/wearable-capture.md",
+    )
+    args = parser.parse_args(argv)
+
+    if args.revision == FIRST_REVISION and args.parent:
+        parser.error(f"{FIRST_REVISION} is the first revision and has no parent")
+
+    if args.revision != FIRST_REVISION and not (args.parent and args.reason):
+        parser.error(f"{args.revision} needs --parent and --reason")
+
+    return args
+
+
+def body_from(
+    target: WearableTarget,
+    *,
+    published: tuple[float, float, float],
+    evidence_status: str,
+    source: str,
+    capture_path: Path | None,
+) -> Body:
+    """The published body, or the captured one when a capture is given."""
+
+    if capture_path is None:
+        length, width, thickness = published
+        return Body(length, width, thickness, evidence_status, source)
+
+    capture = load_capture(capture_path)
+
+    if capture.device != target.device:
+        raise SystemExit(
+            f"{capture_path} captures a {capture.device}, not a {target.device}"
+        )
+
+    return Body(
+        length_mm=capture.length_mm,
+        width_mm=capture.width_mm,
+        thickness_mm=capture.thickness_mm,
+        evidence_status="caliper-verified",
+        source=(
+            f"Caliper capture {capture_path.name} (SHA-256 {capture.sha256}), "
+            f"measured by {capture.measured_by} on {capture.measured_on} with "
+            f"{capture.caliper}: {capture.source}"
+        ),
+        features=capture.edge_features,
+        capture=capture,
+    )
+
+
+def clip_locations(
+    body: Body, edges: Sequence[str], policy: SnapShellPolicy
+) -> tuple[SnapShellLocation, ...]:
+    """A clip at the middle of each edge, slid along it to the nearest place
+    clear of every feature there. Raises ``ValueError`` naming the edge when
+    no place along it is clear."""
+
+    locations = []
+
+    for edge in edges:
+        along = body.length_mm if edge in ("north", "south") else body.width_mm
+        reach = along / 2 - CORNER_KEEPOUT_MM - policy.clip_width_mm / 2
+        blocked = [feature for feature in body.features if feature.edge == edge]
+        offset = _clear_offset(blocked, reach, policy.clip_width_mm)
+
+        if offset is None:
+            names = ", ".join(feature.identifier for feature in blocked)
+            raise ValueError(
+                f"No place on the {edge} edge clears {names} for a "
+                f"{policy.clip_width_mm:g} mm clip; the shell cannot hold there"
+            )
+
+        half_length, half_width = body.length_mm / 2, body.width_mm / 2
+        x, y = {
+            "north": (offset, half_width),
+            "south": (offset, -half_width),
+            "east": (half_length, offset),
+            "west": (-half_length, offset),
+        }[edge]
+        locations.append(
+            SnapShellLocation(
+                label=edge, x_mm=x, y_mm=y, rotation_degrees=_EDGE_ROTATION[edge]
+            )
+        )
+
+    return tuple(locations)
+
+
+def _clear_offset(
+    features: Sequence[EdgeFeature], reach: float, clip_width: float
+) -> float | None:
+    """The offset nearest the middle, within ``reach`` of it, where a clip
+    clears every feature by the margin; the middle when nothing is there."""
+
+    def clear(offset: float) -> bool:
+        return all(
+            abs(offset - feature.center_offset_mm)
+            >= (clip_width + feature.width_mm) / 2 + FEATURE_MARGIN_MM
+            for feature in features
+        )
+
+    steps = int(max(reach, 0.0) / _SLIDE_STEP_MM)
+
+    # Nearest first, and the +X or +Y side first at equal distance.
+    for step in range(steps + 1):
+        for offset in (step * _SLIDE_STEP_MM, -step * _SLIDE_STEP_MM):
+            if clear(offset):
+                return offset
+
+    return None
+
+
+def register_snap_shell_candidate(
+    target: WearableTarget,
+    body: Body,
+    args: argparse.Namespace,
+    *,
+    root: Path,
+    git_commit: str,
+) -> None:
+    """Build, check, and register one revision; see the module docstring."""
+
+    from_capture = body.capture is not None
+    paths = RevisionPaths(root, target, args.revision, from_capture)
+    parent = (
+        RevisionPaths(root, target, args.parent, from_capture) if args.parent else None
+    )
+    policy = SnapShellPolicy()
+
+    try:
+        locations = clip_locations(body, target.clip_edges, policy)
+    except ValueError as error:
+        raise SystemExit(str(error)) from error
+
+    _require_new(paths, parent)
+
+    envelope = (
+        cq.Workplane("XY")
+        .box(body.length_mm, body.width_mm, body.thickness_mm)
+        .translate((0.0, 0.0, body.thickness_mm / 2.0))
+    )
+    paths.source_step.parent.mkdir(parents=True, exist_ok=True)
+    cq.exporters.export(envelope, str(paths.source_step))
+
+    engine = RetentionEngine()
+    engine.register(RetentionStrategy.SNAP_SHELL, SyntheticSnapShellBackend())
+    execution = engine.execute(
+        strategy=RetentionStrategy.SNAP_SHELL,
+        request=SnapShellRequest(
+            device_thickness_mm=body.thickness_mm,
+            locations=locations,
+            policy=policy,
+        ),
+        model=envelope,
+    )
+
+    if not isinstance(execution.model, cq.Workplane):
+        raise TypeError("Retention execution did not produce a cadquery Workplane")
+
+    fit_report = as_snap_shell_fit_report(execution.report)
+    paths.retention_step.parent.mkdir(parents=True, exist_ok=True)
+    cq.exporters.export(execution.model, str(paths.retention_step))
+
+    if body.capture is not None:
+        shutil.copyfile(body.capture.path, paths.capture_copy)
+
+    created_at = datetime.now(UTC).isoformat()
+    source_sha256 = sha256_file(paths.source_step)
+    output_sha256 = sha256_file(paths.retention_step)
+
+    if not execution.passed:
+        decision = "rejected"
+    elif from_capture:
+        decision = "verified_candidate"
+    else:
+        decision = "provisional_synthetic_candidate"
+
+    retention_policy = {
+        "clip_width_mm": policy.clip_width_mm,
+        "wall_mm": policy.wall_mm,
+        "clip_height_mm": policy.clip_height_mm,
+        "overhang_mm": policy.overhang_mm,
+        "clearance_mm": policy.clearance_mm,
+        "compliant_span_mm": policy.compliant_span_mm,
+    }
+    fit_results = {
+        result.check.value: {"passed": result.passed, "detail": result.detail}
+        for result in fit_report.results
+    }
+    report = _report(
+        target,
+        body,
+        paths,
+        locations,
+        retention_policy,
+        fit_results,
+        decision,
+        created_at=created_at,
+        source_sha256=source_sha256,
+        output_sha256=output_sha256,
+    )
+    paths.automated_report.parent.mkdir(parents=True, exist_ok=True)
+    paths.automated_report.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+    if parent is None:
+        write_immutable_manifest(
+            ValidationTarget(
+                schema_version="1.0.0",
+                target_id=target.target_id,
+                display_name=target.display_name,
+                manufacturer=target.manufacturer,
+                product_family=target.product_family,
+                source_model_path=paths.relative(paths.source_step),
+                source_model_sha256=source_sha256,
+                pcb_solid_index=1,
+                created_at_utc=created_at,
+            ),
+            output_path=paths.target_manifest,
+        )
+
+    candidate = CandidateRevision(
+        schema_version="1.0.0",
+        candidate_id=candidate_identifier(
+            target_id=target.target_id, strategy=STRATEGY, revision=args.revision
+        ),
+        target_id=target.target_id,
+        revision=args.revision,
+        source_sha256=source_sha256,
+        output_sha256=output_sha256,
+        git_commit=git_commit,
+        generator_version="1.0.0",
+        retention_policy=retention_policy,
+        derived_parameters={
+            "device_thickness_mm": body.thickness_mm,
+            **retention_policy,
+        },
+        selected_corners=tuple(location.label for location in locations),
+        automated_decision=decision,
+        automated_evidence_path=paths.relative(paths.automated_report),
+        fixture_artifact_path=paths.relative(paths.retention_step),
+        created_at_utc=created_at,
+        strategy=STRATEGY,
+    )
+
+    if parent is None:
+        write_immutable_manifest(candidate, output_path=paths.candidate_manifest)
+    else:
+        persist_candidate_revision(
+            parent_candidate=load_candidate_revision(parent.candidate_manifest),
+            candidate=candidate,
+            relationship=RevisionRelationshipType(args.relationship),
+            reason=args.reason,
+            output_directory=paths.candidate_root,
+        )
+
+    # The shell does not embed the envelope, so no reference board.
+    export_validation, export_validation_path = run_candidate_export_validation(
+        candidate=candidate,
+        retention_step=paths.retention_step,
+        validation_root=paths.candidate_root / "export-validation",
+        printer_profile=load_manifest(root / PRINTER_PROFILE),
+        repository_root=root,
+        validated_at_utc=created_at,
+    )
+
+    kind = "caliper capture" if from_capture else "synthetic, placeholder geometry"
+    print(f"=== {target.heading} SNAP-SHELL CANDIDATE ({kind}) ===")
+    print(
+        f"Revision: {args.revision}"
+        + (f" ({args.relationship} {args.parent})" if parent else "")
+    )
+    print(f"Passed: {execution.passed}")
+    print(f"Decision: {decision}")
+    print(
+        "Locations: "
+        + ", ".join(
+            location.label
+            + (
+                ""
+                if (location.x_mm, location.y_mm) == _middle(body, location.label)
+                else " (moved clear of a feature)"
+            )
+            for location in locations
+        )
+    )
+    print(f"Target manifest: {paths.target_manifest}")
+    print(f"Candidate manifest: {paths.candidate_manifest}")
+    print(f"Retention STEP: {paths.retention_step}")
+    print(f"Export validation: {export_validation.evaluated_status}")
+    print(f"Export-validation record: {export_validation_path}")
+
+    if not execution.passed:
+        failed = ", ".join(
+            result.check.value for result in fit_report.results if not result.passed
+        )
+        raise SystemExit(f"Snap-shell verification failed: {failed}")
+
+
+def _middle(body: Body, edge: str) -> tuple[float, float]:
+    return {
+        "north": (0.0, body.width_mm / 2),
+        "south": (0.0, -body.width_mm / 2),
+        "east": (body.length_mm / 2, 0.0),
+        "west": (-body.length_mm / 2, 0.0),
+    }[edge]
+
+
+def _require_new(paths: RevisionPaths, parent: RevisionPaths | None) -> None:
+    """Refuse before exporting anything: the STEP files and report are
+    written before the immutable manifests, so a rerun against an existing
+    revision would clobber its pinned artifacts and only then fail."""
+
+    pinned = [paths.candidate_manifest, paths.source_step, paths.retention_step]
+
+    if parent is None:
+        pinned.append(paths.target_manifest)
+
+    existing = [path for path in pinned if path.exists()]
+
+    if existing:
+        raise SystemExit(
+            "Refusing to regenerate over pinned files: "
+            + ", ".join(paths.relative(path) for path in existing)
+        )
+
+    if parent is not None:
+        missing = [
+            path
+            for path in (paths.target_manifest, parent.candidate_manifest)
+            if not path.exists()
+        ]
+
+        if missing:
+            raise SystemExit(
+                "A revision needs its target and parent registered first: "
+                + ", ".join(paths.relative(path) for path in missing)
+            )
+
+
+def _report(
+    target: WearableTarget,
+    body: Body,
+    paths: RevisionPaths,
+    locations: Sequence[SnapShellLocation],
+    retention_policy: dict[str, float],
+    fit_results: dict[str, dict[str, object]],
+    decision: str,
+    *,
+    created_at: str,
+    source_sha256: str,
+    output_sha256: str,
+) -> dict[str, object]:
+    report: dict[str, object] = {
+        "schema_version": "1.0.0",
+        "generated_at_utc": created_at,
+        "decision": decision,
+        "geometry_evidence_status": body.evidence_status,
+        "geometry_source": body.source,
+        "source": {
+            "step_path": paths.relative(paths.source_step),
+            "step_sha256": source_sha256,
+            "pcb_solid_index": 1,
+        },
+        "output": {
+            "step_path": paths.relative(paths.retention_step),
+            "step_sha256": output_sha256,
+        },
+        "device": {
+            "body_length_mm": body.length_mm,
+            "body_width_mm": body.width_mm,
+            "body_thickness_mm": body.thickness_mm,
+        },
+        "selected_corners": [location.label for location in locations],
+        "snap_shell_locations": [
+            {
+                "label": location.label,
+                "x_mm": location.x_mm,
+                "y_mm": location.y_mm,
+                "rotation_degrees": location.rotation_degrees,
+            }
+            for location in locations
+        ],
+        "policy": retention_policy,
+        "fit_checks": fit_results,
+        "metadata_publication": (
+            {
+                "approved": decision == "verified_candidate",
+                "reason": (
+                    f"Built from caliper capture {paths.relative(paths.capture_copy)}; "
+                    "a printed trial on the real device is still required."
+                ),
+            }
+            if body.capture is not None
+            else {"approved": False, "reason": target.placeholder_reason}
+        ),
+    }
+
+    if body.capture is not None:
+        report["capture"] = {
+            "path": paths.relative(paths.capture_copy),
+            "sha256": body.capture.sha256,
+            "measured_by": body.capture.measured_by,
+            "measured_on": body.capture.measured_on,
+            "caliper": body.capture.caliper,
+            "edge_features": [
+                {
+                    "identifier": feature.identifier,
+                    "edge": feature.edge,
+                    "center_offset_mm": feature.center_offset_mm,
+                    "width_mm": feature.width_mm,
+                }
+                for feature in body.features
+            ],
+        }
+
+    return report

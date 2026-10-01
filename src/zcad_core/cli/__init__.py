@@ -36,6 +36,7 @@ from zcad_core.cli import (
     target,
     thermal,
     trial,
+    wearable,
 )
 
 _COMMAND_GROUPS = (
@@ -53,6 +54,7 @@ _COMMAND_GROUPS = (
     compensation,
     thermal,
     slice_check,
+    wearable,
 )
 
 

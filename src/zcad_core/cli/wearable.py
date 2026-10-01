@@ -1,0 +1,91 @@
+"""zcad-validation wearable template and check."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+from zcad_core.cli._common import emit
+from zcad_core.hardware.wearables import (
+    DEVICES,
+    capture_template,
+    check_capture,
+    load_capture,
+)
+
+
+def _wearable_check(args: argparse.Namespace) -> int:
+    """Check a caliper capture: refuse what cannot be right, warn of what
+    probably is not, and show the sizes a candidate would be built from."""
+
+    check = check_capture(args.file)
+    payload: dict[str, object] = {
+        "file": str(args.file),
+        "valid": check.valid,
+        "errors": list(check.errors),
+        "warnings": list(check.warnings),
+    }
+
+    if check.valid:
+        capture = load_capture(args.file)
+        payload["sha256"] = capture.sha256
+        payload["device"] = capture.device
+        payload["body_mm"] = {
+            "length": capture.length_mm,
+            "width": capture.width_mm,
+            "thickness": capture.thickness_mm,
+        }
+        payload["edge_features"] = [
+            f"{feature.identifier} on the {feature.edge} edge"
+            for feature in capture.edge_features
+        ]
+
+    emit(payload)
+
+    return 0 if check.valid else 1
+
+
+def _wearable_template(args: argparse.Namespace) -> int:
+    """Print an example capture to fill in, or write it."""
+
+    template = capture_template(args.device)
+
+    if args.output is None:
+        emit(template)
+
+        return 0
+
+    if args.output.exists():
+        raise FileExistsError(f"Refusing to overwrite {args.output}")
+
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(template, indent=2) + "\n", encoding="utf-8")
+    emit({"written": str(args.output)})
+
+    return 0
+
+
+def register(
+    subcommands: argparse._SubParsersAction[argparse.ArgumentParser],
+) -> None:
+    """Add the wearable commands to the zcad-validation parser."""
+
+    wearable = subcommands.add_parser(
+        "wearable",
+        help="check a wearable device's caliper capture, or write one to fill in",
+    )
+    commands = wearable.add_subparsers(dest="wearable_command", required=True)
+    check = commands.add_parser(
+        "check", help="check a caliper capture; exits 1 if it cannot be used"
+    )
+    check.add_argument("file", type=Path)
+    check.set_defaults(handler=_wearable_check)
+    template = commands.add_parser(
+        "template", help="print an example caliper capture to fill in"
+    )
+    template.add_argument("--device", required=True, choices=sorted(DEVICES))
+    template.add_argument(
+        "--output", type=Path, help="write the example here instead of printing it"
+    )
+    template.set_defaults(handler=_wearable_template)

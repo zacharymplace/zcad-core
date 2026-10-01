@@ -34,6 +34,7 @@ nav:
       - A drill guide for your part: guides/drill-guide.md
       - A test fixture for your board: guides/pcb-test-fixture.md
       - Pi 5 group enclosure: guides/pi5-group-enclosure.md
+      - Measuring a wearable: guides/wearable-capture.md
   - Roadmaps:
       - Validation Lab: roadmaps/validation-lab.md
       - Next phases: roadmaps/next-phases.md
