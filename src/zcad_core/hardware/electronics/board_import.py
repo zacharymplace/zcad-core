@@ -263,9 +263,13 @@ class Hole:
     diameter_mm: float
 
 
-def through_holes(solid: cq.Shape) -> list[Hole]:
+def through_holes(
+    solid: cq.Shape, minimum_diameter_mm: float = MINIMUM_HOLE_MM
+) -> list[Hole]:
     """The circular holes through a PCB solid: cylindrical faces about the
-    vertical axis that span its thickness, whose axis lies in the void."""
+    vertical axis that span its thickness, whose axis lies in the void. Holes
+    narrower than ``minimum_diameter_mm`` (vias and pins, on a board) are left
+    out."""
 
     b = solid.BoundingBox()
     found: dict[tuple[float, float, float], Hole] = {}
@@ -292,7 +296,7 @@ def through_holes(solid: cq.Shape) -> list[Hole]:
         )
 
         if (
-            2 * radius < MINIMUM_HOLE_MM
+            2 * radius < minimum_diameter_mm
             or not inside
             or cast(cq.Solid, solid).isInside(
                 cq.Vector(x, y, (b.zmin + b.zmax) / 2), 1e-3

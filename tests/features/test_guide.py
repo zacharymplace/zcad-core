@@ -118,7 +118,7 @@ def test_the_template_names_a_part_by_its_real_hash(bracket: Path) -> None:
         (lambda d: d["nest"].update(depth_mm=0.1), "nest.depth_mm"),
         (lambda d: d["nest"].update(depth_mm="deep"), "must be a number"),
         (lambda d: d["nest"].update(wall_mm=0.1), "nest.wall_mm"),
-        (lambda d: d["nest"].update(bearing="ledge"), "later release"),
+        (lambda d: d["nest"].update(bearing="wedge"), "nest.bearing must be one of"),
         (lambda d: d["plate"].update(thickness_mm=0.2), "plate.thickness_mm"),
         (lambda d: d.update(bores=[{"x_mm": 0}]), "bores[0].identifier"),
     ],

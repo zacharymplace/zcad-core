@@ -21,6 +21,8 @@ from zcad_core.features.guide_file import (
     guide_template,
     inspect_guide_file,
 )
+from zcad_core.features.guide_import import import_guide
+from zcad_core.hardware.electronics.board_import import MINIMUM_HOLE_MM
 from zcad_core.profiles import load_printer_profile
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
@@ -42,6 +44,47 @@ def _guide_template(args: argparse.Namespace) -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(template, indent=2) + "\n", encoding="utf-8")
     emit({"written": str(args.output)})
+
+    return 0
+
+
+def _offset(text: str) -> tuple[float, float]:
+    """``X,Y`` as a pair of numbers."""
+
+    try:
+        x, y = (float(part) for part in text.split(","))
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(
+            f"{text!r} is not X,Y: two numbers with a comma, as 2.5,-1"
+        ) from error
+
+    return x, y
+
+
+def _guide_import(args: argparse.Namespace) -> int:
+    """Write a guide file with a bore at each round through-hole of a master."""
+
+    if args.output.exists():
+        raise FileExistsError(f"Refusing to overwrite {args.output}")
+
+    imported = import_guide(
+        args.holes_from,
+        target=args.part,
+        identifier=args.identifier,
+        master_solid_index=args.master_solid_index,
+        target_solid_index=args.part_solid_index,
+        offset_mm=args.offset,
+        minimum_hole_mm=args.minimum_hole_mm,
+    )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(imported.data, indent=2) + "\n", encoding="utf-8")
+    emit(
+        {
+            "written": str(args.output),
+            **imported.report,
+            "needs_review": imported.data["needs_review"],
+        }
+    )
 
     return 0
 
@@ -163,6 +206,39 @@ def register(
         "--output", type=Path, help="write the example here instead of printing it"
     )
     template.set_defaults(handler=_guide_template)
+    import_ = commands.add_parser(
+        "import",
+        help="write a guide file with a bore at each hole of a master part",
+    )
+    import_.add_argument(
+        "--holes-from",
+        required=True,
+        type=Path,
+        help="the master STEP model (+Z up) whose round through-holes become bores",
+    )
+    import_.add_argument(
+        "--part",
+        type=Path,
+        help="the part the guide is built around; the master itself if left out",
+    )
+    import_.add_argument("--output", required=True, type=Path)
+    import_.add_argument("--identifier", help="the guide's name; default: the part's")
+    import_.add_argument(
+        "--offset",
+        type=_offset,
+        default=(0.0, 0.0),
+        metavar="X,Y",
+        help="move every hole by this much, when the two parts do not share a centre",
+    )
+    import_.add_argument("--master-solid-index", type=int)
+    import_.add_argument("--part-solid-index", type=int)
+    import_.add_argument(
+        "--minimum-hole-mm",
+        type=float,
+        default=MINIMUM_HOLE_MM,
+        help="ignore holes narrower than this",
+    )
+    import_.set_defaults(handler=_guide_import)
     check = commands.add_parser(
         "check", help="check a guide file and its part; exits 1 if it cannot be built"
     )

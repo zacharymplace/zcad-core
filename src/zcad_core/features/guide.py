@@ -34,13 +34,15 @@ from zcad_core.features.guide_bores import (
 )
 from zcad_core.features.guide_file import (
     DEFAULT_PLATE_MM,
+    MINIMUM_BEARING_AREA_MM2,
     GuidePart,
     GuideSpec,
+    nest_outline,
 )
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.geometry.outline_prism import outline_prism
 
-GUIDE_RECORD_SCHEMA_VERSION = "2.0.0"
+GUIDE_RECORD_SCHEMA_VERSION = "3.0.0"
 GUIDE_RECORD = "guide.json"
 # How far the guide is lifted off the part per step in the release check.
 RELEASE_STEP_MM = 2.0
@@ -55,6 +57,10 @@ class Guide:
     part: GuidePart
     body: cq.Workplane
     plate_thickness_mm: float
+    # How far the plate's underside stands above the part's top: 0 when it
+    # rests on the part.
+    plate_base_mm: float
+    bearing_area_mm2: float | None
     clearance_mm: float
     profile_id: str
     tolerance_status: str
@@ -80,17 +86,19 @@ def _sections(spec: GuideSpec) -> Sections:
     return Sections(drill=spec.drill, bushing=spec.bushing, bores=spec.bores)
 
 
-def _cutters(item: PlannedBore, sections: Sections, thickness: float) -> cq.Workplane:
+def _cutters(
+    item: PlannedBore, sections: Sections, top_z: float, bottom_z: float
+) -> cq.Workplane:
     """What a bore removes from the plate: the hole for the drill, through the
     plate, and for a bushing a wider pocket from the top down the bushing's
     length. Each is a cylinder on the bore's axis, started a millimetre above
     the plate and ended half a millimetre below it, in the nest's void."""
 
     cosine = -item.axis[2]
-    start = axis_point(item, thickness + 1.0)
-    base = cq.Vector(start[0], start[1], thickness + 1.0)
+    start = axis_point(item, top_z + 1.0)
+    base = cq.Vector(start[0], start[1], top_z + 1.0)
     direction = cq.Vector(*item.axis)
-    through = (thickness + 1.5) / cosine
+    through = (top_z + 1.0 - (bottom_z - 0.5)) / cosine
     cutter = cq.Workplane("XY").add(
         cq.Solid.makeCylinder(
             item.hole_diameter_mm / 2, through, pnt=base, dir=direction
@@ -125,15 +133,29 @@ def build_guide(spec: GuideSpec, part: GuidePart, profile: dict[str, Any]) -> Gu
         )
 
     sections = _sections(spec)
+    outline = nest_outline(spec, part, clearance)
+
+    if (
+        outline.bearing_area_mm2 is not None
+        and outline.bearing_area_mm2 < MINIMUM_BEARING_AREA_MM2
+    ):
+        raise ValueError(
+            f"The part widens under the ledge nest by only "
+            f"{outline.bearing_area_mm2:.1f} mm2; the least is "
+            f"{MINIMUM_BEARING_AREA_MM2:g} mm2"
+        )
+
+    base_z = spec.nest_gap_mm
     plan: BorePlan = plan_bores(
         sections,
         height_mm=part.height_mm,
-        shadow=part.silhouette.points,
+        shadow=outline.points,
         tolerances=fits,
         minimum_wall_mm=least_wall,
         nest_wall_mm=spec.nest_wall_mm,
         plate_thickness_mm=spec.plate_thickness_mm,
         default_plate_mm=DEFAULT_PLATE_MM,
+        plate_base_mm=base_z,
     )
 
     if plan.errors:
@@ -147,24 +169,25 @@ def build_guide(spec: GuideSpec, part: GuidePart, profile: dict[str, Any]) -> Gu
             f"{least_floor:g} mm minimum"
         )
 
-    points = part.silhouette.points
+    top_z = base_z + thickness
+    points = outline.points
     outer = outline_prism(
-        points, -spec.nest_depth_mm, thickness, clearance + spec.nest_wall_mm
+        points, -spec.nest_depth_mm, top_z, clearance + spec.nest_wall_mm
     )
-    pocket = outline_prism(points, -spec.nest_depth_mm - 1.0, 0.0, clearance)
+    pocket = outline_prism(points, -spec.nest_depth_mm - 1.0, base_z, clearance)
     body = outer.cut(pocket)
 
     for item in plan.bores:
-        body = body.cut(_cutters(item, sections, thickness))
+        body = body.cut(_cutters(item, sections, top_z, base_z))
 
     solid = body.val()
     checks = {
         "one_solid": len(body.solids().vals()) == 1,
         "part_fits_pocket": _clear(solid, part.shape),
         "part_lifts_out": _lifts_out(solid, part),
-        "bores_open": _bores_open(solid, plan.bores, thickness),
+        "bores_open": _bores_open(solid, plan.bores, top_z),
     }
-    reached, problems = _reach(body, plan.bores, sections, thickness)
+    reached, problems = _reach(body, plan.bores, sections, thickness, base_z)
     checks["bit_reaches_depth"] = not problems
     play = {
         item.bore.identifier: play_bounds(item, sections, fits, clearance)
@@ -176,6 +199,8 @@ def build_guide(spec: GuideSpec, part: GuidePart, profile: dict[str, Any]) -> Gu
         part=part,
         body=body,
         plate_thickness_mm=thickness,
+        plate_base_mm=base_z,
+        bearing_area_mm2=outline.bearing_area_mm2,
         clearance_mm=clearance,
         profile_id=str(profile.get("profile_id", "")),
         tolerance_status=str(profile.get("tolerance_status", "unknown")),
@@ -192,6 +217,7 @@ def _reach(
     planned: tuple[PlannedBore, ...],
     sections: Sections,
     thickness: float,
+    base_z: float,
 ) -> tuple[tuple[PlannedBore, ...], list[str]]:
     """Slide the chuck up each bore's axis until it clears the plate and any
     bushing flange, and say how much bit must stand out of it to reach the
@@ -204,21 +230,21 @@ def _reach(
         return planned, []
 
     assembly = cq.Compound.makeCompound(
-        [shape, *flange_solids(planned, sections, thickness)]
+        [shape, *flange_solids(planned, sections, base_z + thickness)]
     )
     reached: list[PlannedBore] = []
     problems: list[str] = []
 
     for item in planned:
         try:
-            standoff = chuck_standoff(assembly, item, drill, thickness)
+            standoff = chuck_standoff(assembly, item, drill, base_z + thickness)
         except ValueError as error:
             problems.append(str(error))
             reached.append(item)
 
             continue
 
-        needed = bit_needed(item, standoff, thickness)
+        needed = bit_needed(item, standoff, thickness, base_z)
         reached.append(item.with_reach(standoff, needed))
 
         if drill.stickout_mm is not None and needed > drill.stickout_mm + 1e-9:
@@ -231,9 +257,7 @@ def _reach(
     return tuple(reached), problems
 
 
-def _bores_open(
-    body: object, planned: tuple[PlannedBore, ...], thickness: float
-) -> bool:
+def _bores_open(body: object, planned: tuple[PlannedBore, ...], top_z: float) -> bool:
     """Each bore's drill, as a cylinder through the plate, meets no material."""
 
     if not isinstance(body, cq.Shape):
@@ -241,7 +265,7 @@ def _bores_open(
 
     for item in planned:
         cosine = -item.axis[2]
-        top = thickness + 1.0
+        top = top_z + 1.0
         origin = axis_point(item, top)
         drill = cq.Solid.makeCylinder(
             item.bore.diameter_mm / 2,
@@ -338,6 +362,12 @@ def guide_record(guide: Guide, files: dict[str, dict[str, Any]]) -> dict[str, An
             "depth_mm": spec.nest_depth_mm,
             "wall_mm": spec.nest_wall_mm,
             "bearing": spec.bearing,
+            "gap_mm": guide.plate_base_mm,
+            "bearing_area_mm2": (
+                None
+                if guide.bearing_area_mm2 is None
+                else round(guide.bearing_area_mm2, 1)
+            ),
             "clearance_per_side_mm": guide.clearance_mm,
         },
         "plate": {

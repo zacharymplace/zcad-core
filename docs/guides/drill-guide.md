@@ -29,7 +29,8 @@ from what. Both take `--printer-profile`, which the bores are checked against.
 | `part.solid_index` | Which solid is the part (from 1), if the model holds several. Left out, the nest is built around all of them together, and the check says so. |
 | `nest.depth_mm` | How far down the part the pocket goes. It cannot be deeper than the part. |
 | `nest.wall_mm` | The wall round the pocket (2.0 by default). It cannot be under the printer's minimum wall. |
-| `nest.bearing` | `top`: the plate rests on the part's top face. The only choice for now. |
+| `nest.bearing` | `top` (the default): the plate rests on the part's top face. `ledge`: for a part with no flat top; see below. |
+| `nest.gap_mm` | With `ledge` only: how far the plate stands above the part's highest point (1.0 by default). |
 | `plate.thickness_mm` | The plate over the part. Leave it out and the plate is sized to the bores (6.0 with none). Give one and it must be enough for them. |
 | `drill` | The tool, from you: `diameter_mm`, `chuck_diameter_mm`, `depth_mm`, and optionally `stickout_mm`. |
 | `bushing` | A steel bushing, if any bore uses one; see below. |
@@ -55,6 +56,58 @@ outline, so it is never smaller than the part and can be a pixel or so larger.
 A hole in the shadow is filled, since a pocket has no island, and a part whose
 shadow is several separate pieces is refused: name the one solid that is the
 part. On a model of a whole board, `guide check` takes several seconds.
+
+## A part with no flat top
+
+A plate cannot rest on a dome, a cylinder's curved end, or a sloped top. For
+such a part set `"bearing": "ledge"`:
+
+```json
+"nest": {"depth_mm": 12.0, "wall_mm": 2.0, "bearing": "ledge", "gap_mm": 1.0}
+```
+
+The nest then follows the shadow of only the part's **top `depth_mm`**, and the
+guide rests where the part **widens below that**: the part's own shoulder is the
+ledge, under the nest's rim. Choose `depth_mm` to put the rim at a shoulder, a
+step where the part grows wider. The plate stands `gap_mm` above the part's
+highest point instead of touching it, and a drill must cross that gap too.
+
+The check refuses a ledge nest that has nothing to rest on: a `depth_mm` within
+half a millimetre of the part's height, or a part that widens under the rim by
+less than 25 mm² (a part with no shoulder at that depth, like a straight pipe).
+It reports `bearing_area_mm2`, how much of the part the rim lands on. A bore is
+measured from the plane through the part's highest point, and the bit needed
+beyond the chuck includes the gap.
+
+A ledge nest follows the top slab's shadow and not the whole part's, so it is
+cut by slicing the model: on a very large assembly that is slow.
+
+## Copying holes from a master part
+
+If another part already has the holes you want (a mating plate, a cover, a
+gasket), read them instead of measuring:
+
+```bash
+zcad-validation guide import --holes-from master.step --part target.step \
+  --output my-guide.json
+```
+
+Each round through-hole of the master becomes a bore at the same place. The
+master must have **+Z up**, and a hole must run its whole height; holes under
+1.6 mm are left out (`--minimum-hole-mm` changes that). Leave out `--part` to
+build the guide around the master itself, to re-drill or enlarge its own holes.
+
+Both parts are in the guide's frame, **centred on their own bounding box** in X
+and Y, so a pattern copies across when the two parts share a centre. If they
+do not (the master has a tab the target lacks, say), give `--offset X,Y` to
+move every hole. The report lists the holes that fall outside the target. The
+commonest hole size becomes the drill; a hole of another size gets its own
+`diameter_mm`. A target with no flat top is given a ledge nest.
+
+The chuck and the depth cannot be guessed, so the file is written with
+`needs_review`, and `guide check` and `guide build` refuse it until you set the
+drill's `chuck_diameter_mm` and `depth_mm` and remove `needs_review`. Check the
+holes against the real part first: a model is often wrong.
 
 ## Bores
 
@@ -103,8 +156,9 @@ its layers and comes out roughest, and the build says so.
 ## What the check refuses
 
 - A part that has changed, a missing STEP file, a solid the model does not have,
-  a nest deeper than the part, a part with no flat top (under 10% of its shadow
-  flat at the top), or a shadow of several pieces.
+  a nest deeper than the part, a part with no flat top under a `top` bearing
+  (under 10% of its shadow flat at the top; use `ledge`), a ledge nest with
+  nothing to rest on, or a shadow of several pieces.
 - A **plate too thin** for the bores, if you set one.
 - A bore too close to the part's edge: its foot must stand inside the shadow by
   its radius and a printed wall, and its head, up through the plate, must stand
