@@ -28,6 +28,7 @@ from zcad_core.cli import (
     enclosure,
     enclosure_group,
     fixture,
+    guide,
     review,
     revision,
     slice_check,
@@ -40,6 +41,7 @@ from zcad_core.cli import (
 _COMMAND_GROUPS = (
     target,
     board,
+    guide,
     candidate,
     fixture,
     trial,
