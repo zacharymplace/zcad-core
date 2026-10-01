@@ -99,6 +99,21 @@ pin header or flex cable. Turn either off with `display_retainer=False`
 - `--vent-slots N` (`vent_slots`) cuts N vertical slots, 1.6 mm wide at a
   4 mm pitch, through each long wall that carries no opening, below the
   lid's skirt and clear of the corners.
+- `--vent-area-mm2 A` with `--vent-pattern P` (`vent_area_mm2`,
+  `vent_pattern`) cuts a pattern sized to a free area instead: `A` mm2 of
+  inlets low in the long walls that carry no opening (shared between them),
+  and outlets in the lid that are at least as large. `P` is `slots`, `hex`
+  (a hex grid), `round` (round holes), or `louvers` (slanted slots in the
+  walls, sloping down to the outside so a level look meets wall; the lid takes
+  slots). Cells are 1.2 mm apart, the smallest that reach the target, taken
+  from the middle of the zone outward. A cell is kept only where the plate is
+  solid all round it and nothing hangs behind it, so none opens onto an
+  opening, a screw hole, the display window, a boss, a standoff, a post, or
+  the hinge's and slide's features. A hex has a flat top and a hole through a
+  wall is a teardrop, so nothing overhangs past 45 degrees. The build prints
+  the free areas under `vents`, and refuses a target the zone cannot pass, or
+  walls too short for any cell, saying so. It is separate from `--vent-slots`:
+  set one or the other. The temperature estimate credits no vents.
 
 The builder refuses combinations that do not fit, such as more slots than
 a wall holds, or vents on walls too low to fit them under a skirt.
@@ -206,6 +221,8 @@ unless you pass `--allow-hot`, because you have measured and know better.
 - `cable_plug_width_mm`, `cable_plug_height_mm`: the plug body the opening
   must pass.
 - `mount`, `mount_plate_mm`: a mount plate and its thickness (none, 4).
+- `vent_slots`, `vent_pattern`, `vent_area_mm2`: a fixed set of slots, or a
+  pattern sized to a free area.
 - `declared_power_w`, `ambient_c`, `service_limit_c`, `allow_hot`: the
   temperature estimate's extra power, room, material limit, and override.
 - `lid_attachment`, `hinge_pin`, `slide_clearance_mm`: how the lid is held

@@ -83,6 +83,13 @@ from zcad_core.features.pcb_mounts import (
     add_pcb_standoff,
     board_hole_pattern,
 )
+from zcad_core.features.vent_patterns import (
+    PATTERNS,
+    VentFill,
+    VentReport,
+    add_lid_outlets,
+    add_wall_inlets,
+)
 from zcad_core.geometry.boxes import box_between
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware import BoardSpec, DisplaySpec, FastenerSpec, get_fastener
@@ -187,6 +194,11 @@ class EnclosureDesign:
     locating_lip: bool = False
     # Vertical vent slots in each long wall that carries no opening.
     vent_slots: int = 0
+    # A vent pattern sized to a free area, in mm2, for each of the inlets low
+    # in the long walls and the outlets in the lid; the outlets are never
+    # smaller. ``vent_slots`` is a separate, fixed set of slots.
+    vent_pattern: str = "slots"
+    vent_area_mm2: float = 0.0
     # Openings in one wall closer than this merge into one, so no thin web
     # of wall is left between them; zero keeps every opening apart.
     minimum_opening_web_mm: float = MINIMUM_OPENING_WEB_MM
@@ -265,6 +277,18 @@ class EnclosureDesign:
         if self.vent_slots < 0:
             raise ValueError("vent_slots must not be negative")
 
+        if self.vent_pattern not in PATTERNS:
+            raise ValueError(f"vent_pattern must be one of {PATTERNS}")
+
+        if self.vent_area_mm2 < 0:
+            raise ValueError("vent_area_mm2 must not be negative")
+
+        if self.vent_area_mm2 and self.vent_slots:
+            raise ValueError("Set vent_slots or vent_area_mm2, not both")
+
+        if self.vent_pattern != "slots" and not self.vent_area_mm2:
+            raise ValueError("A vent pattern needs a vent_area_mm2 to size it to")
+
     @property
     def skirt_depth_mm(self) -> float | None:
         """How far the lid's skirt reaches into the base, if it has one."""
@@ -303,6 +327,8 @@ class Enclosure:
     slide: SlideReport | None = None
     # The temperature estimate for the closed box.
     thermal: ThermalEstimate | None = None
+    # The vent pattern, when the design asks for one.
+    vents: VentReport | None = None
 
 
 def build_enclosure(
@@ -379,6 +405,19 @@ def build_enclosure(
     base = _cut_openings(base, openings, design, fastener, positions)
     cavity = _cavity(spec, design)
     base = _lid_options_in_base(base, cavity, design, fastener, positions, openings)
+    inlets: list[VentFill] = []
+
+    if design.vent_area_mm2:
+        base, inlets = add_wall_inlets(
+            base,
+            cavity,
+            kind=design.vent_pattern,
+            target_mm2=design.vent_area_mm2,
+            blocked_edges=[opening.edge for opening in openings],
+            top_z_mm=_vent_top_z(cavity, design),
+            corner_keepout_mm=_vent_corner_keepout(fastener, design, positions),
+        )
+
     lid = _lid(spec, design, cavity_top, fastener, positions)
     lid = _lid_options_in_lid(lid, cavity, design, fastener, positions, openings)
 
@@ -455,6 +494,30 @@ def build_enclosure(
             ),
         )
 
+    vents_report = None
+
+    if design.vent_area_mm2:
+        inlet_mm2 = sum(fill.area_mm2 for fill in inlets)
+        # The outlets are at least as large as the inlets, and of the same
+        # pattern, but never louvers: those are for walls.
+        lid, outlet = add_lid_outlets(
+            lid,
+            cavity,
+            lid_mm=design.lid_mm,
+            kind="slots" if design.vent_pattern == "louvers" else design.vent_pattern,
+            target_mm2=max(design.vent_area_mm2, inlet_mm2),
+        )
+        vents_report = VentReport(
+            pattern=design.vent_pattern,
+            target_mm2=design.vent_area_mm2,
+            inlet_mm2=inlet_mm2,
+            outlet_mm2=outlet.area_mm2,
+            inlet_cells=sum(len(fill.centers) for fill in inlets),
+            outlet_cells=len(outlet.centers),
+            inlet=inlets[0].spec.describe(),
+            outlet=outlet.spec.describe(),
+        )
+
     pads = None
     mount = None
 
@@ -504,6 +567,7 @@ def build_enclosure(
         hinge=hinge,
         slide=slide,
         thermal=thermal,
+        vents=vents_report,
     )
 
 
@@ -1260,27 +1324,40 @@ def _lid_options_in_base(
         base = base.cut(snap_grooves(cavity))
 
     if design.vent_slots:
-        skirt = design.skirt_depth_mm
         base = base.cut(
             vents(
                 cavity,
                 slots_per_wall=design.vent_slots,
                 blocked_edges=[opening.edge for opening in openings],
-                top_z_mm=cavity.top_z_mm
-                - (
-                    skirt + 1.0
-                    if skirt is not None
-                    else VENT_RIM_MM
-                    + (HINGE_WEB_DEPTH_MM if design.lid_attachment == "hinge" else 0.0)
-                    + (SLIDE_VENT_DROP_MM if design.lid_attachment == "slide" else 0.0)
-                ),
-                corner_keepout_mm=(
-                    2 * _boss_radius(fastener, design) + 1.0 if positions else 3.0
-                ),
+                top_z_mm=_vent_top_z(cavity, design),
+                corner_keepout_mm=_vent_corner_keepout(fastener, design, positions),
             )
         )
 
     return base
+
+
+def _vent_top_z(cavity: Cavity, design: EnclosureDesign) -> float:
+    """The highest a wall vent may reach: below the lid's skirt, and below the
+    hinge's webs or the slide's thickening where there are any."""
+
+    skirt = design.skirt_depth_mm
+
+    return cavity.top_z_mm - (
+        skirt + 1.0
+        if skirt is not None
+        else VENT_RIM_MM
+        + (HINGE_WEB_DEPTH_MM if design.lid_attachment == "hinge" else 0.0)
+        + (SLIDE_VENT_DROP_MM if design.lid_attachment == "slide" else 0.0)
+    )
+
+
+def _vent_corner_keepout(
+    fastener: FastenerSpec,
+    design: EnclosureDesign,
+    positions: tuple[tuple[float, float], ...],
+) -> float:
+    return 2 * _boss_radius(fastener, design) + 1.0 if positions else 3.0
 
 
 def _lid_options_in_lid(

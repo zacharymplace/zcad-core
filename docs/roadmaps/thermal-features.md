@@ -11,9 +11,10 @@ catalog flags as drawing air from above, and the group's five lid slots over
 each fan. It has no idea how much heat a design must shed, so it cannot say
 whether it sheds enough.
 
-Phase 1, the power figures and the temperature estimate, is built, and differs
-from the first design in several ways (see *What phase 1 changed* below).
-Phases 2 to 4 are design only.
+Phases 1 (the power figures and the temperature estimate) and 2 (the vent
+pattern generator) are built, and each differs from the first design in ways
+found by building it (see *What phase 1 changed* and *What phase 2 changed*
+below). Phases 3 and 4 are design only.
 
 ## Decision: an estimate first, and the geometry second
 
@@ -120,7 +121,7 @@ A fan is hardware, so it goes in the catalog beside the boards:
    sources, `max_service_c` in the material profile, the lumped estimate and
    its report in the build output, `--power-w` and `--ambient-c`. No
    geometry.
-2. **The vent pattern generator**: hex, round, slot, and louver patterns
+2. **The vent pattern generator (built)**: hex, round, slot, and louver patterns
    sized to a free area, inlet and outlet zones, feet for floor vents, and the
    printability checks. `--vent-slots` remains.
 3. **Fan bays**: the fan catalog, the bay with its guard and mounting holes,
@@ -162,6 +163,39 @@ A fan is hardware, so it goes in the catalog beside the boards:
 - **It is in the build record,** under `thermal`, so a later trial can compare
   a measured temperature with it. The record's schema version is unchanged,
   since the field is additive.
+
+### What phase 2 changed
+
+- **No floor vents yet.** The design had inlets in the floor and low in the
+  walls, and refused floor vents unless the box stood clear. Phase 2 puts the
+  inlets low in the long walls and the outlets in the lid, which needs no
+  feet. Floor inlets, and the feet they need, are left for later.
+- **The target is the inlet's free area.** `--vent-area-mm2` sizes the inlets,
+  shared between the long walls that carry no opening, and the outlets in the
+  lid are made at least as large. `--vent-slots` is the old fixed set of
+  slots and remains; setting both is refused.
+- **Cells are placed by testing the real solids, not by a keep-out list.** A
+  cell is kept only if the plate is solid all round it (so never over an
+  opening, a screw hole, a display window, a slit, or an edge) and nothing
+  hangs behind it (so never onto a boss, a standoff, a post, or a clip). It
+  finds the features that are there, including the hinge's and the slide's,
+  without a list that has to be kept up to date. Cells are taken from the
+  middle of the zone outward, so a small target gives a compact block.
+- **The estimate still credits no vents.** For these heights the stack effect
+  is a small share of the box's heat loss and uncertain, so crediting it
+  would make the estimate less honest. The build reports the free areas
+  beside the estimate, and a thermal trial in phase 4 is what decides whether
+  they can be credited.
+- **A hexagon is drawn with a flat top,** not a point. A pointed hexagon's roof
+  is 30 degrees from level, which will not print without support; a flat top
+  is a bridge of about 3 mm and its other sides are 60 degrees. A round hole in
+  a wall is a teardrop.
+- **Louvers are for walls.** A louver slopes down to the outside at 45
+  degrees, so a level line of sight meets wall; the lid takes slots when the
+  walls take louvers. A louver's free area is counted at the cosine of its
+  slant, which is a deliberate undercount.
+- **Refusals say what fits.** A target too big says how much the zone can pass
+  where cells fit, and a band too short for any cell says how tall it is.
 
 Each phase is one PR. Phase 1 changes no geometry, so nothing already
 reviewed needs a revised build.
