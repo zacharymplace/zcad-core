@@ -32,6 +32,7 @@ nav:
       - Enclosure builder: guides/enclosure-builder.md
       - Your own board: guides/board-file.md
       - A drill guide for your part: guides/drill-guide.md
+      - A test fixture for your board: guides/pcb-test-fixture.md
       - Pi 5 group enclosure: guides/pi5-group-enclosure.md
   - Roadmaps:
       - Validation Lab: roadmaps/validation-lab.md

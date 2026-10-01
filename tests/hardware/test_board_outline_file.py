@@ -158,6 +158,8 @@ def test_a_sparse_outline_is_warned_of() -> None:
     )
     data = _without_holes(template(outline=sparse))
     del data["envelope"]
+    # The template's test points lie off this sliver of a board.
+    del data["test_points"]
     data["cable_connector"].update(width_mm=1.0, depth_mm=1.0, center_offset_mm=0.0)
     report = check_board_data(data)
 

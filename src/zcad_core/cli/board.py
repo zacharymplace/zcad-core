@@ -46,6 +46,10 @@ def _board_check(args: argparse.Namespace) -> int:
             "components": [part.identifier for part in board.components],
             "wall_openings": [opening.identifier for opening in board.wall_openings],
             "power": board.power_figure is not None,
+            "test_points": {
+                side: sum(1 for point in board.test_points if point.side == side)
+                for side in ("top", "bottom")
+            },
             "verified": board.verified,
         }
 
