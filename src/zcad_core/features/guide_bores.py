@@ -536,12 +536,15 @@ def axis_point(planned: PlannedBore, z: float) -> tuple[float, float]:
     )
 
 
-def _closest_approach(a: PlannedBore, b: PlannedBore, height: float) -> float:
-    """The least distance between two bores' axes over the plate's height. It is
-    the least of a convex function of ``z``, so it is at an end or at a vertex."""
+def _closest_approach(
+    a: PlannedBore, b: PlannedBore, bottom: float, top: float
+) -> float:
+    """The least distance between two bores' axes over the plate, from its
+    underside at ``bottom`` to its top at ``top``. It is the least of a convex
+    function of ``z``, so it is at an end or at a vertex."""
 
-    a0, a1 = axis_point(a, 0.0), axis_point(a, height)
-    b0, b1 = axis_point(b, 0.0), axis_point(b, height)
+    a0, a1 = axis_point(a, bottom), axis_point(a, top)
+    b0, b1 = axis_point(b, bottom), axis_point(b, top)
     d0 = (a0[0] - b0[0], a0[1] - b0[1])
     d1 = (a1[0] - b1[0], a1[1] - b1[1])
     slope = (d1[0] - d0[0], d1[1] - d0[1])
@@ -564,9 +567,14 @@ def plan_bores(
     nest_wall_mm: float,
     plate_thickness_mm: float | None,
     default_plate_mm: float,
+    plate_base_mm: float = 0.0,
 ) -> BorePlan:
     """Place every bore in the plate and check it against the part and its
-    neighbours. Every problem is collected, so the user sees them all."""
+    neighbours. Every problem is collected, so the user sees them all.
+
+    ``plate_base_mm`` is the height of the plate's underside above the part's
+    top plane: 0 when the plate rests on the part, and the gap for a ledge nest,
+    where it stands clear."""
 
     errors: list[str] = []
     warnings: list[str] = []
@@ -600,7 +608,7 @@ def plan_bores(
             pocket_diameter_mm=pocket,
             guide_length_mm=_guide_length(bore, sections.bushing),
         )
-        top = axis_point(item, thickness)
+        top = axis_point(item, plate_base_mm + thickness)
         item = PlannedBore(
             bore=bore,
             axis=axis,
@@ -620,6 +628,7 @@ def plan_bores(
                 minimum_wall_mm=minimum_wall_mm,
                 outer_margin_mm=clearance + nest_wall_mm,
                 thickness=thickness,
+                plate_base_mm=plate_base_mm,
                 warnings=warnings,
             )
         )
@@ -627,7 +636,9 @@ def plan_bores(
     for index, first in enumerate(planned):
         for second in planned[index + 1 :]:
             gap = (
-                _closest_approach(first, second, thickness)
+                _closest_approach(
+                    first, second, plate_base_mm, plate_base_mm + thickness
+                )
                 - _effective_radius(first, sections)
                 - _effective_radius(second, sections)
             )
@@ -673,6 +684,7 @@ def _check_placement(
     minimum_wall_mm: float,
     outer_margin_mm: float,
     thickness: float,
+    plate_base_mm: float,
     warnings: list[str],
 ) -> list[str]:
     bore, name = item.bore, item.bore.identifier
@@ -707,6 +719,19 @@ def _check_placement(
             f"{max(head, 0.0):.2f} mm inside the plate's edge; it needs "
             f"{head_radius + head_wall:.2f} mm: move it, or tilt it less"
         )
+
+    # A plate that stands clear of the part has an underside of its own, which
+    # the bore must also leave a wall inside.
+    if plate_base_mm > 0:
+        underside = axis_point(item, plate_base_mm)
+        under = board_outline.depth_inside(shadow, underside) + outer_margin_mm
+
+        if under < radius + minimum_wall_mm:
+            errors.append(
+                f"{name} leaves the plate's underside at ({underside[0]:.1f}, "
+                f"{underside[1]:.1f}), only {max(under, 0.0):.2f} mm inside its "
+                f"edge; it needs {radius + minimum_wall_mm:.2f} mm"
+            )
 
     # The drill's depth: not past the part's underside, and not out its side.
     cosine = -dz
@@ -823,13 +848,16 @@ def chuck_standoff(
     return round(high, 2)
 
 
-def bit_needed(planned: PlannedBore, standoff: float, thickness: float) -> float:
+def bit_needed(
+    planned: PlannedBore, standoff: float, thickness: float, gap: float = 0.0
+) -> float:
     """The bit that must stand beyond the chuck's face to cut to depth: up from
-    the plate to the chuck, through the plate, and down the hole."""
+    the plate to the chuck, through the plate, across the gap to the part when
+    the plate stands clear of it, and down the hole."""
 
     cosine = -planned.axis[2]
 
-    return round(standoff + thickness / cosine + planned.bore.depth_mm, 2)
+    return round(standoff + (thickness + gap) / cosine + planned.bore.depth_mm, 2)
 
 
 def flange_solids(

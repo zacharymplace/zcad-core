@@ -151,9 +151,10 @@ the pooled thermal coefficient is. Until there are trials it reports none.
    seats, tilt, the chuck sweep, the drill-exit check, and the bushing spec with
    its sourcing. `guide build` exports a guide. See *What phase 2 changed*
    below.
-3. **From a part.** `guide import` reads a part's round through-holes and writes
-   them as bores, so a guide can copy a hole pattern from a master part onto a
-   part that has none. The bearing choice for a part with no flat top.
+3. **From a part (built).** `guide import` reads a part's round through-holes
+   and writes them as bores, so a guide can copy a hole pattern from a master
+   part onto a part that has none. The bearing choice for a part with no flat
+   top. See *What phase 3 changed* below.
 4. **Trials.** Guide trials in the Validation Lab, the pooled positional error,
    verification, and the guide's page in the docs on how to measure one.
 
@@ -222,6 +223,34 @@ the pooled thermal coefficient is. Until there are trials it reports none.
   accuracy. Phase 4 replaces it with what trials measure.
 - **A guide check needs the printer profile** for the bores (their fits and
   walls), so `guide check` takes `--printer-profile`, defaulting to the A1 mini's.
+
+### What phase 3 changed
+
+- **The ledge is the part's own shoulder.** The design left "a ledge of the nest"
+  open. Built: the nest follows the shadow of only the part's top `depth_mm`
+  (cut by slicing the model), so the part widens under its rim and the guide
+  rests on that shoulder. The plate stands `gap_mm` above the part's highest
+  point, not on it. The check measures the part's area under the rim (at least
+  25 mm², a default) and refuses a nest at a depth with no shoulder, such as a
+  straight pipe. A part with a flat top still uses `top`.
+- **A bore is measured from the part's highest plane.** On a dome the surface
+  falls away from it, so a bore's depth and the drill-exit check count from the
+  plane through the highest point, and `bit_needed_beyond_chuck_mm` adds the gap.
+  The surface under an off-centre bore is lower than that plane; the guide does
+  not model it.
+- **Import copies a pattern between two parts, or re-drills one.** `guide import
+  --holes-from MASTER [--part TARGET]` reuses the board importer's hole finder
+  (round, through the whole height, +Z up; now with a settable minimum width).
+  Both parts are centred on their own bounding boxes, so `--offset X,Y` moves
+  the pattern when they do not share a centre, and holes that fall off the target
+  are listed.
+- **The chuck and depth are left for the user.** Like the board importer's
+  connector, they cannot be guessed, so the file carries `needs_review` until the
+  drill is set. A target with no flat top is written with a ledge nest and a
+  `needs_review` note to set the depth at a shoulder.
+- **Not built: a part with no shoulder and no flat top.** A dome on a plain
+  pipe has nothing for the guide to rest on at all. That wants a printed
+  support or a clamp, which is outside this feature (see *Open questions*).
 
 Each phase is one PR. Phases 1 to 3 add a way in and change no existing build.
 

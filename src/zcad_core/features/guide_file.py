@@ -38,7 +38,13 @@ from zcad_core.features.guide_common import IDENTIFIER, Findings, number, sectio
 from zcad_core.geometry.silhouette import Silhouette, silhouette
 
 GUIDE_SCHEMA_VERSION = "1.0.0"
-BEARINGS = ("top",)
+BEARINGS = ("top", "ledge")
+GAP_RANGE_MM = (0.3, 30.0)
+DEFAULT_GAP_MM = 1.0
+# A ledge nest must rest on at least this much of the part, a design default.
+MINIMUM_BEARING_AREA_MM2 = 25.0
+# A nest this deep or more leaves no part below it to rest on.
+LEDGE_SHOULDER_MM = 0.5
 NEST_DEPTH_RANGE_MM = (0.5, 200.0)
 WALL_RANGE_MM = (0.8, 20.0)
 PLATE_RANGE_MM = (1.2, 40.0)
@@ -95,6 +101,8 @@ class GuideSpec:
     nest_depth_mm: float
     nest_wall_mm: float
     bearing: str
+    # How far the plate stands above the part's top: 0 when it rests on the part.
+    nest_gap_mm: float
     # None: sized to the bores (or the default, with none).
     plate_thickness_mm: float | None
     drill: Drill | None
@@ -169,8 +177,22 @@ def _check_nest(data: Mapping[str, Any], findings: Findings) -> None:
 
     if bearing not in BEARINGS:
         findings.errors.append(
-            f"nest.bearing must be one of {BEARINGS}, not {bearing!r}; a "
-            "ledge for a part with no flat top comes in a later release"
+            f"nest.bearing must be one of {BEARINGS}, not {bearing!r}"
+        )
+    elif bearing == "ledge":
+        number(
+            nest,
+            "gap_mm",
+            "nest",
+            findings,
+            low=GAP_RANGE_MM[0],
+            high=GAP_RANGE_MM[1],
+            required=False,
+        )
+    elif nest.get("gap_mm") is not None:
+        findings.errors.append(
+            "nest.gap_mm is for a ledge bearing: with bearing 'top' the plate "
+            "rests on the part and there is no gap"
         )
 
 
@@ -272,6 +294,11 @@ def guide_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> GuideSp
         nest_depth_mm=float(nest["depth_mm"]),
         nest_wall_mm=float(nest.get("wall_mm", DEFAULT_WALL_MM)),
         bearing=str(nest.get("bearing", "top")),
+        nest_gap_mm=(
+            float(nest.get("gap_mm", DEFAULT_GAP_MM))
+            if nest.get("bearing", "top") == "ledge"
+            else 0.0
+        ),
         plate_thickness_mm=(
             float(plate["thickness_mm"]) if "thickness_mm" in plate else None
         ),
@@ -297,33 +324,41 @@ def load_part(spec: GuideSpec) -> GuidePart:
     """Read the part from its STEP file, refusing one that has changed, and put
     it in the guide's frame with its shadow."""
 
-    if not spec.part_path.is_file():
-        raise ValueError(f"The part's STEP file is missing: {spec.part_path}")
+    return load_part_file(spec.part_path, spec.part_sha256, spec.solid_index)
 
-    digest = hashlib.sha256(spec.part_path.read_bytes()).hexdigest()
 
-    if digest != spec.part_sha256:
+def load_part_file(
+    path: Path, expected_sha256: str | None, solid_index: int | None
+) -> GuidePart:
+    """A STEP model as a part in the guide's frame, with its shadow. A hash is
+    checked when one is given."""
+
+    if not path.is_file():
+        raise ValueError(f"The part's STEP file is missing: {path}")
+
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+
+    if expected_sha256 is not None and digest != expected_sha256:
         raise ValueError(
-            f"{spec.part_path.name} has changed since the guide file was written: "
-            f"its SHA-256 is {digest}, the file says {spec.part_sha256}"
+            f"{path.name} has changed since the guide file was written: "
+            f"its SHA-256 is {digest}, the file says {expected_sha256}"
         )
 
     # Imported here: reading a model needs CadQuery's STEP reader.
     from zcad_core.hardware.electronics.board_import import load_solids
 
-    solids = load_solids(spec.part_path)
+    solids = load_solids(path)
 
     if not solids:
-        raise ValueError(f"{spec.part_path.name} holds no solids")
+        raise ValueError(f"{path.name} holds no solids")
 
-    if spec.solid_index is not None:
-        if spec.solid_index > len(solids):
+    if solid_index is not None:
+        if solid_index > len(solids):
             raise ValueError(
-                f"part.solid_index is {spec.solid_index}; the model has "
-                f"{len(solids)} solids"
+                f"part.solid_index is {solid_index}; the model has {len(solids)} solids"
             )
 
-        chosen = [solids[spec.solid_index - 1]]
+        chosen = [solids[solid_index - 1]]
     else:
         chosen = solids
 
@@ -346,6 +381,51 @@ def load_part(spec: GuideSpec) -> GuidePart:
         solids=len(chosen),
         sha256=digest,
     )
+
+
+@dataclass(frozen=True)
+class NestOutline:
+    """The outline the nest follows, and what a ledge nest rests on."""
+
+    points: tuple[tuple[float, float], ...]
+    # For a ledge nest: the part's area under the nest's rim, in mm2.
+    bearing_area_mm2: float | None = None
+
+
+def nest_outline(
+    spec: GuideSpec, part: GuidePart, clearance_mm: float = 0.2
+) -> NestOutline:
+    """The outline of the nest's pocket. A nest that rests on the part's top
+    follows the part's whole shadow. A **ledge** nest follows the shadow of only
+    the part's top ``nest.depth_mm``, and rests where the part widens below it:
+    the part's own shoulder is the ledge."""
+
+    if spec.bearing == "top":
+        return NestOutline(part.silhouette.points)
+
+    from zcad_core.geometry.intersection import intersection_volume
+    from zcad_core.geometry.outline_prism import outline_prism
+
+    depth = spec.nest_depth_mm
+    box = cq.Solid.makeBox(1e4, 1e4, depth, pnt=cq.Vector(-5e3, -5e3, -depth))
+    slab = part.shape.intersect(box)
+
+    if slab.isNull() or not slab.Solids():
+        raise ValueError(f"The part has no material in its top {depth:g} mm")
+
+    box_slab = slab.BoundingBox()
+    centre = (
+        (box_slab.xmin + box_slab.xmax) / 2,
+        (box_slab.ymin + box_slab.ymax) / 2,
+    )
+    shadow = silhouette(slab)
+    points = tuple((x + centre[0], y + centre[1]) for x, y in shadow.points)
+    ring = outline_prism(
+        points, -depth - 1.0, -depth, clearance_mm + spec.nest_wall_mm
+    ).cut(outline_prism(points, -depth - 2.0, -depth + 1.0, clearance_mm))
+    area = intersection_volume(ring.val(), part.shape)  # type: ignore[arg-type]
+
+    return NestOutline(points, area)
 
 
 def check_guide_file(
@@ -383,6 +463,53 @@ def inspect_guide_file(
     return check_part(spec, part, report.warnings, profile), spec, part
 
 
+def _check_nest_outline(
+    spec: GuideSpec,
+    part: GuidePart,
+    fits: dict[str, float] | None,
+    errors: list[str],
+    summary: dict[str, Any],
+) -> NestOutline | None:
+    """The outline the nest follows; for a ledge, whether the part widens under
+    it enough to rest on."""
+
+    clearance = fits["sliding_clearance_per_side"] if fits is not None else 0.2
+    summary["bearing"] = spec.bearing
+
+    if spec.bearing == "ledge":
+        summary["gap_mm"] = spec.nest_gap_mm
+
+        if spec.nest_depth_mm > part.height_mm - LEDGE_SHOULDER_MM:
+            errors.append(
+                f"A ledge nest rests on part below it: nest.depth_mm is "
+                f"{spec.nest_depth_mm:g} and the part is {part.height_mm:.1f} mm "
+                f"high, so there is no shoulder under the nest. Make it at least "
+                f"{LEDGE_SHOULDER_MM:g} mm less than the part's height"
+            )
+
+            return None
+
+    try:
+        outline = nest_outline(spec, part, clearance)
+    except ValueError as error:
+        errors.append(str(error))
+
+        return None
+
+    if outline.bearing_area_mm2 is not None:
+        summary["bearing_area_mm2"] = round(outline.bearing_area_mm2, 1)
+
+        if outline.bearing_area_mm2 < MINIMUM_BEARING_AREA_MM2:
+            errors.append(
+                f"The part widens under a ledge nest by only "
+                f"{outline.bearing_area_mm2:.1f} mm2 where the rim lands, and the "
+                f"least is {MINIMUM_BEARING_AREA_MM2:g} mm2: set nest.depth_mm at "
+                "a shoulder of the part, where it grows wider"
+            )
+
+    return outline
+
+
 def check_part(
     spec: GuideSpec,
     part: GuidePart,
@@ -405,12 +532,12 @@ def check_part(
             f"under {SHALLOW_NEST_MM:g} mm it can ride up and tilt"
         )
 
-    if part.silhouette.top_share < MINIMUM_TOP_SHARE:
+    if spec.bearing == "top" and part.silhouette.top_share < MINIMUM_TOP_SHARE:
         errors.append(
             f"The part has no flat top for the plate to bear on: only "
             f"{part.silhouette.top_share:.0%} of its shadow is flat at the top, "
-            f"and the least is {MINIMUM_TOP_SHARE:.0%}. A ledge for such a part "
-            "comes in a later release"
+            f"and the least is {MINIMUM_TOP_SHARE:.0%}. Set nest.bearing to "
+            "'ledge' and the nest rests on the part's shoulder instead"
         )
 
     if part.solids > 1 and spec.solid_index is None:
@@ -420,34 +547,41 @@ def check_part(
         )
 
     plan_summary: dict[str, Any] = {}
+    fits: dict[str, float] | None = None
+    least_wall = 1.2
+
+    if profile is not None:
+        try:
+            fits, least_wall, _ = printer_numbers(profile)
+        except ValueError as error:
+            errors.append(str(error))
+
+    outline = _check_nest_outline(spec, part, fits, errors, plan_summary)
 
     if spec.bores and profile is None:
         errors.append(
             "The bores can be checked only against a printer profile: give "
             "--printer-profile"
         )
-    elif profile is not None:
-        try:
-            fits, least_wall, _ = printer_numbers(profile)
-        except ValueError as error:
-            errors.append(str(error))
-        else:
-            plan = plan_bores(
-                Sections(spec.drill, spec.bushing, spec.bores),
-                height_mm=part.height_mm,
-                shadow=part.silhouette.points,
-                tolerances=fits,
-                minimum_wall_mm=least_wall,
-                nest_wall_mm=spec.nest_wall_mm,
-                plate_thickness_mm=spec.plate_thickness_mm,
-                default_plate_mm=DEFAULT_PLATE_MM,
-            )
-            errors.extend(plan.errors)
-            notes.extend(plan.warnings)
-            plan_summary = {
-                "plate_thickness_mm": plan.plate_thickness_mm,
-                "bores": [item.to_dict() for item in plan.bores],
-            }
+    elif fits is not None and outline is not None:
+        plan = plan_bores(
+            Sections(spec.drill, spec.bushing, spec.bores),
+            height_mm=part.height_mm,
+            shadow=outline.points,
+            tolerances=fits,
+            minimum_wall_mm=least_wall,
+            nest_wall_mm=spec.nest_wall_mm,
+            plate_thickness_mm=spec.plate_thickness_mm,
+            default_plate_mm=DEFAULT_PLATE_MM,
+            plate_base_mm=spec.nest_gap_mm,
+        )
+        errors.extend(plan.errors)
+        notes.extend(plan.warnings)
+        plan_summary = {
+            **plan_summary,
+            "plate_thickness_mm": plan.plate_thickness_mm,
+            "bores": [item.to_dict() for item in plan.bores],
+        }
 
     summary = {
         **plan_summary,
