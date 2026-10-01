@@ -49,7 +49,8 @@ def _guide_template(args: argparse.Namespace) -> int:
 def _guide_check(args: argparse.Namespace) -> int:
     """Check a guide file and the part it names; exits 1 if it cannot be built."""
 
-    report = check_guide_file(args.file)
+    profile = load_printer_profile(args.printer_profile)
+    report = check_guide_file(args.file, profile)
     emit(
         {
             "file": str(args.file),
@@ -70,18 +71,21 @@ def _sha256(path: Path) -> str:
 def _guide_build(args: argparse.Namespace) -> int:
     """Build, validate, and export a guide's nest and plate, with its record."""
 
-    report, spec, part = inspect_guide_file(args.guide_file)
+    profile = load_printer_profile(args.printer_profile)
+    report, spec, part = inspect_guide_file(args.guide_file, profile)
 
     if not report.valid or spec is None or part is None:
         raise ValueError("The guide cannot be built:\n- " + "\n- ".join(report.errors))
 
-    profile = load_printer_profile(args.printer_profile)
     guide = build_guide(spec, part, profile)
     require_fits_bed(guide, profile)
 
     if not guide.passed:
         failed = sorted(name for name, ok in guide.checks.items() if not ok)
-        raise ValueError(f"The guide fails its checks: {failed}")
+        raise ValueError(
+            f"The guide fails its checks: {failed}"
+            + "".join(f"\n- {problem}" for problem in guide.problems)
+        )
 
     name = spec.identifier.lower().replace("_", "-")
     result = export_parts(
@@ -95,7 +99,8 @@ def _guide_build(args: argparse.Namespace) -> int:
             parameters={
                 "nest_depth_mm": spec.nest_depth_mm,
                 "nest_wall_mm": spec.nest_wall_mm,
-                "plate_thickness_mm": spec.plate_thickness_mm,
+                "plate_thickness_mm": guide.plate_thickness_mm,
+                "bores": len(guide.bores),
                 "part_sha256": part.sha256,
             },
         )
@@ -114,7 +119,16 @@ def _guide_build(args: argparse.Namespace) -> int:
         {
             "design_name": name,
             "part": report.part,
-            "warnings": list(report.warnings),
+            "warnings": list({*report.warnings, *guide.warnings}),
+            "plate_thickness_mm": guide.plate_thickness_mm,
+            "bores": [
+                {
+                    **item.to_dict(),
+                    "worst_case_entry_play_mm": guide.play[item.bore.identifier][0],
+                    "worst_case_tip_play_mm": guide.play[item.bore.identifier][1],
+                }
+                for item in guide.bores
+            ],
             "checks": guide.checks,
             "tolerance_status": guide.tolerance_status,
             "clearance_per_side_mm": guide.clearance_mm,
@@ -153,6 +167,12 @@ def register(
         "check", help="check a guide file and its part; exits 1 if it cannot be built"
     )
     check.add_argument("file", type=Path)
+    check.add_argument(
+        "--printer-profile",
+        type=Path,
+        default=DEFAULT_PRINTER_PROFILE,
+        help="the printer whose fits and walls the bores are checked against",
+    )
     check.set_defaults(handler=_guide_check)
     build = commands.add_parser("build", help="build, validate, and export a guide")
     build.add_argument("--guide-file", required=True, type=Path)

@@ -24,6 +24,17 @@ from typing import Any
 
 import cadquery as cq
 
+from zcad_core.features.guide_bores import (
+    Bore,
+    Bushing,
+    Drill,
+    Sections,
+    check_bore_sections,
+    parse_sections,
+    plan_bores,
+    printer_numbers,
+)
+from zcad_core.features.guide_common import IDENTIFIER, Findings, number, section
 from zcad_core.geometry.silhouette import Silhouette, silhouette
 
 GUIDE_SCHEMA_VERSION = "1.0.0"
@@ -38,7 +49,6 @@ DEFAULT_PLATE_MM = 6.0
 MINIMUM_TOP_SHARE = 0.1
 # A nest shallower than this barely locates the part.
 SHALLOW_NEST_MM = 3.0
-_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _TOP_LEVEL = frozenset(
     {
@@ -51,6 +61,8 @@ _TOP_LEVEL = frozenset(
         "part",
         "nest",
         "plate",
+        "drill",
+        "bushing",
         "bores",
         "needs_review",
     }
@@ -83,7 +95,11 @@ class GuideSpec:
     nest_depth_mm: float
     nest_wall_mm: float
     bearing: str
-    plate_thickness_mm: float
+    # None: sized to the bores (or the default, with none).
+    plate_thickness_mm: float | None
+    drill: Drill | None
+    bushing: Bushing | None
+    bores: tuple[Bore, ...]
     source: str
     notes: str
     file_path: Path
@@ -102,65 +118,7 @@ class GuidePart:
     sha256: str
 
 
-class _Findings:
-    def __init__(self) -> None:
-        self.errors: list[str] = []
-        self.warnings: list[str] = []
-
-
-def _number(
-    section: Mapping[str, Any],
-    name: str,
-    where: str,
-    findings: _Findings,
-    *,
-    low: float,
-    high: float,
-    required: bool = True,
-) -> float | None:
-    value = section.get(name)
-
-    if value is None:
-        if required:
-            findings.errors.append(f"{where}.{name} is missing")
-
-        return None
-
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        findings.errors.append(f"{where}.{name} must be a number, not {value!r}")
-
-        return None
-
-    if not low <= value <= high:
-        findings.errors.append(
-            f"{where}.{name} is {value:g}, outside {low:g} to {high:g}"
-        )
-
-        return None
-
-    return float(value)
-
-
-def _section(
-    data: Mapping[str, Any], name: str, findings: _Findings, *, required: bool = True
-) -> Mapping[str, Any] | None:
-    value = data.get(name)
-
-    if value is None:
-        if required:
-            findings.errors.append(f"{name} is missing")
-
-        return None
-
-    if not isinstance(value, Mapping):
-        findings.errors.append(f"{name} must be an object")
-
-        return None
-
-    return value
-
-
-def _check_part_section(part: Mapping[str, Any], findings: _Findings) -> None:
+def _check_partsection(part: Mapping[str, Any], findings: Findings) -> None:
     step = part.get("step")
 
     if not isinstance(step, str) or not step.strip():
@@ -184,13 +142,13 @@ def _check_part_section(part: Mapping[str, Any], findings: _Findings) -> None:
         )
 
 
-def _check_nest(data: Mapping[str, Any], findings: _Findings) -> None:
-    nest = _section(data, "nest", findings)
+def _check_nest(data: Mapping[str, Any], findings: Findings) -> None:
+    nest = section(data, "nest", findings)
 
     if nest is None:
         return
 
-    _number(
+    number(
         nest,
         "depth_mm",
         "nest",
@@ -198,7 +156,7 @@ def _check_nest(data: Mapping[str, Any], findings: _Findings) -> None:
         low=NEST_DEPTH_RANGE_MM[0],
         high=NEST_DEPTH_RANGE_MM[1],
     )
-    _number(
+    number(
         nest,
         "wall_mm",
         "nest",
@@ -219,7 +177,7 @@ def _check_nest(data: Mapping[str, Any], findings: _Findings) -> None:
 def check_guide_data(data: Any) -> GuideCheck:
     """Check a guide file's contents without reading the part."""
 
-    findings = _Findings()
+    findings = Findings()
 
     if not isinstance(data, Mapping):
         return GuideCheck(("A guide file must hold a JSON object",), ())
@@ -240,7 +198,7 @@ def check_guide_data(data: Any) -> GuideCheck:
 
     identifier = data.get("identifier")
 
-    if not isinstance(identifier, str) or not _IDENTIFIER.fullmatch(identifier):
+    if not isinstance(identifier, str) or not IDENTIFIER.fullmatch(identifier):
         findings.errors.append("identifier must be a name of letters, digits, _ . -")
 
     if data.get("needs_review"):
@@ -249,17 +207,17 @@ def check_guide_data(data: Any) -> GuideCheck:
             "remove needs_review"
         )
 
-    part = _section(data, "part", findings)
+    part = section(data, "part", findings)
 
     if part is not None:
-        _check_part_section(part, findings)
+        _check_partsection(part, findings)
 
     _check_nest(data, findings)
 
-    plate = _section(data, "plate", findings, required=False)
+    plate = section(data, "plate", findings, required=False)
 
     if plate is not None:
-        _number(
+        number(
             plate,
             "thickness_mm",
             "plate",
@@ -269,11 +227,7 @@ def check_guide_data(data: Any) -> GuideCheck:
             required=False,
         )
 
-    if data.get("bores"):
-        findings.errors.append(
-            "bores are not supported yet: this release builds the nest and plate "
-            "only, and the guide's bores come in the next"
-        )
+    check_bore_sections(data, findings)
 
     if not data.get("source"):
         findings.warnings.append(
@@ -307,6 +261,7 @@ def guide_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> GuideSp
     part, nest = data["part"], data["nest"]
     plate = data.get("plate") or {}
     step = Path(part["step"])
+    sections = parse_sections(data)
 
     return GuideSpec(
         identifier=str(data["identifier"]),
@@ -317,7 +272,12 @@ def guide_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> GuideSp
         nest_depth_mm=float(nest["depth_mm"]),
         nest_wall_mm=float(nest.get("wall_mm", DEFAULT_WALL_MM)),
         bearing=str(nest.get("bearing", "top")),
-        plate_thickness_mm=float(plate.get("thickness_mm", DEFAULT_PLATE_MM)),
+        plate_thickness_mm=(
+            float(plate["thickness_mm"]) if "thickness_mm" in plate else None
+        ),
+        drill=sections.drill,
+        bushing=sections.bushing,
+        bores=sections.bores,
         source=str(data.get("source", "")),
         notes=str(data.get("notes", "")),
         file_path=path,
@@ -388,17 +348,20 @@ def load_part(spec: GuideSpec) -> GuidePart:
     )
 
 
-def check_guide_file(path: Path) -> GuideCheck:
+def check_guide_file(
+    path: Path, profile: Mapping[str, Any] | None = None
+) -> GuideCheck:
     """Check a guide file and the part it names."""
 
-    return inspect_guide_file(path)[0]
+    return inspect_guide_file(path, profile)[0]
 
 
 def inspect_guide_file(
-    path: Path,
+    path: Path, profile: Mapping[str, Any] | None = None
 ) -> tuple[GuideCheck, GuideSpec | None, GuidePart | None]:
     """Check a guide file and the part it names, and give back the spec and the
-    part when they could be read, so a build need not read them again."""
+    part when they could be read, so a build need not read them again. The bores
+    are placed and checked against the printer profile, if one is given."""
 
     data, sha256 = read_guide_file(path)
     report = check_guide_data(data)
@@ -417,13 +380,16 @@ def inspect_guide_file(
             None,
         )
 
-    return check_part(spec, part, report.warnings), spec, part
+    return check_part(spec, part, report.warnings, profile), spec, part
 
 
 def check_part(
-    spec: GuideSpec, part: GuidePart, warnings: tuple[str, ...] = ()
+    spec: GuideSpec,
+    part: GuidePart,
+    warnings: tuple[str, ...] = (),
+    profile: Mapping[str, Any] | None = None,
 ) -> GuideCheck:
-    """What the part's own numbers say about the guide's nest."""
+    """What the part's own numbers say about the guide's nest and bores."""
 
     errors: list[str] = []
     notes = list(warnings)
@@ -453,7 +419,38 @@ def check_part(
             "set, so the nest is built around all of them together"
         )
 
+    plan_summary: dict[str, Any] = {}
+
+    if spec.bores and profile is None:
+        errors.append(
+            "The bores can be checked only against a printer profile: give "
+            "--printer-profile"
+        )
+    elif profile is not None:
+        try:
+            fits, least_wall, _ = printer_numbers(profile)
+        except ValueError as error:
+            errors.append(str(error))
+        else:
+            plan = plan_bores(
+                Sections(spec.drill, spec.bushing, spec.bores),
+                height_mm=part.height_mm,
+                shadow=part.silhouette.points,
+                tolerances=fits,
+                minimum_wall_mm=least_wall,
+                nest_wall_mm=spec.nest_wall_mm,
+                plate_thickness_mm=spec.plate_thickness_mm,
+                default_plate_mm=DEFAULT_PLATE_MM,
+            )
+            errors.extend(plan.errors)
+            notes.extend(plan.warnings)
+            plan_summary = {
+                "plate_thickness_mm": plan.plate_thickness_mm,
+                "bores": [item.to_dict() for item in plan.bores],
+            }
+
     summary = {
+        **plan_summary,
         "step": str(spec.part_path),
         "sha256": part.sha256,
         "solids": part.solids,
@@ -487,7 +484,10 @@ def guide_template(part_step: Path | None = None) -> dict[str, Any]:
             "The part's frame is its own: centred on its bounding box in X and Y, "
             "+X right and +Y up the page seen from above, with its top face at "
             "z = 0. The nest is a pocket that follows the part's shadow seen from "
-            "above, so the part always lifts out."
+            "above, so the part always lifts out. A bore's x_mm and y_mm are where "
+            "its axis crosses that top plane; a tilt leans the drill's lower end "
+            "toward +Y (tilt_about x) or +X (tilt_about y). The drill's sizes are "
+            "yours: the engine looks none of them up."
         ),
         "part": {
             "step": str(part_step) if part_step is not None else "part.step",
@@ -495,4 +495,13 @@ def guide_template(part_step: Path | None = None) -> dict[str, Any]:
         },
         "nest": {"depth_mm": 8.0, "wall_mm": DEFAULT_WALL_MM, "bearing": "top"},
         "plate": {"thickness_mm": DEFAULT_PLATE_MM},
+        "drill": {
+            "diameter_mm": 4.0,
+            "chuck_diameter_mm": 14.0,
+            "depth_mm": 6.0,
+            "stickout_mm": 60.0,
+        },
+        "bores": [
+            {"identifier": "B1", "x_mm": 0.0, "y_mm": 0.0, "kind": "printed"},
+        ],
     }

@@ -146,10 +146,11 @@ the pooled thermal coefficient is. Until there are trials it reports none.
    nest only; the part loader, the silhouette, the nest and plate shell, the
    release check, the build record with the part's hash, and `guide template`.
    See *What phase 1 changed* below, and the guide
-   [A nest for your part](../guides/drill-guide.md).
-2. **Bores.** The bore schema and checks, printed bores and bushing seats, tilt,
-   the chuck sweep, the drill-exit check, and the bushing spec with its sourcing.
-   `guide build` exports a guide.
+   [A drill guide for your part](../guides/drill-guide.md).
+2. **Bores (built).** The bore schema and checks, printed bores and bushing
+   seats, tilt, the chuck sweep, the drill-exit check, and the bushing spec with
+   its sourcing. `guide build` exports a guide. See *What phase 2 changed*
+   below.
 3. **From a part.** `guide import` reads a part's round through-holes and writes
    them as bores, so a guide can copy a hole pattern from a master part onto a
    part that has none. The bearing choice for a part with no flat top.
@@ -180,6 +181,47 @@ the pooled thermal coefficient is. Until there are trials it reports none.
   `plate.thickness_mm` (6.0) are in the file, checked against the printer
   profile's minimums. The plate's thickness is meant to follow the bores' needs
   in phase 2; until then it is the user's.
+
+### What phase 2 changed
+
+- **The bushing's figures are inline, not catalogued.** As the design proposed:
+  a `bushing` section in the file with a required `source`, and a build record
+  that says the figures are the user's own. No bushing type is added to the
+  hardware catalog until a datasheet has been read.
+- **The chuck is found by sliding it, not by sweeping a fixed cylinder.** The
+  design's check sent a chuck-wide cylinder along the axis. What matters is how
+  far up the axis the chuck must stand to clear the plate and any flange, which
+  sets how much bit must stand out of it. The build slides a cylinder up each
+  bore's axis until it clears (the plate and every flange, a neighbour's too),
+  and reports `bit_needed_beyond_chuck_mm`. A `drill.stickout_mm` makes that a
+  refusal; without one it is a reported figure. A vertical bore's standoff is 0,
+  a tilt's is about the chuck's radius times the tangent, a flange's is its
+  thickness.
+- **The tilt is about X or Y, signed.** `tilt_about` and `tilt_deg` (up to 45
+  either way): about X leans the drill's lower end toward +Y, about Y toward +X.
+  A flanged bushing cannot tilt, since a flat flange will not seat on a plate it
+  is not parallel to; use a printed bore or a flangeless bushing.
+- **The plate's thickness follows the bores.** Left out of the file, it is the
+  longest bore's length along the vertical, rounded up to half a millimetre; a
+  printed bore is 1.5 drill diameters (at least 3 mm), a bushing bore its body
+  without the flange. Both are defaults. A thickness in the file must be enough.
+- **Both ends of a bore are checked.** The design checked a bore's axis on the
+  part's top plane. A tilted bore's head sits across the plate from its foot,
+  so the head must also stand inside the plate's outline.
+- **Drill exit and break-out.** A drill that would come within 1 mm of the part's
+  underside is refused unless the bore sets `allow_exit`; one whose tip would
+  leave the part's side is refused too.
+- **A printed hole is bigger than the drill by three terms.** The drill, the
+  sliding clearance each side (the intended gap), and `hole_oversize` (what a
+  printer takes off a hole). The bushing pocket is the same with the press-fit
+  clearance.
+- **Play is reported, as a bound.** For each bore the record gives the most the
+  drill can sit off the axis from the clearances alone (the nest's, the bore's,
+  and a bushing's), at the surface and at the hole's bottom. It is derived from
+  the printer profile's provisional tolerances, is labelled so, and is not an
+  accuracy. Phase 4 replaces it with what trials measure.
+- **A guide check needs the printer profile** for the bores (their fits and
+  walls), so `guide check` takes `--printer-profile`, defaulting to the A1 mini's.
 
 Each phase is one PR. Phases 1 to 3 add a way in and change no existing build.
 
