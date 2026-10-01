@@ -4,8 +4,8 @@ A test fixture holds a board by its outline and presses spring-loaded pins
 (pogo pins) onto its test points from a plate above, so every point is reached
 in the same place every time. The engine builds the **nest** that holds the board
 and the **plate** that carries the pins, checks that the pins can land on their
-pads, and writes a record of what it assumed. The closure that holds the plate
-down against the pins is not built yet: you hold the plate by hand.
+pads, and writes a record of what it assumed. Two screws hold the plate down
+against the pins; see *The closure* below.
 
 ```bash
 zcad-validation fixture template --board-file my-board.json --output my-fixture.json
@@ -38,7 +38,8 @@ would land on a part.
 | `pin` | The spring pin; see below. |
 | `working_travel_mm` | How far the pins are pressed in. It cannot exceed the pin's travel. |
 | `locating` | `outline` (the board's edge, the default) or `holes` (its mounting holes, which needs at least two). |
-| `closure` | `screws` or `hinge`: how the plate holds down. Recorded now, built later. |
+| `closure` | `screws`, the only closure built. `hinge` is accepted by the schema and refused at build, with the reason. |
+| `screw` | Optional: `size` (a catalog fastener with a heat-set insert, `M3` by default) and `tensile_limit_n` with its `source`. See *The closure*. |
 | `nest.wall_mm` | The nest's wall (2.4 by default). |
 | `plate.thickness_mm` | The plate's thickness. Left out, it is two barrel diameters, or as much as the room allows. |
 
@@ -114,6 +115,40 @@ This is a bound from tolerances the printer profile marks provisional. If it fit
 **nothing is proved**: a printed fixture is not verified until a trial has
 measured it. If it does not fit, the fixture cannot be trusted to land.
 
+## The closure
+
+The pins push the plate up with their combined force, so two screws hold it
+down. Each goes through a clearance hole in the plate into a heat-set insert in
+an **ear** on the nest. The ears stand on the sides the finger notches are on, at
+opposite ends and opposite sides, so the pair sit diagonally; they stand clear of
+the dowel ears and the notches. An ear is wider than the dowels' if the insert's
+pocket and the printer's minimum wall need it (an M4 insert does). The build
+refuses a board too small to carry the ears, and a pocket the ear is too short
+for.
+
+The **preload** is the force of the pins with the plate closed: each pin's force
+at the working travel, times the number of pins. A pin's force is given at one
+travel, and the engine takes it as **proportional to the travel** from there, a
+straight spring. That is an assumption, and a pin's force is often not linear
+near the end of its travel: confirm it from the datasheet. The record gives the
+preload, the load on one screw (all of it, should the plate lift at the other
+end), and the screw's length: at least the plate's thickness plus the insert's
+depth.
+
+**The screw's strength is not in the catalog**, which carries a fastener's
+dimensions and not its strength, and the engine does not supply one. Give your
+own in the file, with where it came from:
+
+```json
+"screw": {"size": "M3", "tensile_limit_n": 500, "source": "my own pull test"}
+```
+
+With a limit the build refuses a preload over it and records the check. Without
+one the preload is **reported and not checked**, and `fixture check` says so. The
+engine does not check the plate bending between the screws, a printed ear pulling
+off the nest, or an insert pulling out of printed plastic; the record lists them
+as not checked. Whether the plate stays down is for a trial.
+
 ## What the check also refuses
 
 - A board that has changed, is missing, or is not itself a valid board file.
@@ -127,6 +162,8 @@ measured it. If it does not fit, the fixture cannot be trusted to land.
 - Pins too close together: the plate between two bores must be at least the
   printer's minimum wall. Two small pads 2.3 mm apart with a 1 mm pin leave 1.0 mm
   and are refused.
+- A closure it cannot build: `hinge`, a board too small for the screw ears, or
+  a preload over a screw limit you gave.
 
 It warns of a tip wider than half its pad, of a board with no prop under a point,
 and of a board whose parts are one envelope.
@@ -135,5 +172,6 @@ and of a board whose parts are one envelope.
 
 `fixture.json` names the fixture file and the board by hash, the pin and whose
 figures they are, each point with its slack and its worst-case misalignment, the
-plate's heights, the dowels or posts, and the budget's links. It says
-`verified: false` and `closure_built: false`.
+plate's heights, the dowels or posts, the budget's links, and the closure's
+screws, preload and limit (with what is not checked). It says `verified: false`
+and `closure_built: true`.

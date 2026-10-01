@@ -27,6 +27,7 @@ from typing import Any
 
 from zcad_core.features.guide_bores import printer_numbers
 from zcad_core.features.guide_common import IDENTIFIER, Findings, number, section
+from zcad_core.features.pcb_fixture_closure import DEFAULT_SCREW, plan_closure
 from zcad_core.features.pcb_fixture_plan import (
     DEFAULT_WALL_MM,
     bore_diameter,
@@ -34,6 +35,7 @@ from zcad_core.features.pcb_fixture_plan import (
 )
 from zcad_core.hardware import PogoSource, PogoSpec, get_pogo_pin, load_board
 from zcad_core.hardware.electronics.board_file import BoardFileSpec
+from zcad_core.hardware.fasteners import list_fasteners
 
 FIXTURE_SCHEMA_VERSION = "1.0.0"
 # Only the board's top side is probed in this version.
@@ -59,6 +61,7 @@ _TOP_LEVEL = frozenset(
         "working_travel_mm",
         "locating",
         "closure",
+        "screw",
         "nest",
         "plate",
         "needs_review",
@@ -103,6 +106,10 @@ class PcbFixtureSpec:
     working_travel_mm: float
     locating: str
     closure: str
+    # The screw the closure uses, and, if the user gives one, its tensile limit.
+    screw_size: str
+    screw_limit_n: float | None
+    screw_source: str
     # The nest's wall, and the plate's thickness (None: sized to the pin).
     nest_wall_mm: float
     plate_thickness_mm: float | None
@@ -153,6 +160,12 @@ def _validate_user_pin(pin: Mapping[str, Any], findings: Findings) -> None:
         _user_pin(pin).validate()
     except ValueError as error:
         findings.errors.append(f"pin: {error}")
+
+
+def _screw_limit(data: Mapping[str, Any]) -> float | None:
+    value = (data.get("screw") or {}).get("tensile_limit_n")
+
+    return float(value) if value is not None else None
 
 
 def _user_pin(pin: Mapping[str, Any]) -> PogoSpec:
@@ -226,6 +239,29 @@ def _check_choices(data: Mapping[str, Any], findings: Findings) -> None:
         findings.errors.append("points lists a test point twice")
 
 
+def _check_screw(data: Mapping[str, Any], findings: Findings) -> None:
+    screw = section(data, "screw", findings, required=False)
+
+    if screw is None:
+        return
+
+    size = screw.get("size", DEFAULT_SCREW)
+
+    if size not in list_fasteners():
+        findings.errors.append(f"screw.size must be one of {list_fasteners()}")
+
+    limit = number(
+        screw, "tensile_limit_n", "screw", findings, low=1.0, high=1e5, required=False
+    )
+    source = screw.get("source")
+
+    if limit is not None and (not isinstance(source, str) or not source.strip()):
+        findings.errors.append(
+            "screw.source must say where the tensile limit came from: it is your "
+            "own until a maker's datasheet has been read"
+        )
+
+
 def check_fixture_data(data: Any) -> FixtureCheck:
     """Check a fixture file's contents without reading the board."""
 
@@ -262,6 +298,7 @@ def check_fixture_data(data: Any) -> FixtureCheck:
     _check_board_section(data, findings)
     _check_choices(data, findings)
     _check_pin(data, findings)
+    _check_screw(data, findings)
     nest = section(data, "nest", findings, required=False)
 
     if nest is not None:
@@ -334,6 +371,9 @@ def fixture_from_data(
         working_travel_mm=float(data["working_travel_mm"]),
         locating=str(data.get("locating", "outline")),
         closure=str(data.get("closure", "screws")),
+        screw_size=str((data.get("screw") or {}).get("size", DEFAULT_SCREW)),
+        screw_limit_n=_screw_limit(data),
+        screw_source=str((data.get("screw") or {}).get("source", "")),
         nest_wall_mm=float((data.get("nest") or {}).get("wall_mm", DEFAULT_WALL_MM)),
         plate_thickness_mm=(
             float(data["plate"]["thickness_mm"])
@@ -456,6 +496,20 @@ def check_fixture_file(
         errors.extend(plan.errors)
         warnings.extend(plan.warnings)
         summary["plan"] = plan.to_dict()
+
+        if not plan.errors:
+            closure = plan_closure(
+                board=board,
+                plan=plan,
+                kind=spec.closure,
+                screw=spec.screw_size,
+                limit_n=spec.screw_limit_n,
+                limit_source=spec.screw_source,
+                profile=profile,
+            )
+            errors.extend(closure.errors)
+            warnings.extend(closure.warnings)
+            summary["closure_plan"] = closure.to_dict()
 
     return FixtureCheck((*report.errors, *errors), tuple(warnings), summary)
 

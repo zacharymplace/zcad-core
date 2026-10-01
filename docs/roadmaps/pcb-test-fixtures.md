@@ -170,8 +170,9 @@ fixture worked.
    bores, the locating dowels, the part-clearance checks, the worst-case
    misalignment and the check on it, and `fixture build`. See *What phase 2
    changed* below.
-3. **Closure.** The screwed closure and the hinged one, with the preload and the
-   catch or fastener check.
+3. **Closure (screws built; hinge not).** The screwed closure, with the
+   preload and the fastener check against a figure the user supplies. See
+   *What phase 3 changed* below. The hinged closure is a later release.
 4. **Trials.** Fixture trials in the Validation Lab with per-point contact and
    offset, the pooled measured misalignment, verification, and the page on
    building and trying a fixture.
@@ -243,9 +244,44 @@ named group.
 - **An envelope cannot say which pin lands on what.** A board described by one
   envelope over the whole board gets a warning, and the pin-on-part check is
   skipped; list the parts as components for it.
-- **The closure is not built.** The plate is held by hand, and the record says
-  `closure_built: false`. Phase 3 adds the screws or the hinge and the preload
-  check.
+- **The closure is not built in this phase.** The plate is held by hand, and
+  the record says `closure_built: false`. Phase 3 adds it.
+
+### What phase 3 changed
+
+- **Screws are built; the hinge is not.** The design called for either. A hinge
+  needs the plate to swing clear of the board and the pins' tails on a nest whose
+  walls are thin and notched, and `lid_hinge` is written round an enclosure's
+  rectangular cavity and its openings. Reusing it would mean bending the nest to
+  it, so the hinge is left for its own release. `closure: hinge` stays in the
+  schema and is refused at build with the reason, and `fixture check` says the
+  same.
+- **Two ears on the notch sides, diagonally.** The dowels are at the board's ends;
+  the screws are at opposite ends of the other sides, a notch and an ear's width
+  from the middle, one on each side. This keeps the plate from rocking on either
+  axis. The ear widens to hold the insert pocket and the printer's minimum wall
+  (an M4 insert needs a bigger ear than M3's), and a board too small for the pair
+  is refused.
+- **The preload is a straight-spring assumption.** A pin's force is given at one
+  travel; the closed plate is at the working travel, so the engine scales the
+  force in proportion. The note in the record says so and says to confirm it from
+  the datasheet. It was a choice between this and refusing any working travel
+  other than the datasheet's.
+- **There is no fastener strength to check against, so it is the user's.** The
+  design said "the fastener's tensile figure from the catalog". The catalog is
+  dimensions only, and the ISO figures are not in the repository and have not been
+  read. So the `screw` section takes `tensile_limit_n` with a required `source`,
+  like the pin's figures, and the build refuses a preload over it. Without one the
+  preload is reported and a warning says it is not checked. The load on one screw
+  is taken as the whole preload, the worst case if the plate lifts at the other
+  end, which needs no figure the engine does not have.
+- **Not checked, and listed so in the record:** the plate bending between the
+  screws, a printed ear pulling off the nest, and an insert pulling out of printed
+  plastic. None has a sourced figure; the trial phase measures whether the plate
+  stays down.
+- **The record carries `closure_plan`** (screws, ear, pocket, hole, screw length,
+  preload, load, limit and its source) and says `closure_built: true`.
+
 
 Each phase is one PR. Phase 1 adds an optional field to the board file, so no
 existing board file changes.
