@@ -51,6 +51,12 @@ class ThermalEstimate:
     missing: tuple[str, ...]
     missing_peak: tuple[str, ...]
     sources: tuple[str, ...]
+    # Whether the box has no vent, fan, or lid slot, so that a measured
+    # temperature calibrates the passive coefficient and nothing else.
+    closed: bool = True
+    # Where the coefficient came from, when a pooled profile of measured
+    # trials set it instead of the default.
+    coefficient_source: str = "the default, an assumption"
 
     @property
     def conductance_w_k(self) -> float:
@@ -127,12 +133,20 @@ class ThermalEstimate:
             "temperature_peak_c": round(self.temperature_peak_c, 1),
             "surface_m2": round(self.surface_m2, 4),
             "coefficient_w_m2k": self.coefficient_w_m2k,
+            "coefficient_source": self.coefficient_source,
+            "closed": self.closed,
             "missing": list(self.missing),
             "peak_uses_typical_for": list(self.missing_peak),
             "sources": list(self.sources),
             "note": (
                 "An estimate from a lumped balance, not a simulation; it counts "
-                "no vents, and is off by half either way."
+                "no vents or fan airflow, and "
+                + (
+                    "is off by half either way."
+                    if self.coefficient_source.startswith("the default")
+                    else "uses a coefficient measured on printed boxes, which "
+                    "covers this box only if it is like theirs."
+                )
             ),
         }
 
@@ -153,6 +167,8 @@ def estimate_thermal(
     ambient_c: float = DEFAULT_AMBIENT_C,
     limit_c: float = DEFAULT_SERVICE_LIMIT_C,
     coefficient_w_m2k: float = CONVECTION_W_M2K,
+    closed: bool = True,
+    coefficient_source: str = "the default, an assumption",
 ) -> ThermalEstimate:
     """Estimate a closed box built around ``parts``, which are catalogue
     identifiers, plus ``declared_power_w`` for anything the catalog lacks."""
@@ -202,6 +218,8 @@ def estimate_thermal(
         missing=tuple(dict.fromkeys(missing)),
         missing_peak=tuple(dict.fromkeys(missing_peak)),
         sources=tuple(sources),
+        closed=closed,
+        coefficient_source=coefficient_source,
     )
 
 

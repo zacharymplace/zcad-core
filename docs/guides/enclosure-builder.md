@@ -360,12 +360,55 @@ zcad-validation enclosure trial complete \
   --disposition pass
 ```
 
-`pass` needs every check to pass and at least one measurement; `revise`
-needs a measurement; `fail` needs neither. The record stores each
-measurement's deviation from nominal, and it refuses parts whose STL no
-longer matches the build record. A completed trial is never overwritten:
+`pass` needs every check to pass and at least one measurement (or a recorded
+temperature, below); `revise` needs a measurement or a temperature; `fail`
+needs neither. The record stores each measurement's deviation from nominal,
+and it refuses parts whose STL no longer matches the build record. A completed
+trial is never overwritten:
 `zcad-validation enclosure trial start --build-record .../enclosure.json`
 opens the next one.
+
+### Recording a temperature
+
+Every trial also opens a `thermal.json`. It shows what the build predicted, and
+has blanks for what a thermocouple and a power meter say; leave it blank for a
+fit-only trial. To fill it, run the board under steady load with the lid on, a
+probe in the middle of the cavity away from the hottest part, and another probe a
+metre from the box for the room. Log the input power with a USB meter. Wait
+until the air temperature moves by less than 0.5 degrees C in 10 minutes, record
+that settled value for at least 10 minutes, and say whether the plastic
+deformed (`deformation_observed`, true or false).
+
+Completing the trial then compares the measurement with the estimate: the rise,
+the box's effective coefficient (power over surface times rise), and how much
+hotter or cooler it ran than the estimate said it would at the measured power
+(`estimate_error_ratio`, above 1 if hotter). It refuses a reading held for less
+than 10 minutes, a power of zero or less, a box no warmer than the room, or a
+build record that has no estimate.
+
+### A measured coefficient
+
+```bash
+zcad-validation thermal derive --evidence-root exports --material-profile-id petg
+```
+
+pools the completed thermal trials into `profiles/thermal/petg.json`, as
+compensation profiles pool fit trials, and moves to the next version each time
+it is run. It needs at least two trials of **closed** boxes (no vent, fan, or lid
+slot), because only a closed box measures the passive coefficient. From them it
+keeps the mean, spread, and count of the effective coefficient; vented and
+fanned trials are listed beside it with their measured conductance as a ratio of
+the passive one, and not pooled, because each is one configuration. It also keeps
+the highest air temperature at which no deformation was seen and the lowest at
+which some was; these inform the material's `max_service_c` and never replace it.
+
+`--thermal-profile profiles/thermal/petg.json` on `enclosure build` (and
+`enclosure-group build`) then uses the measured coefficient in place of the 8
+W/m2K the estimate assumes, says so in `coefficient_source`, and records the
+profile's id, version, and hash in the build record. The repository holds no
+such profile: nothing has been measured yet. Even with a profile the estimate
+credits no vents or fan airflow; the ventilated entries are what a later change
+would use to decide whether, and by how much, to.
 
 ### Revising from a trial
 

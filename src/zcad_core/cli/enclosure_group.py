@@ -34,6 +34,7 @@ from zcad_core.features.enclosure_group_viewer import (
     viewer_page,
 )
 from zcad_core.features.enclosure_thermal import (
+    CONVECTION_W_M2K,
     DEFAULT_AMBIENT_C,
     DEFAULT_SERVICE_LIMIT_C,
     ThermalEstimate,
@@ -41,9 +42,14 @@ from zcad_core.features.enclosure_thermal import (
     require_not_too_hot,
 )
 from zcad_core.features.mounts import flexure_payload
+from zcad_core.features.vent_patterns import PATTERNS
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.printing import SliceError, slice_models
-from zcad_core.profiles import load_printer_profile, material_service_limit_c
+from zcad_core.profiles import (
+    load_printer_profile,
+    load_thermal_profile,
+    material_service_limit_c,
+)
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
 DEFAULT_SLICER_PROFILE = Path(
@@ -366,11 +372,23 @@ def _group_thermal(group: GroupEnclosure, args: argparse.Namespace) -> ThermalEs
     width, depth, _ = group.outer_size_mm
     height = group.cavity_top_z_mm + group.design.lid_mm
     fitted = [layout for layout in group.bays if layout.kind == "pi5"]
+    coefficient, source = CONVECTION_W_M2K, "the default, an assumption"
+
+    if args.thermal_profile is not None:
+        profile = load_thermal_profile(args.thermal_profile)
+        coefficient, source = profile.coefficient_w_m2k, profile.describe()
+
     estimate = estimate_thermal(
         ["RASPBERRY_PI_5"] * len(fitted),
         outer_size_mm=(width, depth, height),
         declared_power_w=args.power_w,
         ambient_c=args.ambient_c,
+        coefficient_w_m2k=coefficient,
+        coefficient_source=source,
+        # The lid's slots over each Pi's fan, or a vent pattern, are openings.
+        closed=not (
+            (group.design.vents and bool(fitted)) or group.design.vent_area_mm2
+        ),
         limit_c=material_service_limit_c(args.material_profile)
         or DEFAULT_SERVICE_LIMIT_C,
     )
@@ -395,6 +413,8 @@ def _group_build(args: argparse.Namespace) -> int:
         minimum_opening_web_mm=args.minimum_opening_web_mm,
         mount=args.mount,
         mount_plate_mm=args.mount_plate_mm,
+        vent_pattern=args.vent_pattern,
+        vent_area_mm2=args.vent_area_mm2,
     )
     group = build_group_enclosure(bays, design=design)
     thermal = _group_thermal(group, args)
@@ -434,6 +454,7 @@ def _group_build(args: argparse.Namespace) -> int:
             "bay_heights": _bay_summary(group),
             "outer_size_mm": list(group.outer_size_mm),
             "thermal": thermal.to_dict(),
+            "vents": group.vents.to_dict() if group.vents else None,
             "checks": group.checks,
             "part_collisions": list(group.part_collisions),
             "validation_status": (result.validation_report or {}).get(
@@ -505,6 +526,24 @@ def register(
     build.add_argument("--floor-mm", type=float, default=2.0)
     build.add_argument("--lid-mm", type=float, default=3.0)
     build.add_argument(
+        "--vent-pattern",
+        choices=PATTERNS,
+        default="slots",
+        help=(
+            "the shape of the vents sized by --vent-area-mm2: slots, a hex grid, "
+            "round holes, or louvers in the side walls"
+        ),
+    )
+    build.add_argument(
+        "--vent-area-mm2",
+        type=float,
+        default=0.0,
+        help=(
+            "free area, in mm2, of the inlets low in the two side walls; the "
+            "outlets in the lid are at least as large"
+        ),
+    )
+    build.add_argument(
         "--power-w",
         type=float,
         default=0.0,
@@ -520,6 +559,15 @@ def register(
         "--material-profile",
         default="petg",
         help="the material, whose profile sets the limit for the air inside",
+    )
+    build.add_argument(
+        "--thermal-profile",
+        type=Path,
+        default=None,
+        help=(
+            "a profile pooled from measured thermal trials, whose coefficient "
+            "replaces the 8 W/m2K the estimate assumes"
+        ),
     )
     build.add_argument(
         "--allow-hot",

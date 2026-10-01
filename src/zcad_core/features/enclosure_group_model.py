@@ -15,6 +15,7 @@ from zcad_core.features.connector_cutouts import MINIMUM_OPENING_WEB_MM
 from zcad_core.features.enclosure_group_dividers import Divider
 from zcad_core.features.mount_rack import RACK, FrontPads
 from zcad_core.features.mounts import MOUNTS, MountPads, MountPlate
+from zcad_core.features.vent_patterns import PATTERNS, VentReport
 
 # What a group enclosure can carry: the underside mounts, or rack ears on
 # its front wall.
@@ -75,8 +76,22 @@ class GroupDesign:
     # rack ears that bolt to pads on the front wall; none by default.
     mount: str | None = None
     mount_plate_mm: float = 4.0
+    # A vent pattern sized to a free area, in mm2: inlets low in the two side
+    # walls, which carry no openings, and outlets in the lid at least as
+    # large. ``vents`` is the separate set of lid slots over each Pi's fan.
+    vent_pattern: str = "slots"
+    vent_area_mm2: float = 0.0
 
     def validate(self) -> None:
+        if self.vent_pattern not in PATTERNS:
+            raise ValueError(f"vent_pattern must be one of {PATTERNS}")
+
+        if self.vent_area_mm2 < 0:
+            raise ValueError("vent_area_mm2 must not be negative")
+
+        if self.vent_pattern != "slots" and not self.vent_area_mm2:
+            raise ValueError("A vent pattern needs a vent_area_mm2 to size it to")
+
         if self.mount is not None and self.mount not in GROUP_MOUNTS:
             raise ValueError(f"mount must be one of {GROUP_MOUNTS}")
 
@@ -217,6 +232,8 @@ class GroupEnclosure:
     # design asks for a mount.
     mount_pads: MountPads | FrontPads | None = None
     mount: MountPlate | None = None
+    # The vent pattern, when the design asks for one.
+    vents: VentReport | None = None
 
     @property
     def cavity_top_z_mm(self) -> float:

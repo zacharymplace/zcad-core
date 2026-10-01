@@ -37,6 +37,17 @@ BUILD_RECORD = "enclosure.json"
 TRIAL_RECORD = "enclosure-trial.json"
 OBSERVATIONS = "observations.json"
 MEASUREMENTS = "measurements.json"
+THERMAL = "thermal.json"
+# A temperature is only a figure once it has stopped changing.
+MINIMUM_SETTLED_MINUTES = 10.0
+THERMAL_GUIDANCE = (
+    "Run the board under steady load with the lid on. Put a thermocouple or "
+    "probe in the middle of the cavity, away from the hottest part, and measure "
+    "the room with another a metre from the box. Log the input power with a "
+    "USB meter. Wait until the air temperature moves by less than 0.5 C in 10 "
+    "minutes, and record that settled value; then say whether the plastic "
+    "deformed."
+)
 
 
 class EnclosureCheck(str, Enum):
@@ -182,6 +193,7 @@ def write_build_record(
     assembly_settings: dict[str, float | bool | None] | None = None,
     revision_of: dict[str, Any] | None = None,
     compensation_profile: dict[str, Any] | None = None,
+    thermal_profile: dict[str, Any] | None = None,
 ) -> Path:
     """Write ``enclosure.json``; refuses to replace one.
 
@@ -206,6 +218,7 @@ def write_build_record(
         "assembly": assembly_settings or {},
         "revision_of": revision_of,
         "compensation_profile": compensation_profile,
+        "thermal_profile": thermal_profile,
         "side_clearance_mm": list(enclosure.side_clearance_mm),
         "board_support": enclosure.board_support,
         "display_support": enclosure.display_support,
@@ -258,6 +271,9 @@ def start_enclosure_trial(build_record_path: Path) -> Path:
         name: {"nominal_mm": nominal, "value_mm": None, "notes": ""}
         for name, nominal in build["nominal_measurements_mm"].items()
     }
+    (trial / THERMAL).write_text(
+        json.dumps(_thermal_template(build), indent=2) + "\n", encoding="utf-8"
+    )
     (trial / OBSERVATIONS).write_text(
         json.dumps(observations, indent=2) + "\n", encoding="utf-8"
     )
@@ -266,6 +282,124 @@ def start_enclosure_trial(build_record_path: Path) -> Path:
     )
 
     return trial
+
+
+def _thermal_template(build: dict[str, Any]) -> dict[str, Any]:
+    """The thermal template: what the build predicted, and blanks for what a
+    thermocouple and a power meter say. Leave it blank for a fit-only trial."""
+
+    estimate = build.get("thermal") or {}
+
+    return {
+        "guidance": THERMAL_GUIDANCE,
+        "estimate": {
+            key: estimate.get(key)
+            for key in (
+                "typical_w",
+                "peak_w",
+                "rise_peak_c",
+                "temperature_peak_c",
+                "surface_m2",
+                "coefficient_w_m2k",
+                "coefficient_source",
+                "closed",
+                "complete",
+            )
+        },
+        "ambient_c": None,
+        "internal_air_c": None,
+        "power_w": None,
+        "settled_minutes": None,
+        "deformation_observed": None,
+        "sensor": "",
+        "notes": "",
+    }
+
+
+def _number(entry: dict[str, Any], name: str) -> float:
+    value = entry.get(name)
+
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise TypeError(f"thermal.json: {name} must be a number, not {value!r}")
+
+    return float(value)
+
+
+def _thermal(trial: Path, build: dict[str, Any]) -> dict[str, Any] | None:
+    """The trial's thermal record, validated and compared with the estimate;
+    ``None`` when no temperature was recorded."""
+
+    path = trial / THERMAL
+
+    if not path.is_file():
+        return None
+
+    entry = _read(path)
+
+    if entry.get("internal_air_c") is None:
+        return None
+
+    estimate = build.get("thermal")
+
+    if not estimate:
+        raise ValueError(
+            "The build record has no thermal estimate, so a temperature has "
+            "nothing to be compared with; rebuild with this version"
+        )
+
+    ambient = _number(entry, "ambient_c")
+    internal = _number(entry, "internal_air_c")
+    power = _number(entry, "power_w")
+    minutes = _number(entry, "settled_minutes")
+    deformed = entry.get("deformation_observed")
+
+    if not isinstance(deformed, bool):
+        raise TypeError("thermal.json: deformation_observed must be true or false")
+
+    if power <= 0:
+        raise ValueError("thermal.json: power_w must be greater than zero")
+
+    if minutes < MINIMUM_SETTLED_MINUTES:
+        raise ValueError(
+            f"thermal.json: a settled reading is held for at least "
+            f"{MINIMUM_SETTLED_MINUTES:g} minutes, not {minutes:g}"
+        )
+
+    rise = internal - ambient
+
+    if rise <= 0:
+        raise ValueError(
+            "thermal.json: the air inside is no warmer than the room, so there "
+            "is no rise to measure; check the power and the sensor"
+        )
+
+    surface = float(estimate["surface_m2"])
+    coefficient = float(estimate["coefficient_w_m2k"])
+    conductance = power / rise
+    estimated_rise = power / (coefficient * surface)
+
+    return {
+        "ambient_c": ambient,
+        "internal_air_c": internal,
+        "power_w": power,
+        "settled_minutes": minutes,
+        "deformation_observed": deformed,
+        "sensor": entry.get("sensor", ""),
+        "notes": entry.get("notes", ""),
+        "rise_c": round(rise, 2),
+        "surface_m2": surface,
+        "conductance_w_k": round(conductance, 4),
+        "h_effective_w_m2k": round(conductance / surface, 3),
+        "estimated_rise_c_at_measured_power": round(estimated_rise, 2),
+        # Above 1, the box ran hotter than the estimate said it would.
+        "estimate_error_ratio": round(rise / estimated_rise, 2),
+        "closed": bool(estimate.get("closed")),
+        "configuration": {
+            "vent_slots": build["design"].get("vent_slots", 0),
+            "vents": build.get("vents"),
+            "fan": build.get("fan"),
+        },
+    }
 
 
 def _observations(trial: Path, required: list[str]) -> list[dict[str, Any]]:
@@ -349,10 +483,18 @@ def complete_enclosure_trial(
 
     observations = _observations(trial, build["checks"])
     measurements = _measurements(trial)
+    thermal = _thermal(trial, build)
     failed = [entry["check"] for entry in observations if not entry["passed"]]
 
-    if disposition is not EnclosureTrialDisposition.FAIL and not measurements:
-        raise ValueError(f"A {disposition.value} trial needs at least one measurement")
+    if (
+        disposition is not EnclosureTrialDisposition.FAIL
+        and not measurements
+        and thermal is None
+    ):
+        raise ValueError(
+            f"A {disposition.value} trial needs at least one measurement or a "
+            "recorded temperature"
+        )
 
     if disposition is EnclosureTrialDisposition.PASS and failed:
         raise ValueError(f"A passing trial cannot have failed checks: {failed}")
@@ -373,6 +515,7 @@ def complete_enclosure_trial(
             {**asdict(measurement), "deviation_mm": measurement.deviation_mm}
             for measurement in measurements
         ],
+        "thermal": thermal,
         "notes": notes,
         "completed_at_utc": datetime.now(UTC).isoformat(),
     }

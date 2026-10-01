@@ -32,6 +32,7 @@ from zcad_core.cli import (
     slice_check,
     status,
     target,
+    thermal,
     trial,
 )
 
@@ -46,6 +47,7 @@ _COMMAND_GROUPS = (
     enclosure,
     enclosure_group,
     compensation,
+    thermal,
     slice_check,
 )
 

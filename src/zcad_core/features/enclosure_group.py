@@ -62,6 +62,7 @@ from zcad_core.features.enclosure_group_openings import (
     cut_pi_openings,
     require_openings_under_lid,
 )
+from zcad_core.features.enclosure_lid import VENT_RIM_MM, Cavity
 from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
@@ -82,6 +83,11 @@ from zcad_core.features.mounts import (
     require_mount_clear,
 )
 from zcad_core.features.pcb_mounts import PcbStandoffParameters, add_pcb_standoff
+from zcad_core.features.vent_patterns import (
+    VentReport,
+    add_lid_outlets,
+    add_wall_inlets,
+)
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware import (
     FastenerSpec,
@@ -276,6 +282,15 @@ def build_group_enclosure(
         pi_center_y=pi_center_y,
     )
 
+    base, lid, vents = _add_vents(
+        base,
+        lid,
+        design=design,
+        outer=outer,
+        inner_size=(inner_width, inner_depth),
+        cavity_top=cavity_top,
+        keepout_mm=2 * radius + 1.0,
+    )
     base, pads, mount = _add_mount(
         base,
         design=design,
@@ -309,6 +324,72 @@ def build_group_enclosure(
         part_collisions=collisions,
         mount_pads=pads,
         mount=mount,
+        vents=vents,
+    )
+
+
+def _add_vents(
+    base: cq.Workplane,
+    lid: cq.Workplane,
+    *,
+    design: GroupDesign,
+    outer: tuple[float, float, float],
+    inner_size: tuple[float, float],
+    cavity_top: float,
+    keepout_mm: float,
+) -> tuple[cq.Workplane, cq.Workplane, VentReport | None]:
+    """Inlets low in the two side walls and outlets in the lid, sized to the
+    design's free area. The long walls are the front and back, which carry the
+    Pis' openings; the side walls carry only the row's join features, which the
+    cells keep clear of."""
+
+    if not design.vent_area_mm2:
+        return base, lid, None
+
+    wall = design.wall_mm
+    cavity = Cavity(
+        center_x_mm=outer[0] / 2,
+        center_y_mm=outer[1] / 2,
+        width_mm=inner_size[0],
+        depth_mm=inner_size[1],
+        floor_z_mm=design.floor_mm,
+        top_z_mm=cavity_top,
+        wall_mm=wall,
+    )
+    base, inlets = add_wall_inlets(
+        base,
+        cavity,
+        kind=design.vent_pattern,
+        target_mm2=design.vent_area_mm2,
+        blocked_edges=[],
+        top_z_mm=cavity_top - VENT_RIM_MM,
+        corner_keepout_mm=keepout_mm,
+        edges=("negative_x", "positive_x"),
+    )
+    inlet_mm2 = sum(fill.area_mm2 for fill in inlets)
+    # Louvers are for walls, so the lid takes slots.
+    kind = "slots" if design.vent_pattern == "louvers" else design.vent_pattern
+    lid, outlet = add_lid_outlets(
+        lid,
+        cavity,
+        lid_mm=design.lid_mm,
+        kind=kind,
+        target_mm2=max(design.vent_area_mm2, inlet_mm2),
+    )
+
+    return (
+        base,
+        lid,
+        VentReport(
+            pattern=design.vent_pattern,
+            target_mm2=design.vent_area_mm2,
+            inlet_mm2=inlet_mm2,
+            outlet_mm2=outlet.area_mm2,
+            inlet_cells=sum(len(fill.centers) for fill in inlets),
+            outlet_cells=len(outlet.centers),
+            inlet=inlets[0].spec.describe(),
+            outlet=outlet.spec.describe(),
+        ),
     )
 
 
