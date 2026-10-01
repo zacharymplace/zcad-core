@@ -108,6 +108,32 @@ the wrong unit), a hole near the edge, holes closer than a standoff is wide, no
 holes, a part overhanging an edge that is not marked `access_edge`, and a file
 with no `source`.
 
+## Adding a board to the catalog
+
+A board file is unverified until a printed trial has fitted the real board. A
+board that has passed two trials joins the catalog, so anyone can build with
+`--board NAME`, as a file and a pull request, with no code:
+
+```bash
+zcad-validation board promote my-board.json \
+  --trial-record builds/my-board/trials/trial-001/enclosure-trial.json \
+  --trial-record builds/my-board/trials/trial-002/enclosure-trial.json
+```
+
+It refuses a file with errors **or warnings**, an identifier the catalog already
+holds, fewer than two distinct passing trials, and any trial of another version
+of the file: each trial's build record carries the file's SHA-256, so a file
+edited since its trials needs new trials. It writes
+`src/zcad_core/hardware/data/boards/<identifier, lower case, dashes>.json`, the
+same file with one field added, `verified_by`, naming the trials. Commit it and
+open a pull request.
+
+A catalogued board builds as `kind: catalog` with `verified: true` and the
+trials in `verified_by`; the build record keeps the data file's SHA-256, and
+`enclosure revise` refuses if that file has changed since. A `verified_by` in
+your own file, built with `--board-file`, is only a claim: that board stays
+unverified.
+
 ## Revising
 
 `enclosure revise` rebuilds from the same file. It refuses if the file is

@@ -312,6 +312,15 @@ def _revision_board_file(build: dict[str, Any]) -> Path | None:
 
     source = build.get("board_source") or {}
 
+    if source.get("kind") == "catalog" and source.get("sha256"):
+        current = getattr(get_board(source["identifier"]), "origin", None)
+
+        if current is None or current.sha256 != source["sha256"]:
+            raise ValueError(
+                f"The catalog's {source['identifier']} has changed since the "
+                "build; build again rather than revising"
+            )
+
     if source.get("kind") != "file":
         return None
 

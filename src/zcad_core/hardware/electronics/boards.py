@@ -1,11 +1,13 @@
 """Catalogs of the boards and displays an enclosure can be built around."""
 
+from pathlib import Path
 from typing import Protocol
 
 from zcad_core.hardware.catalog import HardwareCatalog
 from zcad_core.hardware.electronics.adafruit import get_adafruit_feather_rp2040
 from zcad_core.hardware.electronics.arduino import get_arduino_uno_r4_wifi
 from zcad_core.hardware.electronics.board_components import BoardComponentSpec
+from zcad_core.hardware.electronics.board_file import load_catalog_boards
 from zcad_core.hardware.electronics.connectors import (
     RectangularConnectorSpec,
     WallOpeningSpec,
@@ -51,10 +53,30 @@ _BOARDS: tuple[BoardSpec, ...] = (
     get_seeed_xiao_esp32s3(),
 )
 
-BOARD_CATALOG: HardwareCatalog[BoardSpec] = HardwareCatalog(
-    category="board",
-    entries={board.identifier: board for board in _BOARDS},
-)
+# Boards that passed their trials are added here as files, not code; see
+# ``zcad-validation board promote``.
+BOARD_DATA_DIRECTORY = Path(__file__).resolve().parents[1] / "data" / "boards"
+
+
+def build_board_catalog(
+    directory: Path = BOARD_DATA_DIRECTORY,
+) -> HardwareCatalog[BoardSpec]:
+    """The coded boards and every board file in a data directory."""
+
+    entries: dict[str, BoardSpec] = {board.identifier: board for board in _BOARDS}
+
+    for board in load_catalog_boards(directory):
+        if HardwareCatalog.normalize_identifier(board.identifier) in {
+            HardwareCatalog.normalize_identifier(key) for key in entries
+        }:
+            raise ValueError(f"{board.identifier} is already in the board catalog")
+
+        entries[board.identifier] = board
+
+    return HardwareCatalog(category="board", entries=entries)
+
+
+BOARD_CATALOG: HardwareCatalog[BoardSpec] = build_board_catalog()
 
 DISPLAY_CATALOG: HardwareCatalog[DisplaySpec] = HardwareCatalog(
     category="display",

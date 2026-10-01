@@ -75,6 +75,7 @@ _TOP_LEVEL = frozenset(
         "source",
         "notes",
         "needs_review",
+        "verified_by",
     }
 )
 
@@ -122,21 +123,32 @@ class BoardFileSpec:
     power_figure: PowerFigure | None
     origin: BoardOrigin
     warnings: tuple[str, ...]
-    # A file's numbers are the user's until a trial has fitted the board.
+    # A file's numbers are the user's until a trial has fitted the board; only
+    # a board in the catalog's data directory, promoted on its trials, is
+    # verified. A ``verified_by`` in a user's own file is a claim, not a check.
     verified: bool = False
+    verified_by: str = ""
+    # Loaded from the catalog's data directory rather than a user's file.
+    catalog: bool = False
 
     def provenance(self) -> dict[str, Any]:
         """What a build records about where the board came from."""
 
-        return {
-            "kind": "file",
+        record: dict[str, Any] = {
+            "kind": "catalog" if self.catalog else "file",
             "identifier": self.identifier,
-            "path": self.origin.path,
             "sha256": self.origin.sha256,
             "source": self.source,
             "verified": self.verified,
             "warnings": list(self.warnings),
         }
+
+        if self.catalog:
+            record["verified_by"] = self.verified_by
+        else:
+            record["path"] = self.origin.path
+
+        return record
 
 
 # --- checking --------------------------------------------------------------
@@ -719,6 +731,13 @@ def check_board_data(data: Any) -> BoardCheck:
             "remove needs_review"
         )
 
+    verified_by = data.get("verified_by")
+
+    if verified_by is not None and (
+        not isinstance(verified_by, str) or not verified_by.strip()
+    ):
+        findings.error("verified_by must say which trials verified the board")
+
     size = _check_board(data, findings)
     _check_holes(data, size, findings)
     _check_standoff(data, findings)
@@ -782,8 +801,13 @@ def _components(
     )
 
 
-def board_from_data(data: Mapping[str, Any], origin: BoardOrigin) -> BoardFileSpec:
-    """Build a board from checked contents; refuses a file with errors."""
+def board_from_data(
+    data: Mapping[str, Any], origin: BoardOrigin, *, catalog: bool = False
+) -> BoardFileSpec:
+    """Build a board from checked contents; refuses a file with errors.
+
+    ``catalog`` marks a board read from the catalog's data directory, which is
+    verified if it says which trials verified it."""
 
     report = check_board_data(data)
 
@@ -865,6 +889,9 @@ def board_from_data(data: Mapping[str, Any], origin: BoardOrigin) -> BoardFileSp
         power_figure=figure,
         origin=origin,
         warnings=report.warnings,
+        verified=catalog and bool(data.get("verified_by")),
+        verified_by=str(data.get("verified_by") or ""),
+        catalog=catalog,
     )
 
 
@@ -886,6 +913,43 @@ def load_board(path: Path) -> BoardFileSpec:
     data, origin = read_board_file(path)
 
     return board_from_data(data, origin)
+
+
+def catalog_filename(identifier: str) -> str:
+    """The file a catalogued board lives in: its identifier, lower case, with
+    dashes for underscores."""
+
+    return identifier.lower().replace("_", "-") + ".json"
+
+
+def load_catalog_boards(directory: Path) -> tuple[BoardFileSpec, ...]:
+    """The boards in a data directory, one file each, or none if it is absent.
+
+    A file that is invalid, unreviewed, or not named for its board is an error
+    that names it: the catalog is data a pull request adds, and a bad file must
+    not slip in unseen."""
+
+    if not directory.is_dir():
+        return ()
+
+    boards = []
+
+    for path in sorted(directory.glob("*.json")):
+        data, origin = read_board_file(path)
+        origin = BoardOrigin(
+            path=f"hardware/data/boards/{path.name}", sha256=origin.sha256
+        )
+        board = board_from_data(data, origin, catalog=True)
+
+        if path.name != catalog_filename(board.identifier):
+            raise ValueError(
+                f"{path.name} holds {board.identifier}, so it must be called "
+                f"{catalog_filename(board.identifier)}"
+            )
+
+        boards.append(board)
+
+    return tuple(boards)
 
 
 def board_template() -> dict[str, Any]:

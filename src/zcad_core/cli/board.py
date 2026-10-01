@@ -100,6 +100,26 @@ def _board_import(args: argparse.Namespace) -> int:
     return 0
 
 
+def _board_promote(args: argparse.Namespace) -> int:
+    """Add a board file to the catalog, on the evidence of its trials."""
+
+    from zcad_core.features.board_promotion import promote_board
+
+    kwargs = (
+        {} if args.catalog_directory is None else {"directory": args.catalog_directory}
+    )
+    target = promote_board(args.file, args.trial_record, **kwargs)
+    emit(
+        {
+            "written": str(target),
+            "next": "commit this file and open a pull request; the board joins "
+            "the catalog when it is merged",
+        }
+    )
+
+    return 0
+
+
 def register(
     subcommands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
@@ -139,3 +159,21 @@ def register(
         help="the part the cable plugs into, from the candidates a first import lists",
     )
     import_.set_defaults(handler=_board_import)
+    promote = commands.add_parser(
+        "promote",
+        help="add a board file to the catalog on two passing trials of it",
+    )
+    promote.add_argument("file", type=Path)
+    promote.add_argument(
+        "--trial-record",
+        action="append",
+        required=True,
+        type=Path,
+        help="a passing enclosure-trial.json of this file; give two or more",
+    )
+    promote.add_argument(
+        "--catalog-directory",
+        type=Path,
+        help="write here instead of the catalog's own data directory",
+    )
+    promote.set_defaults(handler=_board_promote)

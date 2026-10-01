@@ -37,6 +37,7 @@ include = ["zcad_core*"]
 zcad_core = [
   "py.typed",
   "hardware/data/board-components/*.json",
+  "hardware/data/boards/*.json",
   "features/data/*.html",
 ]
 

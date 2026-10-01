@@ -158,9 +158,16 @@ records the model's hash and says when the PCB it found is not rectangular.
    `--cable-connector PART` names the connector from the candidates the first
    listed, clips it to the outline and drops it from the components, rather than
    the user editing the file by hand.
-3. **Data-driven catalog.** Board files placed in `hardware/data/boards/` join
-   the catalog without code, so promoting a board that passed its trials is a
-   file and a pull request.
+3. **Data-driven catalog. Built.** Board files placed in
+   `hardware/data/boards/` join the catalog without code, so promoting a board
+   that passed its trials is a file and a pull request. Beyond the design:
+   `board promote` writes the file only on two passing trials of its exact
+   SHA-256 (a `verified_by` field names them), refuses a file with warnings, and
+   the loader refuses a file that is invalid, unreviewed, or not named for its
+   board. A catalogued board is `kind: catalog` and `verified: true` in a
+   build; a user's own `verified_by` is a claim and changes nothing. No board
+   has been promoted yet: none has passed trials, so the directory ships empty
+   and the mechanism is tested with files made in the tests.
 4. **Outlines.** Polygon outlines through the PCB, the cradle, and the
    standoffs.
 
