@@ -39,6 +39,8 @@ nav:
       - Hinged and sliding lids: roadmaps/hinges-and-slides.md
       - Thermal features: roadmaps/thermal-features.md
       - Generic boards: roadmaps/generic-boards.md
+      - Drill guides and fixtures: roadmaps/drill-guides.md
+      - PCB test fixtures: roadmaps/pcb-test-fixtures.md
   - API Reference:
       - Overview: reference/index.md
       - assemblies: reference/assemblies.md
