@@ -64,7 +64,7 @@ _CATCH_END_MARGIN_MM = 6.0
 _CATCH_OPENING_MARGIN_MM = 1.0
 _CATCH_FLOOR_MARGIN_MM = 1.0
 
-_EDGE_ANGLE = {
+EDGE_ANGLE = {
     "positive_y": 0.0,
     "negative_y": 180.0,
     "positive_x": -90.0,
@@ -72,7 +72,7 @@ _EDGE_ANGLE = {
 }
 # A local x is this sign times the world coordinate along the wall, measured
 # from the cavity's centre.
-_EDGE_SIGN = {
+EDGE_SIGN = {
     "positive_y": 1.0,
     "negative_y": -1.0,
     "positive_x": -1.0,
@@ -145,7 +145,7 @@ def _prism(
     )
 
 
-def _anchor(edge: str, cavity: Cavity) -> tuple[float, float]:
+def wall_anchor(edge: str, cavity: Cavity) -> tuple[float, float]:
     """The middle of a wall's outer face, in the enclosure's frame."""
 
     reach_x = cavity.width_mm / 2 + cavity.wall_mm
@@ -163,9 +163,9 @@ def _anchor(edge: str, cavity: Cavity) -> tuple[float, float]:
 def _to_world(model: cq.Workplane, edge: str, cavity: Cavity) -> cq.Workplane:
     """Move a shape built in a wall's local frame onto that wall."""
 
-    x, y = _anchor(edge, cavity)
+    x, y = wall_anchor(edge, cavity)
 
-    return model.rotate((0, 0, 1), (0, 0, 2), _EDGE_ANGLE[edge]).translate((x, y, 0.0))
+    return model.rotate((0, 0, 1), (0, 0, 2), EDGE_ANGLE[edge]).translate((x, y, 0.0))
 
 
 def _outer_length(cavity: Cavity, edge: str) -> float:
@@ -358,7 +358,7 @@ def add_hinge(
     )
 
     catch_center = _catch_center(cavity, closure_edge, openings)
-    local_center = _EDGE_SIGN[closure_edge] * (
+    local_center = EDGE_SIGN[closure_edge] * (
         catch_center - _along_center(cavity, closure_edge)
     )
     base, lid = _add_catch(
@@ -454,8 +454,8 @@ def _require_free_swing(
     """Sweep the lid open in steps and refuse one that meets the base or any
     part inside it."""
 
-    angle = math.radians(_EDGE_ANGLE[edge])
-    anchor_x, anchor_y = _anchor(edge, cavity)
+    angle = math.radians(EDGE_ANGLE[edge])
+    anchor_x, anchor_y = wall_anchor(edge, cavity)
     point = cq.Vector(
         anchor_x - axis_u * math.sin(angle),
         anchor_y + axis_u * math.cos(angle),

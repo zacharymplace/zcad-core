@@ -41,6 +41,7 @@ from zcad_core.features.enclosure_trial import (
     write_build_record,
 )
 from zcad_core.features.mounts import MOUNTS, flexure_payload
+from zcad_core.features.vent_patterns import PATTERNS
 from zcad_core.hardware import (
     BoardSpec,
     DisplaySpec,
@@ -194,6 +195,8 @@ def _design(args: argparse.Namespace) -> EnclosureDesign:
         countersunk_screws=args.countersunk,
         locating_lip=args.locating_lip,
         vent_slots=args.vent_slots,
+        vent_pattern=args.vent_pattern,
+        vent_area_mm2=args.vent_area_mm2,
         minimum_opening_web_mm=args.minimum_opening_web_mm,
         mount=args.mount,
         mount_plate_mm=args.mount_plate_mm,
@@ -339,6 +342,7 @@ def _build(
         "display_support": enclosure.display_support,
         "mount": _mount_payload(enclosure),
         "thermal": enclosure.thermal.to_dict() if enclosure.thermal else None,
+        "vents": enclosure.vents.to_dict() if enclosure.vents else None,
         "hinge": _hinge_payload(enclosure),
         "slide": _slide_payload(enclosure),
         "side_clearance_mm": list(enclosure.side_clearance_mm),
@@ -642,6 +646,24 @@ def register(
         help="add four mount pads under the floor and a plate that bolts to them",
     )
     build.add_argument("--mount-plate-mm", type=float, default=4.0)
+    build.add_argument(
+        "--vent-pattern",
+        choices=PATTERNS,
+        default="slots",
+        help=(
+            "the shape of the vents sized by --vent-area-mm2: slots, a hex grid, "
+            "round holes, or louvers in the walls"
+        ),
+    )
+    build.add_argument(
+        "--vent-area-mm2",
+        type=float,
+        default=0.0,
+        help=(
+            "free area, in mm2, of the inlets low in the long walls; the outlets "
+            "in the lid are at least as large"
+        ),
+    )
     build.add_argument(
         "--vent-slots",
         type=int,
