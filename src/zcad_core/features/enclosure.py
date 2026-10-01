@@ -52,6 +52,7 @@ from zcad_core.features.enclosure_lid import (
     vents,
 )
 from zcad_core.features.enclosure_thermal import (
+    CONVECTION_W_M2K,
     DEFAULT_AMBIENT_C,
     DEFAULT_SERVICE_LIMIT_C,
     ThermalEstimate,
@@ -201,6 +202,10 @@ class EnclosureDesign:
     # an SSD), the room's temperature, and the material's limit for the air
     # inside. ``allow_hot`` builds a box the estimate says is too hot.
     declared_power_w: float = 0.0
+    # The coefficient the estimate uses, W/m2K, and where it came from: the
+    # default, or a profile pooled from measured trials.
+    convection_w_m2k: float = CONVECTION_W_M2K
+    convection_source: str = "the default, an assumption"
     ambient_c: float = DEFAULT_AMBIENT_C
     service_limit_c: float = DEFAULT_SERVICE_LIMIT_C
     allow_hot: bool = False
@@ -282,6 +287,9 @@ class EnclosureDesign:
 
         if self.service_limit_c <= self.ambient_c:
             raise ValueError("service_limit_c must be above ambient_c")
+
+        if self.convection_w_m2k <= 0:
+            raise ValueError("convection_w_m2k must be greater than zero")
 
     def _validate_lid(self) -> None:
         if self.lid_attachment not in LID_ATTACHMENTS:
@@ -367,8 +375,10 @@ class Enclosure:
     thermal: ThermalEstimate | None = None
     # The vent pattern, when the design asks for one.
     vents: VentReport | None = None
-    # The fan bay, when the design asks for one.
+    # The fan bay, when the design asks for one, and the fan's frame, which is
+    # not printed but is shown in the review model.
     fan: FanReport | None = None
+    fan_body: cq.Shape | None = None
 
 
 def build_enclosure(
@@ -562,7 +572,19 @@ def build_enclosure(
         thermal=thermal,
         vents=vents_report,
         fan=fan_summary,
+        fan_body=cooling.fan_plan.body if cooling.fan_plan else None,
     )
+
+
+def _is_closed(design: EnclosureDesign, assembly: DeviceAssembly) -> bool:
+    """Whether the box has nothing that moves air: no vent, no fan, and no
+    lid slots over a part that draws air from above."""
+
+    lid_slots = any(
+        component.metadata.get("lid_vent") for component in assembly.components
+    )
+
+    return not (design.vent_slots or design.vent_area_mm2 or design.fan or lid_slots)
 
 
 def _thermal_estimate(
@@ -605,6 +627,9 @@ def _thermal_estimate(
         declared_power_w=design.declared_power_w,
         ambient_c=design.ambient_c,
         limit_c=design.service_limit_c,
+        coefficient_w_m2k=design.convection_w_m2k,
+        coefficient_source=design.convection_source,
+        closed=_is_closed(design, assembly),
     )
     require_not_too_hot(estimate, allow_hot=design.allow_hot)
 

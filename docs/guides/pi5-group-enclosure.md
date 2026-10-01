@@ -242,6 +242,21 @@ a bigger printer. Print each ear flat. No strength is modelled: the two pads
 at each end hold the enclosure's weight, and a trial has to show that they
 can.
 
+## Vents
+
+`--vent-pattern {slots,hex,round,louvers}` with `--vent-area-mm2 N` cuts the
+same sized patterns as the [single-board builder](enclosure-builder.md), with
+inlets low in the row's two side walls and outlets in the lid at least as large.
+The front and back walls are the long ones here, and they carry the Pis' ports
+and microSD openings, so the side walls take the inlets; the cells keep clear of
+the row's join bosses and holes, and of the lid's slots over each Pi's fan. For
+the pair, `--vent-area-mm2 400` gives 30 hex cells 4 mm across flats in each of
+the inlet and outlet zones, about 416 mm2 each, and every check still passes.
+The estimate credits no vents, and a group's lid always has slots over a fitted
+Pi's fan, so the group is never a closed box for a trial's purposes. There are
+no fans in the group enclosure yet, and no trial records for it: those need a
+build record, which the group does not write.
+
 ## Temperature estimate
 
 The build prints an estimate of the closed row's air temperature under

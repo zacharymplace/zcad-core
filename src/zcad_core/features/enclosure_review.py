@@ -30,7 +30,13 @@ _TOLERANCE_MM3 = 1e-6
 _CONTACT_MM = 0.05
 # The board rests on its standoffs or cradle; the display rests against its
 # retainer's pads.
-_EXPECTED_CONTACT = {("base", "board"), ("lid", "display")}
+_EXPECTED_CONTACT = {
+    ("base", "board"),
+    ("lid", "display"),
+    # A fan's frame seats against the lid or against the wall.
+    ("lid", "fan"),
+    ("base", "fan"),
+}
 _VIEWS = (
     ("top", (0.0, 0.0, 1.0)),
     ("front", (0.0, -1.0, 0.0)),
@@ -43,6 +49,7 @@ _COLOURS = {
     "pcb": cq.Color(0.08, 0.55, 0.22),
     "connector": cq.Color(0.68, 0.70, 0.74),
     "display": cq.Color(0.12, 0.12, 0.14),
+    "fan": cq.Color(0.86, 0.45, 0.10),
 }
 
 
@@ -95,10 +102,22 @@ def export_enclosure_review(
     }
     lifted_lid = lid.moved(cq.Location(cq.Vector(0, 0, exploded_gap_mm)))
 
-    _assembly(base, lifted_lid, hardware).export(str(glb_path))
+    if enclosure.fan_body is not None:
+        hardware["fan"] = (enclosure.fan_body, "fan")
+
+    # A fan in the lid is screwed to it, so it lifts with it.
+    exploded = dict(hardware)
+
+    if enclosure.fan is not None and enclosure.fan.position == "lid":
+        exploded["fan"] = (
+            hardware["fan"][0].moved(cq.Location(cq.Vector(0, 0, exploded_gap_mm))),
+            "fan",
+        )
+
+    _assembly(base, lifted_lid, exploded).export(str(glb_path))
     _assembly(base, lid, hardware).export(str(step_path))
     _write_views(
-        [base, lifted_lid, *(shape for shape, _ in hardware.values())], view_paths
+        [base, lifted_lid, *(shape for shape, _ in exploded.values())], view_paths
     )
 
     report = _report(enclosure, base=base, lid=lid, hardware=hardware)
@@ -182,6 +201,29 @@ def _lid_fasteners(enclosure: Enclosure) -> dict[str, Any]:
         },
         "recommended_screw_length_mm": recommended_screw_length_mm(enclosure),
         "positions_mm": [list(position) for position in enclosure.fastener_positions],
+    }
+
+
+def _cooling(enclosure: Enclosure) -> dict[str, Any]:
+    """The temperature estimate, the vents, and the fan, and the path the air
+    takes through them."""
+
+    vents, fan = enclosure.vents, enclosure.fan
+    path: list[str] = []
+
+    if vents is not None:
+        path.append(f"inlets low in the long walls: {vents.inlet}")
+        path.append(f"outlets in the lid: {vents.outlet}")
+
+    if fan is not None:
+        action = "blowing into" if fan.direction == "in" else "drawing out of"
+        path.append(f"a {fan.model} {action} the box through the {fan.position}")
+
+    return {
+        "thermal": enclosure.thermal.to_dict() if enclosure.thermal else None,
+        "vents": vents.to_dict() if vents else None,
+        "fan": fan.to_dict() if fan else None,
+        "air_path": path,
     }
 
 
@@ -369,6 +411,7 @@ def _report(
         },
         "parts": {"base": _bounds(base), "lid": _bounds(lid)},
         "fasteners": _lid_fasteners(enclosure),
+        "cooling": _cooling(enclosure),
         "display_fasteners": _display_fasteners(enclosure),
         "cable_opening_mm": {
             "edge": spec.cable_edge,

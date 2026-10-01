@@ -29,6 +29,7 @@ from zcad_core.features.connector_cutouts import MINIMUM_OPENING_WEB_MM
 from zcad_core.features.enclosure import HOLE_COMPENSATION_RANGE_MM, LID_ATTACHMENTS
 from zcad_core.features.enclosure_revision import propose_revision, revised_name
 from zcad_core.features.enclosure_thermal import (
+    CONVECTION_W_M2K,
     DEFAULT_AMBIENT_C,
     DEFAULT_SERVICE_LIMIT_C,
 )
@@ -58,6 +59,7 @@ from zcad_core.printing import SliceError, slice_freshness, slice_models
 from zcad_core.profiles import (
     load_compensation_profile,
     load_printer_profile,
+    load_thermal_profile,
     material_service_limit_c,
 )
 
@@ -193,6 +195,8 @@ def _design(args: argparse.Namespace) -> EnclosureDesign:
         declared_power_w=args.power_w,
         ambient_c=args.ambient_c,
         service_limit_c=_service_limit(args.material_profile),
+        convection_w_m2k=_convection(args)[0],
+        convection_source=_convection(args)[1],
         allow_hot=args.allow_hot,
         countersunk_screws=args.countersunk,
         locating_lip=args.locating_lip,
@@ -268,6 +272,17 @@ def _hinge_payload(enclosure: Enclosure) -> dict[str, object] | None:
     }
 
 
+def _convection(args: argparse.Namespace) -> tuple[float, str]:
+    """The coefficient for the estimate: a measured profile's, or the default."""
+
+    if getattr(args, "thermal_profile", None) is None:
+        return CONVECTION_W_M2K, "the default, an assumption"
+
+    profile = load_thermal_profile(args.thermal_profile)
+
+    return profile.coefficient_w_m2k, profile.describe()
+
+
 def _service_limit(material_profile_id: str) -> float:
     """The material's continuous-air limit, or the PETG default."""
 
@@ -339,6 +354,11 @@ def _build(
         compensation_profile=(
             load_compensation_profile(args.compensation_profile).reference()
             if getattr(args, "compensation_profile", None) is not None
+            else None
+        ),
+        thermal_profile=(
+            load_thermal_profile(args.thermal_profile).reference()
+            if getattr(args, "thermal_profile", None) is not None
             else None
         ),
     )
@@ -613,6 +633,15 @@ def register(
         "--material-profile",
         default="petg",
         help="the material, whose profile sets the limit for the air inside",
+    )
+    build.add_argument(
+        "--thermal-profile",
+        type=Path,
+        default=None,
+        help=(
+            "a profile pooled from measured thermal trials, whose coefficient "
+            "replaces the 8 W/m2K the estimate assumes"
+        ),
     )
     build.add_argument(
         "--allow-hot",

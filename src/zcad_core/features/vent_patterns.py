@@ -661,14 +661,21 @@ def add_wall_inlets(
     top_z_mm: float,
     corner_keepout_mm: float,
     obstruction: cq.Shape | None = None,
+    edges: Sequence[str] | None = None,
 ) -> tuple[cq.Workplane, list[VentFill]]:
-    """Inlets low in each long wall that carries no opening, sharing the
-    target between them; none opens onto ``obstruction``, such as a fan."""
+    """Inlets low in each wall of ``edges`` (the long walls, by default) that
+    carries no opening, sharing the target between them; none opens onto
+    ``obstruction``, such as a fan."""
 
-    walls = [edge for edge in cavity.long_edges() if edge not in blocked_edges]
+    walls = [
+        edge for edge in (edges or cavity.long_edges()) if edge not in blocked_edges
+    ]
 
     if not walls:
-        raise ValueError("Both long walls carry an opening; there is nowhere to vent")
+        raise ValueError(
+            "Every wall that could take the inlets carries an opening; there is "
+            "nowhere to vent"
+        )
 
     bottom = cavity.floor_z_mm + WALL_FLOOR_RIM_MM
     top = min(bottom + WALL_BAND_MM, top_z_mm)

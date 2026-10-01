@@ -11,10 +11,10 @@ catalog flags as drawing air from above, and the group's five lid slots over
 each fan. It has no idea how much heat a design must shed, so it cannot say
 whether it sheds enough.
 
-Phases 1 (the power figures and the temperature estimate), 2 (the vent
-pattern generator), and 3 (the fan bays) are built, and each differs from the
-first design in ways found by building it (see *What phase 1 changed*, *What
-phase 2 changed*, and *What phase 3 changed* below). Phase 4 is design only.
+All four phases are built, and each differs from the first design in ways
+found by building it (see *What phase 1 changed* to *What phase 4 changed*
+below). Nothing here has been measured: the trial records and the pooled
+profile exist so that it can be.
 
 ## Decision: an estimate first, and the geometry second
 
@@ -126,7 +126,7 @@ A fan is hardware, so it goes in the catalog beside the boards:
    printability checks. `--vent-slots` remains.
 3. **Fan bays (built)**: the fan catalog, the bay with its guard and mounting holes,
    and the clearance and airflow checks.
-4. **The Pi 5 group, review, and trials**: the group's own vents and fans
+4. **The Pi 5 group, review, and trials (built)**: the group's own vents and fans
    through the same machinery, the exploded review model showing the air path,
    and thermal trial records, so a measured temperature can correct the
    estimate's coefficient the way a measured hole corrects hole compensation.
@@ -233,6 +233,42 @@ A fan is hardware, so it goes in the catalog beside the boards:
   says whether the other openings pass at least what the guard does.
 - **No duct.** As the design predicted, it was the thing dropped.
 - **Not in the group enclosure yet:** phase 4.
+
+### What phase 4 changed
+
+- **Trials record a temperature and a power, and compare them with the
+  estimate.** Every trial opens a `thermal.json` with the build's prediction and
+  blanks for a settled air temperature, the room's, the measured input power, how
+  long the reading was held (at least 10 minutes), and whether the plastic
+  deformed. Completing the trial derives the rise, the box's effective
+  coefficient, and the estimate's error ratio at the measured power. A
+  temperature alone is enough to complete a trial.
+- **A measured coefficient, from closed boxes only.** `thermal derive` pools the
+  closed-box trials into `profiles/thermal/<material>.json`, versioned like a
+  compensation profile, and `--thermal-profile` on a build uses it in place of
+  the assumed 8 W/m2K, saying so. A box counts as closed only if it has no vent,
+  fan, or lid slot, because anything else measures a different conductance.
+  The repository holds no profile, since nothing has been measured, and the
+  tests' temperatures are made up.
+- **Vented and fanned trials are recorded and not applied.** The profile lists
+  each with its measured conductance as a ratio of the passive one. That is the
+  evidence for crediting vents and airflow, and the build still credits
+  neither, even with a profile: one trial per configuration is not enough to
+  trust a credit, and a wrong one is optimistic. Whoever has the trials decides.
+- **The plastic's behaviour is kept, not applied.** The profile records the
+  highest air temperature with no deformation and the lowest with some; they
+  inform `max_service_c` and never replace it.
+- **The review package shows the fan and the path.** The exploded model includes
+  the fan's frame (lifting with the lid when it is lid-mounted), its seat against
+  the lid or wall is expected contact, and the report has a `cooling` section:
+  the estimate, the vents, the fan, and the path the air takes, in words. Arrows
+  are not drawn.
+- **The group gets vents, not fans or trials.** Its long walls are the front and
+  back, which carry the Pis' openings, so inlets go in the two side walls and
+  outlets in the lid; the cells keep clear of the join features and the fan
+  slots. Its lid always has slots over a fitted Pi's fan, so it is never a
+  closed box. A group fan would need the fan machinery in the group's frame, and
+  group trials a build record the group does not write; both are left.
 
 Each phase is one PR. Phase 1 changes no geometry, so nothing already
 reviewed needs a revised build.
