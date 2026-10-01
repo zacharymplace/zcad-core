@@ -92,7 +92,7 @@ def test_the_template_names_a_board_by_its_real_hash(tmp_path: Path) -> None:
         (lambda d: d["pin"].pop("model"), "pin.model"),
         (lambda d: d["pin"].update(barrel_diameter_mm="thin"), "must be a number"),
         (lambda d: d["pin"].update(tip_diameter_mm=1.4), "tip cannot be wider"),
-        (lambda d: d["pin"].update(travel_mm=9.0), "travel must be less"),
+        (lambda d: d["pin"].update(travel_mm=15.0), "travel must be less"),
         (lambda d: d["pin"].pop("force_n"), "pin.force_n is missing"),
         (lambda d: d.pop("working_travel_mm"), "working_travel_mm is missing"),
         (lambda d: d.update(working_travel_mm=0.01), "working_travel_mm"),
@@ -144,10 +144,41 @@ def test_a_good_fixture_reports_the_board_the_pin_and_each_points_slack(
     assert report.summary["pin"]["figures_from"].startswith("the user's file")
     slacks = {p["identifier"]: p["slack_mm"] for p in report.summary["points"]}
 
-    # A 1.5 mm pad and a 0.6 mm tip: 0.45 mm to spare.
-    assert slacks == {"TP1": 0.45, "TP2": 0.45}
+    # A 3 mm pad and a 0.6 mm tip: 1.2 mm to spare.
+    assert slacks == {"TP1": 1.2, "TP2": 1.2}
     assert report.summary["closest_pitch_mm"] == 16.0
-    assert report.summary["bore_diameter_mm"] == pytest.approx(1.0 + 2 * 0.2 + 0.2)
+    # The barrel is pressed in: the barrel, the press-fit clearance each side, and
+    # the allowance for a printer that prints holes small.
+    assert report.summary["bore_diameter_mm"] == pytest.approx(1.0 + 2 * 0.05 + 0.2)
+
+
+def test_the_check_lays_the_fixture_out_and_reports_the_budget(tmp_path: Path) -> None:
+    board = write_board(tmp_path)
+    report = check_fixture_file(write_fixture(tmp_path, board), PROFILE)
+
+    assert report.summary is not None
+    plan = report.summary["plan"]
+
+    assert plan["plate"]["top_mm"] == 12.0
+    assert plan["misalignment"]["total_mm"] <= 1.2
+    assert plan["locating"] == "outline"
+    without_a_printer = check_fixture_file(write_fixture(tmp_path, board))
+
+    assert without_a_printer.summary is not None
+    assert "plan" not in without_a_printer.summary
+
+
+def test_a_pad_the_clearances_can_miss_is_refused_by_the_check(tmp_path: Path) -> None:
+    board = write_board(tmp_path)
+    data = json.loads(board.read_text())
+
+    for entry in data["test_points"]:
+        entry["pad_diameter_mm"] = 1.5
+
+    board.write_text(json.dumps(data))
+    report = check_fixture_file(write_fixture(tmp_path, board), PROFILE)
+
+    assert any("can move the tip" in e for e in report.errors)
 
 
 def test_a_board_that_has_changed_is_refused(tmp_path: Path) -> None:
@@ -231,6 +262,12 @@ def test_a_tip_wider_than_its_pad_is_refused(tmp_path: Path) -> None:
 
 def test_a_tip_over_half_its_pad_is_warned_of(tmp_path: Path) -> None:
     board = write_board(tmp_path)
+    board_data = json.loads(board.read_text())
+
+    for entry in board_data["test_points"]:
+        entry["pad_diameter_mm"] = 1.5
+
+    board.write_text(json.dumps(board_data))
     data = fixture_template(board)
     data["board"]["file"] = board.name
     data["pin"].update(tip_diameter_mm=0.9, barrel_diameter_mm=1.2)
@@ -238,7 +275,6 @@ def test_a_tip_over_half_its_pad_is_warned_of(tmp_path: Path) -> None:
     fixture.write_text(json.dumps(data))
     report = check_fixture_file(fixture, PROFILE)
 
-    assert report.valid, report.errors
     assert any("more than half" in w for w in report.warnings)
 
 
@@ -259,22 +295,26 @@ def test_locating_by_holes_needs_the_board_to_have_them(tmp_path: Path) -> None:
 def test_a_working_travel_beyond_the_pins_is_refused(tmp_path: Path) -> None:
     board = write_board(tmp_path)
     report = check_fixture_file(
-        write_fixture(tmp_path, board, working_travel_mm=3.0), PROFILE
+        write_fixture(tmp_path, board, working_travel_mm=5.0), PROFILE
     )
 
-    assert any("more than the pin's 2 mm of travel" in e for e in report.errors)
+    assert any("more than the pin's 4 mm of travel" in e for e in report.errors)
 
 
 def test_pins_closer_than_their_bores_can_wall_are_refused(tmp_path: Path) -> None:
     board = write_board(tmp_path)
     board_data = json.loads(board.read_text())
-    # Two pads 2.5 mm apart, as on a header: a 1.6 mm bore leaves 0.9 mm.
-    board_data["test_points"][1]["x_mm"] = -5.5
+
+    # Two small pads 2.3 mm apart, as on a header: a 1.3 mm bore leaves 1.0 mm.
+    for entry in board_data["test_points"]:
+        entry["pad_diameter_mm"] = 1.5
+
+    board_data["test_points"][1]["x_mm"] = -5.7
     board.write_text(json.dumps(board_data))
     report = check_fixture_file(write_fixture(tmp_path, board), PROFILE)
 
     assert any(
-        "TP1 and TP2 are 2.50 mm apart" in e and "least wall is 1.2 mm" in e
+        "TP1 and TP2 are 2.30 mm apart" in e and "least wall is 1.2 mm" in e
         for e in report.errors
     )
 
@@ -337,7 +377,7 @@ def test_the_command_exits_one_and_lists_the_errors(
     capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
     board = write_board(tmp_path)
-    path = write_fixture(tmp_path, board, working_travel_mm=3.0)
+    path = write_fixture(tmp_path, board, working_travel_mm=5.0)
     exit_code, output = run(
         capsys, "fixture", "check", str(path), "--printer-profile", str(PRINTER_PATH)
     )

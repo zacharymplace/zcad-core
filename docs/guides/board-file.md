@@ -126,7 +126,7 @@ Optional pads a test fixture's probes land on:
 
 ```json
 "test_points": [
-  {"identifier": "TP1", "x_mm": -8.0, "y_mm": 12.5, "pad_diameter_mm": 1.5,
+  {"identifier": "TP1", "x_mm": -8.0, "y_mm": 12.5, "pad_diameter_mm": 3.0,
    "side": "top", "net": "3V3"}
 ]
 ```

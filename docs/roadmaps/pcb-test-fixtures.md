@@ -166,9 +166,10 @@ fixture worked.
    and the fixture file's schema with `fixture template` and `fixture check`.
    See *What phase 1 changed* below, and the guide
    [A test fixture for your board](../guides/pcb-test-fixture.md).
-2. **Nest and plate.** The outline-following nest, the pin plate, the bores, the
-   locating dowels, the part-clearance checks, the worst-case misalignment and
-   the check on it, and `fixture build`.
+2. **Nest and plate (built).** The outline-following nest, the pin plate, the
+   bores, the locating dowels, the part-clearance checks, the worst-case
+   misalignment and the check on it, and `fixture build`. See *What phase 2
+   changed* below.
 3. **Closure.** The screwed closure and the hinged one, with the preload and the
    catch or fastener check.
 4. **Trials.** Fixture trials in the Validation Lab with per-point contact and
@@ -205,6 +206,46 @@ named group.
   beside it. They share a name and nothing else.
 - **Not built: bottom-side probing, the nest, the plate, the closure,** and the
   catalogued pins. `side` other than `top` is refused with a message saying so.
+
+### What phase 2 changed
+
+- **The plate's height is read as its top.** "Stands off the board by the free
+  length less the working travel" is built as the plate's *top* surface: the pin
+  sits with its tail flush with it, so pressed in by the working travel its tip
+  is at the pad. The underside is the thickness below that, and the nest's walls
+  rise to it as a **rim** the plate rests on, rather than four corner bosses.
+- **The plate is as thick as the room allows.** Two barrel diameters, at least
+  1.5 mm, less than the room between the tallest part (plus 0.5 mm) and the
+  plate's top; a longer pin buys a thicker plate and a smaller tilt.
+- **A pin's bore is the barrel pressed in.** The barrel, the press-fit clearance
+  each side, and `hole_oversize`: 1.3 mm for a 1 mm pin on the A1 mini profile.
+  Phase 1's pitch check used the sliding clearance and now uses this.
+- **The budget has four links, with the tilt derived.** The board in the nest (a
+  sliding clearance), the plate on its dowels (a clearance at each, with the lever
+  of the turn they can make for a pad off the line between them), the pin in its
+  bore (the press-fit clearance), and the pin tilting in its bore (two
+  clearances over the plate's thickness, from the bore's middle to the tip). The
+  design's table had the tilt as a vague "allowed by that clearance": it is
+  `2 x press / thickness x (plate top - thickness / 2)`. The check refuses a pin
+  whose total exceeds the pad's slack and names the largest link. It is a bound
+  from provisional tolerances: if it fits, nothing is proved.
+- **The board's example pads are 3 mm.** With 1.5 mm pads the example fixture is
+  refused, honestly: the tilt alone is over half a millimetre. The board template
+  and the fixture template's pin (14 mm, 4 mm of travel) changed to fit.
+- **Windows are open to the rim.** A part that hangs over the board's edge, above
+  or below it, is cut a window that goes up through the rim, since a window closed
+  on top would trap the part when the board lifts out. The release check found
+  this on the first real board.
+- **Props under the points, where a part is not.** Not in the design: each test
+  point gets a 3 mm post from the nest's floor to the board's underside unless a
+  part sits there, since the pins' force would otherwise flex a board held only
+  by its edge. Points with none are warned of.
+- **An envelope cannot say which pin lands on what.** A board described by one
+  envelope over the whole board gets a warning, and the pin-on-part check is
+  skipped; list the parts as components for it.
+- **The closure is not built.** The plate is held by hand, and the record says
+  `closure_built: false`. Phase 3 adds the screws or the hinge and the preload
+  check.
 
 Each phase is one PR. Phase 1 adds an optional field to the board file, so no
 existing board file changes.

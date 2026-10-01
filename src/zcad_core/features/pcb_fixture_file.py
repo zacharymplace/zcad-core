@@ -25,7 +25,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from zcad_core.features.guide_bores import printer_numbers
 from zcad_core.features.guide_common import IDENTIFIER, Findings, number, section
+from zcad_core.features.pcb_fixture_plan import (
+    DEFAULT_WALL_MM,
+    bore_diameter,
+    plan_fixture,
+)
 from zcad_core.hardware import PogoSource, PogoSpec, get_pogo_pin, load_board
 from zcad_core.hardware.electronics.board_file import BoardFileSpec
 
@@ -53,6 +59,8 @@ _TOP_LEVEL = frozenset(
         "working_travel_mm",
         "locating",
         "closure",
+        "nest",
+        "plate",
         "needs_review",
     }
 )
@@ -95,6 +103,9 @@ class PcbFixtureSpec:
     working_travel_mm: float
     locating: str
     closure: str
+    # The nest's wall, and the plate's thickness (None: sized to the pin).
+    nest_wall_mm: float
+    plate_thickness_mm: float | None
     source: str
     notes: str
     file_path: Path
@@ -251,6 +262,18 @@ def check_fixture_data(data: Any) -> FixtureCheck:
     _check_board_section(data, findings)
     _check_choices(data, findings)
     _check_pin(data, findings)
+    nest = section(data, "nest", findings, required=False)
+
+    if nest is not None:
+        number(nest, "wall_mm", "nest", findings, low=0.8, high=20.0, required=False)
+
+    plate = section(data, "plate", findings, required=False)
+
+    if plate is not None:
+        number(
+            plate, "thickness_mm", "plate", findings, low=1.2, high=40.0, required=False
+        )
+
     number(
         data,
         "working_travel_mm",
@@ -311,6 +334,13 @@ def fixture_from_data(
         working_travel_mm=float(data["working_travel_mm"]),
         locating=str(data.get("locating", "outline")),
         closure=str(data.get("closure", "screws")),
+        nest_wall_mm=float((data.get("nest") or {}).get("wall_mm", DEFAULT_WALL_MM)),
+        plate_thickness_mm=(
+            float(data["plate"]["thickness_mm"])
+            if isinstance(data.get("plate"), Mapping)
+            and data["plate"].get("thickness_mm") is not None
+            else None
+        ),
         source=str(data.get("source", "")),
         notes=str(data.get("notes", "")),
         file_path=path,
@@ -412,6 +442,21 @@ def check_fixture_file(
 
     _check_pitch(spec, probed, profile, errors, warnings, summary)
 
+    if profile is not None and probed:
+        plan = plan_fixture(
+            board=board,
+            points=probed,
+            pin=spec.pin,
+            working_travel_mm=spec.working_travel_mm,
+            locating=spec.locating,
+            profile=profile,
+            nest_wall_mm=spec.nest_wall_mm,
+            plate_thickness_mm=spec.plate_thickness_mm,
+        )
+        errors.extend(plan.errors)
+        warnings.extend(plan.warnings)
+        summary["plan"] = plan.to_dict()
+
     return FixtureCheck((*report.errors, *errors), tuple(warnings), summary)
 
 
@@ -443,6 +488,12 @@ def _probed_points(
         )
 
     return [by_name[name] for name in spec.points if name in by_name]
+
+
+def probed_points(spec: PcbFixtureSpec, board: BoardFileSpec) -> list[Any]:
+    """The test points a fixture probes: those named, or all of the side's."""
+
+    return _probed_points(spec, board, [])
 
 
 def _pin_summary(pin: PogoSpec) -> dict[str, Any]:
@@ -522,23 +573,16 @@ def _check_pitch(
 
         return
 
-    tolerances = profile.get("tolerances_mm", {})
-    needed = ("sliding_clearance_per_side", "hole_oversize")
-
-    if any(tolerances.get(name) is None for name in needed):
-        errors.append(
-            "The printer profile has no sliding_clearance_per_side or hole_oversize"
-        )
+    try:
+        fits, _, _ = printer_numbers(profile)
+    except ValueError as error:
+        errors.append(str(error))
 
         return
 
-    # A bore for a pin: the barrel, a sliding clearance each side, and the
-    # allowance for a printer that prints holes small.
-    bore = (
-        spec.pin.barrel_diameter_mm
-        + 2 * tolerances["sliding_clearance_per_side"]
-        + tolerances["hole_oversize"]
-    )
+    # A bore for a pin: the barrel is pressed in, so the barrel, the press-fit
+    # clearance each side, and the allowance for a printer that prints holes small.
+    bore = bore_diameter(spec.pin, fits)
     wall = float(profile.get("minimums_mm", {}).get("wall", 1.2))
     summary["bore_diameter_mm"] = round(bore, 3)
     summary["minimum_wall_mm"] = wall
@@ -588,13 +632,13 @@ def fixture_template(board_file: Path | None = None) -> dict[str, Any]:
             "model": "EXAMPLE-PIN",
             "barrel_diameter_mm": 1.0,
             "tip_diameter_mm": 0.6,
-            "free_length_mm": 8.0,
-            "travel_mm": 2.0,
+            "free_length_mm": 14.0,
+            "travel_mm": 4.0,
             "force_n": 1.0,
-            "force_at_travel_mm": 1.5,
+            "force_at_travel_mm": 2.0,
             "source": "EXAMPLE ONLY: the maker's datasheet, or your own measurement",
         },
-        "working_travel_mm": 1.0,
+        "working_travel_mm": 2.0,
         "locating": "outline",
         "closure": "screws",
     }
