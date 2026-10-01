@@ -194,6 +194,7 @@ def write_build_record(
     revision_of: dict[str, Any] | None = None,
     compensation_profile: dict[str, Any] | None = None,
     thermal_profile: dict[str, Any] | None = None,
+    board_source: dict[str, Any] | None = None,
 ) -> Path:
     """Write ``enclosure.json``; refuses to replace one.
 
@@ -213,6 +214,7 @@ def write_build_record(
         "design_name": design_name,
         "built_at_utc": datetime.now(UTC).isoformat(),
         "board": board_identifier,
+        "board_source": board_source,
         "display": display.identifier if display is not None else None,
         "design": asdict(enclosure.design),
         "assembly": assembly_settings or {},

@@ -22,6 +22,7 @@ import sys
 from collections.abc import Sequence
 
 from zcad_core.cli import (
+    board,
     candidate,
     compensation,
     enclosure,
@@ -38,6 +39,7 @@ from zcad_core.cli import (
 
 _COMMAND_GROUPS = (
     target,
+    board,
     candidate,
     fixture,
     trial,

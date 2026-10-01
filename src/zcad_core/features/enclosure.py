@@ -630,6 +630,12 @@ def _thermal_estimate(
         coefficient_w_m2k=design.convection_w_m2k,
         coefficient_source=design.convection_source,
         closed=_is_closed(design, assembly),
+        # A board from a file may bring its own power figure.
+        figures=(
+            {board.identifier: figure}
+            if (figure := getattr(board, "power_figure", None)) is not None
+            else None
+        ),
     )
     require_not_too_hot(estimate, allow_hot=design.allow_hot)
 

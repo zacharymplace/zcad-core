@@ -17,11 +17,11 @@ temperature: it can prove a box too hot and never that it is cool enough.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from zcad_core.hardware.thermal import get_power_figure
+from zcad_core.hardware.thermal import PowerFigure, get_power_figure
 
 CONVECTION_W_M2K = 8.0
 DEFAULT_AMBIENT_C = 25.0
@@ -169,9 +169,12 @@ def estimate_thermal(
     coefficient_w_m2k: float = CONVECTION_W_M2K,
     closed: bool = True,
     coefficient_source: str = "the default, an assumption",
+    figures: Mapping[str, PowerFigure] | None = None,
 ) -> ThermalEstimate:
     """Estimate a closed box built around ``parts``, which are catalogue
-    identifiers, plus ``declared_power_w`` for anything the catalog lacks."""
+    identifiers, plus ``declared_power_w`` for anything the catalog lacks.
+    ``figures`` supply a part's power where the catalog has none, such as a
+    board from a file."""
 
     if declared_power_w < 0:
         raise ValueError("declared_power_w must not be negative")
@@ -186,7 +189,7 @@ def estimate_thermal(
     sources: list[str] = []
 
     for part in parts:
-        figure = get_power_figure(part)
+        figure = (figures or {}).get(part) or get_power_figure(part)
 
         if figure is None:
             missing.append(part)
