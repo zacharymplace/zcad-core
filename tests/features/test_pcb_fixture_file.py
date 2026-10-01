@@ -97,6 +97,12 @@ def test_the_template_names_a_board_by_its_real_hash(tmp_path: Path) -> None:
         (lambda d: d.pop("working_travel_mm"), "working_travel_mm is missing"),
         (lambda d: d.update(working_travel_mm=0.01), "working_travel_mm"),
         (lambda d: d.update(pin={"catalog": "P75-E2"}), "none yet"),
+        (lambda d: d.update(screw={"size": "M9"}), "screw.size must be one of"),
+        (lambda d: d.update(screw={"tensile_limit_n": 500}), "screw.source"),
+        (
+            lambda d: d.update(screw={"tensile_limit_n": 0, "source": "x"}),
+            "screw.tensile_limit_n",
+        ),
     ],
 )
 def test_what_cannot_be_right_is_refused(change: Any, expect: str) -> None:
@@ -394,3 +400,37 @@ def test_the_validation_labs_export_command_is_still_there(
         main(["fixture", "export", "--help"])
 
     assert "--output" in capsys.readouterr().out
+
+
+def test_the_check_reports_the_closure_and_its_unchecked_load(tmp_path: Path) -> None:
+    report = check_fixture_file(write_fixture(tmp_path, write_board(tmp_path)), PROFILE)
+    assert report.summary is not None
+    closure = report.summary["closure_plan"]
+
+    assert report.valid, report.errors
+    # One newton per pin at the template's working travel.
+    assert closure["preload_n"] == float(len(report.summary["points"]))
+    assert closure["tensile_limit_checked"] is False
+    assert any("not checked against a screw" in w for w in report.warnings)
+
+
+def test_the_check_refuses_a_hinged_closure_it_cannot_build(tmp_path: Path) -> None:
+    board = write_board(tmp_path)
+    report = check_fixture_file(
+        write_fixture(tmp_path, board, closure="hinge"), PROFILE
+    )
+
+    assert any("'hinge' is not built yet" in e for e in report.errors)
+
+
+def test_a_screw_limit_is_loaded_with_its_source(tmp_path: Path) -> None:
+    board = write_board(tmp_path)
+    spec = load_fixture(
+        write_fixture(
+            tmp_path, board, screw={"tensile_limit_n": 400, "source": "my pull test"}
+        )
+    )
+
+    assert spec.screw_limit_n == 400.0
+    assert spec.screw_source == "my pull test"
+    assert spec.screw_size == "M3"

@@ -126,7 +126,7 @@ def _fixture_build(args: argparse.Namespace) -> int:
             "warnings": list(report.warnings),
             "plan": fixture.plan.to_dict(),
             "checks": fixture.checks,
-            "closure": "not built: the plate is held by hand",
+            "closure": fixture.closure.to_dict(),
             "tolerance_status": fixture.tolerance_status,
             "verified": False,
             "validation_status": (result.validation_report or {}).get(

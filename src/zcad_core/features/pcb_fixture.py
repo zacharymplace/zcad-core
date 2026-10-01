@@ -10,8 +10,9 @@ nest, or two posts up through the board's mounting holes.
 
 The build refuses a fixture whose parts do not fit: the board must drop into the
 nest and lift out again, the plate must clear every part, and each pin's barrel
-must clear its bore and the parts beside it. The closure that holds the plate
-down against the pins' force is not built yet; the plate is held by hand.
+must clear its bore and the parts beside it. Two screws hold the plate down
+against the pins' force: ears on the nest with heat-set inserts, and clearance
+holes through the plate (see :mod:`zcad_core.features.pcb_fixture_closure`).
 
 Frame: the board's own, as in :mod:`zcad_core.features.pcb_fixture_plan`; the
 board's top face is ``z == 0``.
@@ -26,6 +27,11 @@ from typing import Any
 
 import cadquery as cq
 
+from zcad_core.features.pcb_fixture_closure import (
+    NOTCH_RADIUS_MM,
+    ClosurePlan,
+    plan_closure,
+)
 from zcad_core.features.pcb_fixture_file import PcbFixtureSpec
 from zcad_core.features.pcb_fixture_plan import (
     EAR_RADIUS_MM,
@@ -50,8 +56,6 @@ FIXTURE_RECORD = "fixture.json"
 RELEASE_STEP_MM = 2.0
 # A window cut for a part is this much bigger than the part all round.
 RELIEF_MARGIN_MM = 0.5
-# Finger notches in the wall, to lift the board out by.
-NOTCH_RADIUS_MM = 4.5
 # How far short of the plate's top a post stops.
 POST_STOP_MM = 0.2
 _TOLERANCE_MM3 = 1e-6
@@ -64,6 +68,7 @@ class PcbFixture:
     spec: PcbFixtureSpec
     board: BoardFileSpec
     plan: FixturePlan
+    closure: ClosurePlan
     nest: cq.Workplane
     plate: cq.Workplane
     profile_id: str
@@ -147,7 +152,9 @@ def _solid(model: cq.Workplane) -> cq.Shape:
     return value
 
 
-def _build_nest(board: BoardFileSpec, plan: FixturePlan) -> cq.Workplane:
+def _build_nest(
+    board: BoardFileSpec, plan: FixturePlan, closure: ClosurePlan
+) -> cq.Workplane:
     points = outline_points(board)
     thickness = board.board_thickness_mm
     ledge_z = -thickness
@@ -162,6 +169,9 @@ def _build_nest(board: BoardFileSpec, plan: FixturePlan) -> cq.Workplane:
             nest = nest.union(
                 _cylinder(anchor.x_mm, anchor.y_mm, bottom_z, rim_z, 2 * EAR_RADIUS_MM)
             )
+
+    for x, y in closure.screws:
+        nest = nest.union(_cylinder(x, y, bottom_z, rim_z, 2 * closure.ear_radius_mm))
 
     nest = nest.cut(outline_prism(points, ledge_z, rim_z + 1.0, plan.clearance_mm))
     inner = min(board.board_width_mm, board.board_length_mm) - 2 * LEDGE_MM
@@ -187,6 +197,17 @@ def _build_nest(board: BoardFileSpec, plan: FixturePlan) -> cq.Workplane:
                 # Open to the rim, so a part standing in the wall lifts out with
                 # the board instead of being caught under it.
                 rim_z + 1.0,
+            )
+        )
+
+    for x, y in closure.screws:
+        nest = nest.cut(
+            _cylinder(
+                x,
+                y,
+                rim_z - closure.pocket_depth_mm,
+                rim_z + 0.5,
+                closure.pocket_diameter_mm,
             )
         )
 
@@ -242,7 +263,9 @@ def _cut_notches(
     return nest
 
 
-def _build_plate(board: BoardFileSpec, plan: FixturePlan) -> cq.Workplane:
+def _build_plate(
+    board: BoardFileSpec, plan: FixturePlan, closure: ClosurePlan
+) -> cq.Workplane:
     points = outline_points(board)
     reach = plan.clearance_mm + plan.nest_wall_mm
     bottom, top = plan.plate_underside_mm, plan.plate_top_mm
@@ -253,6 +276,12 @@ def _build_plate(board: BoardFileSpec, plan: FixturePlan) -> cq.Workplane:
             plate = plate.union(
                 _cylinder(anchor.x_mm, anchor.y_mm, bottom, top, 2 * EAR_RADIUS_MM)
             )
+
+    for x, y in closure.screws:
+        plate = plate.union(_cylinder(x, y, bottom, top, 2 * closure.ear_radius_mm))
+        plate = plate.cut(
+            _cylinder(x, y, bottom - 0.5, top + 0.5, closure.clearance_hole_mm)
+        )
 
     for point in plan.points:
         plate = plate.cut(
@@ -336,8 +365,23 @@ def build_fixture(
     if plan.errors:
         raise ValueError("The fixture cannot be built:\n- " + "\n- ".join(plan.errors))
 
-    nest = _build_nest(board, plan)
-    plate = _build_plate(board, plan)
+    closure = plan_closure(
+        board=board,
+        plan=plan,
+        kind=spec.closure,
+        screw=spec.screw_size,
+        limit_n=spec.screw_limit_n,
+        limit_source=spec.screw_source,
+        profile=profile,
+    )
+
+    if closure.errors:
+        raise ValueError(
+            "The fixture cannot be built:\n- " + "\n- ".join(closure.errors)
+        )
+
+    nest = _build_nest(board, plan, closure)
+    plate = _build_plate(board, plan, closure)
     assembly = board_assembly(board)
     parts = cq.Compound.makeCompound(
         [s for s in assembly.Solids()[1:] if s.BoundingBox().zmax > 0.05]
@@ -357,10 +401,14 @@ def build_fixture(
         "pins_clear": _pins_clear(plate_shape, plan, parts),
     }
 
+    if closure.limit_checked:
+        checks["preload_within_screw_limit"] = closure.within_limit
+
     return PcbFixture(
         spec=spec,
         board=board,
         plan=plan,
+        closure=closure,
         nest=nest,
         plate=plate,
         profile_id=str(profile.get("profile_id", "")),
@@ -439,7 +487,8 @@ def fixture_record(
         "side": spec.side,
         "locating": spec.locating,
         "closure": spec.closure,
-        "closure_built": False,
+        "closure_built": True,
+        "closure_plan": fixture.closure.to_dict(),
         "points": [
             {
                 "identifier": p.identifier,

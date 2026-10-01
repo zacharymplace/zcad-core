@@ -241,7 +241,7 @@ def test_the_record_names_the_board_and_claims_nothing(outline: PcbFixture) -> N
     record = fixture_record(outline, {})
 
     assert record["verified"] is False
-    assert record["closure_built"] is False
+    assert record["closure_built"] is True
     assert record["board"]["sha256"] == outline.spec.board_sha256
     assert record["pin"]["figures_from"].startswith("the user's file")
     assert record["tolerance_status"] == "provisional"
@@ -283,7 +283,8 @@ def test_the_command_builds_and_exports_a_fixture(
     assert exit_code == 0
     assert output["validation_status"] == "PASS"
     assert output["verified"] is False
-    assert "held by hand" in output["closure"]
+    assert output["closure"]["kind"] == "screws"
+    assert output["closure"]["preload_n"] == 3.0
     assert set(output["parts"]) == {"nest", "plate"}
     assert Path(output["parts"]["nest"]["stl_path"]).is_file()
     assert all(output["checks"].values())
@@ -324,3 +325,119 @@ def test_the_command_refuses_a_fixture_that_cannot_land(
         == 1
     )
     assert "can move the tip" in capsys.readouterr().err
+
+
+# --- the closure ----------------------------------------------------------------------------------
+
+
+def test_the_closure_puts_a_screw_ear_with_a_pocket_and_a_hole_at_each_screw(
+    outline: PcbFixture,
+) -> None:
+    closure = outline.closure
+    plan = outline.plan
+
+    assert len(closure.screws) == 2
+
+    for x, y in closure.screws:
+        # The nest has an ear there, and an insert pocket in its rim.
+        assert inside(outline.nest, x + 3.5, y, plan.plate_underside_mm - 1.0)
+        assert not inside(outline.nest, x, y, plan.plate_underside_mm - 1.0)
+        # The plate has an ear and a hole for the screw through it.
+        assert inside(outline.plate, x + 3.5, y, plan.plate_underside_mm + 0.5)
+        assert not inside(outline.plate, x, y, plan.plate_underside_mm + 0.5)
+
+
+def test_the_screws_sit_diagonally_clear_of_the_dowel_ears_and_the_notches(
+    outline: PcbFixture,
+) -> None:
+    (x1, y1), (x2, y2) = outline.closure.screws
+
+    # The 30 x 45 board is longer in Y: the screws sit on its X sides, at opposite
+    # ends and opposite sides.
+    assert x1 == -x2 and y1 == -y2
+    assert abs(x1) > 15 and abs(y1) > 4.5 + outline.closure.ear_radius_mm
+
+    for anchor in outline.plan.anchors:
+        for x, y in outline.closure.screws:
+            gap = ((x - anchor.x_mm) ** 2 + (y - anchor.y_mm) ** 2) ** 0.5
+            assert gap > outline.closure.ear_radius_mm + 4.0
+
+
+def test_the_preload_is_the_pins_force_at_the_working_travel(
+    tmp_path: Path,
+) -> None:
+    # Three pins, 1 N at 2 mm: the working travel is 2 mm, so 3 N.
+    assert make_fixture(tmp_path).closure.preload_n == pytest.approx(3.0)
+
+
+def test_the_preload_scales_with_the_working_travel(tmp_path: Path) -> None:
+    # A straight spring: 1 N at 2 mm is 1.5 N at 3 mm, so 4.5 N for three pins.
+    fixture = make_fixture(tmp_path, working_travel_mm=3.0)
+
+    assert fixture.closure.preload_n == pytest.approx(4.5)
+
+
+def test_without_a_screw_limit_the_load_is_reported_and_not_checked(
+    outline: PcbFixture,
+) -> None:
+    assert outline.closure.limit_n is None
+    assert not outline.closure.limit_checked
+    assert "preload_within_screw_limit" not in outline.checks
+    assert any("not checked against a screw" in w for w in outline.closure.warnings)
+    assert (
+        "the plate bending between the screws"
+        in outline.closure.to_dict()["not_checked"]
+    )
+
+
+def test_a_screw_limit_the_user_gives_is_checked_and_recorded(
+    tmp_path: Path,
+) -> None:
+    fixture = make_fixture(
+        tmp_path, screw={"tensile_limit_n": 500, "source": "my own pull test"}
+    )
+
+    assert fixture.checks["preload_within_screw_limit"] is True
+    assert fixture.passed
+
+    record = fixture_record(fixture, {})["closure_plan"]
+
+    assert record["tensile_limit_n"] == 500
+    assert record["tensile_limit_source"] == "my own pull test"
+    assert record["tensile_limit_checked"] is True
+
+
+def test_a_preload_over_the_given_limit_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match=r"more than the 2 N a M3 screw"):
+        make_fixture(
+            tmp_path, screw={"tensile_limit_n": 2, "source": "a deliberately low limit"}
+        )
+
+
+def test_the_hinged_closure_is_not_built(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="'hinge' is not built yet"):
+        make_fixture(tmp_path, closure="hinge")
+
+
+def test_a_larger_screw_widens_the_ear_to_keep_the_printers_wall(
+    tmp_path: Path,
+) -> None:
+    fixture = make_fixture(tmp_path, screw={"size": "M4"})
+    closure = fixture.closure
+
+    # M4's 6.3 mm insert pocket plus the least wall each side outgrows the 4 mm
+    # ear.
+    assert closure.pocket_diameter_mm == 6.3
+    assert closure.ear_radius_mm == pytest.approx(6.3 / 2 + 1.2)
+    assert fixture.passed
+
+
+def test_the_record_gives_the_screw_length_the_closure_needs(
+    outline: PcbFixture,
+) -> None:
+    plan = outline.closure.to_dict()
+
+    # The plate's thickness, and the insert's depth to screw into.
+    assert plan["screw_length_min_mm"] == pytest.approx(
+        outline.plan.plate_thickness_mm + 5.0
+    )
