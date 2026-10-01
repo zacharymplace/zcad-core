@@ -125,6 +125,8 @@ def test_build_exports_a_nest_and_a_record(
         "one_solid": True,
         "part_fits_pocket": True,
         "part_lifts_out": True,
+        "bores_open": True,
+        "bit_reaches_depth": True,
     }
     assert output["verified"] is False
     assert output["tolerance_status"] == "provisional"
@@ -144,6 +146,76 @@ def test_build_refuses_a_guide_that_cannot_be_built(
     path = make_guide(capsys, tmp_path, part)
     data = json.loads(path.read_text())
     data["bores"] = [{"x_mm": 0, "y_mm": 0}]
+    path.write_text(json.dumps(data))
+
+    assert (
+        main(
+            [
+                "guide",
+                "build",
+                "--guide-file",
+                str(path),
+                "--output-directory",
+                str(tmp_path / "out"),
+                "--printer-profile",
+                str(PRINTER_PROFILE),
+            ]
+        )
+        == 1
+    )
+    capsys.readouterr()
+
+
+def test_check_places_the_bores_and_refuses_one_off_the_part(
+    capsys: pytest.CaptureFixture[str], part: Path, tmp_path: Path
+) -> None:
+    path = make_guide(capsys, tmp_path, part)
+    exit_code, output = run(capsys, "guide", "check", str(path))
+
+    assert exit_code == 0
+    assert output["part"]["bores"][0]["identifier"] == "B1"
+    assert output["part"]["plate_thickness_mm"] == 6.0
+
+    data = json.loads(path.read_text())
+    data["bores"][0]["x_mm"] = 60.0
+    path.write_text(json.dumps(data))
+    exit_code, output = run(capsys, "guide", "check", str(path))
+
+    assert exit_code == 1
+    assert any("B1 stands at (60, 0)" in e for e in output["errors"])
+
+
+def test_build_reports_each_bore_and_what_it_needs_of_the_bit(
+    capsys: pytest.CaptureFixture[str], part: Path, tmp_path: Path
+) -> None:
+    path = make_guide(capsys, tmp_path, part)
+    exit_code, output = run(
+        capsys,
+        "guide",
+        "build",
+        "--guide-file",
+        str(path),
+        "--output-directory",
+        str(tmp_path / "out"),
+        "--printer-profile",
+        str(PRINTER_PROFILE),
+    )
+
+    assert exit_code == 0
+    (placed,) = output["bores"]
+
+    assert placed["bit_needed_beyond_chuck_mm"] == 12.0
+    assert placed["worst_case_entry_play_mm"] == pytest.approx(0.4)
+    assert output["plate_thickness_mm"] == 6.0
+    assert output["verified"] is False
+
+
+def test_build_refuses_a_bit_that_cannot_reach(
+    capsys: pytest.CaptureFixture[str], part: Path, tmp_path: Path
+) -> None:
+    path = make_guide(capsys, tmp_path, part)
+    data = json.loads(path.read_text())
+    data["drill"]["stickout_mm"] = 8.0
     path.write_text(json.dumps(data))
 
     assert (

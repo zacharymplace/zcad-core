@@ -120,7 +120,7 @@ def test_the_template_names_a_part_by_its_real_hash(bracket: Path) -> None:
         (lambda d: d["nest"].update(wall_mm=0.1), "nest.wall_mm"),
         (lambda d: d["nest"].update(bearing="ledge"), "later release"),
         (lambda d: d["plate"].update(thickness_mm=0.2), "plate.thickness_mm"),
-        (lambda d: d.update(bores=[{"x_mm": 0}]), "bores are not supported yet"),
+        (lambda d: d.update(bores=[{"x_mm": 0}]), "bores[0].identifier"),
     ],
 )
 def test_what_cannot_be_right_is_refused(change: Any, expect: str) -> None:
@@ -195,7 +195,7 @@ def inspect(tmp_path: Path, part: Path, **nest: Any) -> Any:
     path = tmp_path / "guide.json"
     path.write_text(json.dumps(data))
 
-    return inspect_guide_file(path)
+    return inspect_guide_file(path, PROFILE)
 
 
 def test_a_good_part_is_summarised(bracket: Path, tmp_path: Path) -> None:
@@ -277,6 +277,8 @@ def test_the_guide_passes_its_checks(built: Any) -> None:
         "one_solid": True,
         "part_fits_pocket": True,
         "part_lifts_out": True,
+        "bores_open": True,
+        "bit_reaches_depth": True,
     }
 
 
@@ -300,7 +302,9 @@ def test_the_plate_bears_on_the_part_and_the_nest_surrounds_it(built: Any) -> No
 
     # Plate material just above the part's top; a nest wall beside the part;
     # and nothing inside the pocket where the part goes.
-    assert inside(solid, 0, 0, 3.0)
+    assert inside(solid, 10, 5, 3.0)
+    # The template's bore leaves a hole where the drill goes.
+    assert not inside(solid, 0, 0, 3.0)
     assert inside(solid, -31.2, 0, -4.0)
     assert not inside(solid, 0, 0, -4.0)
 
@@ -324,7 +328,7 @@ def test_the_guide_prints_plate_down(built: Any) -> None:
     assert isinstance(turned, cq.Shape)
     box = turned.BoundingBox()
     # The plate is now at the bottom: solid right across the nest's footprint.
-    assert inside(turned, 0, 0, box.zmin + 0.5)
+    assert inside(turned, 10, 5, box.zmin + 0.5)
     assert not inside(turned, 0, 0, box.zmax - 0.5)
 
 
@@ -370,8 +374,11 @@ def test_the_record_names_the_part_by_hash_and_claims_nothing(
     record = guide_record(guide, {})
 
     assert record["verified"] is False
-    assert record["bores"] == []
+    assert [b["identifier"] for b in record["bores"]] == ["B1"]
+    assert record["bushing"] is None
     assert record["part"]["sha256"] == sha(bracket)
     assert record["nest"]["clearance_per_side_mm"] == 0.2
     assert record["tolerance_status"] == "provisional"
-    assert "accuracy" not in json.dumps(record)
+    # Play is a bound from the profile, and the record says it is no accuracy.
+    assert "not a measured positional accuracy" in record["play_note"]
+    assert "accuracy_mm" not in json.dumps(record)

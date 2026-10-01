@@ -1,10 +1,11 @@
-"""Build a drill guide's nest and plate around a part.
+"""Build a drill guide: a nest around a part, and a plate with the bores in it.
 
 The nest is a pocket on the underside that follows the part's shadow, widened
 by the printer's sliding clearance; the plate is a slab above it, resting on
-the part's top face. This release builds that shell, with its release check and
-a build record that names the part by hash and says the guide is unverified.
-The bores that make it a drill guide come in the next.
+the part's top face, with a bore for each hole the user wants: a printed hole,
+or a pocket for a steel bushing. The build refuses a guide whose bores do not
+fit the plate and the part, or whose chuck cannot stand clear to reach the
+depth. Its record names the part by hash and says the guide is unverified.
 
 Frame: the guide's own, as in :mod:`zcad_core.features.guide_file`. The part's
 top is ``z == 0``; the nest runs down from it and the plate up.
@@ -19,11 +20,27 @@ from typing import Any
 
 import cadquery as cq
 
-from zcad_core.features.guide_file import GuidePart, GuideSpec
+from zcad_core.features.guide_bores import (
+    BorePlan,
+    PlannedBore,
+    Sections,
+    axis_point,
+    bit_needed,
+    chuck_standoff,
+    flange_solids,
+    plan_bores,
+    play_bounds,
+    printer_numbers,
+)
+from zcad_core.features.guide_file import (
+    DEFAULT_PLATE_MM,
+    GuidePart,
+    GuideSpec,
+)
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.geometry.outline_prism import outline_prism
 
-GUIDE_RECORD_SCHEMA_VERSION = "1.0.0"
+GUIDE_RECORD_SCHEMA_VERSION = "2.0.0"
 GUIDE_RECORD = "guide.json"
 # How far the guide is lifted off the part per step in the release check.
 RELEASE_STEP_MM = 2.0
@@ -37,14 +54,20 @@ class Guide:
     spec: GuideSpec
     part: GuidePart
     body: cq.Workplane
+    plate_thickness_mm: float
     clearance_mm: float
     profile_id: str
     tolerance_status: str
+    bores: tuple[PlannedBore, ...]
+    play: dict[str, tuple[float, float]]
     checks: dict[str, bool]
+    # Why a check failed, in words.
+    problems: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
 
     @property
     def passed(self) -> bool:
-        return all(self.checks.values())
+        return all(self.checks.values()) and not self.problems
 
     @property
     def size_mm(self) -> tuple[float, float, float]:
@@ -53,23 +76,47 @@ class Guide:
         return box.xlen, box.ylen, box.zlen
 
 
-def _tolerance(profile: dict[str, Any], name: str) -> float:
-    value = profile.get("tolerances_mm", {}).get(name)
+def _sections(spec: GuideSpec) -> Sections:
+    return Sections(drill=spec.drill, bushing=spec.bushing, bores=spec.bores)
 
-    if value is None:
-        raise ValueError(f"The printer profile has no tolerances_mm.{name}")
 
-    return float(value)
+def _cutters(item: PlannedBore, sections: Sections, thickness: float) -> cq.Workplane:
+    """What a bore removes from the plate: the hole for the drill, through the
+    plate, and for a bushing a wider pocket from the top down the bushing's
+    length. Each is a cylinder on the bore's axis, started a millimetre above
+    the plate and ended half a millimetre below it, in the nest's void."""
+
+    cosine = -item.axis[2]
+    start = axis_point(item, thickness + 1.0)
+    base = cq.Vector(start[0], start[1], thickness + 1.0)
+    direction = cq.Vector(*item.axis)
+    through = (thickness + 1.5) / cosine
+    cutter = cq.Workplane("XY").add(
+        cq.Solid.makeCylinder(
+            item.hole_diameter_mm / 2, through, pnt=base, dir=direction
+        )
+    )
+
+    if item.pocket_diameter_mm is not None and sections.bushing is not None:
+        depth = 1.0 / cosine + sections.bushing.body_length_mm
+        cutter = cutter.union(
+            cq.Workplane("XY").add(
+                cq.Solid.makeCylinder(
+                    item.pocket_diameter_mm / 2, depth, pnt=base, dir=direction
+                )
+            )
+        )
+
+    return cutter
 
 
 def build_guide(spec: GuideSpec, part: GuidePart, profile: dict[str, Any]) -> Guide:
-    """The nest and plate for a part, refused if a wall or the plate is under
-    the printer's minimum or the part would not lift out."""
+    """The nest and plate for a part, with its bores; refused if a wall or the
+    plate is under the printer's minimum, a bore does not fit, or the part would
+    not lift out."""
 
-    clearance = _tolerance(profile, "sliding_clearance_per_side")
-    minimums = profile.get("minimums_mm", {})
-    least_wall = float(minimums.get("wall", 1.2))
-    least_floor = float(minimums.get("floor", 1.2))
+    fits, least_wall, least_floor = printer_numbers(profile)
+    clearance = fits["sliding_clearance_per_side"]
 
     if spec.nest_wall_mm < least_wall:
         raise ValueError(
@@ -77,36 +124,136 @@ def build_guide(spec: GuideSpec, part: GuidePart, profile: dict[str, Any]) -> Gu
             f"{least_wall:g} mm minimum wall"
         )
 
-    if spec.plate_thickness_mm < least_floor:
+    sections = _sections(spec)
+    plan: BorePlan = plan_bores(
+        sections,
+        height_mm=part.height_mm,
+        shadow=part.silhouette.points,
+        tolerances=fits,
+        minimum_wall_mm=least_wall,
+        nest_wall_mm=spec.nest_wall_mm,
+        plate_thickness_mm=spec.plate_thickness_mm,
+        default_plate_mm=DEFAULT_PLATE_MM,
+    )
+
+    if plan.errors:
+        raise ValueError("The bores cannot be built:\n- " + "\n- ".join(plan.errors))
+
+    thickness = plan.plate_thickness_mm
+
+    if thickness < least_floor:
         raise ValueError(
-            f"plate.thickness_mm is {spec.plate_thickness_mm:g}, under the "
-            f"printer's {least_floor:g} mm minimum"
+            f"plate.thickness_mm is {thickness:g}, under the printer's "
+            f"{least_floor:g} mm minimum"
         )
 
     points = part.silhouette.points
     outer = outline_prism(
-        points,
-        -spec.nest_depth_mm,
-        spec.plate_thickness_mm,
-        clearance + spec.nest_wall_mm,
+        points, -spec.nest_depth_mm, thickness, clearance + spec.nest_wall_mm
     )
     pocket = outline_prism(points, -spec.nest_depth_mm - 1.0, 0.0, clearance)
     body = outer.cut(pocket)
+
+    for item in plan.bores:
+        body = body.cut(_cutters(item, sections, thickness))
+
+    solid = body.val()
     checks = {
         "one_solid": len(body.solids().vals()) == 1,
-        "part_fits_pocket": _clear(body.val(), part.shape),
-        "part_lifts_out": _lifts_out(body.val(), part),
+        "part_fits_pocket": _clear(solid, part.shape),
+        "part_lifts_out": _lifts_out(solid, part),
+        "bores_open": _bores_open(solid, plan.bores, thickness),
+    }
+    reached, problems = _reach(body, plan.bores, sections, thickness)
+    checks["bit_reaches_depth"] = not problems
+    play = {
+        item.bore.identifier: play_bounds(item, sections, fits, clearance)
+        for item in plan.bores
     }
 
     return Guide(
         spec=spec,
         part=part,
         body=body,
+        plate_thickness_mm=thickness,
         clearance_mm=clearance,
         profile_id=str(profile.get("profile_id", "")),
         tolerance_status=str(profile.get("tolerance_status", "unknown")),
+        bores=reached,
+        play=play,
         checks=checks,
+        problems=tuple(problems),
+        warnings=plan.warnings,
     )
+
+
+def _reach(
+    body: cq.Workplane,
+    planned: tuple[PlannedBore, ...],
+    sections: Sections,
+    thickness: float,
+) -> tuple[tuple[PlannedBore, ...], list[str]]:
+    """Slide the chuck up each bore's axis until it clears the plate and any
+    bushing flange, and say how much bit must stand out of it to reach the
+    depth; refuse a bit that is too short."""
+
+    drill = sections.drill
+    shape = body.val()
+
+    if drill is None or not planned or not isinstance(shape, cq.Shape):
+        return planned, []
+
+    assembly = cq.Compound.makeCompound(
+        [shape, *flange_solids(planned, sections, thickness)]
+    )
+    reached: list[PlannedBore] = []
+    problems: list[str] = []
+
+    for item in planned:
+        try:
+            standoff = chuck_standoff(assembly, item, drill, thickness)
+        except ValueError as error:
+            problems.append(str(error))
+            reached.append(item)
+
+            continue
+
+        needed = bit_needed(item, standoff, thickness)
+        reached.append(item.with_reach(standoff, needed))
+
+        if drill.stickout_mm is not None and needed > drill.stickout_mm + 1e-9:
+            problems.append(
+                f"{item.bore.identifier}: the drill must stand {needed:g} mm out of "
+                f"its chuck to reach {item.bore.depth_mm:g} mm, and the file says it "
+                f"stands out {drill.stickout_mm:g} mm"
+            )
+
+    return tuple(reached), problems
+
+
+def _bores_open(
+    body: object, planned: tuple[PlannedBore, ...], thickness: float
+) -> bool:
+    """Each bore's drill, as a cylinder through the plate, meets no material."""
+
+    if not isinstance(body, cq.Shape):
+        raise TypeError("Expected a shape")
+
+    for item in planned:
+        cosine = -item.axis[2]
+        top = thickness + 1.0
+        origin = axis_point(item, top)
+        drill = cq.Solid.makeCylinder(
+            item.bore.diameter_mm / 2,
+            top / cosine,
+            pnt=cq.Vector(origin[0], origin[1], top),
+            dir=cq.Vector(*item.axis),
+        )
+
+        if intersection_volume(body, drill) > _TOLERANCE_MM3:
+            return False
+
+    return True
 
 
 def _clear(first: object, second: cq.Shape) -> bool:
@@ -126,12 +273,9 @@ def _lifts_out(body: object, part: GuidePart) -> bool:
     lift = RELEASE_STEP_MM
 
     while lift <= part.height_mm + RELEASE_STEP_MM:
-        if (
-            intersection_volume(
-                body.moved(cq.Location(cq.Vector(0, 0, lift))), part.shape
-            )
-            > _TOLERANCE_MM3
-        ):
+        moved = body.moved(cq.Location(cq.Vector(0, 0, lift)))
+
+        if intersection_volume(moved, part.shape) > _TOLERANCE_MM3:
             return False
 
         lift += RELEASE_STEP_MM
@@ -168,9 +312,11 @@ def require_fits_bed(guide: Guide, profile: dict[str, Any]) -> None:
 
 def guide_record(guide: Guide, files: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """What a build says about itself: the guide file and the part by hash, the
-    numbers and tolerances used, and that nothing here is verified."""
+    numbers and tolerances used, the bores as placed, and that nothing here is
+    verified."""
 
     spec, part = guide.spec, guide.part
+    drill, bushing = spec.drill, spec.bushing
 
     return {
         "schema_version": GUIDE_RECORD_SCHEMA_VERSION,
@@ -194,10 +340,45 @@ def guide_record(guide: Guide, files: dict[str, dict[str, Any]]) -> dict[str, An
             "bearing": spec.bearing,
             "clearance_per_side_mm": guide.clearance_mm,
         },
-        "plate": {"thickness_mm": spec.plate_thickness_mm},
+        "plate": {
+            "thickness_mm": guide.plate_thickness_mm,
+            "sized_by": "file" if spec.plate_thickness_mm is not None else "bores",
+        },
+        "drill": None
+        if drill is None
+        else {
+            "diameter_mm": drill.diameter_mm,
+            "chuck_diameter_mm": drill.chuck_diameter_mm,
+            "depth_mm": drill.depth_mm,
+            "stickout_mm": drill.stickout_mm,
+        },
+        # The bushing's figures are the user's own, and the record says so.
+        "bushing": None
+        if bushing is None
+        else {
+            "inner_diameter_mm": bushing.inner_diameter_mm,
+            "outer_diameter_mm": bushing.outer_diameter_mm,
+            "length_mm": bushing.length_mm,
+            "flange_diameter_mm": bushing.flange_diameter_mm,
+            "flange_thickness_mm": bushing.flange_thickness_mm,
+            "source": bushing.source,
+            "figures_from": "the user's file; no maker's datasheet has been read",
+        },
+        "bores": [
+            {
+                **item.to_dict(),
+                "worst_case_entry_play_mm": guide.play[item.bore.identifier][0],
+                "worst_case_tip_play_mm": guide.play[item.bore.identifier][1],
+            }
+            for item in guide.bores
+        ],
+        "play_note": (
+            "Play is a bound from the printer profile's provisional clearances "
+            "alone. It is not a measured positional accuracy, which only a trial "
+            "gives."
+        ),
         "printer_profile_id": guide.profile_id,
         "tolerance_status": guide.tolerance_status,
-        "bores": [],
         "checks": guide.checks,
         # The engine states no accuracy: a trial measures it.
         "verified": False,
