@@ -174,4 +174,75 @@ and of a board whose parts are one envelope.
 figures they are, each point with its slack and its worst-case misalignment, the
 plate's heights, the dowels or posts, the budget's links, and the closure's
 screws, preload and limit (with what is not checked). It says `verified: false`
-and `closure_built: true`.
+and `closure_built: true`. A build is never verified by its own record: trials
+decide that, below.
+
+## Trying a fixture
+
+A printed fixture is unverified until a trial has measured it. A trial records one
+print of exactly the nest and plate `fixture build` exported, with the board in
+it and the plate closed.
+
+```bash
+zcad-validation fixture trial start --build-record exports/my-fixture/fixture.json
+# print it, seat the board, close the plate, probe; fill in the two files it names
+zcad-validation fixture trial complete \
+  --trial-directory exports/my-fixture/trials/trial-001 --disposition pass
+```
+
+`trial start` writes `trials/trial-001/` beside the build record with two files:
+
+- **`observations.json`**: a pass or fail for each of five checks. Does the board
+  seat in the nest and lift out of it? Does the plate seat on the rim? Does it
+  stay down at the working travel with the screws fitted? Does each pin travel
+  freely with the plate off? The guidance for each is in the file.
+- **`measurements.json`**: for each probed point, whether the pin **made contact**
+  (a continuity check, or a program loading), and optionally where the tip's mark
+  fell from the pad's centre, in the board's frame. A thin coat of marker on the
+  pad, or a witness mark, shows where. Give an offset for a point that missed, to
+  see how far, and for those that touched, to build a measured misalignment.
+
+`trial complete` checks the printed STLs still match the build record, that every
+check is answered, and that the measurements belong to this fixture's points, then
+writes `fixture-trial.json` with each point's offset and the **share of its slack**
+that used. A passing trial has no failed check and **every point in contact**;
+offsets are optional. A failed or inconclusive trial may leave them unmeasured.
+An offset beyond a point's slack, in a point that touched, is counted in the
+summary rather than refused: the measurement and the pad cannot both be right,
+and the record keeps both. A completed trial is never overwritten.
+
+**A fixture is verified by two passing trials of the same build record.**
+
+```bash
+zcad-validation fixture status --build-record exports/my-fixture/fixture.json
+```
+
+exits 0 if it is verified and 1 if not, and lists the trials. A rebuilt fixture
+has a new record and starts with none.
+
+### A measured misalignment for the next build
+
+The offsets from passing trials pool into a **fixture accuracy profile** for one
+printer and one material:
+
+```bash
+zcad-validation fixture derive --evidence-root evidence \
+  --printer-profile-id bambu-lab-a1-mini --material-profile petg
+```
+
+It needs at least two passing trials with at least one offset, and writes
+`profiles/fixtures/bambu-lab-a1-mini-petg.json`: the mean, spread and largest
+radial offset, the sample count, the mean offset in X and Y (a bias: all tips
+landing one way mean the board's seat or the plate's turn is off), the largest
+share of a pad's slack any tip used, and how many probed points made contact.
+Deriving again writes the next version and keeps the old figures.
+
+Give it to a build with `fixture build --accuracy-profile PATH`, with the same
+printer and `--material-profile`. The build reports the measured figures with
+their sample size next to each point's slack and its worst-case sum, **warns**
+when the measured offsets are bigger than a pad's slack (the pin may miss, whatever
+the sum said), and records the profile's id, version and hash. A profile for
+another printer or material is refused. **The worst-case sum stays**: the profile
+is evidence about the prints that were measured and how they were measured, and
+the engine does not turn it into a promise for a new fixture.
+

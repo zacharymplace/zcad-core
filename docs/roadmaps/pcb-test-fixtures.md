@@ -30,7 +30,7 @@ This is a design, not built work. Nothing below exists in the code yet.
 | Part boxes above and below the board, for clearance | `components` on a board file, and `board import` from a STEP model |
 | Hinge and catch, with a swept-swing check | `lid_hinge`, which the fixture's lid can reuse |
 | A part with sourced figures, each marked read or unread | `hardware/fans.py` |
-| Trials, and a pooled measured value that replaces an assumed one | `enclosure trial`, the thermal trials |
+| Trials, and a pooled measured value beside an assumed one | `enclosure trial`, the thermal trials, `guide trial` |
 
 ## Decision: test points are data on the board file
 
@@ -173,9 +173,9 @@ fixture worked.
 3. **Closure (screws built; hinge not).** The screwed closure, with the
    preload and the fastener check against a figure the user supplies. See
    *What phase 3 changed* below. The hinged closure is a later release.
-4. **Trials.** Fixture trials in the Validation Lab with per-point contact and
-   offset, the pooled measured misalignment, verification, and the page on
-   building and trying a fixture.
+4. **Trials (built).** Fixture trials with per-point contact and offset, the
+   pooled measured misalignment, verification, and the page on building and
+   trying a fixture. See *What phase 4 changed* below.
 
 A later phase adds the bottom-side bed of nails, and a programming fixture for
 pads that carry a header footprint (a row of pins at a fixed pitch) as one
@@ -282,6 +282,37 @@ named group.
 - **The record carries `closure_plan`** (screws, ear, pocket, hole, screw length,
   preload, load, limit and its source) and says `closure_built: true`.
 
+
+### What phase 4 changed
+
+- **The measured offsets sit beside the worst-case sum; they do not replace it.**
+  The design said the pooled misalignment would be used "in place of the assumed
+  sum", as the pooled thermal coefficient replaced a default. That does not
+  carry over. A coefficient is one number a model needs; the sum is a bound the
+  check refuses on, and a handful of measured offsets is a sample, not a bound,
+  so swapping one for the other could let a fixture through that the bound
+  refuses. The drill guide's profile made the same call. A build given a profile
+  reports the pooled figures with their sample size next to each point's slack
+  and its sum, and **warns** where the measured largest offset is over a pad's
+  slack. It does not refuse.
+- **Verification is the guide's rule.** Two passing trials of the same build
+  record: every check passing and every point in contact. A rebuilt fixture
+  starts again. The build record still says `verified: false`; `fixture status`
+  is what reads the trials.
+- **Offsets are optional in a passing trial; contact is not.** Measuring where a
+  pin's tip fell takes a witness mark, and the design's rule for a pass was only
+  that every point be in contact. A profile needs at least one measured offset
+  and says how many it pooled.
+- **Five checks, not per-point ones.** The board seats and releases, the plate
+  seats and stays down at the working travel, and the pins travel freely. Per-
+  point questions are the contact and the offset.
+- **Not in the Validation Lab.** The design named the Validation Lab, as the guide
+  trials had been. The trial commands join the `fixture` group beside `build`
+  (`fixture trial start|complete`, `fixture status`, `fixture derive`), with the
+  records in the build's own directory and the profile under `profiles/fixtures/`.
+- **An offset over the slack in a point that touched is counted, not refused.**
+  The two measurements disagree and the engine cannot say which is wrong, so the
+  record keeps both and the summary counts them.
 
 Each phase is one PR. Phase 1 adds an optional field to the board file, so no
 existing board file changes.
