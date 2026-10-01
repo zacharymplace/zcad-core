@@ -142,9 +142,11 @@ the pooled thermal coefficient is. Until there are trials it reports none.
 
 ## Phases
 
-1. **Part, nest, and release.** `guide check` on the file's part and nest only;
-   the part loader, the silhouette, the nest and plate shell, the release
-   check, the build record with the part's hash, and `guide template`.
+1. **Part, nest, and release (built).** `guide check` on the file's part and
+   nest only; the part loader, the silhouette, the nest and plate shell, the
+   release check, the build record with the part's hash, and `guide template`.
+   See *What phase 1 changed* below, and the guide
+   [A nest for your part](../guides/drill-guide.md).
 2. **Bores.** The bore schema and checks, printed bores and bushing seats, tilt,
    the chuck sweep, the drill-exit check, and the bushing spec with its sourcing.
    `guide build` exports a guide.
@@ -153,6 +155,31 @@ the pooled thermal coefficient is. Until there are trials it reports none.
    part that has none. The bearing choice for a part with no flat top.
 4. **Trials.** Guide trials in the Validation Lab, the pooled positional error,
    verification, and the guide's page in the docs on how to measure one.
+
+### What phase 1 changed
+
+- **The shadow is a raster, not the top face's outline.** The design said to
+  read it the way `pcb_outline` reads a board's top face. A top face is not a
+  part's shadow: an undercut or a part that overhangs its plate casts a wider
+  one, and a pocket cut to the top face would catch it. So the shadow is the
+  union of every triangle seen along Z, drawn on a grid and traced
+  (`geometry/silhouette.py`), dilated by a pixel so it is never smaller than
+  the part. It uses numpy and scipy, which CadQuery already pulls in, and no
+  boolean operations.
+- **Most of a board model is never meshed.** Meshing is most of the time, so
+  solids are drawn largest first and any whose bounding box already lies inside
+  the shadow is skipped. The Pi 5's 2689 solids take about 30 s, not 170.
+- **`guide build` exists already.** The design listed the build record under
+  phase 1 without saying what was built, so phase 1 exports the nest and plate
+  as a holding nest, with the record. There are no bores, and a file that lists
+  any is refused with a message saying so.
+- **The bearing is `top` only, and a flat top is required.** At least 10% of the
+  shadow must be flat material at the part's top. The ledge for a part with no
+  flat top is phase 3's.
+- **The wall and plate are settable.** `nest.wall_mm` (2.0) and
+  `plate.thickness_mm` (6.0) are in the file, checked against the printer
+  profile's minimums. The plate's thickness is meant to follow the bores' needs
+  in phase 2; until then it is the user's.
 
 Each phase is one PR. Phases 1 to 3 add a way in and change no existing build.
 

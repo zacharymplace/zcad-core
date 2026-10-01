@@ -9,6 +9,9 @@ description = "Reusable parametric CAD engine"
 requires-python = ">=3.11"
 dependencies = [
   "cadquery>=2.8,<3",
+  # Both come with CadQuery; the silhouette reads them directly.
+  "numpy",
+  "scipy",
 ]
 
 [project.scripts]
