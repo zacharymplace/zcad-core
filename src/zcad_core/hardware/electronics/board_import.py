@@ -24,6 +24,7 @@ unreviewed, which the loader refuses until a connector is named.
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -33,7 +34,9 @@ from typing import Any, cast
 import cadquery as cq
 from OCP.BRepAdaptor import BRepAdaptor_Surface  # type: ignore[import-untyped]
 
+from zcad_core.hardware.electronics import board_outline
 from zcad_core.hardware.electronics.board_file import BOARD_SCHEMA_VERSION
+from zcad_core.hardware.electronics.board_outline import Point
 
 # x0 x1 y0 y1 z0 z1, millimetres from the PCB's centre and its top face.
 Box = tuple[float, float, float, float, float, float]
@@ -48,6 +51,10 @@ PCB_THICKNESS_MM = (0.4, 3.2)
 MINIMUM_HOLE_MM = 1.6
 # Below this share of its bounding box's volume, the PCB is not a plain rectangle.
 RECTANGULAR_SHARE = 0.9
+# A top outline filling this much of its bounding rectangle is written as one.
+PLAIN_RECTANGLE_SHARE = 0.999
+# An outline's points within this of the loop they lie on are dropped.
+SIMPLIFY_MM = 0.02
 EDGES = ("negative_x", "positive_x", "negative_y", "positive_y")
 
 
@@ -299,6 +306,83 @@ def through_holes(solid: cq.Shape) -> list[Hole]:
     return sorted(found.values(), key=lambda hole: (hole.y_mm, hole.x_mm))
 
 
+def _edge_points(edge: cq.Edge) -> list[Point]:
+    """An edge's points from its start to its end: both ends of a line, and a
+    curve sampled about every half millimetre."""
+
+    start, end = edge.startPoint(), edge.endPoint()
+
+    if edge.geomType() == "LINE":
+        return [(start.x, start.y), (end.x, end.y)]
+
+    count = min(60, max(4, math.ceil(edge.Length() / 0.5)))
+    points = [edge.positionAt(i / count) for i in range(count + 1)]
+
+    # A curve's own direction need not be the edge's: walk it from the start.
+    if start.sub(points[0]).Length > start.sub(points[-1]).Length:
+        points.reverse()
+
+    points[0], points[-1] = start, end
+
+    return [(p.x, p.y) for p in points]
+
+
+def pcb_outline(solid: cq.Shape) -> tuple[Point, ...] | None:
+    """The outline of a PCB's top face about the centre of its bounding box, as
+    a counter-clockwise polygon, or ``None`` if it cannot be read: the face's
+    outer loop, with curves sampled."""
+
+    box = solid.BoundingBox()
+    tops = [
+        face
+        for face in solid.Faces()
+        if face.geomType() == "PLANE"
+        and face.BoundingBox().zlen < 1e-3
+        and abs(face.BoundingBox().zmax - box.zmax) < 1e-3
+    ]
+
+    if not tops:
+        return None
+
+    face = max(tops, key=lambda f: f.Area())
+    pieces = [_edge_points(edge) for edge in face.outerWire().Edges()]
+    chain = pieces.pop(0)
+
+    while pieces:
+        tail = chain[-1]
+
+        for position, piece in enumerate(pieces):
+            if math.dist(piece[0], tail) < 1e-3:
+                chain += piece[1:]
+            elif math.dist(piece[-1], tail) < 1e-3:
+                chain += piece[::-1][1:]
+            else:
+                continue
+
+            del pieces[position]
+            break
+        else:
+            return None
+
+    if math.dist(chain[0], chain[-1]) < 1e-3:
+        chain.pop()
+
+    if not 3 <= len(chain) <= board_outline.MAXIMUM_POINTS:
+        return None
+
+    centre = ((box.xmin + box.xmax) / 2, (box.ymin + box.ymax) / 2)
+    points = list(
+        board_outline.simplified(
+            [(x - centre[0], y - centre[1]) for x, y in chain], SIMPLIFY_MM
+        )
+    )
+
+    if not board_outline.is_simple(points):
+        return None
+
+    return board_outline.counter_clockwise(points)
+
+
 def _hole_groups(holes: Sequence[Hole]) -> dict[float, list[Hole]]:
     """Holes grouped by diameter, those within 0.1 mm counting as one size;
     each group is keyed by its smallest diameter."""
@@ -442,7 +526,7 @@ def import_step(
     boxes = merge_boxes(above, True, positions) + merge_boxes(below, False, positions)
     candidates = _candidates(boxes, width, length)
     records = component_records(boxes, width, length)
-    notes = []
+    notes: list[str] = []
     data: dict[str, Any] = {
         "schema_version": BOARD_SCHEMA_VERSION,
         "identifier": identifier or _identifier(path),
@@ -502,13 +586,27 @@ def import_step(
     data["wall_openings"] = []
 
     others = {size: count for size, count in sizes.items() if size != mounting}
+    outline = pcb_outline(pcb)
+    polygon_area = abs(board_outline.signed_area(outline)) if outline else 0.0
+    shape_share = polygon_area / (width * length) if outline else 1.0
+
+    if outline is not None and shape_share < PLAIN_RECTANGLE_SHARE:
+        data["outline"] = {
+            "type": "polygon",
+            "points_mm": [[round(x, 3), round(y, 3)] for x, y in outline],
+        }
+        notes.append(
+            f"The PCB is not a plain rectangle: its outline is written as a "
+            f"polygon of {len(outline)} points ({shape_share:.1%} of its "
+            "bounding rectangle). Check it against the board"
+        )
+
     volume_share = pcb.Volume() / (box.xlen * box.ylen * box.zlen)
 
-    if volume_share < RECTANGULAR_SHARE:
+    if volume_share < RECTANGULAR_SHARE and data["outline"] == "rectangle":
         notes.append(
-            f"The PCB fills {volume_share:.0%} of its bounding box, so it is "
-            "not a plain rectangle (cut corners, notches or a cut-out); the "
-            "enclosure will treat it as one"
+            f"The PCB fills {volume_share:.0%} of its bounding box but its top "
+            "outline could not be read, so it is treated as a rectangle"
         )
 
     report: dict[str, Any] = {

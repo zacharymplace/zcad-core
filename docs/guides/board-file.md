@@ -85,6 +85,41 @@ along Y. Everything is in millimetres. The board is never rotated.
 
 Give an envelope **or** components, not both.
 
+## The outline
+
+A board is a rectangle unless the file says otherwise, and the enclosure's cavity
+always encloses its bounding rectangle. Say the shape when it matters, so the
+PCB solid and a snap-in cradle follow it:
+
+```json
+"outline": {"type": "rounded_rectangle", "radius_mm": 3.0}
+```
+
+```json
+"outline": {"type": "polygon", "points_mm": [[-15, -22.5], [15, -22.5], [15, 18], [11, 22.5], [-15, 22.5]]}
+```
+
+A polygon's points are in the board's frame (centre at the origin, +X right, +Y
+up) and must fill exactly the `board` width and length about the origin, as one
+loop that does not cross itself. Holes and the cable connector are checked
+against the outline, not the rectangle, so a hole off a rounded corner is
+refused. `board import` writes a polygon for a model whose PCB is not a plain
+rectangle, thinned to within 0.02 mm; check it against the board.
+
+What follows the outline:
+
+- the **PCB solid** in the review and the interference checks;
+- a **cradle** (a board with no holes): its ledge and stop wall follow the
+  outline, and each clip stands outside the outermost edge across its width, so
+  a castellated or notched edge does not put a clip inside the board. The
+  outline must be roughly straight where the clips stand, or the build says so;
+- **standoffs** stand under the holes as ever, since a hole is a point.
+
+A board with no holes and an `envelope` is held in a cradle, so the envelope
+stands in from its edges: 1 mm for a rectangle, and for another outline as far
+as keeps its rectangle inside it (up to 8 mm). A notch too deep for that is
+refused: list the parts as components.
+
 ## Power
 
 ```json
@@ -97,9 +132,10 @@ Without a power figure the estimate says the board's power is unknown.
 
 ## What the check refuses and warns about
 
-Refused (errors): wrong `schema_version` or `units`, an outline other than
-`"rectangle"`, unknown fields, holes outside the board or given two ways, a
-connector running off its edge, a part through the board, an envelope with a
+Refused (errors): wrong `schema_version` or `units`, an outline that is not
+one of the forms below or whose polygon crosses itself or does not fill the
+board's stated size, unknown fields, holes outside the board's outline or given
+two ways, a connector running off its edge or hanging off a rounded corner, a part through the board, an envelope with a
 bottom, power without a source, and any file still carrying a `needs_review`
 note. All problems are listed at once.
 

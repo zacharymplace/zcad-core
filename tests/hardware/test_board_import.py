@@ -18,6 +18,7 @@ from zcad_core.hardware.electronics.board_import import (
     import_step,
     load_solids,
     merge_boxes,
+    pcb_outline,
     through_holes,
 )
 
@@ -208,11 +209,46 @@ def test_a_named_pcb_solid_is_reported_as_named(step_file: Path) -> None:
     assert import_step(step_file, pcb_solid_index=1).report["pcb_chosen_by"] == "named"
 
 
-def test_a_board_that_is_not_a_rectangle_is_noted(tmp_path: Path) -> None:
+def test_a_board_that_is_not_a_rectangle_gets_its_outline_as_a_polygon(
+    tmp_path: Path,
+) -> None:
     path = model(tmp_path / "cut.step", corner_cut=True)
-    notes = import_step(path).report["notes"]
+    imported = import_step(path)
+    outline = imported.data["outline"]
 
-    assert any("not a plain rectangle" in note for note in notes)
+    assert outline["type"] == "polygon"
+    # The cut is an L: six corners, in the board's centred frame.
+    assert len(outline["points_mm"]) == 6
+    assert any("not a plain rectangle" in note for note in imported.report["notes"])
+    assert not [
+        error for error in check_board_data(imported.data).errors if "outline" in error
+    ]
+
+
+def test_a_plain_rectangular_board_keeps_its_rectangle(step_file: Path) -> None:
+    imported = import_step(step_file)
+
+    assert imported.data["outline"] == "rectangle"
+    assert imported.report["notes"] == []
+
+
+def test_a_rounded_pcb_is_read_as_a_polygon_of_its_arcs(tmp_path: Path) -> None:
+    rounded = cq.Workplane("XY").box(30, 40, 1.6, centered=(True, True, False))
+    rounded = rounded.edges("|Z").fillet(3.0)
+    path = tmp_path / "rounded.step"
+    cq.exporters.export(rounded.translate((20, -10, 4)), str(path))
+
+    points = pcb_outline(load_solids(path)[0])
+
+    assert points is not None and len(points) > 20
+    xs, ys = [p[0] for p in points], [p[1] for p in points]
+    assert (min(xs), max(xs)) == pytest.approx((-15, 15), abs=1e-3)
+    assert (min(ys), max(ys)) == pytest.approx((-20, 20), abs=1e-3)
+    area = (
+        sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(points, [*points[1:], points[0]]))
+        / 2
+    )
+    assert area == pytest.approx(30 * 40 - (4 - 3.14159265) * 9, rel=3e-3)
 
 
 def run(capsys: pytest.CaptureFixture[str], *args: str) -> tuple[int, dict[str, Any]]:

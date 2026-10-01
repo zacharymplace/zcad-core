@@ -298,6 +298,7 @@ def _board_components(
             placement=board_placement,
             clearance_envelope=board_clearance,
             metadata=board_metadata,
+            outline_points_mm=getattr(board, "outline_points_mm", None),
         ),
         build_board_edge_connector_component(
             identifier=connector_identifier,

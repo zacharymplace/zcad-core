@@ -32,7 +32,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from zcad_core.hardware.electronics import board_outline
 from zcad_core.hardware.electronics.board_components import BoardComponentSpec
+from zcad_core.hardware.electronics.board_outline import Point
 from zcad_core.hardware.electronics.connectors import (
     BoardEdge,
     RectangularConnectorSpec,
@@ -52,6 +54,11 @@ TYPICAL_THICKNESS_RANGE_MM = (0.4, 3.2)
 HOLE_DIAMETER_RANGE_MM = (0.8, 8.0)
 # A standoff is this much wider than its hole, round it.
 STANDOFF_WALL_MM = 3.0
+# An envelope stands this far in from the edges of a board held in a cradle.
+CRADLE_ENVELOPE_INSET_MM = 1.0
+MAXIMUM_ENVELOPE_INSET_MM = 8.0
+# A part may stand this far outside a polygon outline (a sliver at a corner).
+OUTLINE_TOLERANCE_MM = 0.3
 # A part overhanging an edge by more than this is almost certainly a mistake.
 MAXIMUM_OVERHANG_MM = 20.0
 # A part reaching past an edge by more than this needs an access edge.
@@ -123,6 +130,10 @@ class BoardFileSpec:
     power_figure: PowerFigure | None
     origin: BoardOrigin
     warnings: tuple[str, ...]
+    # The PCB's outline about its centre, when it is not a plain rectangle.
+    # The cavity still encloses the bounding rectangle; the PCB solid and a
+    # snap-in cradle follow the outline.
+    outline_points_mm: tuple[Point, ...] | None = None
     # A file's numbers are the user's until a trial has fitted the board; only
     # a board in the catalog's data directory, promoted on its trials, is
     # verified. A ``verified_by`` in a user's own file is a claim, not a check.
@@ -207,7 +218,9 @@ def _number(
 
 
 def _edge_length(edge: str, width: float, length: float) -> float:
-    return length if edge.endswith("_y") else width
+    """How long an edge is: the one at +Y or -Y runs along X, the board's width."""
+
+    return width if edge.endswith("_y") else length
 
 
 def _section(
@@ -267,6 +280,135 @@ def _check_board(
         )
 
     return width, length, thickness
+
+
+def _outline(
+    data: Mapping[str, Any],
+    size: tuple[float, float, float] | None,
+    findings: _Findings,
+) -> tuple[Point, ...] | None:
+    """The outline as polygon points, or ``None`` for the plain rectangle.
+
+    A rounded rectangle becomes its points; a polygon's bounding box must be the
+    board's stated size, centred on the origin."""
+
+    outline = data.get("outline", "rectangle")
+
+    if outline == "rectangle":
+        return None
+
+    advice = (
+        "outline must be 'rectangle', or an object with type 'rounded_rectangle' "
+        "(radius_mm) or 'polygon' (points_mm)"
+    )
+
+    if not isinstance(outline, Mapping):
+        findings.error(advice)
+
+        return None
+
+    kind = outline.get("type")
+
+    if kind == "rounded_rectangle":
+        return _rounded_outline(outline, size, findings)
+
+    if kind == "polygon":
+        return _polygon_outline(outline, size, findings)
+
+    findings.error(advice)
+
+    return None
+
+
+def _rounded_outline(
+    outline: Mapping[str, Any],
+    size: tuple[float, float, float] | None,
+    findings: _Findings,
+) -> tuple[Point, ...] | None:
+    radius = _number(outline, "radius_mm", "outline", findings, low=0.1, high=200.0)
+
+    if radius is None or size is None:
+        return None
+
+    if radius > min(size[0], size[1]) / 2:
+        findings.error(
+            f"outline.radius_mm is {radius:g}, more than half the board's "
+            f"{min(size[0], size[1]):g} mm width"
+        )
+
+        return None
+
+    return board_outline.rounded_rectangle_points(size[0], size[1], radius)
+
+
+def _polygon_outline(
+    outline: Mapping[str, Any],
+    size: tuple[float, float, float] | None,
+    findings: _Findings,
+) -> tuple[Point, ...] | None:
+    listed = outline.get("points_mm")
+
+    if (
+        not isinstance(listed, Sequence)
+        or isinstance(listed, str)
+        or not 3 <= len(listed) <= board_outline.MAXIMUM_POINTS
+    ):
+        findings.error(
+            f"outline.points_mm must be a list of 3 to {board_outline.MAXIMUM_POINTS} "
+            "points [x, y]"
+        )
+
+        return None
+
+    points = [
+        _pair(item, f"outline.points_mm[{index}]", findings)
+        for index, item in enumerate(listed)
+    ]
+    ready = [point for point in points if point is not None]
+
+    if len(ready) != len(points):
+        return None
+
+    if not board_outline.is_simple(ready):
+        findings.error("outline.points_mm cross themselves: it must be one loop")
+
+        return None
+
+    area = board_outline.signed_area(ready)
+
+    if abs(area) < 1.0:
+        findings.error("outline.points_mm enclose no area")
+
+        return None
+
+    if size is None:
+        return None
+
+    x0, x1, y0, y1 = board_outline.bounding_box(ready)
+    tolerance = board_outline.SIZE_TOLERANCE_MM
+
+    if (
+        abs((x1 - x0) - size[0]) > tolerance
+        or abs((y1 - y0) - size[1]) > tolerance
+        or abs((x0 + x1) / 2) > tolerance
+        or abs((y0 + y1) / 2) > tolerance
+    ):
+        findings.error(
+            f"outline.points_mm span {x1 - x0:g} x {y1 - y0:g} mm, centred "
+            f"({(x0 + x1) / 2:g}, {(y0 + y1) / 2:g}); the board is "
+            f"{size[0]:g} x {size[1]:g} mm, so the points must fill that "
+            "rectangle about the origin"
+        )
+
+        return None
+
+    if abs(area) < 0.3 * size[0] * size[1]:
+        findings.warn(
+            f"The outline fills only {abs(area) / (size[0] * size[1]):.0%} of "
+            "its bounding rectangle, which the enclosure still encloses whole"
+        )
+
+    return board_outline.counter_clockwise(ready)
 
 
 def _hole_positions(
@@ -334,6 +476,7 @@ def _check_holes(
     data: Mapping[str, Any],
     size: tuple[float, float, float] | None,
     findings: _Findings,
+    outline: tuple[Point, ...] | None = None,
 ) -> None:
     holes = _section(data, "mounting_holes", findings, required=False)
 
@@ -369,12 +512,22 @@ def _check_holes(
         )
 
     for x, y in points or ():
-        if abs(x) > width / 2 - radius or abs(y) > length / 2 - radius:
+        if outline is not None:
+            depth = board_outline.depth_inside(outline, (x, y))
+            outside, near = depth < radius, depth < radius + 1.5
+        else:
+            outside = abs(x) > width / 2 - radius or abs(y) > length / 2 - radius
+            near = (
+                abs(x) > width / 2 - radius - 1.5 or abs(y) > length / 2 - radius - 1.5
+            )
+
+        if outside:
             findings.error(
                 f"A mounting hole at ({x:g}, {y:g}) is not inside the "
                 f"{width:g} x {length:g} mm board"
+                + (" outline" if outline is not None else "")
             )
-        elif abs(x) > width / 2 - radius - 1.5 or abs(y) > length / 2 - radius - 1.5:
+        elif near:
             findings.warn(
                 f"A mounting hole at ({x:g}, {y:g}) is near the edge: its "
                 "standoff will stand out past the board"
@@ -415,6 +568,7 @@ def _check_connector(
     data: Mapping[str, Any],
     size: tuple[float, float, float] | None,
     findings: _Findings,
+    outline: tuple[Point, ...] | None = None,
 ) -> None:
     connector = _section(data, "cable_connector", findings)
 
@@ -457,7 +611,7 @@ def _check_connector(
 
     board_width, board_length, _ = size
     along = _edge_length(edge, board_width, board_length)
-    across = board_width if edge.endswith("_y") else board_length
+    across = board_length if edge.endswith("_y") else board_width
 
     if abs(offset or 0.0) + width / 2 > along / 2:
         findings.error(
@@ -473,6 +627,62 @@ def _check_connector(
 
     if height is not None and height > 30.0:
         findings.warn(f"A {height:g} mm tall connector is unusual; check the units")
+
+    if outline is not None:
+        _check_connector_on_outline(
+            outline,
+            edge,
+            width,
+            depth,
+            offset or 0.0,
+            (board_width, board_length),
+            findings,
+        )
+
+
+def _check_connector_on_outline(
+    outline: tuple[Point, ...],
+    edge: str,
+    width: float,
+    depth: float,
+    offset: float,
+    size: tuple[float, float],
+    findings: _Findings,
+) -> None:
+    """The connector's footprint, against its edge of the bounding rectangle,
+    must lie on the board: a rounded corner or a notch can leave it hanging."""
+
+    half_w, half_l = size[0] / 2, size[1] / 2
+
+    if edge == "negative_y":
+        x0, x1, y0, y1 = (
+            offset - width / 2,
+            offset + width / 2,
+            -half_l,
+            -half_l + depth,
+        )
+    elif edge == "positive_y":
+        x0, x1, y0, y1 = offset - width / 2, offset + width / 2, half_l - depth, half_l
+    elif edge == "negative_x":
+        x0, x1, y0, y1 = (
+            -half_w,
+            -half_w + depth,
+            offset - width / 2,
+            offset + width / 2,
+        )
+    else:
+        x0, x1, y0, y1 = half_w - depth, half_w, offset - width / 2, offset + width / 2
+
+    corners = ((x0, y0), (x1, y0), (x1, y1), (x0, y1))
+
+    if any(
+        board_outline.depth_inside(outline, c) < -OUTLINE_TOLERANCE_MM for c in corners
+    ):
+        findings.error(
+            f"The cable connector hangs off the board's outline at its {edge} "
+            "edge: a corner of it is outside the shape, as at a rounded corner "
+            "or a notch"
+        )
 
 
 def _overhangs(
@@ -695,10 +905,16 @@ def _check_power(data: Mapping[str, Any], findings: _Findings) -> None:
 def check_board_data(data: Any) -> BoardCheck:
     """Check a board file's contents, reporting every problem at once."""
 
+    return _check(data)[0]
+
+
+def _check(data: Any) -> tuple[BoardCheck, tuple[Point, ...] | None]:
+    """The check, and the outline polygon it found (``None``: a rectangle)."""
+
     findings = _Findings()
 
     if not isinstance(data, Mapping):
-        return BoardCheck(("A board file must hold a JSON object",), ())
+        return BoardCheck(("A board file must hold a JSON object",), ()), None
 
     if data.get("schema_version") != BOARD_SCHEMA_VERSION:
         findings.error(
@@ -713,12 +929,6 @@ def check_board_data(data: Any) -> BoardCheck:
 
     if data.get("units", "mm") != "mm":
         findings.error("units must be 'mm'; every number is millimetres")
-
-    if data.get("outline", "rectangle") != "rectangle":
-        findings.error(
-            "outline must be 'rectangle': the board is enclosed by its bounding "
-            "rectangle in this version"
-        )
 
     identifier = data.get("identifier")
 
@@ -739,10 +949,23 @@ def check_board_data(data: Any) -> BoardCheck:
         findings.error("verified_by must say which trials verified the board")
 
     size = _check_board(data, findings)
-    _check_holes(data, size, findings)
+    outline = _outline(data, size, findings)
+    _check_holes(data, size, findings, outline)
     _check_standoff(data, findings)
-    _check_connector(data, size, findings)
+    _check_connector(data, size, findings, outline)
     names = _check_components(data, size, findings)
+
+    if (
+        size is not None
+        and isinstance(data.get("envelope"), Mapping)
+        and _envelope_inset(outline, size[0], size[1], data) is None
+    ):
+        findings.error(
+            "The envelope cannot stand clear of this outline where a cradle "
+            "follows it (a notch or deep cut-out): list the parts as components "
+            "instead"
+        )
+
     _check_wall_openings(data, size, findings)
     _check_power(data, findings)
     connector = data.get("cable_connector")
@@ -759,25 +982,81 @@ def check_board_data(data: Any) -> BoardCheck:
             "calipers, a model)"
         )
 
-    return BoardCheck(tuple(findings.errors), tuple(findings.warnings))
+    return BoardCheck(tuple(findings.errors), tuple(findings.warnings)), outline
 
 
 # --- loading ---------------------------------------------------------------
 
 
+def _envelope_inset(
+    outline: tuple[Point, ...] | None,
+    width: float,
+    length: float,
+    data: Mapping[str, Any],
+) -> float | None:
+    """How far in from the bounding rectangle the envelope stands, or ``None``
+    if it cannot.
+
+    A board with no holes sits in a cradle whose clips and wall stand at its
+    edges, so the envelope keeps clear of them: by a millimetre for a rectangle,
+    and for another outline by as much as keeps the envelope's rectangle inside
+    it, up to ``MAXIMUM_ENVELOPE_INSET_MM``."""
+
+    if data.get("mounting_holes") is not None:
+        return 0.0
+
+    if outline is None:
+        return CRADLE_ENVELOPE_INSET_MM
+
+    inset = CRADLE_ENVELOPE_INSET_MM
+
+    while inset <= MAXIMUM_ENVELOPE_INSET_MM:
+        if _rectangle_inside(outline, width - 2 * inset, length - 2 * inset):
+            return inset
+
+        inset += 0.5
+
+    return None
+
+
+def _rectangle_inside(
+    outline: tuple[Point, ...], width: float, length: float, margin: float = 0.5
+) -> bool:
+    """Whether a rectangle about the origin lies inside the outline, with room."""
+
+    if width <= 0 or length <= 0:
+        return False
+
+    half_w, half_l = width / 2, length / 2
+    steps = 2 + int(max(width, length))
+    samples = []
+
+    for index in range(steps + 1):
+        t = index / steps
+        x, y = -half_w + width * t, -half_l + length * t
+        samples += [(x, -half_l), (x, half_l), (-half_w, y), (half_w, y)]
+
+    return all(board_outline.depth_inside(outline, s) >= margin for s in samples)
+
+
 def _components(
-    data: Mapping[str, Any], width: float, length: float
+    data: Mapping[str, Any],
+    width: float,
+    length: float,
+    outline: tuple[Point, ...] | None = None,
 ) -> tuple[BoardComponentSpec, ...]:
     envelope = data.get("envelope")
 
     if envelope is not None:
+        inset = _envelope_inset(outline, width, length, data) or 0.0
+
         return (
             BoardComponentSpec(
                 identifier=ENVELOPE_IDENTIFIER,
                 center_x_mm=0.0,
                 center_y_mm=0.0,
-                width_mm=width,
-                depth_mm=length,
+                width_mm=width - 2 * inset,
+                depth_mm=length - 2 * inset,
                 bottom_offset_from_board_top_mm=0.0,
                 height_mm=float(envelope["top_mm"]),
             ),
@@ -809,7 +1088,7 @@ def board_from_data(
     ``catalog`` marks a board read from the catalog's data directory, which is
     verified if it says which trials verified it."""
 
-    report = check_board_data(data)
+    report, outline = _check(data)
 
     if not report.valid:
         raise ValueError(
@@ -861,7 +1140,7 @@ def board_from_data(
                 connector.get("bottom_offset_from_board_top_mm", 0.0)
             ),
         ),
-        components=_components(data, width, length),
+        components=_components(data, width, length, outline),
         wall_openings=tuple(
             WallOpeningSpec(
                 identifier=str(o["identifier"]),
@@ -889,6 +1168,7 @@ def board_from_data(
         power_figure=figure,
         origin=origin,
         warnings=report.warnings,
+        outline_points_mm=outline,
         verified=catalog and bool(data.get("verified_by")),
         verified_by=str(data.get("verified_by") or ""),
         catalog=catalog,

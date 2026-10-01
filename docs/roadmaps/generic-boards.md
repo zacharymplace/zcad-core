@@ -59,14 +59,12 @@ It checks it, and says it is unchecked.
 - **Components.** The same list the catalog boards carry: boxes with positions,
   sizes, and access edges. Hand-written for a small board, or imported.
 
-### The outline is a rectangle
+### The outline is a rectangle, until the file says otherwise
 
-A board's outline is its bounding rectangle. A board with rounded corners, a
-notch, or an L-shape is accepted and enclosed by its rectangle: the clearances
-are right, and the cradle and standoffs are no worse than for a rectangular
-board. The file says `"outline": "rectangle"` and the check warns when it
-suspects otherwise. True polygon outlines are a later phase, because they reach
-into the cradle, the retention analysis, and the PCB solid.
+A board's outline is its bounding rectangle, and the enclosure's cavity always
+encloses that rectangle: the clearances are right, and a rounded or notched
+board is enclosed whole. A file may give a rounded rectangle or a polygon
+(phase 4), which the PCB solid, the checks, and the cradle then follow.
 
 ### The cable connector is required
 
@@ -168,8 +166,21 @@ records the model's hash and says when the PCB it found is not rectangular.
    build; a user's own `verified_by` is a claim and changes nothing. No board
    has been promoted yet: none has passed trials, so the directory ships empty
    and the mechanism is tested with files made in the tests.
-4. **Outlines.** Polygon outlines through the PCB, the cradle, and the
-   standoffs.
+4. **Outlines. Built.** `outline` is `"rectangle"`, a rounded rectangle, or a
+   polygon (`hardware/electronics/board_outline.py`); the PCB solid, the
+   hole and connector checks, and the cradle follow it, and `board import`
+   writes a polygon for a PCB that is not a plain rectangle (its top face's
+   outer loop, simplified to 0.02 mm). Decisions on the way:
+   standoffs needed nothing, since a hole is a point; the cavity still
+   encloses the bounding rectangle; a polygon cradle keeps the rectangular
+   one unchanged for a rectangular board, puts its clips outside the outermost
+   edge across their width (a castellated edge), and stops its wall at three
+   quarters of the board's thickness so a part overhanging a rounded corner
+   does not touch it. Found and fixed with it, from phase 1: a board with no
+   holes and an envelope was refused (the clip lips touched the envelope), so
+   the envelope now stands in from the edges of a cradle; and the check judged
+   a connector's and an opening's edge by the wrong board dimension. The five
+   catalogued boards stay rectangles: their polygon outlines would change them.
 
 Each phase is one PR. Phases 1 and 2 add a way in and change no existing board.
 
