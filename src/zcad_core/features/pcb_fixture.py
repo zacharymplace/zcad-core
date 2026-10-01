@@ -452,7 +452,11 @@ def require_fits_bed(fixture: PcbFixture, profile: dict[str, Any]) -> None:
 
 
 def fixture_record(
-    fixture: PcbFixture, files: dict[str, dict[str, Any]]
+    fixture: PcbFixture,
+    files: dict[str, dict[str, Any]],
+    *,
+    material_profile_id: str = "",
+    accuracy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """What a build says about itself: the fixture file and the board by hash, the
     pin and its figures' source, the layout and the misalignment budget, and that
@@ -505,6 +509,8 @@ def fixture_record(
         "plan": plan.to_dict(),
         "printer_profile_id": fixture.profile_id,
         "tolerance_status": fixture.tolerance_status,
+        "material_profile_id": material_profile_id,
+        "measured_accuracy": accuracy,
         "checks": fixture.checks,
         # The engine states no accuracy: a trial measures it.
         "verified": False,
@@ -513,7 +519,12 @@ def fixture_record(
 
 
 def write_fixture_record(
-    fixture: PcbFixture, files: dict[str, dict[str, Any]], directory: Path
+    fixture: PcbFixture,
+    files: dict[str, dict[str, Any]],
+    directory: Path,
+    *,
+    material_profile_id: str = "",
+    accuracy: dict[str, Any] | None = None,
 ) -> Path:
     """Write ``fixture.json`` beside the exported parts; refuses to overwrite."""
 
@@ -523,7 +534,17 @@ def write_fixture_record(
         raise FileExistsError(f"Refusing to overwrite build record: {path}")
 
     path.write_text(
-        json.dumps(fixture_record(fixture, files), indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            fixture_record(
+                fixture,
+                files,
+                material_profile_id=material_profile_id,
+                accuracy=accuracy,
+            ),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
         encoding="utf-8",
     )
 
