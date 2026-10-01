@@ -147,9 +147,17 @@ records the model's hash and says when the PCB it found is not rectangular.
    both; an unverified board is warned of and recorded, with no
    acceptance flag; and a revision refuses a board file that has changed since
    the build.
-2. **STEP import.** `board import`, the generalised extraction, the PCB-solid
-   guess, hole detection, the connector review gate, and the catalog script
-   moved onto it.
+2. **STEP import. Built.** `board import`, the generalised extraction
+   (`hardware/electronics/board_import.py`), the PCB-solid guess, hole
+   detection, the connector review gate, and the catalog script moved onto it;
+   the five catalog models regenerate byte-identical component files through it,
+   and its PCB guess picks the catalog's solid on all five. Deviations: the
+   model must be +Z up (the import reports why when no solid is a PCB); holes
+   within 0.1 mm of one another count as one size, the commonest size is the
+   mounting holes and a tie goes to the smaller; and a second import with
+   `--cable-connector PART` names the connector from the candidates the first
+   listed, clips it to the outline and drops it from the components, rather than
+   the user editing the file by hand.
 3. **Data-driven catalog.** Board files placed in `hardware/data/boards/` join
    the catalog without code, so promoting a board that passed its trials is a
    file and a pull request.

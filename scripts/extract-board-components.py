@@ -3,19 +3,15 @@
 The catalog models a board as its PCB and one USB connector. This writes the
 rest of it, as boxes an enclosure must clear, to
 ``src/zcad_core/hardware/data/board-components/<target>.json``, which the
-board's catalog spec loads. For each vendor model it:
+board's catalog spec loads. The extraction itself is
+``zcad_core.hardware.electronics.board_import``, shared with
+``zcad-validation board import``; see it for the rules. This adds what a
+catalogued board knows and an import cannot:
 
-- keeps every part rising more than 0.5 mm above the board or reaching
-  that far below it, and drops the part that is the catalogued USB connector;
-- splits a part through the board into a box above it and one below it;
-- merges parts of a similar height lying within 2 mm of each other, so a
-  tall header does not swallow the low parts around it, but never into a
-  box over a mounting hole none of them covers, since a board keeps its
-  holes clear and a standoff or screw stands there;
-- marks a part that overhangs a board edge as needing access through that
-  edge, like a barrel jack; and
-- maps the result into the catalog spec's frame: centred on the board, the
-  spec's width along X and length along Y.
+- the part that is the catalogued USB connector is dropped;
+- the spec's thickness and edge overhangs are used; and
+- the result is mapped into the spec's frame (centred on the board, the spec's
+  width along X and length along Y) by a quarter turn set by hand.
 
 The source model's SHA-256 is recorded; re-run this after replacing a model.
 Vendor models live in ``evidence/``, so this needs the evidence checkout.
@@ -33,18 +29,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import cadquery as cq
-
 from zcad_core.features.pcb_mounts import board_hole_pattern
 from zcad_core.hardware import BoardSpec, get_board
+from zcad_core.hardware.electronics.board_import import (
+    Box,
+    component_records,
+    load_solids,
+    merge_boxes,
+    part_boxes,
+)
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIRECTORY = REPOSITORY_ROOT / "src/zcad_core/hardware/data/board-components"
-MINIMUM_HEIGHT_MM = 0.5
-MERGE_GAP_MM = 2.0
-OVERHANG_MM = 0.3
-# Parts are merged only with parts in the same height tier (mm above board).
-HEIGHT_TIERS_MM = (1.5, 4.0)
 
 
 @dataclass(frozen=True)
@@ -92,77 +88,6 @@ SOURCES = {
     ),
 }
 
-Box = tuple[float, float, float, float, float, float]  # x0 x1 y0 y1 z0 z1
-
-
-def _turn(box: Box, turns: int) -> Box:
-    x0, x1, y0, y1, z0, z1 = box
-
-    for _ in range(turns % 4):
-        x0, x1, y0, y1 = -y1, -y0, x0, x1
-
-    return x0, x1, y0, y1, z0, z1
-
-
-def _tier(box: Box) -> int:
-    return sum(box[5] > limit for limit in HEIGHT_TIERS_MM)
-
-
-def _touching(a: Box, b: Box) -> bool:
-    return (
-        a[0] - MERGE_GAP_MM <= b[1]
-        and b[0] - MERGE_GAP_MM <= a[1]
-        and a[2] - MERGE_GAP_MM <= b[3]
-        and b[2] - MERGE_GAP_MM <= a[3]
-    )
-
-
-def _covers(box: Box, point: tuple[float, float]) -> bool:
-    return box[0] <= point[0] <= box[1] and box[2] <= point[1] <= box[3]
-
-
-def _merge(
-    boxes: list[Box], same_tier: bool, holes: tuple[tuple[float, float], ...]
-) -> list[Box]:
-    merged = list(boxes)
-    changed = True
-
-    while changed:
-        changed = False
-
-        for i, a in enumerate(merged):
-            for j in range(i + 1, len(merged)):
-                b = merged[j]
-
-                if not _touching(a, b) or (same_tier and _tier(a) != _tier(b)):
-                    continue
-
-                union = (
-                    min(a[0], b[0]),
-                    max(a[1], b[1]),
-                    min(a[2], b[2]),
-                    max(a[3], b[3]),
-                    min(a[4], b[4]),
-                    max(a[5], b[5]),
-                )
-
-                # Parts on either side of a hole stay apart.
-                if not any(
-                    _covers(union, hole)
-                    and not _covers(a, hole)
-                    and not _covers(b, hole)
-                    for hole in holes
-                ):
-                    merged[i] = union
-                    del merged[j]
-                    changed = True
-                    break
-
-            if changed:
-                break
-
-    return sorted(merged)
-
 
 def _is_usb(box: Box, board: BoardSpec) -> bool:
     """Whether a box's centre lies in the catalogued USB connector's footprint."""
@@ -183,69 +108,16 @@ def _is_usb(box: Box, board: BoardSpec) -> bool:
     return abs(along) <= connector.width_mm / 2 and toward >= edge - connector.depth_mm
 
 
-def _access_edge(box: Box, board: BoardSpec) -> str | None:
-    half_w, half_l = board.board_width_mm / 2, board.board_length_mm / 2
-    overhangs = {
-        "negative_x": -half_w - box[0],
-        "positive_x": box[1] - half_w,
-        "negative_y": -half_l - box[2],
-        "positive_y": box[3] - half_l,
-    }
-    edge, overhang = max(overhangs.items(), key=lambda item: item[1])
-
-    return edge if overhang > OVERHANG_MM else None
-
-
 def extract(target: str) -> dict[str, Any]:
     source = SOURCES[target]
     board = get_board(source.board)
     step = REPOSITORY_ROOT / source.step
-    solids = [
-        solid
-        for solid in cq.importers.importStep(str(step)).solids().vals()
-        if isinstance(solid, cq.Shape)
-    ]
-    pcb = solids[source.pcb_solid_index - 1].BoundingBox()
-    centre_x, centre_y = (pcb.xmin + pcb.xmax) / 2, (pcb.ymin + pcb.ymax) / 2
-    above: list[Box] = []
-    below: list[Box] = []
-
-    for index, solid in enumerate(solids, start=1):
-        if index == source.pcb_solid_index:
-            continue
-
-        b = solid.BoundingBox()
-        # Heights above the model's board top; depths below its underside
-        # re-based on the spec's thickness.
-        x0, x1, y0, y1, _, _ = _turn(
-            (
-                b.xmin - centre_x,
-                b.xmax - centre_x,
-                b.ymin - centre_y,
-                b.ymax - centre_y,
-                0,
-                0,
-            ),
-            source.quarter_turns,
-        )
-        top = b.zmax - pcb.zmax
-        bottom = b.zmin - pcb.zmin
-
-        if top > MINIMUM_HEIGHT_MM:
-            above.append((x0, x1, y0, y1, max(b.zmin - pcb.zmax, 0.0), top))
-
-        if bottom < -MINIMUM_HEIGHT_MM:
-            thickness = board.board_thickness_mm
-            below.append(
-                (
-                    x0,
-                    x1,
-                    y0,
-                    y1,
-                    bottom - thickness,
-                    min(b.zmax - pcb.zmin, 0) - thickness,
-                )
-            )
+    above, below = part_boxes(
+        load_solids(step),
+        source.pcb_solid_index,
+        board.board_thickness_mm,
+        source.quarter_turns,
+    )
 
     usb = [box for box in above if _is_usb(box, board)]
 
@@ -255,25 +127,7 @@ def extract(target: str) -> dict[str, Any]:
     above = [box for box in above if not _is_usb(box, board)]
     pattern = board_hole_pattern(board)
     holes = pattern.positions if pattern is not None else ()
-    boxes = _merge(above, same_tier=True, holes=holes) + _merge(
-        below, same_tier=False, holes=holes
-    )
-    components = []
-
-    for number, (x0, x1, y0, y1, z0, z1) in enumerate(boxes, start=1):
-        box = (x0, x1, y0, y1, z0, z1)
-        components.append(
-            {
-                "identifier": f"{'top' if z0 >= 0 else 'bottom'}-{number:02d}",
-                "center_x_mm": round((x0 + x1) / 2, 3),
-                "center_y_mm": round((y0 + y1) / 2, 3),
-                "width_mm": round(x1 - x0, 3),
-                "depth_mm": round(y1 - y0, 3),
-                "bottom_offset_from_board_top_mm": round(z0, 3),
-                "height_mm": round(z1 - z0, 3),
-                "access_edge": _access_edge(box, board),
-            }
-        )
+    boxes = merge_boxes(above, True, holes) + merge_boxes(below, False, holes)
 
     return {
         "schema_version": "1.0.0",
@@ -282,7 +136,9 @@ def extract(target: str) -> dict[str, Any]:
         "source_model_sha256": hashlib.sha256(step.read_bytes()).hexdigest(),
         "pcb_solid_index": source.pcb_solid_index,
         "generated_by": "scripts/extract-board-components.py",
-        "components": components,
+        "components": component_records(
+            boxes, board.board_width_mm, board.board_length_mm
+        ),
     }
 
 
