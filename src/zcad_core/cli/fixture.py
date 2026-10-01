@@ -11,6 +11,7 @@ from zcad_core.cli._common import (
     corner_keepout,
     emit,
 )
+from zcad_core.cli.pcb_fixture import add_commands as add_pcb_fixture_commands
 from zcad_core.retention import (
     CornerCapturePolicy,
     EdgeCapturePolicy,
@@ -98,3 +99,4 @@ def register(
     fixture_export.add_argument("--perimeter-margin-mm", type=float, default=2.0)
     fixture_export.add_argument("--output", required=True, type=Path)
     fixture_export.set_defaults(handler=_fixture_export)
+    add_pcb_fixture_commands(fixture_commands)

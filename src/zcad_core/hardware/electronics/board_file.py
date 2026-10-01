@@ -35,6 +35,11 @@ from typing import Any, cast
 from zcad_core.hardware.electronics import board_outline
 from zcad_core.hardware.electronics.board_components import BoardComponentSpec
 from zcad_core.hardware.electronics.board_outline import Point
+from zcad_core.hardware.electronics.board_test_points import (
+    BoardTestPoint,
+    check_test_points,
+    parse_test_points,
+)
 from zcad_core.hardware.electronics.connectors import (
     BoardEdge,
     RectangularConnectorSpec,
@@ -83,6 +88,7 @@ _TOP_LEVEL = frozenset(
         "notes",
         "needs_review",
         "verified_by",
+        "test_points",
     }
 )
 
@@ -141,6 +147,8 @@ class BoardFileSpec:
     verified_by: str = ""
     # Loaded from the catalog's data directory rather than a user's file.
     catalog: bool = False
+    # The pads a test fixture's probes land on; none unless the file lists them.
+    test_points: tuple[BoardTestPoint, ...] = ()
 
     def provenance(self) -> dict[str, Any]:
         """What a build records about where the board came from."""
@@ -968,6 +976,7 @@ def _check(data: Any) -> tuple[BoardCheck, tuple[Point, ...] | None]:
 
     _check_wall_openings(data, size, findings)
     _check_power(data, findings)
+    check_test_points(data, size, outline, findings.error)
     connector = data.get("cable_connector")
 
     if isinstance(connector, Mapping):
@@ -1172,6 +1181,7 @@ def board_from_data(
         verified=catalog and bool(data.get("verified_by")),
         verified_by=str(data.get("verified_by") or ""),
         catalog=catalog,
+        test_points=parse_test_points(data),
     )
 
 
@@ -1270,6 +1280,24 @@ def board_template() -> dict[str, Any]:
         },
         "envelope": {"top_mm": 6.0},
         "wall_openings": [],
+        "test_points": [
+            {
+                "identifier": "TP1",
+                "x_mm": -8.0,
+                "y_mm": 12.5,
+                "pad_diameter_mm": 1.5,
+                "side": "top",
+                "net": "3V3",
+            },
+            {
+                "identifier": "TP2",
+                "x_mm": 8.0,
+                "y_mm": 12.5,
+                "pad_diameter_mm": 1.5,
+                "side": "top",
+                "net": "GND",
+            },
+        ],
         "power": {
             "typical_w": 0.5,
             "peak_w": 1.0,

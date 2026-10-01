@@ -28,6 +28,12 @@ from zcad_core.hardware.fasteners import (
     get_fastener,
     list_fasteners,
 )
+from zcad_core.hardware.pogo import (
+    PogoSource,
+    PogoSpec,
+    get_pogo_pin,
+    list_pogo_pins,
+)
 
 __all__ = [
     "ADAFRUIT_EINK_200X200_1_54IN",
@@ -52,6 +58,8 @@ __all__ = [
     "HardwareCatalog",
     "HardwareSpec",
     "MagnetSpec",
+    "PogoSource",
+    "PogoSpec",
     "RaspberryPi5Spec",
     "RaspberryPiPico2Spec",
     "RectangularConnectorSpec",
@@ -69,6 +77,7 @@ __all__ = [
     "get_fan",
     "get_fastener",
     "get_magnet",
+    "get_pogo_pin",
     "get_raspberry_pi5",
     "get_raspberry_pi_pico2",
     "get_reference_oled_128x64",
@@ -79,6 +88,7 @@ __all__ = [
     "list_fans",
     "list_fasteners",
     "list_magnets",
+    "list_pogo_pins",
     "load_board",
     "load_board_components",
 ]

@@ -120,6 +120,25 @@ stands in from its edges: 1 mm for a rectangle, and for another outline as far
 as keeps its rectangle inside it (up to 8 mm). A notch too deep for that is
 refused: list the parts as components.
 
+## Test points
+
+Optional pads a test fixture's probes land on:
+
+```json
+"test_points": [
+  {"identifier": "TP1", "x_mm": -8.0, "y_mm": 12.5, "pad_diameter_mm": 1.5,
+   "side": "top", "net": "3V3"}
+]
+```
+
+Positions are in the board's frame, as for holes. `side` is `top` (the default)
+or `bottom`; `net` is your own label, carried to the fixture's report. The check
+refuses a pad that hangs off the board (judged by its outline, so a rounded
+corner counts), a pad under 0.5 mm, two pads on the same side that overlap, and a
+name used twice. `board check` counts the points by side. `board import` cannot
+find test points, since a STEP model carries no copper: they come from your
+design. See [A test fixture for your board](pcb-test-fixture.md).
+
 ## Power
 
 ```json

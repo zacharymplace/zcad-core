@@ -161,9 +161,11 @@ fixture worked.
 
 ## Phases
 
-1. **Test points and the pin.** `test_points` in the board schema and its
+1. **Test points and the pin (built).** `test_points` in the board schema and its
    checks, the `PogoSpec` type and its sourcing, `board check` reporting them,
    and the fixture file's schema with `fixture template` and `fixture check`.
+   See *What phase 1 changed* below, and the guide
+   [A test fixture for your board](../guides/pcb-test-fixture.md).
 2. **Nest and plate.** The outline-following nest, the pin plate, the bores, the
    locating dowels, the part-clearance checks, the worst-case misalignment and
    the check on it, and `fixture build`.
@@ -176,6 +178,33 @@ fixture worked.
 A later phase adds the bottom-side bed of nails, and a programming fixture for
 pads that carry a header footprint (a row of pins at a fixed pitch) as one
 named group.
+
+### What phase 1 changed
+
+- **Test points are checked against the outline.** A pad must lie wholly on the
+  board, judged by its polygon or rounded outline when it has one, not by the
+  bounding rectangle. Two pads on the same side that overlap are refused; pads on
+  opposite sides may share a place. The board template now carries two example
+  points. The schema version stays 1.0.0, since the field is optional.
+- **The pin catalog is empty, and cannot be a `HardwareCatalog`.** That class
+  refuses an empty registry, so pins have their own small one
+  (`hardware/pogo.py`) with `get_pogo_pin` and `list_pogo_pins`. A fixture's
+  `pin` is either `{"catalog": ID}`, refused today with the empty list named, or
+  the user's own figures with a required `source`. The check, and later the build
+  record, say the figures are the user's.
+- **The pitch check is built here, not in phase 2.** It needs only the pin and
+  the profile, so `fixture check` takes `--printer-profile` and refuses pins
+  whose bores (barrel, sliding clearance each side, `hole_oversize`) leave less
+  than the printer's minimum wall between them.
+- **Slack is reported per point.** The pad's radius less the tip's: how far the
+  tip may sit off the centre and still touch. Phase 2's misalignment sum is
+  compared with it; phase 1 only reports it, and warns when a tip covers more
+  than half its pad.
+- **The commands join the existing `fixture` group.** `fixture export` is the
+  Validation Lab's print fixture; `fixture template` and `fixture check` sit
+  beside it. They share a name and nothing else.
+- **Not built: bottom-side probing, the nest, the plate, the closure,** and the
+  catalogued pins. `side` other than `top` is refused with a message saying so.
 
 Each phase is one PR. Phase 1 adds an optional field to the board file, so no
 existing board file changes.
