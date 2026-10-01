@@ -21,6 +21,38 @@ in the build summary and in `enclosure.json` that the board came from a file,
 with the file's path and SHA-256, and that it is **unverified**. A printed trial
 is what tells you the numbers were right.
 
+## From a STEP model
+
+If the maker publishes a 3D model, read the board from it instead of measuring:
+
+```bash
+zcad-validation board import --step board.step --output my-board.json
+```
+
+The model must have its **+Z up**. The import finds the PCB (the solid with the
+largest footprint that is 0.4 to 3.2 mm thick; the report says which, and
+`--pcb-solid-index N` names another), takes the outline and thickness from it,
+reads its round through-holes, and turns every other part into a box, merging
+neighbours of a similar height. It prints a report: the model's SHA-256, the PCB
+it chose, the holes found (the commonest size is taken as the mounting holes;
+other sizes are listed), a note if the PCB is not a plain rectangle, and the
+**cable connector candidates**, the parts that overhang an edge.
+
+The connector cannot be guessed. The file is written with `needs_review`, which
+`board check` and `enclosure build` refuse, until you name the part the cable
+plugs into, from the candidates:
+
+```bash
+zcad-validation board import --step board.step --output my-board.json \
+  --cable-connector top-03
+```
+
+(Delete the first file, or write to another: an import never overwrites.) That
+part becomes `cable_connector`, clipped to the outline, and leaves the
+components. Then read the file against the real board, since a model is often
+wrong, and trial it like any board from a file. A model with no mounting holes
+gives a board for the snap-in cradle.
+
 ## Measuring a board
 
 Look at the board from above, with its centre as the origin: **+X to the right,

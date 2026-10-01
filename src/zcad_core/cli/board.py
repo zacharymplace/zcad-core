@@ -69,6 +69,37 @@ def _board_template(args: argparse.Namespace) -> int:
     return 0
 
 
+def _board_import(args: argparse.Namespace) -> int:
+    """Read a board file from a vendor STEP model, to review and edit."""
+
+    # Imported here: reading a model needs CadQuery's STEP reader.
+    from zcad_core.hardware.electronics.board_import import import_step
+
+    if args.output.exists():
+        raise FileExistsError(f"Refusing to overwrite {args.output}")
+
+    imported = import_step(
+        args.step,
+        identifier=args.identifier,
+        pcb_solid_index=args.pcb_solid_index,
+        cable_connector=args.cable_connector,
+    )
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(imported.data, indent=2) + "\n", encoding="utf-8")
+    check, _ = check_board_file(args.output)
+    emit(
+        {
+            "written": str(args.output),
+            **imported.report,
+            "needs_review": imported.data.get("needs_review", []),
+            "errors": list(check.errors),
+            "warnings": list(check.warnings),
+        }
+    )
+
+    return 0
+
+
 def register(
     subcommands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
@@ -90,3 +121,21 @@ def register(
         "--output", type=Path, help="write the example here instead of printing it"
     )
     template.set_defaults(handler=_board_template)
+    import_ = commands.add_parser(
+        "import",
+        help="read a board file from a vendor STEP model (+Z up), to review",
+    )
+    import_.add_argument("--step", required=True, type=Path)
+    import_.add_argument("--output", required=True, type=Path)
+    import_.add_argument("--identifier", help="the board's name; default: the file's")
+    import_.add_argument(
+        "--pcb-solid-index",
+        type=int,
+        help="the PCB's solid, counting from 1, if the one found is wrong",
+    )
+    import_.add_argument(
+        "--cable-connector",
+        metavar="PART",
+        help="the part the cable plugs into, from the candidates a first import lists",
+    )
+    import_.set_defaults(handler=_board_import)
