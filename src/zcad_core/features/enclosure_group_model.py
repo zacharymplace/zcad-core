@@ -13,6 +13,8 @@ import cadquery as cq
 
 from zcad_core.features.connector_cutouts import MINIMUM_OPENING_WEB_MM
 from zcad_core.features.enclosure_group_dividers import Divider
+from zcad_core.features.lid_hinge import HingeReport
+from zcad_core.features.lid_slide import SlideReport, slide_clearance_error
 from zcad_core.features.mount_rack import RACK, FrontPads
 from zcad_core.features.mounts import MOUNTS, MountPads, MountPlate
 from zcad_core.features.vent_patterns import PATTERNS, VentReport
@@ -21,6 +23,11 @@ from zcad_core.features.vent_patterns import PATTERNS, VentReport
 # its front wall.
 GROUP_MOUNTS = (*MOUNTS, RACK)
 from zcad_core.hardware import FastenerSpec
+
+# How the lid attaches: screwed to inserts, hinged along the back wall, or
+# slid along the row.
+GROUP_LID_ATTACHMENTS = ("screws", "hinge", "slide")
+SLIDE_ENTRIES = ("negative_x", "positive_x")
 
 BayKind = Literal["pi5", "reserved", "open"]
 BAY_KINDS: tuple[BayKind, ...] = ("pi5", "reserved", "open")
@@ -81,8 +88,32 @@ class GroupDesign:
     # large. ``vents`` is the separate set of lid slots over each Pi's fan.
     vent_pattern: str = "slots"
     vent_area_mm2: float = 0.0
+    # "screws" (the default), a "hinge" along the back wall that closes with a
+    # catch on the front, or a "slide" along the row. A hinged or sliding lid
+    # has no screws, so the lid bosses are left out.
+    lid_attachment: str = "screws"
+    slide_clearance_mm: float = 0.2
+    # The end wall a sliding lid slides out over.
+    slide_entry: str = "positive_x"
+    # The fastener used as the hinge pin (with a nut), for a "hinge" lid.
+    hinge_pin: str = "M3"
+
+    def _validate_lid(self) -> None:
+        if self.lid_attachment not in GROUP_LID_ATTACHMENTS:
+            raise ValueError(f"lid_attachment must be one of {GROUP_LID_ATTACHMENTS}")
+
+        if self.lid_attachment == "slide":
+            error = slide_clearance_error(self.slide_clearance_mm)
+
+            if error is not None:
+                raise ValueError(error)
+
+            if self.slide_entry not in SLIDE_ENTRIES:
+                raise ValueError(f"slide_entry must be one of {SLIDE_ENTRIES}")
 
     def validate(self) -> None:
+        self._validate_lid()
+
         if self.vent_pattern not in PATTERNS:
             raise ValueError(f"vent_pattern must be one of {PATTERNS}")
 
@@ -223,7 +254,8 @@ class GroupEnclosure:
     # for showing the parts in a review model.
     hardware: dict[str, cq.Shape]
     checks: dict[str, bool]
-    recommended_lid_screw_mm: int
+    # None for a hinged or sliding lid, which has no screws.
+    recommended_lid_screw_mm: int | None
     recommended_join_screw_mm: int | None
     # Each of a Pi's extracted parts that runs into the base or lid, as
     # "bay-<n> <part> meets the <base|lid>"; empty when the parts all clear.
@@ -234,6 +266,9 @@ class GroupEnclosure:
     mount: MountPlate | None = None
     # The vent pattern, when the design asks for one.
     vents: VentReport | None = None
+    # The hinge and its catch, or the slide, when the design asks for one.
+    hinge: HingeReport | None = None
+    slide: SlideReport | None = None
 
     @property
     def cavity_top_z_mm(self) -> float:

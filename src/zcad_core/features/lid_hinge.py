@@ -50,6 +50,9 @@ _ROOT_OVERLAP_MM = 0.5
 _NUT_THICKNESS_MM = 2.4
 _PIN_SLACK_MM = 1.0
 _PIN_LENGTHS_MM = (8, 10, 12, 16, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80)
+# Past the longest screw, a pin is a threaded rod cut to length, to the next 5 mm.
+_ROD_STEP_MM = 5
+_LONGEST_ROD_MM = 250
 
 # The catch: a tongue outside the closure wall, a hook on its end, and a bump
 # on the wall that the hook snaps under.
@@ -100,6 +103,20 @@ class HingeReport:
     catch_center_mm: float
     catch: Flexure
     wall_needed_mm: float
+    # A pin longer than any screw is a threaded rod, cut to ``pin_length_mm``.
+    pin_is_rod: bool = False
+
+    @property
+    def pin_description(self) -> str:
+        """The pin to buy, as a sentence."""
+
+        if self.pin_is_rod:
+            return (
+                f"{self.pin} threaded rod cut to {self.pin_length_mm} mm, "
+                "with a nut at each end"
+            )
+
+        return f"{self.pin} x {self.pin_length_mm} mm screw and nut"
 
 
 def hinge_edges(
@@ -187,14 +204,26 @@ def _solids(model: cq.Workplane) -> cq.Shape:
     )
 
 
-def _pin_length(span_mm: float) -> int:
+def _pin_length(span_mm: float) -> tuple[int, bool]:
+    """The pin's length, and whether it is a threaded rod cut to length because
+    no screw is long enough."""
+
     needed = span_mm + _NUT_THICKNESS_MM + _PIN_SLACK_MM
     fitting = [length for length in _PIN_LENGTHS_MM if length >= needed]
 
-    if not fitting:
-        raise ValueError(f"No standard pin is long enough for a {span_mm:.0f} mm hinge")
+    if fitting:
+        return fitting[0], False
 
-    return fitting[0]
+    # A rod has no head, so it takes a nut at each end.
+    rod = math.ceil((needed + _NUT_THICKNESS_MM) / _ROD_STEP_MM) * _ROD_STEP_MM
+
+    if rod > _LONGEST_ROD_MM:
+        raise ValueError(
+            f"No pin is long enough for a {span_mm:.0f} mm hinge: a rod over "
+            f"{_LONGEST_ROD_MM} mm would bend"
+        )
+
+    return rod, True
 
 
 def _knuckle_layout(span_mm: float) -> tuple[int, float]:
@@ -268,8 +297,13 @@ def add_hinge(
     openings: Sequence[ConnectorCutoutParameters],
     hardware: Mapping[str, cq.Shape],
     carried: Mapping[str, cq.Shape] | None = None,
+    hinge_edge: str | None = None,
 ) -> tuple[cq.Workplane, cq.Workplane, HingeReport]:
     """Add the hinge and the catch, refusing a lid that cannot swing clear.
+
+    ``hinge_edge`` names the wall that takes the hinge, the catch going on the
+    one opposite; left out, a long wall with no opening is chosen. Naming it
+    means the walls' openings are the caller's to keep clear of the knuckles.
 
     ``hardware`` are the parts inside, by name, which the swinging lid must
     not hit. ``carried`` are the parts the lid holds, such as a display
@@ -277,7 +311,11 @@ def add_hinge(
     should already carry whatever hangs from it, such as those posts.
     """
 
-    hinge_edge, closure_edge = hinge_edges(cavity, openings)
+    if hinge_edge is None:
+        hinge_edge, closure_edge = hinge_edges(cavity, openings)
+    else:
+        closure_edge = _OPPOSITE[hinge_edge]
+
     top = cavity.top_z_mm
     hole = pin.clearance_hole_mm + hole_compensation_mm
     radius = pin.clearance_hole_mm / 2 + _BARREL_WALL_MM
@@ -370,17 +408,19 @@ def add_hinge(
         lid_mm=lid_mm,
         hook=(hook_bottom, hook_top),
     )
+    pin_length, pin_is_rod = _pin_length(span)
     report = HingeReport(
         hinge_edge=hinge_edge,
         closure_edge=closure_edge,
         knuckles=count,
         span_mm=span,
         pin=pin.identifier,
-        pin_length_mm=_pin_length(span),
+        pin_length_mm=pin_length,
         swing_degrees=SWING_DEGREES,
         catch_center_mm=catch_center,
         catch=catch,
         wall_needed_mm=needed,
+        pin_is_rod=pin_is_rod,
     )
 
     return base, lid, report

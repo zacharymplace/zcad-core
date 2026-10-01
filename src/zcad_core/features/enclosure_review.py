@@ -170,7 +170,12 @@ def _lid_fasteners(enclosure: Enclosure) -> dict[str, Any]:
         return {
             "lid": "hinged",
             "count": 0,
-            "pin": f"{hinge.pin} x {hinge.pin_length_mm} mm, with a nut",
+            "pin": (
+                f"{hinge.pin} threaded rod cut to {hinge.pin_length_mm} mm, "
+                "with a nut at each end"
+                if hinge.pin_is_rod
+                else f"{hinge.pin} x {hinge.pin_length_mm} mm, with a nut"
+            ),
             "knuckles": hinge.knuckles,
             "swing_degrees": hinge.swing_degrees,
             "catch_strain_percent": round(100 * hinge.catch.strain, 2),

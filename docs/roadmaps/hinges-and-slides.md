@@ -8,9 +8,10 @@ open, for a box that is opened often, such as a battery box, a field device,
 or anything with a card or a switch inside. A slide lid opens by pushing it
 along the box, with nothing to lose and no fasteners.
 
-Phases 1 (the pin hinge and its catch) and 2 (the slide lid) are built, and
-each differs from the first design in ways found by building it (see *What
-phase 1 changed* and *What phase 2 changed* below).
+Phases 1 (the pin hinge and its catch), 2 (the slide lid), and 3 (both on the
+Pi 5 group enclosure) are built, and each differs from the first design in ways found by building it
+(see *What phase 1 changed*, *What phase 2 changed*, and *What phase 3
+changed* below).
 
 ## Where it fits
 
@@ -100,8 +101,8 @@ The parts pass through the same export pipeline as the enclosure.
    hardware output, `--lid hinge`.
 2. **Slide lid (built)**, single-board enclosure: the thickened band, the grooves,
    the detent, `--lid slide`.
-3. **Pi 5 group enclosure**: a hinge along its back wall and a slide along
-   its row, each with the group's dividers and cable openings in the way.
+3. **Pi 5 group enclosure (built)**: a hinge along its back wall and a slide
+   along its row, each with the group's dividers and cable openings in the way.
 4. **Review and trials**: the hinge's swing and the slide's travel in the
    exploded review model, and trial measurements for pin fit and slide force
    in the Validation Lab.
@@ -152,6 +153,32 @@ The parts pass through the same export pipeline as the enclosure.
   `lid_clearance`, and the validation report warns if it is under the printer
   profile's `sliding_clearance_per_side`.
 
+### What phase 3 changed
+
+- **The group reuses the single-board builders.** `add_hinge` and `add_slide`
+  take a cavity, a base, a lid, and the openings, so the group passes its own
+  cavity. Two new arguments name what the group knows: `hinge_edge` (the back
+  wall, though both long walls carry openings) and `entry` (the slide's end).
+- **The pin is a threaded rod.** A row's hinge span is about 165 mm, past the
+  longest M3 screw, so a pin that long is a rod cut to length with a nut at each
+  end, up to 250 mm. This applies to single-board hinges too, which could not
+  exceed an 80 mm pin before.
+- **The back wall may carry openings under the hinge.** Choosing a wall with no
+  opening is impossible here, so instead no back-wall opening may reach the
+  knuckles' 2.5 mm; the default headroom is 1.1 mm short, which the build says,
+  with the amount.
+- **The lid has no bosses.** A hinged or sliding lid takes no screws, so the six
+  lid bosses and their corner fills are left out, and a divider stops 0.5 mm
+  below a sliding lid. The layout is unchanged.
+- **A slide bug from phase 2, found here.** The slide's thickening starts 3 mm
+  below the wall top and filled any opening that reached it, so a Pi's
+  Ethernet and USB plugs met the wall. The slide now cuts the long-wall
+  openings again after thickening. A single-board slide is helped only where an
+  opening is among the ones passed to it (the fan's); a board's own cable
+  opening in a long wall that high is not re-cut, and has not been tried.
+- **A lone bay cannot slide** (it is deeper than wide). A row of three bays
+  is past the A1 mini's bed in any case, and past a 250 mm rod for a hinge.
+
 Each phase is one PR. Phases 1 and 2 add lid attachments, so existing builds
 and records are unchanged unless a design asks for them.
 
@@ -171,4 +198,4 @@ and records are unchanged unless a design asks for them.
   the same cost). Outward is proposed.
 - **Whether the group enclosure is part of this first pass.** Its lid is
   3 mm, its cavity is shared by several boards, and its bed margin is 4 mm.
-  Phase 3 is proposed, after the single-board forms have been printed.
+  Phase 3 was built before the single-board forms were printed.

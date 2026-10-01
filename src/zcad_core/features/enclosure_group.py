@@ -25,6 +25,7 @@ from collections.abc import Sequence
 
 import cadquery as cq
 
+from zcad_core.features.connector_cutouts import ConnectorCutoutParameters
 from zcad_core.features.enclosure_group_dividers import (
     Divider,
     DividerPlacement,
@@ -58,8 +59,9 @@ from zcad_core.features.enclosure_group_model import (
     OpeningWall,
 )
 from zcad_core.features.enclosure_group_openings import (
-    cut_bay_openings,
-    cut_pi_openings,
+    bay_openings,
+    cut_openings,
+    pi_openings,
     require_openings_under_lid,
 )
 from zcad_core.features.enclosure_lid import VENT_RIM_MM, Cavity
@@ -67,6 +69,8 @@ from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
 )
+from zcad_core.features.lid_hinge import HINGE_WEB_DEPTH_MM, HingeReport, add_hinge
+from zcad_core.features.lid_slide import SlideReport, add_slide
 from zcad_core.features.mount_rack import (
     FrontPads,
     add_front_pads,
@@ -122,6 +126,8 @@ _JOIN_HEIGHT_ABOVE_FLOOR_MM = 8.0
 _JOIN_BOSS_REACH_MM = 8.0
 _JOIN_Y_FRACTIONS = (0.65, 0.83)
 _SCREW_LENGTHS_MM = (4, 5, 6, 8, 10, 12, 16, 20)
+# A divider stops this far below a sliding lid, beyond the slide's clearance.
+_SLIDE_DIVIDER_DROP_MM = 0.3
 
 
 def build_group_enclosure(
@@ -162,11 +168,18 @@ def build_group_enclosure(
     require_openings_under_lid(layouts, inner_height)
     wall = design.wall_mm
     pi_center_y = wall + design.front_clearance_mm + pi.board_length_mm / 2
+    screwed = design.lid_attachment == "screws"
+    # A sliding lid rides over the dividers, so they stop short of it.
+    divider_height = inner_height - (
+        design.slide_clearance_mm + _SLIDE_DIVIDER_DROP_MM
+        if design.lid_attachment == "slide"
+        else 0.0
+    )
     dividers = _dividers(
         layouts,
         design=design,
         pi=pi,
-        inner_height=inner_height,
+        inner_height=divider_height,
         inner_depth=inner_depth,
         pi_center_y=pi_center_y,
     )
@@ -182,10 +195,17 @@ def build_group_enclosure(
     front_y = wall + corner_x
     back_y = wall + inner_depth - corner_x
     boss_columns = boss_column_xs(layouts, radius, corner_x, wall, inner_width)
-    boss_positions = tuple((x, y) for x in boss_columns for y in (front_y, back_y))
-    base = base.union(
-        _corner_fills(boss_positions, outer, wall, design.floor_mm, inner_height)
+    # Only a screwed lid has bosses to take its screws.
+    boss_positions = (
+        tuple((x, y) for x in boss_columns for y in (front_y, back_y))
+        if screwed
+        else ()
     )
+
+    if screwed:
+        base = base.union(
+            _corner_fills(boss_positions, outer, wall, design.floor_mm, inner_height)
+        )
 
     for x, y in boss_positions:
         base = add_heat_set_insert_boss(
@@ -239,17 +259,15 @@ def build_group_enclosure(
             pi, center_x, pi_center_y, layout.board_top_z_mm
         )
 
-    base = cut_pi_openings(
-        base,
+    openings = pi_openings(
         layouts=layouts,
         design=design,
         pi=pi,
         radius=radius,
         wall=wall,
-        pi_center_y=pi_center_y,
         boss_columns=boss_columns,
-    )
-    base = cut_bay_openings(base, layouts, design)
+    ) + bay_openings(layouts, design)
+    base = cut_openings(base, openings)
 
     join_positions: tuple[tuple[float, float], ...] = ()
 
@@ -291,6 +309,16 @@ def build_group_enclosure(
         cavity_top=cavity_top,
         keepout_mm=2 * radius + 1.0,
     )
+    base, lid, hinge, slide = _attach_lid(
+        base,
+        lid,
+        design=design,
+        outer=outer,
+        inner_size=(inner_width, inner_depth),
+        cavity_top=cavity_top,
+        openings=openings,
+        hardware=hardware,
+    )
     base, pads, mount = _add_mount(
         base,
         design=design,
@@ -303,7 +331,7 @@ def build_group_enclosure(
     collisions = _part_collisions(base, lid, parts)
     checks["parts_clear_of_base"] = not any(c.endswith("base") for c in collisions)
     checks["parts_clear_of_lid"] = not any(c.endswith("lid") for c in collisions)
-    lid_screw = _longest_screw(design.lid_mm + insert_depth)
+    lid_screw = _longest_screw(design.lid_mm + insert_depth) if screwed else None
     join_screw = _longest_screw(2 * wall + insert_depth) if design.join_bolts else None
 
     return GroupEnclosure(
@@ -325,7 +353,95 @@ def build_group_enclosure(
         mount_pads=pads,
         mount=mount,
         vents=vents,
+        hinge=hinge,
+        slide=slide,
     )
+
+
+def _attach_lid(
+    base: cq.Workplane,
+    lid: cq.Workplane,
+    *,
+    design: GroupDesign,
+    outer: tuple[float, float, float],
+    inner_size: tuple[float, float],
+    cavity_top: float,
+    openings: list[ConnectorCutoutParameters],
+    hardware: dict[str, cq.Shape],
+) -> tuple[cq.Workplane, cq.Workplane, HingeReport | None, SlideReport | None]:
+    """Hinge or slide the lid, as the design asks; a screwed lid is left as it
+    is. Both are the single-board builders on the group's cavity, and refuse a
+    lid that cannot swing or slide clear of the base and the Pis."""
+
+    if design.lid_attachment == "screws":
+        return base, lid, None, None
+
+    cavity = Cavity(
+        center_x_mm=outer[0] / 2,
+        center_y_mm=outer[1] / 2,
+        width_mm=inner_size[0],
+        depth_mm=inner_size[1],
+        floor_z_mm=design.floor_mm,
+        top_z_mm=cavity_top,
+        wall_mm=design.wall_mm,
+    )
+
+    if design.lid_attachment == "hinge":
+        _require_openings_clear_of_knuckles(openings, cavity_top)
+        front = [opening for opening in openings if opening.edge == "negative_y"]
+        base, lid, hinge = add_hinge(
+            base,
+            lid,
+            cavity,
+            lid_mm=design.lid_mm,
+            pin=get_fastener(design.hinge_pin),
+            hole_compensation_mm=0.0,
+            openings=front,
+            hardware=hardware,
+            hinge_edge="positive_y",
+        )
+
+        return base, lid, hinge, None
+
+    if not cavity.long_walls_on_y:
+        raise ValueError(
+            "A sliding lid runs along the row, which must be at least as wide as "
+            "it is deep; add a bay, or use a hinged or screwed lid"
+        )
+
+    base, lid, slide = add_slide(
+        base,
+        lid,
+        cavity,
+        lid_mm=design.lid_mm,
+        clearance_mm=design.slide_clearance_mm,
+        hole_compensation_mm=0.0,
+        openings=openings,
+        hardware=hardware,
+        entry=design.slide_entry,
+    )
+
+    return base, lid, None, slide
+
+
+def _require_openings_clear_of_knuckles(
+    openings: list[ConnectorCutoutParameters], cavity_top: float
+) -> None:
+    """The hinge's knuckles stand on the back wall's top edge, so no back-wall
+    opening may reach it."""
+
+    limit = cavity_top - HINGE_WEB_DEPTH_MM
+
+    for opening in openings:
+        top = opening.bottom_z_mm + opening.opening_height_mm
+
+        if opening.edge == "positive_y" and top > limit:
+            raise ValueError(
+                f"A back-wall opening reaches {top:.1f} mm and the hinge's knuckles "
+                f"need the wall above {limit:.1f} mm; raise headroom_mm by at "
+                f"least {top - limit:.1f} mm, lower the opening, or use a "
+                "sliding or screwed lid"
+            )
 
 
 def _add_vents(
@@ -362,7 +478,11 @@ def _add_vents(
         kind=design.vent_pattern,
         target_mm2=design.vent_area_mm2,
         blocked_edges=[],
-        top_z_mm=cavity_top - VENT_RIM_MM,
+        # The slide's entry wall comes down to the groove floor, a clearance
+        # below the lid, so the inlets stop that much lower.
+        top_z_mm=cavity_top
+        - VENT_RIM_MM
+        - (design.slide_clearance_mm if design.lid_attachment == "slide" else 0.0),
         corner_keepout_mm=keepout_mm,
         edges=("negative_x", "positive_x"),
     )
@@ -647,14 +767,16 @@ def _lid(
         .box(outer[0], outer[1], design.lid_mm, centered=False)
         .translate((0, 0, cavity_top))
     )
-    holes = (
-        cq.Workplane("XY")
-        .pushPoints(list(boss_positions))
-        .circle(fastener.clearance_hole_mm / 2)
-        .extrude(design.lid_mm + 2.0)
-        .translate((0, 0, cavity_top - 1.0))
-    )
-    lid = lid.cut(holes)
+
+    if boss_positions:
+        holes = (
+            cq.Workplane("XY")
+            .pushPoints(list(boss_positions))
+            .circle(fastener.clearance_hole_mm / 2)
+            .extrude(design.lid_mm + 2.0)
+            .translate((0, 0, cavity_top - 1.0))
+        )
+        lid = lid.cut(holes)
 
     if not design.vents:
         return lid
