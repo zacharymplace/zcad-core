@@ -54,7 +54,7 @@ def test_a_loaded_board_carries_its_test_points(tmp_path: Path) -> None:
 
     assert [p.identifier for p in board.test_points] == ["TP1", "TP2"]
     assert board.test_points[0].position == (-8.0, 12.5)
-    assert board.test_points[0].pad_diameter_mm == 1.5
+    assert board.test_points[0].pad_diameter_mm == 3.0
     assert board.test_points[0].side == "top"
     assert board.test_points[0].net == "3V3"
 
