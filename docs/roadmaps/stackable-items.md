@@ -167,7 +167,7 @@ is the user's; the engine only places the plate and the spacers.
    sliding drawers.
 4. **Enclosures on the grid (built).** `--mount stack` on the single-board enclosure and the Pi 5
    group, and `check-stack` over their build records.
-5. **Electronics layers.** The layer from a board file, with its spacers and checks.
+5. **Electronics layers (built).** The layer from a board file, with its spacers and checks.
 6. **The record and stack trials.** A stack's build record, and trials in the housing
    trials' style with stack readings: whether it stacks square, a wobble in mm by feeler gauge,
    a separation force by spring scale, a count of stackings with whether anything wore, and
@@ -300,3 +300,20 @@ See *Enclosures on the grid* in [Stackable items](../guides/stackable-items.md).
 - **The enclosure's top is unchanged.** Nothing stacks on an enclosure's lid, as the design left open. That is `--stack-top`, off by
   default, and not built.
 - **Existing builds are unchanged.** `stack` is another value of `--mount`, and the design and record fields default to none.
+
+### What phase 5 changed
+
+See *Electronics layers* in [Stackable items](../guides/stackable-items.md).
+
+- **A layer is not on the grid.** The design had layers adopt the stack interface, with a profile and whole cells. A board is
+  not whole cells, so a layer adopts the board's own mounting holes: it has its own file (`file_kind: layer`), commands
+  (`stack layer template | build`) and check (`check-layers`), and `stack check` reads it. Grid items and layers do not stack on each
+  other through `check-stack`; an enclosure's stack plate, or a bin, is how a board goes on the grid.
+- **The spacer is a separate printed part.** The open question proposed it, since a spacer's height is what a board changes.
+  A layer builds a plate and one spacer to print for each hole.
+- **The cable connector counts.** The plate is opened from a connector to its edge, as it is for a marked part, and its top counts
+  towards the spacer's height. A board file with an `envelope` gives that as its only part; one with `components` gives them.
+- **A header's height is the user's.** The design asked for a header-height rule between layers. The board file has no header,
+  and the engine does not model one: the clearance is the air over the tallest part, a setting, and `check-layers` compares holes.
+- **The check lays real solids.** The spacers and the plate are put against the board's parts, as the stack items are, and the
+  build fails on any overlap. The air, the opening margin and the spacer's wall are the engine's own sizes.

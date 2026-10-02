@@ -3,8 +3,8 @@
 A **stack profile** says how an item's top and bottom faces meet another's. Bins and
 baseplates built on one profile sit on each other, and a bin stacks on a bin like it. This
 release builds bins, baseplates, caps, and drawer frames with their drawers, holds them with magnets
-or bolts, puts the enclosures on the grid, and checks whether two items stack; latches and layers come
-in later releases (see the
+or bolts, puts the enclosures on the grid, stacks plates and spacers over boards, and checks whether
+two items stack; latches come in a later release (see the
 [stackable items design](../roadmaps/stackable-items.md)).
 
 ```bash
@@ -140,6 +140,42 @@ zcad-validation stack check-stack --upper exports/pico-on-grid/enclosure.json --
 
 It checks it as it checks a bin: the profile by hash (a profile that has changed since the build is not trusted), the cells, the
 holding (a stack plate holds by the lip alone) and the overlap of real solids. Nothing stacks on a stack plate.
+
+## Electronics layers
+
+A **layer** stacks over a board, as a hat does. It adopts the board's own mounting holes, not the grid's, so
+it lives in its own file and has its own commands.
+
+```bash
+zcad-validation stack layer template --board-file my-board.json --output my-layer.json
+# say what it is for, then:
+zcad-validation stack check my-layer.json
+zcad-validation stack layer build --layer-file my-layer.json --output-directory exports/my-layer
+zcad-validation stack check-layers --upper hat-layer.json --lower my-layer.json
+```
+
+A layer file names a [board file](board-file.md) by hash, as a housing does, and sets `fastener` (a catalogued one, such as
+M2.5), `clearance_mm` (the air over the board's tallest part, 1.0), `spacer_mm` (optional: the least is worked out),
+`plate_mm` (2.0) and `wall_mm` (the spacer's wall, 1.2).
+
+`layer build` makes two parts:
+
+- **A spacer**, a tube round the fastener. Its height is the board's tallest top above its face (a part, the cable
+  connector, or the board file's `envelope`) plus the air, rounded up to 0.5 mm. Print one for each mounting hole.
+- **A plate** the shape of the board's outline, over the spacers, with a hole at each mounting hole. It is opened over each
+  part the board file marks `access_edge`, and over the cable connector, from the part out to its edge, and has a window
+  over a part marked `lid_vent`.
+
+The layer is refused, with the figures, when the spacer is under the height needed (say how tall the part is), when the
+fastener will not pass the board's holes, when a spacer would stand on a part (it is under 0.3 mm from it), when an
+opening would come within the printer's minimum wall of a hole, or when the wall or plate is under the printer's
+minimums. The build also lays the spacers and the plate against the board's parts as solids and fails if they touch.
+
+`check-layers` says whether two layers stack: **their holes must be the same pattern** to within 0.1 mm, since one bolt
+passes through both boards, and they must use the same fastener. It reports the worst offset and the height of the lower layer.
+
+**The engine places a plate and spacers.** It makes no electrical connection, and states nothing about a header's alignment
+or what it carries. The air over a part, the margin round an opening and the spacer's wall are the engine's own choices.
 
 ## How an item holds
 

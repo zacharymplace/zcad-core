@@ -16,6 +16,15 @@ from zcad_core.features.stack_file import (
     load_stack,
     stack_template,
 )
+from zcad_core.features.stack_layers import (
+    LAYER_KIND,
+    build_layer,
+    check_layer_file,
+    check_layers,
+    layer_template,
+    load_layer,
+    require_layer_fits_bed,
+)
 from zcad_core.features.stack_profile import (
     PROFILE_KIND,
     check_profile_data,
@@ -58,6 +67,21 @@ def _stack_check(args: argparse.Namespace) -> int:
     data, _ = read_profile_file(args.file)
     kind = data.get("file_kind") if isinstance(data, dict) else None
 
+    if kind == LAYER_KIND:
+        layer = check_layer_file(args.file, load_printer_profile(args.printer_profile))
+        emit(
+            {
+                "file": str(args.file),
+                "kind": kind,
+                "valid": layer.valid,
+                "errors": list(layer.errors),
+                "warnings": list(layer.warnings),
+                "layer": layer.summary,
+            }
+        )
+
+        return 0 if layer.valid else 1
+
     if kind == PROFILE_KIND:
         report = check_profile_data(data)
         emit(
@@ -99,6 +123,100 @@ def _stack_check_stack(args: argparse.Namespace) -> int:
             "stacks": report.stacks,
             "errors": list(report.errors),
             "warnings": list(report.warnings),
+            **report.summary,
+        }
+    )
+
+    return 0 if report.stacks else 1
+
+
+def _layer_template(args: argparse.Namespace) -> int:
+    """Print a valid example layer file to copy and edit, or write it."""
+
+    template = layer_template(args.board_file)
+
+    if args.output is None:
+        emit(template)
+
+        return 0
+
+    if args.output.exists():
+        raise FileExistsError(f"Refusing to overwrite {args.output}")
+
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(template, indent=2) + "\n", encoding="utf-8")
+    emit({"written": str(args.output)})
+
+    return 0
+
+
+def _layer_build(args: argparse.Namespace) -> int:
+    """Build, validate, and export a layer's plate and spacer."""
+
+    printer = load_printer_profile(args.printer_profile)
+    report = check_layer_file(args.layer_file, printer)
+
+    if not report.valid:
+        raise ValueError("The layer cannot be built:\n- " + "\n- ".join(report.errors))
+
+    spec = load_layer(args.layer_file)
+    layer = build_layer(spec, printer)
+
+    if not layer.passed:
+        failed = sorted(name for name, ok in layer.checks.items() if not ok)
+        raise ValueError(f"The layer fails its checks: {failed}")
+
+    require_layer_fits_bed(layer, printer)
+    name = spec.identifier.lower().replace("_", "-")
+    result = export_parts(
+        ExportRequest(
+            design_name=name,
+            design_type="layer",
+            parts=layer.parts,
+            output_directory=args.output_directory,
+            repository_root=Path.cwd(),
+            printer_profile=printer,
+            parameters={
+                "board_sha256": spec.board_sha256,
+                "spacer_mm": layer.summary["spacer_mm"],
+            },
+        )
+    )
+    files = {
+        exported.part_name: {
+            "step_path": str(exported.step_path),
+            "stl_path": str(exported.stl_path),
+            "stl_sha256": _sha256(exported.stl_path),
+            "bounds_mm": list(exported.bounds_mm),
+        }
+        for exported in result.parts
+    }
+    emit(
+        {
+            "design_name": name,
+            "warnings": list(report.warnings),
+            "layer": layer.summary,
+            "checks": layer.checks,
+            "not_claimed": list(layer.notes),
+            "validation_status": (result.validation_report or {}).get(
+                "evaluated_status"
+            ),
+            "parts": files,
+        }
+    )
+
+    return 0
+
+
+def _stack_check_layers(args: argparse.Namespace) -> int:
+    """Whether the upper layer's board stacks over the lower layer; exits 1 if not."""
+
+    printer = load_printer_profile(args.printer_profile)
+    report = check_layers(args.upper, args.lower, printer)
+    emit(
+        {
+            "stacks": report.stacks,
+            "errors": list(report.errors),
             **report.summary,
         }
     )
@@ -220,3 +338,36 @@ def register(
         "--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE
     )
     check_stack.set_defaults(handler=_stack_check_stack)
+    check_layers_command = commands.add_parser(
+        "check-layers",
+        help="check whether one layer's board stacks over another layer; exits 1 if not",
+    )
+    check_layers_command.add_argument("--upper", required=True, type=Path)
+    check_layers_command.add_argument("--lower", required=True, type=Path)
+    check_layers_command.add_argument(
+        "--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE
+    )
+    check_layers_command.set_defaults(handler=_stack_check_layers)
+    layer = commands.add_parser(
+        "layer", help="a plate and spacers that stack over a board"
+    )
+    layer_commands = layer.add_subparsers(dest="layer_command", required=True)
+    layer_template_command = layer_commands.add_parser(
+        "template", help="print a valid example layer file to edit"
+    )
+    layer_template_command.add_argument(
+        "--board-file", type=Path, help="the board file to name, with its hash"
+    )
+    layer_template_command.add_argument(
+        "--output", type=Path, help="write the example here instead of printing it"
+    )
+    layer_template_command.set_defaults(handler=_layer_template)
+    layer_build = layer_commands.add_parser(
+        "build", help="build, validate, and export a layer's plate and spacer"
+    )
+    layer_build.add_argument("--layer-file", required=True, type=Path)
+    layer_build.add_argument("--output-directory", required=True, type=Path)
+    layer_build.add_argument(
+        "--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE
+    )
+    layer_build.set_defaults(handler=_layer_build)
