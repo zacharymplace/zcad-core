@@ -414,11 +414,6 @@ def test_a_preload_over_the_given_limit_is_refused(tmp_path: Path) -> None:
         )
 
 
-def test_the_hinged_closure_is_not_built(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="'hinge' is not built yet"):
-        make_fixture(tmp_path, closure="hinge")
-
-
 def test_a_larger_screw_widens_the_ear_to_keep_the_printers_wall(
     tmp_path: Path,
 ) -> None:
@@ -441,3 +436,178 @@ def test_the_record_gives_the_screw_length_the_closure_needs(
     assert plan["screw_length_min_mm"] == pytest.approx(
         outline.plan.plate_thickness_mm + 5.0
     )
+
+
+# --- the hinged closure ------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def hinged(tmp_path_factory: pytest.TempPathFactory) -> PcbFixture:
+    return make_fixture(tmp_path_factory.mktemp("hinged"), closure="hinge")
+
+
+@pytest.fixture(scope="module")
+def hinged_holes(tmp_path_factory: pytest.TempPathFactory) -> PcbFixture:
+    return make_fixture(
+        tmp_path_factory.mktemp("hinged-holes"), closure="hinge", locating="holes"
+    )
+
+
+@pytest.mark.parametrize("which", ["outline", "holes"])
+def test_a_hinged_fixture_passes_its_checks_either_way_it_is_located(
+    which: str, hinged: PcbFixture, hinged_holes: PcbFixture
+) -> None:
+    fixture = hinged if which == "outline" else hinged_holes
+
+    assert fixture.passed, (fixture.checks, fixture.problems)
+    assert fixture.checks["board_lifts_out_plate_open"] is True
+    assert fixture.hinge is not None
+    assert fixture.closure.screws == ()
+
+
+def test_the_hinge_goes_on_the_wall_without_a_window(hinged: PcbFixture) -> None:
+    # The USB connector overhangs the right wall, so the hinge is on the left and
+    # the catch on the right.
+    assert hinged.hinge is not None
+    assert hinged.hinge.hinge_edge == "negative_x"
+    assert hinged.hinge.closure_edge == "positive_x"
+    assert hinged.hinge.pin_length_mm >= 40
+    # The window stays open to the rim: the knuckles are on the other wall.
+    assert not inside(hinged.nest, 16.5, -12.0, 9.5)
+
+
+def test_the_hinge_knuckles_stand_outside_the_hinge_wall(hinged: PcbFixture) -> None:
+    box = cast(cq.Shape, hinged.nest.val()).BoundingBox()
+
+    # The wall's face is at x = -17.6; the pin's axis 3.9 mm beyond it, and the
+    # barrel's radius of 3.5 mm beyond that.
+    assert box.xmin == pytest.approx(-25.0, abs=0.05)
+
+
+def test_there_is_one_finger_notch_on_the_catchs_wall_and_off_its_middle(
+    hinged: PcbFixture,
+) -> None:
+    # The catch is on the right wall; the notch is at y = -17, and the left wall
+    # (the hinge's) has none at the middle.
+    assert not inside(hinged.nest, 16.5, -17.0, 3.0)
+    assert inside(hinged.nest, -16.5, 0.0, 3.0)
+    assert hinged.hinge is not None
+    # The catch keeps clear of the notch and the USB window.
+    assert hinged.hinge.catch_center_mm > -6.0
+
+
+def test_the_catch_and_the_hinge_share_the_preload_by_a_moment_balance(
+    hinged: PcbFixture,
+) -> None:
+    plan = hinged.closure.hinge
+
+    assert plan is not None
+    assert plan.catch_load_n + plan.hinge_load_n == pytest.approx(
+        hinged.closure.preload_n
+    )
+    # Three 1 N pins at x = -8, 8 and 0, the hinge at the left: the pins' arms from
+    # the axis (-21.5) are 13.5, 29.5 and 21.5, over a lever of 39.1.
+    assert plan.lever_mm == pytest.approx(39.1)
+    assert plan.catch_load_n == pytest.approx((13.5 + 29.5 + 21.5) / 39.1, abs=0.01)
+
+
+def test_without_a_limit_the_catch_load_is_reported_and_not_checked(
+    hinged: PcbFixture,
+) -> None:
+    assert not hinged.closure.limit_checked
+    assert "catch_load_within_limit" not in hinged.checks
+    assert any("catch carries" in w for w in hinged.closure.warnings)
+    assert (
+        "the plate bending between the hinge and the catch"
+        in (hinged.closure.to_dict()["not_checked"])
+    )
+
+
+def test_a_catch_limit_the_user_gives_is_checked_and_recorded(tmp_path: Path) -> None:
+    fixture = make_fixture(
+        tmp_path,
+        closure="hinge",
+        hinge={"catch_load_limit_n": 10, "source": "my own pull test"},
+    )
+
+    assert fixture.checks["catch_load_within_limit"] is True
+
+    record = fixture_record(fixture, {})
+
+    assert record["closure_plan"]["hinge"]["catch_load_limit_n"] == 10
+    assert (
+        record["closure_plan"]["hinge"]["catch_load_limit_source"] == "my own pull test"
+    )
+    assert record["hinge"]["knuckles"] >= 3
+    assert "threaded rod" in record["hinge"]["pin"] or "screw" in record["hinge"]["pin"]
+
+
+def test_a_catch_load_over_the_given_limit_is_refused(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="more than the 1 N it is given to hold"):
+        make_fixture(
+            tmp_path,
+            closure="hinge",
+            hinge={"catch_load_limit_n": 1, "source": "a deliberately low limit"},
+        )
+
+
+def test_a_board_that_is_not_a_plain_rectangle_cannot_be_hinged(
+    tmp_path: Path,
+) -> None:
+    board = write_board(tmp_path)
+    data = json.loads(board.read_text())
+    data["outline"] = {"type": "rounded_rectangle", "radius_mm": 3.0}
+    data["components"] = [c for c in data["components"] if c["identifier"] != "USB"]
+    board.write_text(json.dumps(data))
+    spec_data = fixture_template(board)
+    spec_data["board"]["file"] = board.name
+    spec_data["closure"] = "hinge"
+    path = tmp_path / "fixture.json"
+    path.write_text(json.dumps(spec_data))
+    spec = load_fixture(path)
+    loaded = load_fixture_board(spec)
+
+    with pytest.raises(ValueError, match="plain rectangular board outline"):
+        build_fixture(spec, loaded, probed_points(spec, loaded), PROFILE)
+
+
+def test_a_part_the_swinging_pins_would_hit_refuses_the_hinge(tmp_path: Path) -> None:
+    board = write_board(tmp_path)
+    data = json.loads(board.read_text())
+    # A tall part 0.5 mm clear of the pin at TP3, on the side the pins swing toward
+    # (the hinge is on the left, so the plate lifts on the right).
+    data["components"].append(component("TALL", 2.0, 5.0, 2.0, 6.0, 9.0))
+    board.write_text(json.dumps(data))
+    spec_data = fixture_template(board)
+    spec_data["board"]["file"] = board.name
+    spec_data["closure"] = "hinge"
+    path = tmp_path / "fixture.json"
+    path.write_text(json.dumps(spec_data))
+    spec = load_fixture(path)
+    loaded = load_fixture_board(spec)
+
+    with pytest.raises(ValueError, match="hinged closure cannot be built"):
+        build_fixture(spec, loaded, probed_points(spec, loaded), PROFILE)
+
+
+def test_a_hinged_plate_is_printed_with_its_catch_pointing_up(
+    hinged: PcbFixture, outline: PcbFixture
+) -> None:
+    flipped = cast(cq.Shape, print_oriented(hinged)["plate"].val())
+    flat = cast(cq.Shape, print_oriented(outline)["plate"].val())
+    box = flipped.BoundingBox()
+
+    assert box.zmin == pytest.approx(0.0)
+    # The plate's body is down by the bed and the catch's tongue stands above it;
+    # unflipped, the tongue would hang below a body floating at the top.
+    assert flipped.Center().z < box.zlen / 2
+    assert flat.BoundingBox().zmin == pytest.approx(0.0)
+
+
+def test_the_record_says_the_hinged_closure_is_built(hinged: PcbFixture) -> None:
+    record = fixture_record(hinged, {})
+
+    assert record["closure"] == "hinge"
+    assert record["closure_built"] is True
+    assert record["hinge"]["hinge_wall"] == "negative_x"
+    assert record["closure_plan"]["kind"] == "hinge"

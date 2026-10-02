@@ -41,6 +41,9 @@ from zcad_core.hardware.electronics.board_test_points import BoardTestPoint
 
 # The plate's underside stands this far above the tallest part.
 PART_CLEARANCE_MM = 0.5
+# A window cut in the nest's wall for a part is this much bigger than the part
+# all round.
+RELIEF_MARGIN_MM = 0.5
 # A pin's bore is this many barrel diameters long, if the plate has the room.
 PLATE_FACTOR = 2.0
 MINIMUM_PLATE_MM = 1.5

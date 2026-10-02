@@ -170,9 +170,10 @@ fixture worked.
    bores, the locating dowels, the part-clearance checks, the worst-case
    misalignment and the check on it, and `fixture build`. See *What phase 2
    changed* below.
-3. **Closure (screws built; hinge not).** The screwed closure, with the
+3. **Closure (built).** The screwed closure and the hinged one, with the
    preload and the fastener check against a figure the user supplies. See
-   *What phase 3 changed* below. The hinged closure is a later release.
+   *What phase 3 changed* below. The hinge came in a follow-on, *What the
+   hinged closure changed*.
 4. **Trials (built).** Fixture trials with per-point contact and offset, the
    pooled measured misalignment, verification, and the page on building and
    trying a fixture. See *What phase 4 changed* below.
@@ -282,6 +283,53 @@ named group.
 - **The record carries `closure_plan`** (screws, ear, pocket, hole, screw length,
   preload, load, limit and its source) and says `closure_built: true`.
 
+
+### What the hinged closure changed
+
+The design said the plate could be "hinged on the nest's back wall and closed with
+the catch, with `lid_hinge` as the pattern". Phase 3 left it out; this is the
+follow-on.
+
+- **`add_hinge` is reused, as the design said.** The nest is its base and the plate
+  its lid: the cavity's top is the rim, and the lid's thickness is the plate's. The
+  hinge report gained its pin's axis and the sign of its turn in the hinges
+  follow-on, which is what lets the build swing the plate here. One small addition
+  to `lid_hinge`, `axis_offset_mm`, lets the closure plan work out the lever before
+  the geometry is built.
+- **The pins are the hard part, and they are swept.** The design had no check for
+  the pins, which hang from the plate ten millimetres or more below its axis and so
+  swing through an arc toward the catch. They are carried in the sweep as cylinders
+  from the pad to the plate's top, against the nest, the board and its parts. A
+  board with a tall part 0.5 mm from a pad, on the swing side, is refused.
+- **The wall is chosen by the windows.** The nest has a window for every part that
+  overhangs the board, and knuckles over one would close the window the part lifts
+  out through. The hinge takes the long wall without a window; both having one is
+  refused. The catch goes to the widest stretch of its wall clear of windows and of
+  the notch.
+- **One finger notch, off the middle.** With the hinge on one wall and the catch
+  centred on the other there is no room for a centred notch, so the hinged nest has
+  one, toward an end of the catch's wall. A board whose long wall is too short for
+  the catch and the notch is refused, with the catch's message.
+- **A plain rectangle only.** The hinge is built round a straight wall; rounded and
+  polygon outlines are refused and sent to screws.
+- **The catch's load is a moment balance, and its limit is the user's.** The design
+  said "refuses a catch whose strain at that load is over the material limit". The
+  catch's strain depends on how far it deflects to snap over its bump, not on the
+  load it holds, and is already checked by the enclosure's code. The load is shared
+  between the catch and the hinge by taking the pins as equal forces about the pin.
+  There is no sourced strength for a printed hook, so, as with the screw, a limit is
+  the user's with a required source; without one the load is reported and not
+  checked.
+- **A board lifts out with the plate open, and that is checked.** The plate open at
+  100 degrees leans out over the hinge side, clear of the board; a new check lifts
+  the board past the swung plate and its pins.
+- **The plate prints on its top face.** The catch's tongue hangs below the plate's
+  underside, which would stand it on the tongue. The barrels stand about 2.5 mm
+  proud of the plate's face, as the enclosure's hinged lid's do; whether that prints
+  without support is for a trial.
+- **Trials get a sixth check, `plate_swings_free`,** for a hinged build record. The
+  other readings the enclosure's lid trial takes (catch force, openings counted)
+  are not added here.
 
 ### What phase 4 changed
 

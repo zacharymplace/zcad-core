@@ -57,13 +57,16 @@ def write_board(directory: Path) -> Path:
     return path
 
 
-def build(directory: Path, *extra: str) -> tuple[Path, dict[str, Any]]:
+def build(
+    directory: Path, *extra: str, closure: str = "screws"
+) -> tuple[Path, dict[str, Any]]:
     """Build the example fixture and give back its build record and the CLI's
     output."""
 
     board = write_board(directory)
     data = fixture_template(board)
     data["board"]["file"] = board.name
+    data["closure"] = closure
     path = directory / "fixture.json"
     path.write_text(json.dumps(data))
     out = io.StringIO()
@@ -647,3 +650,19 @@ def test_the_derive_command_writes_a_profile(
 
     assert code == 0 and output.is_file()
     assert result["version"] == 1 and result["trials"] == 2
+
+
+def test_a_hinged_fixtures_trial_adds_the_swing_check(tmp_path: Path) -> None:
+    record, _ = build(tmp_path, closure="hinge")
+    trial = start_fixture_trial(record)
+    names = set(json.loads((trial / "observations.json").read_text()))
+
+    assert "plate_swings_free" in names and len(names) == 6
+
+    fill(trial)
+    path = complete_fixture_trial(
+        trial, disposition=FixtureTrialDisposition.PASS, material_profile_id="petg"
+    )
+
+    assert record_of(path)["passed"] is True
+    assert "plate_swings_free" in {o["check"] for o in record_of(path)["observations"]}

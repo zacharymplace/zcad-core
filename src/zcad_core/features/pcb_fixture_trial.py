@@ -56,6 +56,7 @@ class FixtureCheckName(str, Enum):
     PLATE_SEATS = "plate_seats_on_rim"
     PLATE_STAYS_DOWN = "plate_stays_down"
     PINS_TRAVEL = "pins_travel_freely"
+    PLATE_SWINGS = "plate_swings_free"
 
 
 CHECK_GUIDANCE = {
@@ -68,18 +69,25 @@ CHECK_GUIDANCE = {
         "should come away without catching a part on the wall."
     ),
     FixtureCheckName.PLATE_SEATS: (
-        "Set the plate on the nest's rim, over its dowels or posts. It should "
-        "go down onto the rim without forcing, with no gap you could not "
-        "explain by the clearance."
+        "Set the plate on the nest's rim, over its dowels or posts, or close a "
+        "hinged plate onto it. It should go down onto the rim without forcing, "
+        "with no gap you could not explain by the clearance."
     ),
     FixtureCheckName.PLATE_STAYS_DOWN: (
-        "Fit the screws and close the plate against the pins. It should stay "
-        "on the rim at the working travel, with no gap opening at the rim "
-        "between the screws."
+        "Fit the screws, or click the catch home, and close the plate against "
+        "the pins. It should stay on the rim at the working travel, with no gap "
+        "opening at the rim between the screws, or between the hinge and the "
+        "catch."
     ),
     FixtureCheckName.PINS_TRAVEL: (
         "With the plate off, press each pin by its working travel and let go. "
         "It should move freely and spring back, without binding in its bore."
+    ),
+    FixtureCheckName.PLATE_SWINGS: (
+        "Fit the hinge pin and swing the plate open and shut with the pins in "
+        "it, over the board. No pin should catch a part or the nest, the catch "
+        "should click home and hold the plate when shaken, and the board should "
+        "lift out with the plate open."
     ),
 }
 FRAME_NOTE = (
@@ -104,11 +112,15 @@ def _read(path: Path) -> dict[str, Any]:
     return payload
 
 
-def applicable_checks() -> tuple[FixtureCheckName, ...]:
-    """The checks for a fixture: all five, since a built fixture always has a
-    nest, a plate, and pins."""
+def applicable_checks(build: dict[str, Any]) -> tuple[FixtureCheckName, ...]:
+    """The checks for a fixture: five, since a built fixture always has a nest, a
+    plate, and pins, and a sixth, the swing, if the plate is hinged."""
 
-    return tuple(FixtureCheckName)
+    return tuple(
+        check
+        for check in FixtureCheckName
+        if check is not FixtureCheckName.PLATE_SWINGS or build.get("closure") == "hinge"
+    )
 
 
 def start_fixture_trial(build_record_path: Path) -> Path:
@@ -129,7 +141,7 @@ def start_fixture_trial(build_record_path: Path) -> Path:
             "guidance": CHECK_GUIDANCE[check],
             "notes": "",
         }
-        for check in applicable_checks()
+        for check in applicable_checks(build)
     }
     points = {
         point["identifier"]: {
@@ -347,7 +359,7 @@ def complete_fixture_trial(
     build_path = trial.parent.parent / BUILD_RECORD
     build = _read(build_path)
     _require_parts_match(build)
-    observations = _observations(trial, applicable_checks())
+    observations = _observations(trial, applicable_checks(build))
     points = _point_results(trial, build)
     failed = [entry["check"] for entry in observations if not entry["passed"]]
     _check_disposition(disposition, failed, points)

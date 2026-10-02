@@ -27,9 +27,14 @@ from typing import Any
 
 from zcad_core.features.guide_bores import printer_numbers
 from zcad_core.features.guide_common import IDENTIFIER, Findings, number, section
-from zcad_core.features.pcb_fixture_closure import DEFAULT_SCREW, plan_closure
+from zcad_core.features.pcb_fixture_closure import (
+    DEFAULT_SCREW,
+    ClosurePlan,
+    plan_closure,
+)
 from zcad_core.features.pcb_fixture_plan import (
     DEFAULT_WALL_MM,
+    FixturePlan,
     bore_diameter,
     plan_fixture,
 )
@@ -62,6 +67,7 @@ _TOP_LEVEL = frozenset(
         "locating",
         "closure",
         "screw",
+        "hinge",
         "nest",
         "plate",
         "needs_review",
@@ -110,6 +116,11 @@ class PcbFixtureSpec:
     screw_size: str
     screw_limit_n: float | None
     screw_source: str
+    # The pin a hinged closure turns on, and, if the user gives one, the load
+    # its catch is given to hold.
+    hinge_pin: str
+    catch_limit_n: float | None
+    catch_source: str
     # The nest's wall, and the plate's thickness (None: sized to the pin).
     nest_wall_mm: float
     plate_thickness_mm: float | None
@@ -160,6 +171,34 @@ def _validate_user_pin(pin: Mapping[str, Any], findings: Findings) -> None:
         _user_pin(pin).validate()
     except ValueError as error:
         findings.errors.append(f"pin: {error}")
+
+
+def _catch_limit(data: Mapping[str, Any]) -> float | None:
+    value = (data.get("hinge") or {}).get("catch_load_limit_n")
+
+    return float(value) if value is not None else None
+
+
+def closure_for(
+    spec: PcbFixtureSpec,
+    board: BoardFileSpec,
+    plan: FixturePlan,
+    profile: Mapping[str, Any],
+) -> ClosurePlan:
+    """The closure a fixture file asks for, planned against its layout."""
+
+    return plan_closure(
+        board=board,
+        plan=plan,
+        kind=spec.closure,
+        screw=spec.screw_size,
+        limit_n=spec.screw_limit_n,
+        limit_source=spec.screw_source,
+        profile=profile,
+        hinge_pin=spec.hinge_pin,
+        catch_limit_n=spec.catch_limit_n,
+        catch_limit_source=spec.catch_source,
+    )
 
 
 def _screw_limit(data: Mapping[str, Any]) -> float | None:
@@ -262,6 +301,35 @@ def _check_screw(data: Mapping[str, Any], findings: Findings) -> None:
         )
 
 
+def _check_hinge(data: Mapping[str, Any], findings: Findings) -> None:
+    hinge = section(data, "hinge", findings, required=False)
+
+    if hinge is None:
+        return
+
+    pin = hinge.get("pin", DEFAULT_SCREW)
+
+    if pin not in list_fasteners():
+        findings.errors.append(f"hinge.pin must be one of {list_fasteners()}")
+
+    limit = number(
+        hinge,
+        "catch_load_limit_n",
+        "hinge",
+        findings,
+        low=0.1,
+        high=1e4,
+        required=False,
+    )
+    source = hinge.get("source")
+
+    if limit is not None and (not isinstance(source, str) or not source.strip()):
+        findings.errors.append(
+            "hinge.source must say where the catch's load limit came from: it is "
+            "your own until it has been measured"
+        )
+
+
 def check_fixture_data(data: Any) -> FixtureCheck:
     """Check a fixture file's contents without reading the board."""
 
@@ -299,6 +367,7 @@ def check_fixture_data(data: Any) -> FixtureCheck:
     _check_choices(data, findings)
     _check_pin(data, findings)
     _check_screw(data, findings)
+    _check_hinge(data, findings)
     nest = section(data, "nest", findings, required=False)
 
     if nest is not None:
@@ -374,6 +443,9 @@ def fixture_from_data(
         screw_size=str((data.get("screw") or {}).get("size", DEFAULT_SCREW)),
         screw_limit_n=_screw_limit(data),
         screw_source=str((data.get("screw") or {}).get("source", "")),
+        hinge_pin=str((data.get("hinge") or {}).get("pin", DEFAULT_SCREW)),
+        catch_limit_n=_catch_limit(data),
+        catch_source=str((data.get("hinge") or {}).get("source", "")),
         nest_wall_mm=float((data.get("nest") or {}).get("wall_mm", DEFAULT_WALL_MM)),
         plate_thickness_mm=(
             float(data["plate"]["thickness_mm"])
@@ -498,15 +570,7 @@ def check_fixture_file(
         summary["plan"] = plan.to_dict()
 
         if not plan.errors:
-            closure = plan_closure(
-                board=board,
-                plan=plan,
-                kind=spec.closure,
-                screw=spec.screw_size,
-                limit_n=spec.screw_limit_n,
-                limit_source=spec.screw_source,
-                profile=profile,
-            )
+            closure = closure_for(spec, board, plan, profile)
             errors.extend(closure.errors)
             warnings.extend(closure.warnings)
             summary["closure_plan"] = closure.to_dict()

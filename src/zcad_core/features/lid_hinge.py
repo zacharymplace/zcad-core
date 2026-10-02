@@ -124,6 +124,13 @@ class HingeReport:
         return f"{self.pin} x {self.pin_length_mm} mm screw and nut"
 
 
+def axis_offset_mm(pin: FastenerSpec) -> float:
+    """How far the pin's axis stands off the wall's outer face: the barrel's
+    radius and the clearance that lets a knuckle turn."""
+
+    return pin.clearance_hole_mm / 2 + _BARREL_WALL_MM + _AXIS_CLEARANCE_MM
+
+
 def swung_lid(lid: cq.Shape, hinge: HingeReport, degrees: float) -> cq.Shape:
     """The lid turned open about the pin by ``degrees``, as the sweep turns it."""
 
@@ -333,7 +340,7 @@ def add_hinge(
     top = cavity.top_z_mm
     hole = pin.clearance_hole_mm + hole_compensation_mm
     radius = pin.clearance_hole_mm / 2 + _BARREL_WALL_MM
-    axis_u = radius + _AXIS_CLEARANCE_MM
+    axis_u = axis_offset_mm(pin)
     axis_z = top + lid_mm / 2
     outer = _outer_length(cavity, hinge_edge)
     span = outer - 2 * _END_MARGIN_MM
@@ -546,7 +553,7 @@ def _require_free_swing(
             for name, obstacle in obstacles.items():
                 if intersection_volume(swung, obstacle) > 1e-6:
                     raise ValueError(
-                        f"{mover_name.capitalize()} hits {name} at "
+                        f"{mover_name[0].upper() + mover_name[1:]} hits {name} at "
                         f"{degrees:.0f} degrees of its swing; widen "
                         "side_clearance_mm, move what hangs from the lid, or "
                         "use a screwed lid"

@@ -27,16 +27,19 @@ from typing import Any
 
 import cadquery as cq
 
+from zcad_core.features.lid_hinge import HingeReport, swung_lid
 from zcad_core.features.pcb_fixture_closure import (
     NOTCH_RADIUS_MM,
     ClosurePlan,
-    plan_closure,
+    hinge_notch_offset,
 )
-from zcad_core.features.pcb_fixture_file import PcbFixtureSpec
+from zcad_core.features.pcb_fixture_file import PcbFixtureSpec, closure_for
+from zcad_core.features.pcb_fixture_hinge import add_hinged_closure
 from zcad_core.features.pcb_fixture_plan import (
     EAR_RADIUS_MM,
     FLOOR_MM,
     LEDGE_MM,
+    RELIEF_MARGIN_MM,
     SUPPORT_POST_MM,
     FixturePlan,
     mounting_holes,
@@ -54,8 +57,6 @@ FIXTURE_RECORD_SCHEMA_VERSION = "1.0.0"
 FIXTURE_RECORD = "fixture.json"
 # How far the board is lifted per step in the release check.
 RELEASE_STEP_MM = 2.0
-# A window cut for a part is this much bigger than the part all round.
-RELIEF_MARGIN_MM = 0.5
 # How far short of the plate's top a post stops.
 POST_STOP_MM = 0.2
 _TOLERANCE_MM3 = 1e-6
@@ -75,6 +76,7 @@ class PcbFixture:
     tolerance_status: str
     checks: dict[str, bool]
     problems: tuple[str, ...] = ()
+    hinge: HingeReport | None = None
 
     @property
     def passed(self) -> bool:
@@ -213,7 +215,7 @@ def _build_nest(
 
     nest = _add_posts(nest, plan, rim_z, cavity_z)
 
-    return _cut_notches(nest, board, plan, ledge_z, rim_z)
+    return _cut_notches(nest, board, plan, closure, ledge_z, rim_z)
 
 
 def _add_posts(
@@ -237,10 +239,13 @@ def _cut_notches(
     nest: cq.Workplane,
     board: BoardFileSpec,
     plan: FixturePlan,
+    closure: ClosurePlan,
     ledge_z: float,
     rim_z: float,
 ) -> cq.Workplane:
-    """Two finger notches through the wall, on the sides the dowels are not."""
+    """Two finger notches through the wall, on the sides the dowels are not. A
+    hinged closure takes one, on the catch's wall and off the middle, since the
+    hinge is on the other wall and the catch needs the middle."""
 
     reach = plan.clearance_mm + plan.nest_wall_mm
     points = outline_points(board)
@@ -248,14 +253,24 @@ def _cut_notches(
     xs = [x for x, _ in points]
     ys = [y for _, y in points]
 
-    for sign in (-1.0, 1.0):
+    hinged = closure.hinge is not None
+    # The notch is on the catch's wall: the one opposite the hinge.
+    catch_sign = (
+        -1.0
+        if closure.hinge is not None
+        and closure.hinge.closure_edge.startswith("negative")
+        else 1.0
+    )
+
+    for sign in (catch_sign,) if hinged else (-1.0, 1.0):
         edge = (
             (max(ys) if sign > 0 else min(ys))
             if along_x
             else (max(xs) if sign > 0 else min(xs))
         )
         middle = edge + sign * reach / 2
-        at = (0.0, middle) if along_x else (middle, 0.0)
+        lateral = hinge_notch_offset(board) if hinged else 0.0
+        at = (lateral, middle) if along_x else (middle, lateral)
         nest = nest.cut(
             _cylinder(at[0], at[1], ledge_z, rim_z + 1.0, 2 * NOTCH_RADIUS_MM)
         )
@@ -321,18 +336,53 @@ def _lifts_out(nest: cq.Shape, board: cq.Shape, height: float) -> bool:
     return True
 
 
-def _pins_clear(plate: cq.Shape, plan: FixturePlan, parts: cq.Shape) -> bool:
-    """Each pin, as a cylinder of its barrel from its tip at the pad to the plate's
-    top, meets neither its plate nor a part."""
+def _pin_solids(plan: FixturePlan) -> dict[str, cq.Shape]:
+    """Each pin as a cylinder of its barrel, from its tip at the pad to the
+    plate's top."""
 
-    for point in plan.points:
-        pin = cq.Solid.makeCylinder(
+    return {
+        f"the pin at {point.identifier}": cq.Solid.makeCylinder(
             plan.pin.barrel_diameter_mm / 2,
             plan.plate_top_mm,
             pnt=cq.Vector(point.x_mm, point.y_mm, 0.0),
             dir=cq.Vector(0, 0, 1),
         )
+        for point in plan.points
+    }
 
+
+def _hardware(board: BoardFileSpec, assembly: cq.Shape) -> dict[str, cq.Shape]:
+    """The board and each of its parts by name, for the hinge's sweep."""
+
+    names = ["the board", *(part.identifier for part in board.components)]
+
+    return dict(zip(names, assembly.Solids(), strict=True))
+
+
+def _plate_open_clears_board(
+    nest: cq.Shape,
+    plate: cq.Shape,
+    assembly: cq.Shape,
+    pins: dict[str, cq.Shape],
+    hinge: HingeReport,
+    height: float,
+) -> bool:
+    """Swing the plate and its pins open, and lift the board out past them."""
+
+    opened = [
+        swung_lid(shape, hinge, hinge.swing_degrees)
+        for shape in (plate, *pins.values())
+    ]
+    shut = cq.Compound.makeCompound([nest, *opened])
+
+    return _lifts_out(shut, assembly, height)
+
+
+def _pins_clear(plate: cq.Shape, plan: FixturePlan, parts: cq.Shape) -> bool:
+    """Each pin, as a cylinder of its barrel from its tip at the pad to the plate's
+    top, meets neither its plate nor a part."""
+
+    for pin in _pin_solids(plan).values():
         if (
             intersection_volume(plate, pin) > _TOLERANCE_MM3
             or intersection_volume(parts, pin) > _TOLERANCE_MM3
@@ -365,15 +415,7 @@ def build_fixture(
     if plan.errors:
         raise ValueError("The fixture cannot be built:\n- " + "\n- ".join(plan.errors))
 
-    closure = plan_closure(
-        board=board,
-        plan=plan,
-        kind=spec.closure,
-        screw=spec.screw_size,
-        limit_n=spec.screw_limit_n,
-        limit_source=spec.screw_source,
-        profile=profile,
-    )
+    closure = closure_for(spec, board, plan, profile)
 
     if closure.errors:
         raise ValueError(
@@ -383,6 +425,21 @@ def build_fixture(
     nest = _build_nest(board, plan, closure)
     plate = _build_plate(board, plan, closure)
     assembly = board_assembly(board)
+    hinge = None
+    pins = _pin_solids(plan)
+
+    if closure.hinge is not None:
+        nest, plate, hinge = add_hinged_closure(
+            nest,
+            plate,
+            board=board,
+            plan=plan,
+            closure=closure,
+            hole_compensation_mm=_hole_oversize(profile),
+            hardware=_hardware(board, assembly),
+            carried=pins,
+        )
+
     parts = cq.Compound.makeCompound(
         [s for s in assembly.Solids()[1:] if s.BoundingBox().zmax > 0.05]
     )
@@ -401,8 +458,22 @@ def build_fixture(
         "pins_clear": _pins_clear(plate_shape, plan, parts),
     }
 
+    if hinge is not None:
+        checks["board_lifts_out_plate_open"] = _plate_open_clears_board(
+            nest_shape,
+            plate_shape,
+            assembly,
+            pins,
+            hinge,
+            board.board_thickness_mm + plan.tallest_part_mm,
+        )
+
     if closure.limit_checked:
-        checks["preload_within_screw_limit"] = closure.within_limit
+        checks[
+            "catch_load_within_limit"
+            if closure.hinge is not None
+            else "preload_within_screw_limit"
+        ] = closure.within_limit
 
     return PcbFixture(
         spec=spec,
@@ -414,16 +485,22 @@ def build_fixture(
         profile_id=str(profile.get("profile_id", "")),
         tolerance_status=str(profile.get("tolerance_status", "unknown")),
         checks=checks,
+        hinge=hinge,
     )
 
 
 def print_oriented(fixture: PcbFixture) -> dict[str, cq.Workplane]:
     """Each part as it goes on the bed, its lowest face on it: the nest on its
-    floor, the plate on its underside."""
+    floor, the plate on its underside. A hinged plate goes on its top face
+    instead, as an enclosure's hinged lid does, since the catch's tongue hangs
+    below its underside and would stand it on the tongue."""
 
     parts = {}
 
     for name, model in (("nest", fixture.nest), ("plate", fixture.plate)):
+        if name == "plate" and fixture.hinge is not None:
+            model = model.rotate((0, 0, 0), (1, 0, 0), 180)
+
         low = _solid(model).BoundingBox().zmin
         parts[name] = model.translate((0, 0, -low))
 
@@ -449,6 +526,27 @@ def require_fits_bed(fixture: PcbFixture, profile: dict[str, Any]) -> None:
                 f"the printer's bed is {volume['x']:.0f} x {volume['y']:.0f} x "
                 f"{volume['z']:.0f} mm"
             )
+
+
+def hinge_summary(hinge: HingeReport | None) -> dict[str, Any] | None:
+    """What the hinge and catch came out as, or ``None`` for a screwed plate."""
+
+    if hinge is None:
+        return None
+
+    return {
+        "hinge_wall": hinge.hinge_edge,
+        "catch_wall": hinge.closure_edge,
+        "knuckles": hinge.knuckles,
+        "pin": hinge.pin_description,
+        "swing_degrees": hinge.swing_degrees,
+        "catch_strain_percent": round(100 * hinge.catch.strain, 2),
+        "wall_needed_mm": round(hinge.wall_needed_mm, 1),
+    }
+
+
+def _hole_oversize(profile: dict[str, Any]) -> float:
+    return float(profile["tolerances_mm"]["hole_oversize"])
 
 
 def fixture_record(
@@ -493,6 +591,7 @@ def fixture_record(
         "closure": spec.closure,
         "closure_built": True,
         "closure_plan": fixture.closure.to_dict(),
+        "hinge": hinge_summary(fixture.hinge),
         "points": [
             {
                 "identifier": p.identifier,
