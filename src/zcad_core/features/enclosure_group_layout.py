@@ -45,6 +45,18 @@ def resolve_bay(bay: BayLike) -> Bay:
     return resolved
 
 
+def _check_cradle_divider(bay: Bay, module: BayModule | None, index: int) -> None:
+    """A cradle's clips stand outside the board's side edges, where a divider
+    stands, so a cradle bay takes none."""
+
+    if module is not None and module.support == "cradle" and bay.divider is not None:
+        raise ValueError(
+            f"bay {index} (board): a cradle bay's side clips would meet its "
+            "divider: move the divider to the bay beside it, or give the board "
+            "standoffs"
+        )
+
+
 def _check_board_settings(bay: Bay) -> None:
     """A board bay needs a board; no other bay takes one or its settings."""
 
@@ -84,6 +96,7 @@ def layout_bays(
 
     for index, (bay, module) in enumerate(zip(bays, modules, strict=True)):
         divider_start = 0.0
+        _check_cradle_divider(bay, module, index)
 
         if bay.divider is not None:
             if index == 0:
@@ -98,11 +111,22 @@ def layout_bays(
             divider_start = cursor
             cursor = divider_start + design.divider_mm + design.divider_clearance_mm
 
+        left = 0.0
+
         if module is None:
             gap, slot = _OPEN_BAY_STRIP_MM, design.open_bay_width_mm
         else:
-            gap = design.service_gap_mm if module.is_pi else design.board_gap_mm
+            # A Pi's USB-C and micro-HDMI face right; a board's connectors facing
+            # a side take the same service space, and the board's left one is
+            # before its slot.
+            gap = (
+                design.service_gap_mm
+                if module.is_pi or module.faces_right
+                else design.board_gap_mm
+            )
+            left = design.service_gap_mm if module.faces_left else 0.0
             slot = module.width_mm + 2 * design.slot_pad_mm
+            cursor += left
 
         standoff, headroom = _heights(bay, index, design, module)
         board_bottom = design.floor_mm + standoff
@@ -123,6 +147,7 @@ def layout_bays(
                 divider=bay.divider,
                 divider_start_mm=divider_start,
                 center_y_mm=_center_y(bay, module, design, inner_depth),
+                left_space_mm=left,
             )
         )
         cursor += slot + gap

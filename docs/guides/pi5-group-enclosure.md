@@ -78,12 +78,26 @@ cannot be written on the command line.
   shallow board against the wrong wall is refused, naming the distance, so you
   can set `align=` the other way or build a deeper row.
 - **The gap.** A board bay's gap to its right is `board_gap_mm` (12), which holds
-  the boss that closes it; it has no Pi's 25 mm service gap.
-- **What is not built yet.** A connector facing a neighbouring bay (to the board's
-  left or right once turned) is refused with its way round, since it needs a
-  service space; a board with no mounting holes is refused, since a cradle bay
-  comes later; the temperature estimate counts only the Pi bays, and the build
-  says so; and the lid's fan slots are over Pi bays only.
+  the boss that closes it.
+- **Connectors on the sides.** A connector that faces a neighbouring bay (to the
+  board's right or left once turned) takes a **service space**, as a Pi's USB-C
+  and micro-HDMI do: `service_gap_mm` (25) of room for the plug, with the cable
+  leaving through an opening in the front wall at the end of the space. A
+  right-facing connector makes the bay's gap that wide instead of 12 mm; a
+  left-facing one adds a space of that width before the bay's slot, after any
+  divider. The space is the design's one figure, not worked out from the
+  connector. It is refused if less than 6 mm is left for the cable.
+- **No mounting holes.** The board stands in a snap-in cradle instead: a ledge
+  under its edges, snap clips at its sides, and a stop opposite its cable
+  connector, which is the edge the cradle leaves open. It follows a rounded or
+  polygon outline. The clips stand about 1.5 mm outside the side edges, so a
+  cradle bay takes no divider and no `screw=`; put the divider on the bay beside
+  it.
+- **Lid vents.** A part the board file marks `lid_vent` (a cooler's fan, say) gets
+  the same five slots in the lid that a Pi's fan does, if the design's `vents` is
+  on.
+- **Not built yet.** The temperature estimate counts only the Pi bays, and the
+  build says so.
 
 ## Heights per bay
 

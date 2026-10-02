@@ -448,8 +448,7 @@ def _group_warnings(group: GroupEnclosure) -> list[str]:
     return [
         (
             f"The temperature estimate counts only the Pi bays: board bay(s) "
-            f"{', '.join(boards)} add no heat to it yet, and the lid has no fan "
-            "slots over them"
+            f"{', '.join(boards)} add no heat to it yet"
         )
     ]
 

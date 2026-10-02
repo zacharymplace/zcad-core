@@ -140,9 +140,10 @@ catalog's provisional status carried through.
    moved onto it with their builds unchanged, and `board:FILE` bays: slot,
    standoffs or cradle, openings and envelope from the board file, with orientation
    and alignment. A row of a Pi and a board file builds and passes its checks.
-2. **Row rules for mixed boards.** Service spaces from connectors on the side
-   faces, the depth and wall-reach checks, and what the lid's bosses, dividers,
-   vents and fan slots do round modules of different size.
+2. **Row rules for mixed boards (built).** Service spaces from connectors on the
+   side faces, the cradle bay, the lid vents over a board's parts, and what the
+   lid's bosses and dividers do round modules of different size. (The depth and
+   wall-reach checks came with phase 1.)
 3. **Heat and fans.** The per-board power figure in the estimate and the `fan`
    bay, with the fan's figures still provisional.
 4. **Joinable units.** The standard joint face, the pass-through, and
@@ -193,6 +194,37 @@ catalog's provisional status carried through.
   bays, and says so when a board bay is present; that is phase 3.
 - **`board_assembly` moved to `board_solids`,** a neutral module, so the group and
   the test fixture share it.
+
+### What phase 2 changed
+
+- **A side connector takes the design's service gap.** The design sized the space
+  from the connector's plug allowance. The board file gives a connector's size and
+  edge, not what plugs into it, and the open question on the plug allowance has no
+  answer yet, so a connector facing a side takes `service_gap_mm`, the 25 mm a Pi's
+  plugs take. A bay with a right-facing connector has that gap in place of
+  `board_gap_mm`; a left-facing one has a space of that width before its slot. The
+  cable leaves through a front-wall opening along the space, the pattern a Pi's
+  gap has, and is refused if less than 6 mm is left.
+- **The left space is the bay's own.** It is added before the slot rather than shared
+  with the previous bay's gap, so a row with a Pi and a left-facing board has both
+  spaces. That widens the row more than strictly needed, and is the simpler rule: a
+  bay carries what it needs, whoever its neighbour is.
+- **The cradle bay is built here.** The board's cable connector's wall is the edge
+  the cradle leaves open; the board's outline, turned, is the cradle's. A cradle's
+  clips stand outside the side edges where a divider stands, so the open question
+  on clips and dividers is settled as proposed: a cradle bay takes none, and the
+  error says to move the divider to the neighbouring bay. A cradle takes no screw.
+- **Bosses and dividers needed nothing.** The lid's bosses sit in the corners and at
+  the gap ends, and dividers stand at the end of a gap, so a bay of any size, a
+  left space, or a board's depth leaves them where they were; tests build rows of
+  mixed boards with dividers to show it.
+- **Lid vents follow the part, not the Pi.** A part the board file marks `lid_vent`
+  gets the five slots a Pi's fan does. The Pi's slots are cut as before.
+- **A board with no parts listed crashed the build.** Probing a board file with no
+  components (allowed, with a warning) raised a void bounding box from the part
+  collision check. It is fixed: a bay with no parts has nothing to collide.
+- **Pi builds are unchanged, measured again.** The ten builds of phase 1 compare
+  equal after this change.
 
 Each phase is one PR. Phases 1 and 4 add bay kinds and a joint face, so every
 existing group build keeps its output unless a design asks for the new ones.

@@ -19,9 +19,15 @@ builds what it built before.
 
 A board bay turns the board in 90 degree steps so that its longer side runs front
 to back, as a Pi's does, unless the bay says otherwise. Its connectors then fall on
-the back wall, the front wall, or the sides facing the neighbouring bays; only the
-first two take an opening in this release, and a connector facing a side is refused
-with the way round it.
+the back wall, the front wall, or the sides facing the neighbouring bays. The first
+two take an opening through the wall. One facing a side takes a **service space** on
+that side, as a Pi's USB-C and micro-HDMI do: room for the plug, with the cable
+leaving through an opening in the front wall at the end of the space.
+
+A board with no mounting holes stands in a **cradle** instead of on standoffs: a
+ledge under its edges, snap clips at its sides, and a stop opposite its cable
+connector (:mod:`zcad_core.features.board_cradle`). The clips stand a millimetre or
+two outside the board's side edges, so a cradle bay takes no divider.
 
 The board's frame is :mod:`zcad_core.features.board_solids`'s: centred, +X right
 and +Y up the page seen from above, top face at ``z == 0``. A turn is
@@ -116,9 +122,32 @@ class BayModule:
     parts: Callable[[float, float, float], dict[str, cq.Shape]]
     openings: tuple[PortOpening, ...] = ()
     is_pi: bool = False
+    # Connectors on the side faces, which take a service space rather than a wall
+    # opening, and the board's lid vents, each as a centre in the turned frame.
+    side_ports: tuple[PortOpening, ...] = ()
+    vents: tuple[Point, ...] = ()
+    # ``standoffs``, or ``cradle`` for a board with no mounting holes: then the
+    # outline (turned, or ``None`` for a rectangle) and the wall its cable
+    # connector faces say how the cradle is built.
+    support: str = "standoffs"
+    outline: tuple[Point, ...] | None = None
+    connector_wall: str = "negative_y"
+
+    @property
+    def faces_right(self) -> bool:
+        """Whether a connector faces the next bay."""
+        return any(port.wall == "positive_x" for port in self.side_ports)
+
+    @property
+    def faces_left(self) -> bool:
+        """Whether a connector faces the previous bay."""
+        return any(port.wall == "negative_x" for port in self.side_ports)
 
     @property
     def standoff_diameter_mm(self) -> float:
+        if not self.standoff_screw:
+            return STANDOFF_DIAMETER_MM
+
         return max(
             STANDOFF_DIAMETER_MM, get_fastener(self.standoff_screw).tap_hole_mm + 3.0
         )
@@ -251,12 +280,16 @@ def _port_openings(
     return found
 
 
-def _turned_openings(board: BoardFileSpec, rotate: int) -> tuple[PortOpening, ...]:
-    """The openings after the board is turned, on the back and front walls; one
-    that falls on a side facing a neighbour is refused."""
+def _turned_openings(
+    board: BoardFileSpec, rotate: int
+) -> tuple[tuple[PortOpening, ...], tuple[PortOpening, ...]]:
+    """The openings after the board is turned: those on the back and front walls,
+    and those on the sides, where ``along_mm`` is from the board's centre along
+    the side."""
 
     half_x, half_y = board.board_width_mm / 2, board.board_length_mm / 2
-    openings = []
+    walls: list[PortOpening] = []
+    sides: list[PortOpening] = []
 
     for edge, along, bottom, width, height, label in _port_openings(board):
         point = {
@@ -266,19 +299,14 @@ def _turned_openings(board: BoardFileSpec, rotate: int) -> tuple[PortOpening, ..
             "negative_y": (along, -half_y),
         }[edge]
         wall = edge if rotate == 0 else _EDGE_AFTER_TURN[rotate][edge]
+        x, y = turn_point(point, rotate)
 
         if wall in ("positive_x", "negative_x"):
-            side = "right" if wall == "positive_x" else "left"
-            raise ValueError(
-                f"{label} faces the {side}, toward the next bay, and a connector "
-                "there needs a service space that this release does not build; "
-                "turn the board with rotate= so it faces the back or the front"
-            )
+            sides.append(PortOpening(wall, y, bottom, width, height, label))
+        else:
+            walls.append(PortOpening(wall, x, bottom, width, height, label))
 
-        x, _ = turn_point(point, rotate)
-        openings.append(PortOpening(wall, x, bottom, width, height, label))
-
-    return tuple(openings)
+    return tuple(walls), tuple(sides)
 
 
 def _turned_extent(part: BoardComponentSpec, rotate: int) -> tuple[Point, float, float]:
@@ -294,46 +322,30 @@ def _turned_extent(part: BoardComponentSpec, rotate: int) -> tuple[Point, float,
     )
 
 
-def board_module(
-    board: BoardFileSpec, *, rotate: int | None = None, screw: str | None = None
-) -> BayModule:
-    """A board from a board file as a module, turned to sit in the row. Refuses a
-    board that cannot stand in one."""
-
-    turn = default_rotation(board) if rotate is None else rotate
-
-    if turn not in ROTATIONS:
-        raise ValueError(f"rotate must be one of {ROTATIONS}, not {turn!r}")
+def _holes(board: BoardFileSpec) -> tuple[Point, ...]:
+    """The board's mounting holes about its centre, or none."""
 
     if board.mounting_hole_diameter_mm is None:
-        raise ValueError(
-            f"{board.identifier} has no mounting holes, so it has nothing to stand "
-            "on: a cradle bay is not built yet"
-        )
+        return ()
 
-    holes = board.mounting_hole_positions_mm
-    spacing = (board.mounting_hole_spacing_x_mm, board.mounting_hole_spacing_y_mm)
+    if board.mounting_hole_positions_mm is not None:
+        return tuple(board.mounting_hole_positions_mm)
 
-    if holes is None and None not in spacing:
-        sx, sy = spacing
-        assert sx is not None and sy is not None
-        holes = (
-            (-sx / 2, -sy / 2),
-            (sx / 2, -sy / 2),
-            (-sx / 2, sy / 2),
-            (sx / 2, sy / 2),
-        )
+    sx, sy = board.mounting_hole_spacing_x_mm, board.mounting_hole_spacing_y_mm
 
-    if not holes:
-        raise ValueError(f"{board.identifier} lists no mounting hole positions")
+    if sx is None or sy is None:
+        return ()
 
-    swap = turn in (90, 270)
-    above = [p for p in board.components if p.bottom_offset_from_board_top_mm >= -1e-9]
-    below = [p for p in board.components if p.bottom_offset_from_board_top_mm < 0]
-    depth_below = max(
-        (-p.bottom_offset_from_board_top_mm - board.board_thickness_mm for p in below),
-        default=0.0,
-    )
+    return ((-sx / 2, -sy / 2), (sx / 2, -sy / 2), (-sx / 2, sy / 2), (sx / 2, sy / 2))
+
+
+def _placers(
+    board: BoardFileSpec, turn: int
+) -> tuple[
+    Callable[[float, float, float, float], cq.Shape],
+    Callable[[float, float, float], dict[str, cq.Shape]],
+]:
+    """The board's envelope and parts, turned and placed in the row."""
 
     def envelope(
         center_x: float, center_y: float, bottom: float, top: float
@@ -360,13 +372,47 @@ def board_module(
 
         return placed
 
+    return envelope, parts
+
+
+def board_module(
+    board: BoardFileSpec, *, rotate: int | None = None, screw: str | None = None
+) -> BayModule:
+    """A board from a board file as a module, turned to sit in the row. Refuses a
+    board that cannot stand in one."""
+
+    turn = default_rotation(board) if rotate is None else rotate
+
+    if turn not in ROTATIONS:
+        raise ValueError(f"rotate must be one of {ROTATIONS}, not {turn!r}")
+
+    holes = _holes(board)
+    cradle = not holes
+
+    if cradle and screw is not None:
+        raise ValueError(
+            f"{board.identifier} has no mounting holes and stands in a cradle, "
+            "which takes no screw"
+        )
+
+    swap = turn in (90, 270)
+    above = [p for p in board.components if p.bottom_offset_from_board_top_mm >= -1e-9]
+    below = [p for p in board.components if p.bottom_offset_from_board_top_mm < 0]
+    depth_below = max(
+        (-p.bottom_offset_from_board_top_mm - board.board_thickness_mm for p in below),
+        default=0.0,
+    )
+    envelope, parts = _placers(board, turn)
+    walls, sides = _turned_openings(board, turn)
+    connector = board.usb_connector.board_edge
+
     return BayModule(
         kind="board",
         width_mm=board.board_length_mm if swap else board.board_width_mm,
         depth_mm=board.board_width_mm if swap else board.board_length_mm,
         thickness_mm=board.board_thickness_mm,
         holes=tuple(turn_point(hole, turn) for hole in holes),
-        standoff_screw=_standoff_screw(board, screw),
+        standoff_screw="" if cradle else _standoff_screw(board, screw),
         minimum_standoff_mm=(
             depth_below + MINIMUM_FLOOR_GAP_MM if below else MINIMUM_FLOOR_GAP_MM
         ),
@@ -377,5 +423,18 @@ def board_module(
         ),
         envelope=envelope,
         parts=parts,
-        openings=_turned_openings(board, turn),
+        openings=walls,
+        side_ports=sides,
+        vents=tuple(
+            turn_point((p.center_x_mm, p.center_y_mm), turn)
+            for p in board.components
+            if p.lid_vent
+        ),
+        support="cradle" if cradle else "standoffs",
+        outline=(
+            None
+            if board.outline_points_mm is None
+            else tuple(turn_point(point, turn) for point in board.outline_points_mm)
+        ),
+        connector_wall=connector if turn == 0 else _EDGE_AFTER_TURN[turn][connector],
     )
