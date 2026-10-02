@@ -20,6 +20,24 @@ exports `<name>-nest` and `<name>-plate` as STEP and STL, checks them against th
 printer profile, and writes `fixture.json`, a record of what was built from what.
 Both take `--printer-profile`.
 
+## Probing the bottom side
+
+Set `"side": "bottom"` and the fixture probes the test points the board file lists on its bottom side.
+
+The pins still press down from above, so the fixture holds the board **turned over**, bottom face up, with its top
+side hanging in the nest's cavity: the nest already holds a board by its edge over a cavity for the parts under it,
+and the parts that were on top are now the ones hanging there. Everything the fixture checks (the pins' reach and pitch,
+their clearance over parts, the plate, the release, the closure) is checked on the turned board, so a pin is refused if its
+barrel would land on a part on the bottom side, and a tall part on the top side only deepens the cavity.
+
+The board is turned **left to right**, about its Y axis, as a page is turned. So a bottom point at `(x, y)` is at `(-x, y)`
+in the fixture, and a part standing 8.5 mm on the top face hangs 8.5 mm below it. The plate, the nest and the record are in the
+fixture's frame; the record says `board_turned_over: true` and gives each point's `position_mm` (in the fixture) beside its
+`position_in_board_mm` (in the board file). A trial's offsets are in the fixture's frame too, as you look down on a pad in
+the nest, and the trial's note says so.
+
+A board file with test points on both sides gives two fixtures, one for each side: the engine does not probe both at once.
+
 ## Test points are in the board file
 
 A fixture never repeats the board's data. The pads to probe are the board's own
@@ -33,7 +51,7 @@ would land on a part.
 | Field | What it is |
 | --- | --- |
 | `board.file`, `board.sha256` | The board file, relative to the fixture file or absolute, and its hash. A board that has changed since is refused. |
-| `side` | `top`, the only side probed for now. |
+| `side` | `top` (the default) or `bottom`: the side of the board the pins land on. A bottom-side fixture holds the board turned over; see below. |
 | `points` | The test points to probe, by name. Left out, all of the side's. |
 | `pin` | The spring pin; see below. |
 | `working_travel_mm` | How far the pins are pressed in. It cannot exceed the pin's travel. |

@@ -82,7 +82,7 @@ def test_the_template_names_a_board_by_its_real_hash(tmp_path: Path) -> None:
         (lambda d: d.pop("board"), "board is missing"),
         (lambda d: d["board"].update(sha256="abc"), "board.sha256"),
         (lambda d: d["board"].update(file=""), "board.file"),
-        (lambda d: d.update(side="bottom"), "later release"),
+        (lambda d: d.update(side="left"), "side must be one of"),
         (lambda d: d.update(locating="glue"), "locating must be one of"),
         (lambda d: d.update(closure="tape"), "closure must be one of"),
         (lambda d: d.update(points=[]), "points must be a list"),

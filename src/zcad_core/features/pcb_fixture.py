@@ -519,6 +519,7 @@ def fixture_record(
         },
         "working_travel_mm": spec.working_travel_mm,
         "side": spec.side,
+        "board_turned_over": spec.side == "bottom",
         "locating": spec.locating,
         "closure": spec.closure,
         "closure_built": True,
@@ -528,6 +529,10 @@ def fixture_record(
             {
                 "identifier": p.identifier,
                 "position_mm": [p.x_mm, p.y_mm],
+                "position_in_board_mm": [
+                    -p.x_mm if spec.side == "bottom" else p.x_mm,
+                    p.y_mm,
+                ],
                 "pad_diameter_mm": p.pad_diameter_mm,
                 "net": p.net,
                 "slack_mm": round(

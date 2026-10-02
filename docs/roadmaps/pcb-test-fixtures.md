@@ -116,9 +116,9 @@ travel as the plate closes.
   strain at that load is over the material limit. A screwed closure is checked
   against the fastener's tensile figure from the catalog.
 
-A fixture that probes the bottom side, a bed of nails with the board parts-up
-on top of the pins, is later: it needs a nest that holds the board by its edge
-over an open window, and the standoffs and cradle are not built for it.
+A fixture that probes the bottom side holds the board turned over, so its bottom face is up under
+the same pins; see *What bottom-side probing changed*. A bed of nails, with the board parts-up on top of
+pins that press up, is not built.
 
 ## The fixture file
 
@@ -369,8 +369,8 @@ existing board file changes.
 
 - **Testing itself.** No test sequence, no instrument control, no pass or fail
   of the board. The engine builds the fixture.
-- **Bottom-side probing, double-sided boards, and bed-of-nails production
-  fixtures.** One side, parts up, a bench fixture.
+- **Both sides at once, and bed-of-nails production fixtures.** One side per fixture, a bench
+  fixture. A board with points on both sides takes two fixtures.
 - **Test-point positions from a design file.** A KiCad or Gerber file carries
   them; reading one is the later EDA import named in [Generic boards](generic-boards.md).
 - **Fine pitch.** The printer's minimum wall and its hole accuracy set how close
@@ -405,3 +405,23 @@ existing board file changes.
   in retailers' listings that disagree (a spring force of 100 or 180 grams), with no maker's sheet, so it stays out until one is read.
 - **A catalogue of bushings** (`hardware/bushings.py`): the headless DIN 179 type A bushings, 18 in bores
   of 2 to 8 mm, read from a manufacturer's part table, and named in a guide file as `{"catalog": ID}`. See the drill guide.
+
+### What bottom-side probing changed
+
+See *Probing the bottom side* in [A test fixture for your board](../guides/pcb-test-fixture.md).
+
+- **The board is turned over, not the pins.** The design said a bottom-side fixture is "a bed of nails with the board parts-up on top of the
+  pins", which needs a nest that holds the board by its edge over an open window, with the pins pressing up. The nest already holds a
+  board by its edge over a cavity (the ledge, with relief for the parts under it), so the board is held turned over, bottom face up, under
+  the pins that already press down. That reuses every check (reach, pitch, clearance over parts, release, the closure and the hinge) on a
+  twin of the board, `turn_over` in `pcb_fixture_turn.py`: a bottom pad is a top pad, a part on the bottom is a part on top that the pins must
+  clear, and a tall part on top deepens the cavity.
+- **Turned left to right.** The twin mirrors X, as a page is turned: a point at `(x, y)` is at `(-x, y)`, an edge on the right is on the left,
+  and a part's height above the face is its depth below it. The record gives each point in both frames, and a trial's offsets are in the
+  fixture's, which its note says.
+- **No second fixture mechanism to trust.** A bed of nails would be a new nest, a new plate and a new closure to check. This is a transform on the
+  input and a flag on the record, and the existing tests of the build cover its geometry.
+- **One side at a time.** `side` is `top` or `bottom`; a board with points on both sides takes two fixtures.
+- **What it costs.** A board with tall parts on top needs a deep cavity (the nest grows by the tallest part), and the board rests on its edge
+  ledge turned over, so the ledge must be clear of parts on the top side's edge: the relief the nest cuts opens through it. The fixture's checks
+  say when it cannot.

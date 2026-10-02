@@ -97,6 +97,14 @@ FRAME_NOTE = (
     "coat of marker on the pad, or a witness mark, and measure its centre from "
     "the pad's."
 )
+TURNED_FRAME_NOTE = (
+    "This fixture probes the board's bottom side, so the board lies turned over left "
+    "to right. Offsets are in the fixture's frame: as you look down on the pad in "
+    "the nest, +X to the right and +Y up the page, which is the board's X axis "
+    "mirrored. offset_x_mm is to the right and offset_y_mm up as you see them. Find "
+    "the mark with a thin coat of marker on the pad, or a witness mark, and measure "
+    "its centre from the pad's."
+)
 
 
 def sha256(path: Path) -> str:
@@ -157,7 +165,7 @@ def start_fixture_trial(build_record_path: Path) -> Path:
         for point in build["points"]
     }
     measurements = {
-        "frame": FRAME_NOTE,
+        "frame": TURNED_FRAME_NOTE if build.get("board_turned_over") else FRAME_NOTE,
         "contact": (
             "contact is true if the pin made contact with its pad (a continuity "
             "check, or a program loading) and false if not. A passing trial has "
