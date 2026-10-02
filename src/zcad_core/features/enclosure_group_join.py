@@ -250,6 +250,66 @@ def _pass_through_open(unit: GroupEnclosure, side: str) -> bool:
     return not any(s.isInside(point) for s in single_shape(unit.base).Solids())
 
 
+def check_join_records(left: dict[str, Any], right: dict[str, Any]) -> JoinReport:
+    """The same question put to two build records, without rebuilding either
+    unit: whether the bolts are in the same places and the same screw, and a
+    pass-through lines up. The walls' meeting is not checked, since only the
+    geometry knows it; it is by construction when the bolts line up."""
+
+    first, second = left["joint"], right["joint"]
+    notes = [
+        (
+            "Read from the build records: the units were not rebuilt, so the walls' "
+            "meeting and the screw's path were not checked against geometry"
+        )
+    ]
+    checks = {
+        "same_screw": first["fastener"] == second["fastener"],
+        "bolts_line_up": _same_places(
+            tuple((y, z) for y, z in first["bolts_y_z_mm"]),
+            tuple((y, z) for y, z in second["bolts_y_z_mm"]),
+        )
+        and bool(first["bolts_y_z_mm"]),
+    }
+    left_open = first["pass_through_mm"] is not None and first[
+        "pass_through_sides"
+    ] in ("both", "right")
+    right_open = second["pass_through_mm"] is not None and second[
+        "pass_through_sides"
+    ] in ("both", "left")
+
+    if left_open and right_open:
+        checks["pass_through_lines_up"] = (
+            first["pass_through_mm"] == second["pass_through_mm"]
+        )
+    elif left_open or right_open:
+        notes.append(
+            "Only one unit has a pass-through at this joint: a cable has no "
+            "opening to go through on the other side"
+        )
+
+    for name, joint in (("left", first), ("right", second)):
+        if joint["face"] != "standard":
+            notes.append(
+                f"The {name} unit is not on the standard joint face: its bolts are "
+                "at fractions of its depth, and only units of the same depth mate"
+            )
+
+    return JoinReport(
+        checks=checks,
+        details={
+            "depths_mm": [
+                round(left["outer_size_mm"][1], 1),
+                round(right["outer_size_mm"][1], 1),
+            ],
+            "left_joint": first["bolts_y_z_mm"],
+            "right_joint": second["bolts_y_z_mm"],
+            "from_records": True,
+        },
+        notes=tuple(notes),
+    )
+
+
 def check_join(left: GroupEnclosure, right: GroupEnclosure) -> JoinReport:
     """Put ``right`` against ``left``'s right wall and check the joint."""
 

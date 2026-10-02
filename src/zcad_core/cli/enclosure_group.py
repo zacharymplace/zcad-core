@@ -26,13 +26,18 @@ from zcad_core.features.enclosure_group import (
     print_oriented_parts,
 )
 from zcad_core.features.enclosure_group_dividers import Divider
-from zcad_core.features.enclosure_group_join import check_join
+from zcad_core.features.enclosure_group_join import check_join, check_join_records
 from zcad_core.features.enclosure_group_model import (
     GROUP_LID_ATTACHMENTS,
     GROUP_MOUNTS,
     JOINT_FACES,
     PASS_THROUGH_SIDES,
     SLIDE_ENTRIES,
+)
+from zcad_core.features.enclosure_group_trial import (
+    complete_group_trial,
+    start_group_trial,
+    write_group_record,
 )
 from zcad_core.features.enclosure_group_viewer import (
     DATA_FILE,
@@ -50,6 +55,7 @@ from zcad_core.features.enclosure_thermal import (
     estimate_thermal,
     require_not_too_hot,
 )
+from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.lid_hinge import swung_lid
 from zcad_core.features.lid_slide import slid_lid
 from zcad_core.features.mounts import flexure_payload
@@ -547,6 +553,40 @@ def _group_thermal(
     return estimate
 
 
+def _trial_start(args: argparse.Namespace) -> int:
+    trial = start_group_trial(args.build_record)
+    payload: dict[str, object] = {
+        "trial": str(trial),
+        "observations": str(trial / "observations.json"),
+        "measurements": str(trial / "measurements.json"),
+        "thermal": str(trial / "thermal.json"),
+    }
+
+    if (trial / "lid.json").is_file():
+        payload["lid"] = str(trial / "lid.json")
+
+    emit(payload)
+
+    return 0
+
+
+def _trial_complete(args: argparse.Namespace) -> int:
+    record = complete_group_trial(
+        args.trial_directory,
+        disposition=EnclosureTrialDisposition(args.disposition),
+        material_profile_id=args.material_profile,
+        notes=args.notes,
+    )
+    emit(
+        {
+            "trial_record": str(record),
+            "passed": json.loads(record.read_text(encoding="utf-8"))["passed"],
+        }
+    )
+
+    return 0
+
+
 def _size(text: str | None) -> tuple[float, float] | None:
     """A ``<width>x<height>`` in millimetres, or ``None``."""
 
@@ -586,6 +626,31 @@ def _add_joint_arguments(build: argparse.ArgumentParser) -> None:
 def _check_join(args: argparse.Namespace) -> int:
     """Build two units and say whether the second bolts to the first's right
     wall; exits 1 if it does not."""
+
+    if args.left_record is not None or args.right_record is not None:
+        if args.left_record is None or args.right_record is None:
+            raise ValueError("give both --left-record and --right-record")
+
+        report = check_join_records(
+            json.loads(args.left_record.read_text(encoding="utf-8")),
+            json.loads(args.right_record.read_text(encoding="utf-8")),
+        )
+        emit(
+            {
+                "passed": report.passed,
+                "checks": report.checks,
+                "details": report.details,
+                "notes": list(report.notes),
+            }
+        )
+
+        return 0 if report.passed else 1
+
+    if args.left_bays is None or args.right_bays is None:
+        raise ValueError(
+            "give both --left-bays and --right-bays, or both --left-record and "
+            "--right-record"
+        )
 
     units = []
 
@@ -668,6 +733,15 @@ def _group_build(args: argparse.Namespace) -> int:
     review_path, review_lid = _write_review(
         group, args.output_directory / "review", name
     )
+    record = write_group_record(
+        args.output_directory,
+        group=group,
+        bays=bays,
+        design_name=name,
+        printer_profile_id=str(profile.get("profile_id", "")),
+        part_stls={part.part_name: part.stl_path for part in result.parts},
+        thermal=thermal.to_dict(),
+    )
     join = (
         f"{group.fastener.identifier} x {group.recommended_join_screw_mm} mm, "
         f"{len(group.join_positions)} per joint"
@@ -722,6 +796,7 @@ def _group_build(args: argparse.Namespace) -> int:
                     flexure_payload(group.mount.flexure) if group.mount else None
                 ),
             },
+            "build_record": str(record),
             "review_step": str(review_path),
             "review_lid": review_lid,
             "print": printed,
@@ -895,12 +970,37 @@ def register(
     build.add_argument("--slicer-profile", type=Path, default=DEFAULT_SLICER_PROFILE)
     build.set_defaults(handler=_group_build)
 
+    trial = commands.add_parser("trial", help="record a print of a built group")
+    trial_commands = trial.add_subparsers(dest="trial_command", required=True)
+    start = trial_commands.add_parser(
+        "start", help="write the next trial's observation and measurement templates"
+    )
+    start.add_argument("--build-record", required=True, type=Path)
+    start.set_defaults(handler=_trial_start)
+    complete = trial_commands.add_parser(
+        "complete", help="validate a filled-in trial and write its record"
+    )
+    complete.add_argument("--trial-directory", required=True, type=Path)
+    complete.add_argument(
+        "--disposition",
+        required=True,
+        choices=[disposition.value for disposition in EnclosureTrialDisposition],
+    )
+    complete.add_argument("--material-profile", default="petg")
+    complete.add_argument("--notes", default="")
+    complete.set_defaults(handler=_trial_complete)
     check_join = commands.add_parser(
         "check-join",
         help="build two units and check that they bolt together",
     )
-    check_join.add_argument("--left-bays", required=True)
-    check_join.add_argument("--right-bays", required=True)
+    check_join.add_argument("--left-bays")
+    check_join.add_argument("--right-bays")
+    check_join.add_argument(
+        "--left-record",
+        type=Path,
+        help="a unit's enclosure-group.json, instead of building it from its bays",
+    )
+    check_join.add_argument("--right-record", type=Path)
     check_join.add_argument("--wall-mm", type=float, default=2.0)
     check_join.add_argument("--floor-mm", type=float, default=2.0)
     check_join.add_argument("--fastener", default="M3")

@@ -433,9 +433,7 @@ the row's join bosses and holes, and of the lid's slots over each Pi's fan. For
 the pair, `--vent-area-mm2 400` gives 30 hex cells 4 mm across flats in each of
 the inlet and outlet zones, about 416 mm2 each, and every check still passes.
 The estimate credits no vents, and a group's lid always has slots over a fitted
-Pi's fan, so the group is never a closed box for a trial's purposes. There are
-no trial records for the group: those need a build record, which the group does
-not write.
+Pi's fan, so the group is never a closed box for a trial's purposes.
 
 ## Temperature estimate
 
@@ -502,6 +500,48 @@ Then print the lid, close it, and check the six screws and the vents. Record
 what you measured against `RaspberryPi5Spec` (hole spacing, port centres,
 cooler height); those are the numbers to correct in
 `hardware/electronics/raspberry_pi.py`.
+
+## Recording a trial
+
+`enclosure-group build` writes `enclosure-group.json` beside the exported parts: the
+design, each bay as placed (its kind, slot, gap, board centre, heights, the board
+file by path and hash, the fan, the divider), the joint, the lid, the temperature
+estimate, each part's STL hash, and the checks and dimensions a trial covers.
+
+```bash
+zcad-validation enclosure-group trial start \
+  --build-record exports/pi5-pair/enclosure-group.json
+# print it, assemble, and fill in the files it names
+zcad-validation enclosure-group trial complete \
+  --trial-directory exports/pi5-pair/trials/trial-001 --disposition pass
+```
+
+`trial start` writes `trials/trial-001/` with `observations.json`, `measurements.json`
+and `thermal.json`, and `lid.json` for a hinged or sliding lid.
+
+- **Checks.** One set for the box (a clean print, the inserts, the lid closing, a
+  hinged lid swinging, the catch or the slide's detent, nothing rattling) and one for
+  each bay by its kind: a Pi or board seats, is held, and its plugs reach it; a fan
+  fits; a divider fits. They are named `bay-<n>-board_seats` and so on, and each has its
+  guidance in the file.
+- **Measurements.** The box's outer size, wall and lid, each bay's slot width and
+  standoff height, and `joint_gap_mm`, the gap you measure where a second unit's wall
+  meets this one (nominally zero).
+- **Thermal and lid readings** are the single-board enclosure's: a settled air
+  temperature against the estimate, and a hinge's swing and catch force or a slide's
+  force with a count of openings and whether the lid wore. The engine states no limit
+  for any of them.
+
+`trial complete` refuses parts whose STL no longer matches the record, and a
+passing trial with a failed check. A completed trial is never overwritten, and its
+record is `enclosure-group-trial.json`. The group's trials are not pooled into a
+thermal profile: a group is rarely a closed box, and those profiles pool closed ones.
+
+`enclosure-group check-join --left-record A/enclosure-group.json --right-record
+B/enclosure-group.json` checks that two units' bolts are in the same places with the
+same screw and that a pass-through lines up, from their records and without
+rebuilding them. It does not check the walls against geometry, which only the
+rebuilt units give: use `--left-bays` and `--right-bays` for that.
 
 ## What is assumed
 
