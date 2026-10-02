@@ -10,6 +10,11 @@ from pathlib import Path
 from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
+from zcad_core.features.layer_trial import (
+    complete_layer_trial,
+    start_layer_trial,
+    write_layer_record,
+)
 from zcad_core.features.stack import build_stack, require_fits_bed
 from zcad_core.features.stack_check import check_items
 from zcad_core.features.stack_file import (
@@ -228,9 +233,17 @@ def _layer_build(args: argparse.Namespace) -> int:
         }
         for exported in result.parts
     }
+    record = write_layer_record(
+        args.output_directory,
+        layer=layer,
+        design_name=name,
+        printer_profile_id=str(printer.get("profile_id", "")),
+        part_stls={e.part_name: e.stl_path for e in result.parts},
+    )
     emit(
         {
             "design_name": name,
+            "build_record": str(record),
             "warnings": list(report.warnings),
             "layer": layer.summary,
             "checks": layer.checks,
@@ -239,6 +252,37 @@ def _layer_build(args: argparse.Namespace) -> int:
                 "evaluated_status"
             ),
             "parts": files,
+        }
+    )
+
+    return 0
+
+
+def _layer_trial_start(args: argparse.Namespace) -> int:
+    trial = start_layer_trial(args.build_record)
+    emit(
+        {
+            "trial": str(trial),
+            "observations": str(trial / "observations.json"),
+            "measurements": str(trial / "measurements.json"),
+            "fitting": str(trial / "fitting.json"),
+        }
+    )
+
+    return 0
+
+
+def _layer_trial_complete(args: argparse.Namespace) -> int:
+    record = complete_layer_trial(
+        args.trial_directory,
+        disposition=EnclosureTrialDisposition(args.disposition),
+        material_profile_id=args.material_profile,
+        notes=args.notes,
+    )
+    emit(
+        {
+            "trial_record": str(record),
+            "passed": json.loads(record.read_text(encoding="utf-8"))["passed"],
         }
     )
 
@@ -438,3 +482,27 @@ def register(
     trial_complete.add_argument("--material-profile", default="petg")
     trial_complete.add_argument("--notes", default="")
     trial_complete.set_defaults(handler=_trial_complete)
+    layer_trial = layer_commands.add_parser(
+        "trial", help="record a print of a layer and its fit to a board"
+    )
+    layer_trial_commands = layer_trial.add_subparsers(
+        dest="layer_trial_command", required=True
+    )
+    layer_trial_start = layer_trial_commands.add_parser(
+        "start",
+        help="write the next trial's observation, measurement and fitting templates",
+    )
+    layer_trial_start.add_argument("--build-record", required=True, type=Path)
+    layer_trial_start.set_defaults(handler=_layer_trial_start)
+    layer_trial_complete = layer_trial_commands.add_parser(
+        "complete", help="validate a filled-in trial and write its record"
+    )
+    layer_trial_complete.add_argument("--trial-directory", required=True, type=Path)
+    layer_trial_complete.add_argument(
+        "--disposition",
+        required=True,
+        choices=[disposition.value for disposition in EnclosureTrialDisposition],
+    )
+    layer_trial_complete.add_argument("--material-profile", default="petg")
+    layer_trial_complete.add_argument("--notes", default="")
+    layer_trial_complete.set_defaults(handler=_layer_trial_complete)
