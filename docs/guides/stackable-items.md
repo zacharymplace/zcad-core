@@ -3,8 +3,8 @@
 A **stack profile** says how an item's top and bottom faces meet another's. Bins and
 baseplates built on one profile sit on each other, and a bin stacks on a bin like it. This
 release builds bins, baseplates, caps, and drawer frames with their drawers, holds them with magnets
-or bolts, puts the enclosures on the grid, stacks plates and spacers over boards, and checks whether
-two items stack; latches come in a later release (see the
+or bolts, puts the enclosures on the grid, stacks plates and spacers over boards, checks whether
+two items stack, and keeps a record and trials of a print; latches come in a later release (see the
 [stackable items design](../roadmaps/stackable-items.md)).
 
 ```bash
@@ -214,6 +214,37 @@ with every reason at once:
 
 A bin on a bin is held by the lip alone. If either has pockets in its foot they meet nothing there, and the check
 says so as a warning. It also reports the height of the stack.
+
+## The build record and stacking trials
+
+`stack build` writes `stack-build.json` beside the parts: the stack file and the profile by hash, with the profile's
+identifier and pitch, each item as built (its settings, what the build said of it, and its part's STL hash), the checks a trial
+asks, the dimensions it measures, and what the engine does not claim. It refuses to replace one.
+
+```bash
+zcad-validation stack trial start --build-record exports/my-stack/stack-build.json
+# print, stack and try it; fill in observations.json, measurements.json and stacking.json
+zcad-validation stack trial complete --trial-directory exports/my-stack/trials/trial-001 \
+  --disposition pass
+```
+
+The checks follow each item's kind: every item is printed cleanly; a bin or frame sits flat and stacks square; a baseplate's pockets are
+clean; a cap sits on its bin; a drawer slides free (and a frame's drawers slide); a magnet seats; a screw reaches its insert.
+Measurements are each item's width, depth and height as built.
+
+`stacking.json` holds four kinds of reading, each left blank if not taken:
+
+- **Wobble:** the gap a feeler gauge finds at a corner when the item is pressed down at the opposite side.
+- **Separation force:** the highest force a spring scale reads pulling it off what it sits on.
+- **A count of stackings,** and whether anything wore or cracked. Wear needs the count.
+- **Other makers' parts:** a baseplate or bin of another maker you tried it on, and whether it sat.
+
+**The engine states no limit for any reading, and claims no compatibility from one.** A trial that records a part sitting on another maker's
+baseplate is a reading, nothing more. A completed trial checks the printed parts still match the record by hash, is never overwritten, and a
+passing one cannot have a failed check.
+
+`check-stack` reads a build record too: `--upper stack-build.json:tub --lower stack-build.json:base`, with the profile the record names, checked
+against its hash.
 
 ## What is checked
 
