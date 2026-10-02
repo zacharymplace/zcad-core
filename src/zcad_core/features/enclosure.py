@@ -13,6 +13,7 @@ the assembly.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from pathlib import Path
 
 import cadquery as cq
 
@@ -93,6 +94,7 @@ from zcad_core.features.pcb_mounts import (
     add_pcb_standoff,
     board_hole_pattern,
 )
+from zcad_core.features.stack_profile import load_profile
 from zcad_core.features.vent_patterns import (
     PATTERNS,
     VentFill,
@@ -234,10 +236,18 @@ class EnclosureDesign:
     # A mount plate that bolts to four pads under the floor; none by default.
     mount: str | None = None
     mount_plate_mm: float = 4.0
+    # The stack profile file a ``stack`` mount is built to.
+    stack_profile: str | None = None
 
     def validate(self) -> None:
         if self.mount is not None and self.mount not in MOUNTS:
             raise ValueError(f"mount must be one of {MOUNTS}")
+
+        if (self.mount == "stack") != (self.stack_profile is not None):
+            raise ValueError(
+                "mount 'stack' and stack_profile go together: a stack mount needs "
+                "the profile it is built to, and a profile needs the mount"
+            )
 
         for name in ("wall_mm", "floor_mm", "lid_mm", "boss_radial_wall_mm"):
             if getattr(self, name) <= 0:
@@ -543,6 +553,11 @@ def build_enclosure(
             fastener=fastener,
             plate_mm=design.mount_plate_mm,
             hole_compensation_mm=design.hole_compensation_mm,
+            stack_profile=(
+                load_profile(Path(design.stack_profile))
+                if design.stack_profile
+                else None
+            ),
         )
         require_mount_clear(base, mount)
 

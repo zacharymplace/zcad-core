@@ -26,6 +26,7 @@ the row, +Y runs front to back, +Z is up. The floor's top face is at
 from __future__ import annotations
 
 from collections.abc import Sequence
+from pathlib import Path
 
 import cadquery as cq
 
@@ -94,6 +95,7 @@ from zcad_core.features.mounts import (
     require_mount_clear,
 )
 from zcad_core.features.pcb_mounts import PcbStandoffParameters, add_pcb_standoff
+from zcad_core.features.stack_profile import load_profile
 from zcad_core.features.vent_patterns import (
     VentFill,
     VentReport,
@@ -633,7 +635,13 @@ def _add_mount(
     )
     base = add_mount_pads(base, pads)
     plate = build_mount(
-        design.mount, pads, fastener=fastener, plate_mm=design.mount_plate_mm
+        design.mount,
+        pads,
+        fastener=fastener,
+        plate_mm=design.mount_plate_mm,
+        stack_profile=(
+            load_profile(Path(design.stack_profile)) if design.stack_profile else None
+        ),
     )
     require_mount_clear(base, plate)
 

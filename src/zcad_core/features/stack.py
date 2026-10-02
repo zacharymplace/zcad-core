@@ -269,7 +269,7 @@ def _cap(
 ) -> tuple[cq.Workplane, float, dict[str, Any]]:
     model, height = cap_solid(profile, item.cells, item.floor_mm)
     summary: dict[str, Any] = {
-        "kind": "cap",
+        "kind": item.kind,
         "cells": list(item.cells),
         "thickness_mm": item.floor_mm,
         "overall_height_mm": round(height, 3),
@@ -321,7 +321,7 @@ def build_item(
     if item.kind == "baseplate":
         return _baseplate(item, profile)
 
-    if item.kind == "cap":
+    if item.kind in ("cap", "plate"):
         return _cap(item, profile)
 
     if item.kind == "frame":

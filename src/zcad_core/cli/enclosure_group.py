@@ -58,7 +58,8 @@ from zcad_core.features.enclosure_thermal import (
 from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.lid_hinge import swung_lid
 from zcad_core.features.lid_slide import slid_lid
-from zcad_core.features.mounts import flexure_payload
+from zcad_core.features.mount_stack import require_plate_fits_bed
+from zcad_core.features.mounts import MountPlate, flexure_payload
 from zcad_core.features.vent_patterns import PATTERNS
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware import load_board
@@ -318,6 +319,10 @@ def _write_review(
     return path, pose
 
 
+def _screw_style(mount: MountPlate) -> str:
+    return "in a head recess" if mount.stack is not None else "countersunk"
+
+
 def _require_fits_bed(group: GroupEnclosure, profile: dict[str, Any]) -> None:
     """Say how to split a row that will not lie flat on the bed."""
 
@@ -339,6 +344,7 @@ def _require_fits_bed(group: GroupEnclosure, profile: dict[str, Any]) -> None:
         )
 
     _require_ears_fit_bed(group, volume)
+    require_plate_fits_bed(group.mount, volume)
 
 
 def _require_ears_fit_bed(group: GroupEnclosure, volume: dict[str, Any]) -> None:
@@ -700,6 +706,7 @@ def _group_build(args: argparse.Namespace) -> int:
         minimum_opening_web_mm=args.minimum_opening_web_mm,
         mount=args.mount,
         mount_plate_mm=args.mount_plate_mm,
+        stack_profile=str(args.stack_profile) if args.stack_profile else None,
         vent_pattern=args.vent_pattern,
         vent_area_mm2=args.vent_area_mm2,
         lid_attachment=args.lid,
@@ -784,12 +791,13 @@ def _group_build(args: argparse.Namespace) -> int:
                 "join": join,
                 "pi_mount": "M2.5 self-tapping, 4 per Pi",
                 "mount": (
-                    f"{group.fastener.identifier} countersunk x "
+                    f"{group.fastener.identifier} {_screw_style(group.mount)} x "
                     f"{group.mount.recommended_screw_mm} mm, "
                     f"{len(group.mount_pads.positions)} per part"
                     if group.mount is not None and group.mount_pads is not None
                     else None
                 ),
+                "mount_stack": group.mount.stack if group.mount else None,
                 "mount_device": group.mount.device_screws if group.mount else None,
                 "mount_attachment": group.mount.attachment if group.mount else None,
                 "mount_flexure": (
@@ -900,6 +908,12 @@ def register(
         help="add four mount pads under the floor and a plate that bolts to them",
     )
     build.add_argument("--mount-plate-mm", type=float, default=4.0)
+    build.add_argument(
+        "--stack-profile",
+        type=Path,
+        default=None,
+        help="the stack profile file a --mount stack plate is built to",
+    )
     build.add_argument(
         "--lid",
         choices=GROUP_LID_ATTACHMENTS,

@@ -254,6 +254,7 @@ def write_group_record(
         "design_name": design_name,
         "built_at_utc": datetime.now(UTC).isoformat(),
         "design": asdict(design),
+        "stack": group.mount.stack if group.mount else None,
         "bays": [
             _bay_record(bay, layout, design.wall_mm)
             for bay, layout in zip(bays, group.bays, strict=True)

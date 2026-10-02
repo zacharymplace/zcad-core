@@ -311,6 +311,7 @@ def write_build_record(
         "board_source": board_source,
         "display": display.identifier if display is not None else None,
         "design": asdict(enclosure.design),
+        "stack": enclosure.mount.stack if enclosure.mount else None,
         "assembly": assembly_settings or {},
         "revision_of": revision_of,
         "compensation_profile": compensation_profile,

@@ -106,6 +106,8 @@ class GroupDesign:
     # rack ears that bolt to pads on the front wall; none by default.
     mount: str | None = None
     mount_plate_mm: float = 4.0
+    # The stack profile file a ``stack`` mount is built to.
+    stack_profile: str | None = None
     # A vent pattern sized to a free area, in mm2: inlets low in the two side
     # walls, which carry no openings, and outlets in the lid at least as
     # large. ``vents`` is the separate set of lid slots over each Pi's fan.
@@ -168,6 +170,12 @@ class GroupDesign:
 
         if self.mount is not None and self.mount not in GROUP_MOUNTS:
             raise ValueError(f"mount must be one of {GROUP_MOUNTS}")
+
+        if (self.mount == "stack") != (self.stack_profile is not None):
+            raise ValueError(
+                "mount 'stack' and stack_profile go together: a stack mount needs "
+                "the profile it is built to, and a profile needs the mount"
+            )
 
         for name in (
             "wall_mm",

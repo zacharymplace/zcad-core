@@ -15,6 +15,7 @@ The engine states no load rating, no stable height and no holding force.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,6 +35,7 @@ from zcad_core.features.stack_file import (
     load_stack_profile,
 )
 from zcad_core.features.stack_holding import Holding, holding_for
+from zcad_core.features.stack_profile import StackProfile, load_profile
 
 
 @dataclass(frozen=True)
@@ -115,7 +117,7 @@ def _shape_errors(upper: Item, lower: Item) -> list[str]:
     if upper.kind == "drawer":
         return [f"{upper.name} is a drawer: it slides into a frame and does not stack"]
 
-    if lower.kind in ("cap", "drawer"):
+    if lower.kind in ("cap", "drawer", "plate"):
         return [f"nothing stacks on {lower.name}, a {lower.kind}: its top is not a lip"]
 
     up = f"{upper.cells[0]} x {upper.cells[1]}"
@@ -141,6 +143,85 @@ def _shape_errors(upper: Item, lower: Item) -> list[str]:
     return []
 
 
+@dataclass(frozen=True)
+class Resolved:
+    """An item and the profile it is built to, from a stack file or a build record."""
+
+    item: Item
+    profile: StackProfile
+
+
+def _from_file(
+    path: Path, name: str, printer: Mapping[str, Any]
+) -> tuple[Resolved | None, list[str]]:
+    report = check_stack_file(path, printer)
+
+    if not report.valid:
+        return None, [f"{path.name}: {e}" for e in report.errors]
+
+    spec = load_stack(path)
+
+    return Resolved(_item(spec, name), load_stack_profile(spec)), []
+
+
+def _from_record(path: Path) -> tuple[Resolved | None, list[str]]:
+    """A stack plate from an enclosure's or a group's build record."""
+
+    record = json.loads(path.read_text(encoding="utf-8"))
+    stack = record.get("stack") if isinstance(record, dict) else None
+
+    if not isinstance(stack, dict):
+        message = (
+            f"{path.name} has no stack plate: build it with --mount stack and a "
+            "--stack-profile"
+        )
+
+        return None, [message]
+
+    entry = stack["profile"]
+    profile_path = Path(entry["path"])
+
+    if not profile_path.is_file():
+        return None, [f"{path.name}: the profile {profile_path} is missing"]
+
+    profile = load_profile(profile_path)
+
+    if profile.sha256 != entry["sha256"]:
+        message = (
+            f"{path.name}: the profile {profile_path} has changed since the build: its "
+            f"hash is {profile.sha256[:12]}, not {entry['sha256'][:12]}"
+        )
+
+        return None, [message]
+
+    cells = (int(stack["cells"][0]), int(stack["cells"][1]))
+    item = Item(
+        kind="plate",
+        name=str(record.get("design_name", path.stem)),
+        cells=cells,
+        floor_mm=float(stack["plate_mm"]),
+    )
+
+    return Resolved(item, profile), []
+
+
+def resolve(text: str, printer: Mapping[str, Any]) -> tuple[Resolved | None, list[str]]:
+    """One argument of ``check-stack``: ``FILE:NAME`` for an item in a stack file, or the
+    path of an enclosure's or a group's build record, for its stack plate."""
+
+    path = Path(text)
+
+    if path.suffix == ".json" and path.is_file():
+        data = json.loads(path.read_text(encoding="utf-8"))
+
+        if isinstance(data, dict) and "design_name" in data:
+            return _from_record(path)
+
+    file, name = locate(text)
+
+    return _from_file(file, name, printer)
+
+
 def check_stackable(
     upper_file: Path,
     upper_name: str,
@@ -150,21 +231,34 @@ def check_stackable(
 ) -> StackReport:
     """Whether the upper item stacks on the lower, from the two stack files."""
 
-    errors: list[str] = []
+    return check_items(
+        f"{upper_file}:{upper_name}", f"{lower_file}:{lower_name}", printer
+    )
 
-    for path in dict.fromkeys((upper_file, lower_file)):
-        report = check_stack_file(path, printer)
-        errors += [f"{path.name}: {e}" for e in report.errors]
 
-    if errors:
+def check_items(
+    upper_text: str, lower_text: str, printer: Mapping[str, Any]
+) -> StackReport:
+    """Whether the upper stacks on the lower: each a ``FILE:NAME`` or a build record."""
+
+    upper, errors = resolve(upper_text, printer)
+    lower, more = resolve(lower_text, printer)
+    errors = [*dict.fromkeys([*errors, *more])]
+
+    if upper is None or lower is None:
         return StackReport(False, tuple(errors), (), {})
 
-    upper_spec, lower_spec = load_stack(upper_file), load_stack(lower_file)
-    upper, lower = _item(upper_spec, upper_name), _item(lower_spec, lower_name)
-    upper_profile = load_stack_profile(upper_spec)
-    lower_profile = load_stack_profile(lower_spec)
+    return check_resolved(upper, lower, printer)
+
+
+def check_resolved(
+    upper_resolved: Resolved, lower_resolved: Resolved, printer: Mapping[str, Any]
+) -> StackReport:
+    upper, lower = upper_resolved.item, lower_resolved.item
+    upper_profile, lower_profile = upper_resolved.profile, lower_resolved.profile
     upper_hold = holding_for(upper.holding, upper.magnet, upper.fastener)
     lower_hold = holding_for(lower.holding, lower.magnet, lower.fastener)
+    errors: list[str] = []
 
     if upper_profile.sha256 != lower_profile.sha256:
         errors.append(
