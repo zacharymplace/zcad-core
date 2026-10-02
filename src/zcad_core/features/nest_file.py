@@ -61,7 +61,22 @@ _TOP_LEVEL = frozenset(
         "needs_review",
     }
 )
-_FEATURES = frozenset({"finger_notches"})
+_FEATURES = frozenset({"finger_notches", "lip", "strap", "label"})
+DEFAULT_LIP_TABS = 2
+MAXIMUM_LIP_TABS = 4
+DEFAULT_LIP_OVERHANG_MM = 0.6
+LIP_OVERHANG_RANGE_MM = (0.3, 2.0)
+STRAP_RANGE_MM = (3.0, 60.0)
+STRAP_THICKNESS_RANGE_MM = (0.3, 6.0)
+
+
+@dataclass(frozen=True)
+class StrapSpec:
+    """A strap the nest is slotted for: the user's own figures, with where they came from."""
+
+    width_mm: float
+    thickness_mm: float
+    source: str
 
 
 @dataclass(frozen=True)
@@ -83,6 +98,11 @@ class NestSpec:
     notes: str
     file_path: Path
     file_sha256: str
+    # Retaining lip: 0 tabs is no lip. A lip's wall climbs the part's whole height.
+    lip_tabs: int = 0
+    lip_overhang_mm: float = DEFAULT_LIP_OVERHANG_MM
+    strap: StrapSpec | None = None
+    label: str | None = None
 
 
 @dataclass(frozen=True)
@@ -206,6 +226,108 @@ def _check_features(data: Mapping[str, Any], findings: Findings) -> None:
             f"features.finger_notches is {notches}, outside 0 to {MAXIMUM_NOTCHES}"
         )
 
+    _check_lip(data, features, findings)
+    _check_strap(features, findings)
+
+    label = features.get("label")
+
+    if label is not None and (
+        not isinstance(label, str) or not label.strip() or not label.isprintable()
+    ):
+        findings.errors.append("features.label must be a line of printable text")
+    elif isinstance(label, str) and len(label) > 24:
+        findings.errors.append(
+            f"features.label is {len(label)} characters; the most is 24"
+        )
+
+
+def _check_lip(
+    data: Mapping[str, Any], features: Mapping[str, Any], findings: Findings
+) -> None:
+    lip = features.get("lip")
+
+    if lip is None:
+        return
+
+    if not isinstance(lip, Mapping):
+        findings.errors.append("features.lip must be an object")
+
+        return
+
+    unknown = sorted(set(lip) - {"tabs", "overhang_mm"})
+
+    if unknown:
+        findings.errors.append(f"features.lip has unknown fields: {', '.join(unknown)}")
+
+    tabs = lip.get("tabs", DEFAULT_LIP_TABS)
+
+    if isinstance(tabs, bool) or not isinstance(tabs, int):
+        findings.errors.append(
+            f"features.lip.tabs must be a whole number, not {tabs!r}"
+        )
+    elif not 1 <= tabs <= MAXIMUM_LIP_TABS:
+        findings.errors.append(
+            f"features.lip.tabs is {tabs}, outside 1 to {MAXIMUM_LIP_TABS}"
+        )
+
+    number(
+        lip,
+        "overhang_mm",
+        "features.lip",
+        findings,
+        low=LIP_OVERHANG_RANGE_MM[0],
+        high=LIP_OVERHANG_RANGE_MM[1],
+        required=False,
+    )
+    nest = data.get("nest")
+
+    if isinstance(nest, Mapping) and nest.get("depth_mm") is not None:
+        findings.errors.append(
+            "nest.depth_mm cannot be set with a lip: a lip's wall climbs the part's whole height"
+        )
+
+
+def _check_strap(features: Mapping[str, Any], findings: Findings) -> None:
+    strap = features.get("strap")
+
+    if strap is None:
+        return
+
+    if not isinstance(strap, Mapping):
+        findings.errors.append("features.strap must be an object")
+
+        return
+
+    unknown = sorted(set(strap) - {"width_mm", "thickness_mm", "source"})
+
+    if unknown:
+        findings.errors.append(
+            f"features.strap has unknown fields: {', '.join(unknown)}"
+        )
+
+    number(
+        strap,
+        "width_mm",
+        "features.strap",
+        findings,
+        low=STRAP_RANGE_MM[0],
+        high=STRAP_RANGE_MM[1],
+    )
+    number(
+        strap,
+        "thickness_mm",
+        "features.strap",
+        findings,
+        low=STRAP_THICKNESS_RANGE_MM[0],
+        high=STRAP_THICKNESS_RANGE_MM[1],
+    )
+
+    if not strap.get("source"):
+        findings.errors.append(
+            "features.strap.source is needed: the strap's size is your figure, so say where it "
+            "came from (a measurement, a data sheet)"
+        )
+
 
 def check_nest_data(data: Any) -> NestCheck:
     """Check a nest file's contents without reading the part."""
@@ -286,6 +408,9 @@ def nest_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> NestSpec
     features = data.get("features") or {}
     step = Path(part["step"])
     depth = nest.get("depth_mm")
+    lip = features.get("lip")
+    strap = features.get("strap")
+    label = features.get("label")
 
     return NestSpec(
         identifier=str(data["identifier"]),
@@ -302,6 +427,22 @@ def nest_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> NestSpec
         notes=str(data.get("notes", "")),
         file_path=path,
         file_sha256=sha256,
+        lip_tabs=0 if lip is None else int(lip.get("tabs", DEFAULT_LIP_TABS)),
+        lip_overhang_mm=(
+            DEFAULT_LIP_OVERHANG_MM
+            if lip is None
+            else float(lip.get("overhang_mm", DEFAULT_LIP_OVERHANG_MM))
+        ),
+        strap=(
+            None
+            if strap is None
+            else StrapSpec(
+                float(strap["width_mm"]),
+                float(strap["thickness_mm"]),
+                str(strap["source"]),
+            )
+        ),
+        label=None if label is None else str(label).strip(),
     )
 
 
@@ -323,6 +464,9 @@ def load_nest_part(spec: NestSpec) -> GuidePart:
 def pocket_depth_mm(spec: NestSpec, part: GuidePart) -> float:
     """How far the wall climbs the part: the file's, or half the part's height, at least
     3 mm and never more than the part's height."""
+
+    if spec.lip_tabs:
+        return part.height_mm
 
     if spec.depth_mm is not None:
         return spec.depth_mm
@@ -358,6 +502,43 @@ def inspect_nest_file(
     return check_part(spec, part, report.warnings, profile), spec, part
 
 
+def _feature_errors(
+    spec: NestSpec,
+    part: GuidePart,
+    profile: Mapping[str, Any],
+    clearance: float,
+    least_wall: float,
+) -> list[str]:
+    """What stops the lip, strap slots and label being built on this part."""
+
+    # Imported here: nest_features reads the spec's types from this module.
+    from zcad_core.features.nest_features import (
+        DEFAULT_EMBOSS_MM,
+        DEFAULT_TEXT_SIZE_MM,
+        lip_errors,
+        plan_label,
+        plan_strap,
+    )
+
+    points = part.silhouette.points
+    slots, errors = plan_strap(spec, points, clearance, least_wall)
+    minimums = profile.get("minimums_mm", {})
+    _, label_errors = plan_label(
+        spec,
+        points,
+        clearance,
+        float(minimums.get("text_size", DEFAULT_TEXT_SIZE_MM)),
+        float(minimums.get("emboss_height", DEFAULT_EMBOSS_MM)),
+        slots,
+    )
+
+    return [
+        *errors,
+        *label_errors,
+        *lip_errors(spec, part.height_mm, part.silhouette.top_share, clearance),
+    ]
+
+
 def check_part(
     spec: NestSpec,
     part: GuidePart,
@@ -388,10 +569,16 @@ def check_part(
 
     if profile is not None:
         try:
-            _, least_wall, least_floor = printer_numbers(profile)
+            fits, least_wall, least_floor = printer_numbers(profile)
         except ValueError as error:
             errors.append(str(error))
         else:
+            errors.extend(
+                _feature_errors(
+                    spec, part, profile, fits["sliding_clearance_per_side"], least_wall
+                )
+            )
+
             if spec.wall_mm < least_wall:
                 errors.append(
                     f"nest.wall_mm is {spec.wall_mm:g}, under the printer's {least_wall:g} mm "

@@ -27,6 +27,9 @@ A drill guide with no bores also holds a part, from above; this is a tray with a
 | `nest.floor_mm` | The floor under the part (2.0). It cannot be under the printer's minimum floor. |
 | `nest.flange_mm` | How far the floor reaches past the wall (8.0), all round. Zero leaves no flange. |
 | `features.finger_notches` | 0 to 4 notches (2). |
+| `features.lip` | `{"tabs": 1 to 4 (2), "overhang_mm": 0.3 to 2.0 (0.6)}`. A retaining lip; leave it out for none. |
+| `features.strap` | `{"width_mm", "thickness_mm", "source"}`. Two strap slots. The size is your figure and `source` says where it came from. |
+| `features.label` | Up to 24 printable characters, embossed on the flange. |
 
 The part's frame is its own: centred on its bounding box in X and Y, with +X right and +Y up the page seen from above, and its **top face at z = 0**. The
 model must have **+Z up**. Everything is in millimetres.
@@ -45,10 +48,34 @@ A notch is 12 mm wide, cut through the wall from the floor's top up, at the midd
 asked for is refused, with the number it has: a round part, whose outline is many short segments, takes none. The width and the margin are the engine's own
 choices.
 
+## Strap slots
+
+`features.strap` cuts two slots through the floor's flange, one at each end of the nest's longer side, each the strap's width and thickness with the printer's
+sliding clearance round it. A hook-and-loop strap or a cord through them holds the nest to a table or a clamp. The flange must be as wide as the slot with a
+minimum wall each side of it (the check says how wide), and every slot is verified on the built solid to lie wholly in the flange. The strap's size is your
+figure: the engine takes it, requires a `source`, and says nothing about whether a strap of that kind holds.
+
+## Label
+
+`features.label` stands embossed text (the printer profile's text size and emboss height) on the flange's top, on the side the slots are not on. Text too long
+for the nest's side, or a flange too narrow for it, is refused.
+
+## Retaining lip
+
+`features.lip` raises tabs from the wall. Each is 10 mm wide, cut free of the wall by a slit each side, and carries a hook that overhangs the part's top face
+by `overhang_mm`. The part presses past the hooks as it is pushed down and is kept against being knocked sideways or tipped. The wall climbs the part's
+**whole height**, so `nest.depth_mm` cannot be set with a lip. A tab takes the longest stretches the finger notches have not taken.
+
+A tab is an end-loaded cantilever and its bending strain is checked against the provisional limit (1.5%); one that would strain further is refused with the
+reach it needs. A part with no flat top (under 10% of its shadow flat at the top) is refused, since there is nothing for a hook to lie over. The part is checked to lift out
+of the nest **without the hooks**, because they give way as it is lifted; what the hooks do is checked only as far as each one has the part's top face under it.
+
 ## What is checked
 
 The nest is **one solid**. The part is put in its pocket and shares no volume with it, and is lifted straight up through the wall's height in 2 mm steps and
 meets nothing on the way. Every notch is open at its middle, at the wall's top and just above the floor. The nest must fit the printer's bed.
 
-**The engine says nothing about how well the nest holds a part.** It says the part fits the pocket and lifts straight out. A nest is unverified until a printed
+Strap slots must lie in the flange, and each lip hook must have the part's top under it.
+
+**The engine says nothing about how well the nest holds a part, how hard a lip grips, or what a strap will bear.** It says the part fits the pocket and lifts straight out. A nest is unverified until a printed
 trial has passed.
