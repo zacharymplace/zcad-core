@@ -146,7 +146,7 @@ catalog's provisional status carried through.
    wall-reach checks came with phase 1.)
 3. **Heat and fans (built).** The per-board power figure in the estimate and the
    `fan` bay, with the fan's figures still provisional.
-4. **Joinable units.** The standard joint face, the pass-through, and
+4. **Joinable units (built).** The standard joint face, the pass-through, and
    `check-join`.
 5. **The group's build record and trials.** `enclosure-group.json`, with each bay's
    kind, the board file's hash, the module's placement, and the printed parts'
@@ -253,6 +253,33 @@ catalog's provisional status carried through.
   board's `lid_vent` part, a vent pattern, or a fan open the box, so the estimate's
   `closed` follows them.
 - **Pi builds are unchanged, measured again.** The ten builds of phase 1 compare equal.
+
+### What phase 4 changed
+
+- **The standard face is opt-in, so nothing printed or built changes.** `GroupDesign`
+  has `joint_face` (`fractions`, the default, or `standard`); the ten builds that
+  phases 1 to 3 compared still compare equal.
+- **The bolts are at 20 and 38 mm from the front, 10 mm up.** The design said fixed
+  distances without choosing them. They are chosen so the bolts clear the lid's
+  corner bosses and a pass-through fits between and above them, which makes the least
+  unit 44.1 mm deep (52.8 mm with a screwed lid). A shallower unit is refused with
+  the number; it can use the original face, which fits it. The design did not name
+  this limit.
+- **The pass-through is one size for both walls, and it goes through the ends too.**
+  The design said one opening in the join walls. It is cut at 29 mm from the front
+  and 16 mm up, above the bolts' bosses, in the left wall, the right, or both; the
+  two ends of a row are join walls as well, so a pass-through there is open to the
+  outside. A 6 mm tall one fits the lowest unit; a taller unit takes a taller one.
+- **`check-join` reads geometry, not records.** The group has no build record until
+  phase 5, so it takes the two units as `--left-bays` and `--right-bays`, builds them,
+  and checks the pair: same screw, walls meeting, a screw passing each hole into each
+  boss, a pass-through lining up. Reading geometry means it can tell that two
+  original-face units of the same depth mate and that mixed depths do not, where the
+  design said an old unit is reported as off the standard face and left at that;
+  that note is still given.
+- **Only the joint's own settings are shared.** `check-join` takes the wall, floor,
+  fastener and lid as shared flags, and the joint face and pass-through per unit;
+  heights and bays are the units' own, and no other design setting moves the joint.
 
 Each phase is one PR. Phases 1 and 4 add bay kinds and a joint face, so every
 existing group build keeps its output unless a design asks for the new ones.

@@ -26,9 +26,12 @@ from zcad_core.features.enclosure_group import (
     print_oriented_parts,
 )
 from zcad_core.features.enclosure_group_dividers import Divider
+from zcad_core.features.enclosure_group_join import check_join
 from zcad_core.features.enclosure_group_model import (
     GROUP_LID_ATTACHMENTS,
     GROUP_MOUNTS,
+    JOINT_FACES,
+    PASS_THROUGH_SIDES,
     SLIDE_ENTRIES,
 )
 from zcad_core.features.enclosure_group_viewer import (
@@ -544,6 +547,75 @@ def _group_thermal(
     return estimate
 
 
+def _size(text: str | None) -> tuple[float, float] | None:
+    """A ``<width>x<height>`` in millimetres, or ``None``."""
+
+    if text is None:
+        return None
+
+    width, _, height = text.partition("x")
+
+    try:
+        return float(width), float(height)
+    except ValueError:
+        raise ValueError(
+            f"a pass-through is <width>x<height> in millimetres; got '{text}'"
+        ) from None
+
+
+def _add_joint_arguments(build: argparse.ArgumentParser) -> None:
+    build.add_argument(
+        "--joint",
+        choices=JOINT_FACES,
+        default="fractions",
+        help=(
+            "where the join bolts go: at fractions of the unit's depth (the "
+            "default, which mates only units of the same depth), or on the "
+            "standard joint face, which mates any two units"
+        ),
+    )
+    build.add_argument(
+        "--pass-through",
+        help="a cable opening <width>x<height> in the join walls (standard joint)",
+    )
+    build.add_argument(
+        "--pass-through-sides", choices=PASS_THROUGH_SIDES, default="both"
+    )
+
+
+def _check_join(args: argparse.Namespace) -> int:
+    """Build two units and say whether the second bolts to the first's right
+    wall; exits 1 if it does not."""
+
+    units = []
+
+    for side in ("left", "right"):
+        design = GroupDesign(
+            wall_mm=args.wall_mm,
+            floor_mm=args.floor_mm,
+            fastener=args.fastener,
+            lid_attachment=args.lid,
+            joint_face=getattr(args, f"{side}_joint"),
+            pass_through_mm=_size(getattr(args, f"{side}_pass_through")),
+            pass_through_sides=getattr(args, f"{side}_pass_through_sides"),
+        )
+        units.append(
+            build_group_enclosure(_bays(getattr(args, f"{side}_bays")), design=design)
+        )
+
+    report = check_join(units[0], units[1])
+    emit(
+        {
+            "passed": report.passed,
+            "checks": report.checks,
+            "details": report.details,
+            "notes": list(report.notes),
+        }
+    )
+
+    return 0 if report.passed else 1
+
+
 def _group_build(args: argparse.Namespace) -> int:
     bays = _bays(args.bays)
     design = GroupDesign(
@@ -557,6 +629,9 @@ def _group_build(args: argparse.Namespace) -> int:
         open_bay_width_mm=args.open_bay_width_mm,
         vents=args.vents,
         join_bolts=args.join_bolts,
+        joint_face=args.joint,
+        pass_through_mm=_size(args.pass_through),
+        pass_through_sides=args.pass_through_sides,
         minimum_opening_web_mm=args.minimum_opening_web_mm,
         mount=args.mount,
         mount_plate_mm=args.mount_plate_mm,
@@ -610,6 +685,11 @@ def _group_build(args: argparse.Namespace) -> int:
             "fans": [fan.to_dict() for fan in group.fans],
             "thermal": thermal.to_dict(),
             "vents": group.vents.to_dict() if group.vents else None,
+            "joint": {
+                "face": design.joint_face,
+                "bolts_y_z_mm": [list(p) for p in group.join_positions],
+                "pass_through_mm": design.pass_through_mm,
+            },
             "lid": design.lid_attachment,
             "hinge": hinge_payload(group.hinge),
             "slide": slide_payload(group.slide),
@@ -802,6 +882,7 @@ def register(
         action="store_false",
         help="omit the bolt features that join a second unit",
     )
+    _add_joint_arguments(build)
     build.add_argument(
         "--slice",
         action="store_true",
@@ -813,6 +894,26 @@ def register(
     )
     build.add_argument("--slicer-profile", type=Path, default=DEFAULT_SLICER_PROFILE)
     build.set_defaults(handler=_group_build)
+
+    check_join = commands.add_parser(
+        "check-join",
+        help="build two units and check that they bolt together",
+    )
+    check_join.add_argument("--left-bays", required=True)
+    check_join.add_argument("--right-bays", required=True)
+    check_join.add_argument("--wall-mm", type=float, default=2.0)
+    check_join.add_argument("--floor-mm", type=float, default=2.0)
+    check_join.add_argument("--fastener", default="M3")
+    check_join.add_argument("--lid", choices=GROUP_LID_ATTACHMENTS, default="screws")
+    for unit in ("left", "right"):
+        check_join.add_argument(
+            f"--{unit}-joint", choices=JOINT_FACES, default="standard"
+        )
+        check_join.add_argument(f"--{unit}-pass-through", help="<width>x<height>")
+        check_join.add_argument(
+            f"--{unit}-pass-through-sides", choices=PASS_THROUGH_SIDES, default="both"
+        )
+    check_join.set_defaults(handler=_check_join)
 
     viewer = commands.add_parser(
         "viewer",
