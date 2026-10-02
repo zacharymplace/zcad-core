@@ -441,7 +441,8 @@ def guide_record(
             "depth_mm": drill.depth_mm,
             "stickout_mm": drill.stickout_mm,
         },
-        # The bushing's figures are the user's own, and the record says so.
+        # The bushing's figures are the user's own unless the file named a catalogued
+        # one, and the record says which.
         "bushing": None
         if bushing is None
         else {
@@ -451,7 +452,11 @@ def guide_record(
             "flange_diameter_mm": bushing.flange_diameter_mm,
             "flange_thickness_mm": bushing.flange_thickness_mm,
             "source": bushing.source,
-            "figures_from": "the user's file; no maker's datasheet has been read",
+            "figures_from": (
+                "the catalogue; see the source"
+                if bushing.source.startswith("catalog ")
+                else "the user's file; no maker's datasheet has been read"
+            ),
         },
         "bores": [
             {

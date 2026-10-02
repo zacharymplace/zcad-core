@@ -7,9 +7,9 @@ sized for the drill with the printer's sliding clearance, and it wears. A
 bushing's outer diameter and the printer's press-fit clearance, with a hole
 through it for the drill.
 
-The bushing figures are the user's own: the engine's catalog holds no bushing
-until a maker's datasheet has been read, so the file says where they came
-from and the build says they are the user's.
+The bushing is either catalogued (``{"catalog": "DIN179A-4X12"}``, headless DIN 179
+bushings read from a manufacturer's table), or the user's own figures, with where
+they came from; the build says which.
 
 Frame: the guide's own (see :mod:`zcad_core.features.guide_file`). A bore's
 axis crosses the part's top plane, ``z == 0``, at ``(x, y)`` and runs down into
@@ -29,6 +29,7 @@ import cadquery as cq
 
 from zcad_core.features.guide_common import IDENTIFIER, Findings, number, section
 from zcad_core.geometry.intersection import intersection_volume
+from zcad_core.hardware.bushings import get_bushing
 from zcad_core.hardware.electronics import board_outline
 
 BORE_KINDS = ("printed", "bushing")
@@ -316,9 +317,66 @@ def _check_one_bore(
     return name if isinstance(name, str) else None
 
 
+def expand_catalog_bushing(data: Mapping[str, Any]) -> Mapping[str, Any]:
+    """``data`` with a ``{"catalog": ...}`` bushing replaced by the catalogued figures, and
+    the catalogue's source as its ``source``; ``data`` itself when there is no catalog entry
+    or it names none that exists."""
+
+    entry = data.get("bushing")
+
+    if not isinstance(entry, Mapping) or "catalog" not in entry:
+        return data
+
+    try:
+        spec = get_bushing(str(entry["catalog"]))
+    except ValueError:
+        return data
+
+    figures = {
+        "inner_diameter_mm": spec.bore_mm,
+        "outer_diameter_mm": spec.outer_mm,
+        "length_mm": spec.length_mm,
+        "catalog": spec.identifier,
+        "source": f"catalog {spec.identifier}: {spec.figures_from}",
+    }
+
+    return {**data, "bushing": figures}
+
+
+def _check_catalog_bushing(
+    data: Mapping[str, Any], findings: Findings
+) -> Mapping[str, Any]:
+    """Refuse a catalogued bushing that is unknown or that also gives its own figures;
+    otherwise the data with its figures filled in."""
+
+    entry = data.get("bushing")
+
+    if not isinstance(entry, Mapping) or "catalog" not in entry:
+        return data
+
+    extra = sorted(set(entry) - {"catalog"})
+
+    if extra:
+        findings.errors.append(
+            f"bushing names a catalog entry, so it takes no figures of its own: {', '.join(extra)}"
+        )
+
+        return {key: value for key, value in data.items() if key != "bushing"}
+
+    try:
+        get_bushing(str(entry["catalog"]))
+    except ValueError as error:
+        findings.errors.append(str(error))
+
+        return {key: value for key, value in data.items() if key != "bushing"}
+
+    return expand_catalog_bushing(data)
+
+
 def check_bore_sections(data: Mapping[str, Any], findings: Findings) -> None:
     """Check the drill, the bushing, and the bores without reading the part."""
 
+    data = _check_catalog_bushing(data, findings)
     bores = data.get("bores")
 
     if bores is not None and (
@@ -385,6 +443,7 @@ def _check_against_drill(
 def parse_sections(data: Mapping[str, Any]) -> Sections:
     """The drill, bushing, and bores of a checked file."""
 
+    data = expand_catalog_bushing(data)
     drill = None
     drill_data = data.get("drill")
 

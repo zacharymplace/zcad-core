@@ -392,3 +392,16 @@ existing board file changes.
   have no test points, so a fixture for the Pico 2 needs them added to its entry.
   The proposal is to add `test_points` to the catalogued boards only when someone
   has a measured list, and until then a fixture takes a board file.
+
+### What the catalogued pins and bushings changed
+
+- **Two Mill-Max pins are catalogued, with what their sheets leave open said.** `hardware/pogo.py` holds
+  the 0906-0-15-20-76-14-11-0 and the 0906-1-15-20-75-14-11-0, read from the maker's data sheets (a copy on
+  Farnell's site and one on Octopart's). A pin source now carries `unverified`: the barrel is the drawing's
+  largest diameter, and the force is taken at the mid-stroke because the sheet's 60 grams names no travel.
+  The pins are 3.5 and 4.5 mm tall PCB pins with solder tails; the fixture's checks refuse them under a board with
+  a tall part, which is the engine saying they are the wrong pin for that job, not a fault.
+- **A pin from a test-probe maker is not catalogued.** The common P75-E2 probe was looked for and found only
+  in retailers' listings that disagree (a spring force of 100 or 180 grams), with no maker's sheet, so it stays out until one is read.
+- **A catalogue of bushings** (`hardware/bushings.py`): the headless DIN 179 type A bushings, 18 in bores
+  of 2 to 8 mm, read from a manufacturer's part table, and named in a guide file as `{"catalog": ID}`. See the drill guide.

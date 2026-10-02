@@ -513,3 +513,55 @@ def test_a_part_with_a_hole_in_it_still_gets_a_clean_bore(
     guide, _ = built(tmp_path, data_for(step, bore(x=10.0)))
 
     assert guide.passed, (guide.checks, guide.problems)
+
+
+def test_a_catalogued_bushing_stands_in_for_the_users_figures(
+    slab: Path, tmp_path: Path
+) -> None:
+    data = data_for(slab, bore(kind="bushing"), bushing={"catalog": "DIN179A-4X12"})
+    report, _, _ = inspect(tmp_path, data)
+
+    assert report.valid, report.errors
+    assert report.part is not None
+    placed = report.part["bores"][0]
+
+    # DIN 179 type A, bore 4 mm, 7 mm outside, 12 mm long: the pocket is the outside plus
+    # the press fit's clearance each side and the printer's allowance.
+    assert placed["pocket_diameter_mm"] == pytest.approx(7.0 + 2 * 0.05 + 0.2)
+    assert placed["hole_diameter_mm"] == pytest.approx(4.0 + 0.2)
+
+
+def test_the_record_says_a_catalogued_bushing_came_from_the_catalogue(
+    slab: Path, tmp_path: Path
+) -> None:
+    data = data_for(slab, bore(kind="bushing"), bushing={"catalog": "DIN179A-4X12"})
+    guide, _ = built(tmp_path, data)
+    record = guide_record(guide, {})
+
+    assert record["bushing"]["figures_from"] == "the catalogue; see the source"
+    assert record["bushing"]["source"].startswith("catalog DIN179A-4X12: JW Winco")
+    assert record["bushing"]["inner_diameter_mm"] == 4.0
+    assert record["bushing"]["outer_diameter_mm"] == 7.0
+    assert record["bushing"]["length_mm"] == 12.0
+
+
+@pytest.mark.parametrize(
+    ("bushing", "message"),
+    [
+        ({"catalog": "DIN179A-99X99"}, "Unsupported bushing"),
+        (
+            {"catalog": "DIN179A-4X12", "outer_diameter_mm": 9.0},
+            "takes no figures of its own",
+        ),
+        ({"catalog": "DIN179A-3X8"}, "will not pass"),
+    ],
+)
+def test_a_catalogued_bushing_that_cannot_be_used_is_refused(
+    bushing: dict[str, Any], message: str
+) -> None:
+    data = template()
+    data["bushing"] = bushing
+    data["bores"][0]["kind"] = "bushing"
+    report = check_guide_data(data)
+
+    assert any(message in error for error in report.errors), report.errors
