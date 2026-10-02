@@ -38,8 +38,9 @@ would land on a part.
 | `pin` | The spring pin; see below. |
 | `working_travel_mm` | How far the pins are pressed in. It cannot exceed the pin's travel. |
 | `locating` | `outline` (the board's edge, the default) or `holes` (its mounting holes, which needs at least two). |
-| `closure` | `screws`, the only closure built. `hinge` is accepted by the schema and refused at build, with the reason. |
+| `closure` | `screws` (the default) or `hinge`: how the plate holds down. `hinge` needs a plain rectangular board. |
 | `screw` | Optional: `size` (a catalog fastener with a heat-set insert, `M3` by default) and `tensile_limit_n` with its `source`. See *The closure*. |
+| `hinge` | Optional, for `closure: hinge`: `pin` (a catalog fastener, `M3` by default) and `catch_load_limit_n` with its `source`. See *The hinged closure*. |
 | `nest.wall_mm` | The nest's wall (2.4 by default). |
 | `plate.thickness_mm` | The plate's thickness. Left out, it is two barrel diameters, or as much as the room allows. |
 
@@ -149,6 +150,53 @@ engine does not check the plate bending between the screws, a printed ear pullin
 off the nest, or an insert pulling out of printed plastic; the record lists them
 as not checked. Whether the plate stays down is for a trial.
 
+### The hinged closure
+
+`"closure": "hinge"` hinges the plate on one of the nest's long walls and closes
+it on a snap catch on the other, with no screws to fit or lose. It is the
+enclosure's hinge and catch (see
+[hinges and slides](../roadmaps/hinges-and-slides.md)), with the nest as its base
+and the plate as its lid: knuckles alternate between them round a pin that is an
+M3 screw and nut, or a threaded rod for a long wall, and the catch is a tongue
+outside the other wall with a hook that snaps under a bump.
+
+- **Which wall.** The hinge goes on the positive long wall unless a window is
+  cut in it for an overhanging part, then on the negative one; the build refuses
+  a board with a window in both, since the knuckles would close one over a part
+  that must lift out. The catch goes on the wall opposite and keeps clear of any
+  window there.
+- **The finger notch moves.** The hinged closure has one notch, on the catch's
+  wall and toward one end of it, so the catch has the rest of the wall. The
+  hinge's wall has none.
+- **The pins swing with the plate.** Each pin hangs from the plate down to its pad,
+  ten millimetres or more below the pin's axis, so opening the plate swings every
+  pin through an arc. The build sweeps the plate and the pins open in 10 degree
+  steps to 100 degrees against the nest, the board and its parts, and refuses a
+  fixture where anything meets, naming it: a tall part beside a pad on the side the
+  pins swing toward is the usual cause. It also lifts the board out with the plate
+  open. The answer is to close that board with screws.
+- **A plain rectangular board only.** A rounded or polygon outline is refused,
+  since the hinge and the catch are built round a straight wall.
+- **The load.** The catch carries the share of the preload that a moment balance
+  about the pin gives it: each pin's force taken as equal, from where it stands
+  between the pin and the catch. The hinge carries the rest. The catch's **strain**
+  is checked as the enclosure's catch is, against the same provisional limit, at
+  build. Its **load** is checked only against a limit you give, as the screw's
+  is:
+
+```json
+"hinge": {"pin": "M3", "catch_load_limit_n": 8, "source": "my own pull test"}
+```
+
+  Without one the load is reported and `fixture check` says it is not checked. The
+  plate bending between the hinge and the catch, the knuckles and pin wearing, and
+  the hook creeping under load are not checked, and the record says so.
+- **Printing.** The nest prints on its floor. The plate prints on its top face with
+  the catch's tongue pointing up, as an enclosure's hinged lid does. The barrels
+  stand proud of the plate by about 2.5 mm, so the plate's edge strip may want
+  support: **no print has shown whether it prints cleanly**, and the first trial is
+  where to find out.
+
 ## What the check also refuses
 
 - A board that has changed, is missing, or is not itself a valid board file.
@@ -162,8 +210,11 @@ as not checked. Whether the plate stays down is for a trial.
 - Pins too close together: the plate between two bores must be at least the
   printer's minimum wall. Two small pads 2.3 mm apart with a 1 mm pin leave 1.0 mm
   and are refused.
-- A closure it cannot build: `hinge`, a board too small for the screw ears, or
-  a preload over a screw limit you gave.
+- A closure it cannot build: a board too small for the screw ears, a hinge on a
+  board that is not a plain rectangle or has a window in both long walls, no room
+  for the catch beside the notch and the windows, or a preload (screws) or a catch
+  load (hinge) over a limit you gave. A plate and pins that cannot swing clear are
+  refused at build.
 
 It warns of a tip wider than half its pad, of a board with no prop under a point,
 and of a board whose parts are one envelope.
@@ -192,9 +243,10 @@ zcad-validation fixture trial complete \
 
 `trial start` writes `trials/trial-001/` beside the build record with two files:
 
-- **`observations.json`**: a pass or fail for each of five checks. Does the board
+- **`observations.json`**: a pass or fail for each of five checks (six for a hinged plate, which adds
+  whether it swings free with its pins). Does the board
   seat in the nest and lift out of it? Does the plate seat on the rim? Does it
-  stay down at the working travel with the screws fitted? Does each pin travel
+  stay down at the working travel with the screws fitted or the catch home? Does each pin travel
   freely with the plate off? The guidance for each is in the file.
 - **`measurements.json`**: for each probed point, whether the pin **made contact**
   (a continuity check, or a program loading), and optionally where the tip's mark

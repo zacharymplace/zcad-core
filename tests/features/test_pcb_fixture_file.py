@@ -98,6 +98,12 @@ def test_the_template_names_a_board_by_its_real_hash(tmp_path: Path) -> None:
         (lambda d: d.update(working_travel_mm=0.01), "working_travel_mm"),
         (lambda d: d.update(pin={"catalog": "P75-E2"}), "none yet"),
         (lambda d: d.update(screw={"size": "M9"}), "screw.size must be one of"),
+        (lambda d: d.update(hinge={"pin": "M9"}), "hinge.pin must be one of"),
+        (lambda d: d.update(hinge={"catch_load_limit_n": 5}), "hinge.source"),
+        (
+            lambda d: d.update(hinge={"catch_load_limit_n": 0, "source": "x"}),
+            "hinge.catch_load_limit_n",
+        ),
         (lambda d: d.update(screw={"tensile_limit_n": 500}), "screw.source"),
         (
             lambda d: d.update(screw={"tensile_limit_n": 0, "source": "x"}),
@@ -414,13 +420,22 @@ def test_the_check_reports_the_closure_and_its_unchecked_load(tmp_path: Path) ->
     assert any("not checked against a screw" in w for w in report.warnings)
 
 
-def test_the_check_refuses_a_hinged_closure_it_cannot_build(tmp_path: Path) -> None:
+def test_the_check_reports_a_hinged_closure_and_its_catch_load(
+    tmp_path: Path,
+) -> None:
     board = write_board(tmp_path)
     report = check_fixture_file(
         write_fixture(tmp_path, board, closure="hinge"), PROFILE
     )
 
-    assert any("'hinge' is not built yet" in e for e in report.errors)
+    assert report.summary is not None
+    assert report.valid, report.errors
+    hinge = report.summary["closure_plan"]["hinge"]
+
+    assert hinge["catch_load_n"] + hinge["hinge_load_n"] == pytest.approx(
+        report.summary["closure_plan"]["preload_n"]
+    )
+    assert any("catch carries" in w for w in report.warnings)
 
 
 def test_a_screw_limit_is_loaded_with_its_source(tmp_path: Path) -> None:
@@ -434,3 +449,21 @@ def test_a_screw_limit_is_loaded_with_its_source(tmp_path: Path) -> None:
     assert spec.screw_limit_n == 400.0
     assert spec.screw_source == "my pull test"
     assert spec.screw_size == "M3"
+
+
+def test_a_hinge_pin_and_catch_limit_are_loaded_with_their_source(
+    tmp_path: Path,
+) -> None:
+    board = write_board(tmp_path)
+    spec = load_fixture(
+        write_fixture(
+            tmp_path,
+            board,
+            closure="hinge",
+            hinge={"pin": "M4", "catch_load_limit_n": 8, "source": "my pull test"},
+        )
+    )
+
+    assert spec.hinge_pin == "M4"
+    assert spec.catch_limit_n == 8.0
+    assert spec.catch_source == "my pull test"

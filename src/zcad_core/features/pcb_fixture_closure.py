@@ -23,7 +23,14 @@ What the engine checks, and what it does not:
   off, or an insert pulling out of printed plastic. A trial shows whether the
   plate stays down.
 
-The hinged closure is not built.
+A **hinged** closure holds the plate on a pin along one long wall and closes it
+with a snap catch on the opposite one, both from :mod:`zcad_core.features.lid_hinge`.
+It needs a plain rectangular board, since the hinge and catch are built round a
+rectangular wall, and the finger notch moves off the middle of the catch's wall to
+leave room for it. The catch carries the share of the preload that a moment balance
+about the pin gives it, from where each pin stands between the pin and the catch; the
+hinge carries the rest. The catch's strain is checked as the enclosure's catch is,
+and its load only against a limit the fixture file gives with its source.
 
 Frame: the board's own, as in :mod:`zcad_core.features.pcb_fixture_plan`.
 """
@@ -36,16 +43,21 @@ from dataclasses import dataclass
 from typing import Any
 
 from zcad_core.features.guide_bores import printer_numbers
+from zcad_core.features.lid_hinge import axis_offset_mm
 from zcad_core.features.pcb_fixture_plan import (
     EAR_OFFSET_MM,
     EAR_RADIUS_MM,
     FLOOR_MM,
+    RELIEF_MARGIN_MM,
     FixturePlan,
     outline_points,
 )
 from zcad_core.hardware import PogoSpec
 from zcad_core.hardware.electronics import board_outline
-from zcad_core.hardware.electronics.board_file import BoardFileSpec
+from zcad_core.hardware.electronics.board_file import (
+    ENVELOPE_IDENTIFIER,
+    BoardFileSpec,
+)
 from zcad_core.hardware.electronics.board_outline import Point
 from zcad_core.hardware.fasteners import FastenerSpec, get_fastener, list_fasteners
 
@@ -59,8 +71,44 @@ EAR_SPACING_MM = 1.0
 
 
 @dataclass(frozen=True)
+class HingePlan:
+    """The hinge and catch: which walls, and how the preload divides."""
+
+    hinge_edge: str
+    closure_edge: str
+    pin: str
+    lever_mm: float
+    catch_load_n: float
+    hinge_load_n: float
+    catch_limit_n: float | None
+    catch_limit_source: str
+    notch_offset_mm: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "hinge_wall": self.hinge_edge,
+            "catch_wall": self.closure_edge,
+            "pin": self.pin,
+            "lever_mm": round(self.lever_mm, 3),
+            "catch_load_n": round(self.catch_load_n, 3),
+            "hinge_load_n": round(self.hinge_load_n, 3),
+            "load_note": (
+                "The preload shared between the catch and the hinge by a moment "
+                "balance about the pin, taking the pins' force as equal and the "
+                "catch at the closure wall's outer face. The catch's strain "
+                "limit is checked at build; its load only against a limit you "
+                "give."
+            ),
+            "catch_load_limit_n": self.catch_limit_n,
+            "catch_load_limit_source": self.catch_limit_source or None,
+            "catch_load_limit_checked": self.catch_limit_n is not None,
+            "finger_notch_offset_mm": round(self.notch_offset_mm, 3),
+        }
+
+
+@dataclass(frozen=True)
 class ClosurePlan:
-    """The screws, their ears, and the load they hold."""
+    """The screws, their ears, and the load they hold; or the hinge and catch."""
 
     kind: str
     preload_n: float
@@ -76,6 +124,7 @@ class ClosurePlan:
     limit_source: str
     errors: tuple[str, ...]
     warnings: tuple[str, ...]
+    hinge: HingePlan | None = None
 
     @property
     def load_per_screw_n(self) -> float:
@@ -86,13 +135,35 @@ class ClosurePlan:
 
     @property
     def limit_checked(self) -> bool:
+        if self.hinge is not None:
+            return self.hinge.catch_limit_n is not None
+
         return self.limit_n is not None
 
     @property
     def within_limit(self) -> bool:
+        if self.hinge is not None:
+            limit = self.hinge.catch_limit_n
+
+            return limit is None or self.hinge.catch_load_n <= limit
+
         return self.limit_n is None or self.load_per_screw_n <= self.limit_n
 
     def to_dict(self) -> dict[str, Any]:
+        if self.hinge is not None:
+            return {
+                "kind": self.kind,
+                "pins": self.pins,
+                "preload_n": round(self.preload_n, 3),
+                "preload_note": _PRELOAD_NOTE,
+                "hinge": self.hinge.to_dict(),
+                "not_checked": [
+                    "the plate bending between the hinge and the catch",
+                    "the hinge's knuckles or pin wearing",
+                    "the catch's hook wearing or creeping under load",
+                ],
+            }
+
         return {
             "kind": self.kind,
             "screw": self.screw,
@@ -104,11 +175,7 @@ class ClosurePlan:
             "screw_length_min_mm": round(self.screw_length_min_mm, 3),
             "pins": self.pins,
             "preload_n": round(self.preload_n, 3),
-            "preload_note": (
-                "The pins' force at the working travel, taken as proportional to "
-                "the travel from the figure the pin was given at its own. A "
-                "straight-spring assumption: confirm it from the datasheet."
-            ),
+            "preload_note": _PRELOAD_NOTE,
             "load_per_screw_n": round(self.load_per_screw_n, 3),
             "load_per_screw_note": (
                 "The whole preload: should the plate lift at one end, the other "
@@ -123,6 +190,13 @@ class ClosurePlan:
                 "an insert pulling out of printed plastic",
             ],
         }
+
+
+_PRELOAD_NOTE = (
+    "The pins' force at the working travel, taken as proportional to the travel "
+    "from the figure the pin was given at its own. A straight-spring assumption: "
+    "confirm it from the datasheet."
+)
 
 
 def preload_n(pin: PogoSpec, count: int, working_travel_mm: float) -> float:
@@ -221,6 +295,135 @@ def _check_ears(
                 )
 
 
+def window_spans(
+    board: BoardFileSpec, clearance_mm: float, edge: str
+) -> list[tuple[float, float]]:
+    """Where along a wall the nest has a window for a part that overhangs it: the
+    stretches, from the board's centre, that the catch and the hinge must avoid."""
+
+    on_y = edge.endswith("_y")
+    half = (board.board_length_mm if on_y else board.board_width_mm) / 2
+    sign = 1.0 if edge.startswith("positive") else -1.0
+    spans = []
+
+    for part in board.components:
+        if part.identifier == ENVELOPE_IDENTIFIER:
+            continue
+
+        across, size_across = (
+            (part.center_y_mm, part.depth_mm)
+            if on_y
+            else (part.center_x_mm, part.width_mm)
+        )
+        along, size_along = (
+            (part.center_x_mm, part.width_mm)
+            if on_y
+            else (part.center_y_mm, part.depth_mm)
+        )
+        reach = sign * (across + sign * (size_across / 2 + RELIEF_MARGIN_MM))
+
+        if reach > half + clearance_mm:
+            spans.append(
+                (
+                    along - size_along / 2 - RELIEF_MARGIN_MM,
+                    along + size_along / 2 + RELIEF_MARGIN_MM,
+                )
+            )
+
+    return spans
+
+
+def hinge_walls(board: BoardFileSpec, clearance_mm: float) -> tuple[str, str, bool]:
+    """The wall that takes the hinge, the wall opposite it that takes the catch,
+    and whether the long walls face Y. The hinge goes on the positive long wall
+    unless a window is cut in it, then on the negative one; refused if both have a
+    window, since the knuckles would close it over a part that must lift out."""
+
+    on_y = board.board_width_mm >= board.board_length_mm
+    positive, negative = (
+        ("positive_y", "negative_y") if on_y else ("positive_x", "negative_x")
+    )
+
+    for hinge, catch in ((positive, negative), (negative, positive)):
+        if not window_spans(board, clearance_mm, hinge):
+            return hinge, catch, on_y
+
+    raise ValueError(
+        "Both long walls have a window for a part that overhangs the board, and "
+        "the hinge's knuckles would close one over it"
+    )
+
+
+def hinge_notch_offset(board: BoardFileSpec) -> float:
+    """Where along the catch's wall the finger notch goes: toward one end, so the
+    catch has the rest of the wall."""
+
+    half = max(board.board_width_mm, board.board_length_mm) / 2
+
+    return -(half - NOTCH_RADIUS_MM - 1.0)
+
+
+def _hinge_plan(
+    *,
+    board: BoardFileSpec,
+    plan: FixturePlan,
+    preload: float,
+    pin: str,
+    limit_n: float | None,
+    limit_source: str,
+    errors: list[str],
+) -> HingePlan | None:
+    """Divide the preload between the catch and the hinge, and refuse a board the
+    hinge cannot be built on."""
+
+    if board.outline_points_mm is not None:
+        errors.append(
+            "A hinged closure needs a plain rectangular board outline: the hinge "
+            "and the catch are built round a straight wall. Close this one with "
+            "screws"
+        )
+
+        return None
+
+    try:
+        fastener = get_fastener(pin)
+    except ValueError:
+        errors.append(f"hinge.pin {pin!r} is not in the catalog: {list_fasteners()}")
+
+        return None
+
+    try:
+        hinge_edge, closure_edge, on_y = hinge_walls(board, plan.clearance_mm)
+    except ValueError as error:
+        errors.append(str(error))
+
+        return None
+
+    side = 1.0 if hinge_edge.startswith("positive") else -1.0
+    half = (board.board_length_mm if on_y else board.board_width_mm) / 2
+    half += plan.clearance_mm + plan.nest_wall_mm
+    axis = half + axis_offset_mm(fastener)
+    lever = axis + half
+    share = preload / max(len(plan.points), 1)
+    moment = sum(
+        share * (axis - side * (point.y_mm if on_y else point.x_mm))
+        for point in plan.points
+    )
+    catch = moment / lever
+
+    return HingePlan(
+        hinge_edge=hinge_edge,
+        closure_edge=closure_edge,
+        pin=pin,
+        lever_mm=lever,
+        catch_load_n=catch,
+        hinge_load_n=preload - catch,
+        catch_limit_n=limit_n,
+        catch_limit_source=limit_source,
+        notch_offset_mm=hinge_notch_offset(board),
+    )
+
+
 def plan_closure(
     *,
     board: BoardFileSpec,
@@ -230,22 +433,33 @@ def plan_closure(
     limit_n: float | None,
     limit_source: str,
     profile: Mapping[str, Any],
+    hinge_pin: str = DEFAULT_SCREW,
+    catch_limit_n: float | None = None,
+    catch_limit_source: str = "",
 ) -> ClosurePlan:
-    """Place the screws and add up the load they hold. Every problem is
-    collected, so the user sees them all."""
+    """Place the screws and add up the load they hold, or lay out the hinge and
+    divide the preload. Every problem is collected, so the user sees them all."""
 
     errors: list[str] = []
     warnings: list[str] = []
     _, least_wall, least_floor = printer_numbers(profile)
     pins = len(plan.points)
     preload = preload_n(plan.pin, pins, plan.working_travel_mm)
+
+    if kind == "hinge":
+        return _plan_hinged(
+            board=board,
+            plan=plan,
+            preload=preload,
+            pin=hinge_pin,
+            limit_n=catch_limit_n,
+            limit_source=catch_limit_source,
+        )
+
     fastener = _fastener(screw, errors) if kind == "screws" else None
 
     if kind != "screws":
-        errors.append(
-            f"closure {kind!r} is not built yet; use 'screws', which holds the "
-            "plate with two screws"
-        )
+        errors.append(f"closure {kind!r} is not one of 'screws' and 'hinge'")
 
     pocket = fastener.heat_set_insert_diameter_mm if fastener else None
     depth = fastener.heat_set_insert_depth_mm if fastener else None
@@ -296,4 +510,58 @@ def plan_closure(
         limit_source=limit_source,
         errors=tuple(errors),
         warnings=tuple(warnings),
+    )
+
+
+def _plan_hinged(
+    *,
+    board: BoardFileSpec,
+    plan: FixturePlan,
+    preload: float,
+    pin: str,
+    limit_n: float | None,
+    limit_source: str,
+) -> ClosurePlan:
+    errors: list[str] = []
+    warnings: list[str] = []
+    hinge = _hinge_plan(
+        board=board,
+        plan=plan,
+        preload=preload,
+        pin=pin,
+        limit_n=limit_n,
+        limit_source=limit_source,
+        errors=errors,
+    )
+
+    if hinge is not None and limit_n is None:
+        warnings.append(
+            f"The catch carries {hinge.catch_load_n:.1f} N of the "
+            f"{preload:.1f} N preload, and that is not checked against what the "
+            "catch can hold: give its load limit and the source in the fixture "
+            "file's 'hinge' section"
+        )
+
+    if hinge is not None and limit_n is not None and hinge.catch_load_n > limit_n:
+        errors.append(
+            f"The catch carries {hinge.catch_load_n:.1f} N of the pins' preload, "
+            f"more than the {limit_n:g} N it is given to hold ({limit_source})"
+        )
+
+    return ClosurePlan(
+        kind="hinge",
+        preload_n=preload,
+        pins=len(plan.points),
+        screw="",
+        screws=(),
+        ear_radius_mm=0.0,
+        clearance_hole_mm=0.0,
+        pocket_diameter_mm=0.0,
+        pocket_depth_mm=0.0,
+        screw_length_min_mm=0.0,
+        limit_n=None,
+        limit_source="",
+        errors=tuple(errors),
+        warnings=tuple(warnings),
+        hinge=hinge,
     )
