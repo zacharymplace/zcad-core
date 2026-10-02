@@ -30,6 +30,7 @@ from zcad_core.cli import (
     fixture,
     guide,
     housing,
+    jig,
     nest,
     review,
     revision,
@@ -61,6 +62,7 @@ _COMMAND_GROUPS = (
     wearable,
     stack,
     nest,
+    jig,
 )
 
 
