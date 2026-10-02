@@ -2,8 +2,8 @@
 
 A **stack profile** says how an item's top and bottom faces meet another's. Bins and
 baseplates built on one profile sit on each other, and a bin stacks on a bin like it. This
-release builds the bins and baseplates; holding by bolts, magnets and latches, trays,
-enclosures and layers come in later releases (see the
+release builds the bins and baseplates, holds them with magnets or bolts, and checks whether two
+items stack; latches, trays, enclosures and layers come in later releases (see the
 [stackable items design](../roadmaps/stackable-items.md)).
 
 ```bash
@@ -34,6 +34,7 @@ the figures against a source you trust and say where they came from.
 | `foot` | The section a bin stands on: `[inset, height]` points from the bottom, ending at inset 0. |
 | `lip` | The section a bin takes the foot above in: from its base, ending at inset 0. |
 | `min_nest_clearance_mm` | The least gap the file claims between a foot laid in a lip (0.25). |
+| `holding_points` | Where a magnet or a bolt goes in a cell, each `[x, y]` from its centre (the template has the four corners, 13 mm out). Up to 16, 5 mm or more apart, inside the cell. |
 
 An **inset** is how far in from the item's outer wall, at that height. The check refuses a
 section that does not start at height 0, does not end at the wall, moves back in as it rises, or
@@ -57,8 +58,8 @@ is refused.
 
 | Item | Fields |
 | --- | --- |
-| `bin` | `cells` (across, deep), `units` high, optional `wall_mm`, `floor_mm` (1.2), `dividers` (counts along `x` and `y`), `label_tab`, `scoop`. |
-| `baseplate` | `cells` (across, deep), optional `floor_mm` (1.2), `rim_mm` (1.2). |
+| `bin` | `cells` (across, deep), `units` high, optional `wall_mm`, `floor_mm` (1.2), `dividers` (counts along `x` and `y`), `label_tab`, `scoop`, `holding`. |
+| `baseplate` | `cells` (across, deep), optional `floor_mm` (1.2), `rim_mm` (1.2), `holding`. |
 
 A footprint is whole cells and a height is whole units, because they are counts. A bin is refused if its wall
 or floor is under the printer's minimum, if its wall is thicker than the lip reaches in from the wall (2.6 mm
@@ -79,6 +80,43 @@ cells the bed takes.
 
 These dimensions (the lip's flat, the ridge's width, the divider, the tab, the scoop) are the engine's own
 design choices, not figures from the profile's source.
+
+## How an item holds
+
+An item's `holding` is `lip` (the default), `magnet` or `bolt`. The profile's `holding_points` say where.
+
+| Holding | Needs | Builds |
+| --- | --- | --- |
+| `lip` | nothing | Nothing at the points: the foot sits in the lip and gravity does the rest. |
+| `magnet` | `"magnet": "D6X2"` (any catalogued magnet) | A pocket for the magnet in the bottom of each cell's foot, and one in each baseplate pocket's floor, sunk into it from above. The pocket is the magnet's size plus the catalogue's allowance: 6.3 mm across and 2.1 deep for a D6X2. |
+| `bolt` | `"fastener": "M2"` (any catalogued fastener) | A heat-set insert pocket in the bottom of each foot, and a clearance hole through a baseplate's floor under it. The build reports the least length of screw that passes the floor and reaches the insert's depth. |
+
+A holding is refused, with the figures, when it would break through or leave too little: a pocket deeper than the
+foot leaves the printer's minimum floor above it (an M3 insert is 5 mm deep in a 4.75 mm foot; an M2.5's 4 mm
+leaves 0.75), a magnet pocket in a baseplate whose floor is under the pocket's depth plus the minimum floor (a
+D6X2 needs a floor of 3.3 mm), or a pocket that comes within the minimum wall of the edge of the foot's bottom.
+
+**The engine states no pull force and no holding force**, and which way a magnet faces is yours: it builds both
+pockets the same size at the same place.
+
+## Does it stack: `check-stack`
+
+```bash
+zcad-validation stack check-stack --upper my-stack.json:parts-bin --lower my-stack.json:base
+```
+
+It reads two items, from the same stack file or two, and says whether the upper stacks on the lower, or why not,
+with every reason at once:
+
+- they are built to **the same profile**, by its hash;
+- a **bin** goes on a **baseplate** whose cells cover its own, or on a bin with **the same cells**; a baseplate goes
+  on nothing;
+- on a baseplate they **agree on what holds them**: the same magnet, the same fastener, or both the lip alone. A
+  bin that holds by magnet on a plain baseplate is refused, and so is a magnet bin on a bolt baseplate; and
+- laid together as real solids, with the upper's first cell over the lower's, they **do not overlap**.
+
+A bin on a bin is held by the lip alone. If either has pockets in its foot they meet nothing there, and the check
+says so as a warning. It also reports the height of the stack.
 
 ## What is checked
 

@@ -10,6 +10,7 @@ from pathlib import Path
 from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.stack import build_stack, require_fits_bed
+from zcad_core.features.stack_check import check_stackable, locate
 from zcad_core.features.stack_file import (
     check_stack_file,
     load_stack,
@@ -86,6 +87,25 @@ def _stack_check(args: argparse.Namespace) -> int:
     )
 
     return 0 if stack.valid else 1
+
+
+def _stack_check_stack(args: argparse.Namespace) -> int:
+    """Whether one item stacks on another; exits 1 if it does not."""
+
+    profile = load_printer_profile(args.printer_profile)
+    upper_file, upper_name = locate(args.upper)
+    lower_file, lower_name = locate(args.lower)
+    report = check_stackable(upper_file, upper_name, lower_file, lower_name, profile)
+    emit(
+        {
+            "stacks": report.stacks,
+            "errors": list(report.errors),
+            "warnings": list(report.warnings),
+            **report.summary,
+        }
+    )
+
+    return 0 if report.stacks else 1
 
 
 def _sha256(path: Path) -> str:
@@ -186,3 +206,17 @@ def register(
     build.add_argument("--output-directory", required=True, type=Path)
     build.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
     build.set_defaults(handler=_stack_build)
+    check_stack = commands.add_parser(
+        "check-stack",
+        help="check whether one item stacks on another; exits 1 if it does not",
+    )
+    check_stack.add_argument(
+        "--upper", required=True, help="the item on top, as FILE:NAME"
+    )
+    check_stack.add_argument(
+        "--lower", required=True, help="the item below, as FILE:NAME"
+    )
+    check_stack.add_argument(
+        "--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE
+    )
+    check_stack.set_defaults(handler=_stack_check_stack)

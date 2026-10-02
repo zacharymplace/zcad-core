@@ -303,5 +303,69 @@ def add_scoop(
     return model.union(block.cut(cylinder))
 
 
+def holding_centres(
+    profile: StackProfile, cells: tuple[int, int]
+) -> list[tuple[float, float]]:
+    """Every holding point of every cell, from the item's centre."""
+
+    return [
+        (cx + x, cy + y)
+        for cx, cy in cell_centres(cells, profile.pitch_mm)
+        for x, y in profile.holding_points
+    ]
+
+
+def _drill(
+    model: cq.Workplane,
+    centres: list[tuple[float, float]],
+    diameter: float,
+    z0: float,
+    z1: float,
+) -> cq.Workplane:
+    """``model`` with a round hole at each centre from ``z0`` to ``z1``."""
+
+    cutters = (
+        cq.Workplane("XY")
+        .workplane(offset=z0)
+        .pushPoints(centres)
+        .circle(diameter / 2)
+        .extrude(z1 - z0)
+    )
+
+    return model.cut(cutters)
+
+
+def cut_foot_pockets(
+    model: cq.Workplane,
+    profile: StackProfile,
+    cells: tuple[int, int],
+    diameter: float,
+    depth: float,
+) -> cq.Workplane:
+    """A pocket in the bottom of each cell's foot at each holding point."""
+
+    return _drill(model, holding_centres(profile, cells), diameter, -0.5, depth)
+
+
+def cut_plate_holding(
+    model: cq.Workplane,
+    profile: StackProfile,
+    cells: tuple[int, int],
+    holding_kind: str,
+    diameter: float,
+    depth: float,
+    floor_mm: float,
+) -> cq.Workplane:
+    """A baseplate's holding under each cell's pocket floor: a magnet pocket sunk into
+    the floor from above, or a clearance hole through it."""
+
+    centres = holding_centres(profile, cells)
+
+    if holding_kind == "magnet":
+        return _drill(model, centres, diameter, floor_mm - depth, floor_mm + 0.5)
+
+    return _drill(model, centres, diameter, -0.5, floor_mm + 0.5)
+
+
 def solid_count(model: cq.Workplane) -> int:
     return len(workplane_shape(model).Solids())
