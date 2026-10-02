@@ -8,9 +8,11 @@ from it is verified.
 """
 
 from zcad_core.hardware.wearables.capture import (
+    CUSTOM,
     DEVICES,
     CaptureCheck,
     EdgeFeature,
+    FaceFeature,
     WearableCapture,
     capture_template,
     check_capture,
@@ -27,10 +29,12 @@ from zcad_core.hardware.wearables.tandem import (
 )
 
 __all__ = [
+    "CUSTOM",
     "DEVICES",
     "CaptureCheck",
     "DexcomG7Spec",
     "EdgeFeature",
+    "FaceFeature",
     "TandemMobiSpec",
     "WearableCapture",
     "capture_template",
