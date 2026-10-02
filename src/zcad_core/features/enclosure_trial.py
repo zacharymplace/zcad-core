@@ -12,6 +12,11 @@ exactly those parts:
 3. :func:`complete_enclosure_trial` validates them and writes
    ``enclosure-trial.json``. A completed trial is never overwritten; record
    another print as the next trial.
+
+A hinged or sliding lid also gets a ``lid.json``: what a hand and a spring scale
+find of the pin, the swing, the slide force, and how many openings the lid took.
+The engine states no figure for any of these; a trial records them, and a
+completed trial keeps them beside what the build designed.
 """
 
 from __future__ import annotations
@@ -28,7 +33,7 @@ import cadquery as cq
 
 from zcad_core.features.enclosure import Enclosure
 from zcad_core.features.insert_bosses import InsertBossParameters
-from zcad_core.hardware import DisplaySpec
+from zcad_core.hardware import DisplaySpec, get_fastener
 from zcad_core.validation.measurements import PhysicalMeasurement
 
 ENCLOSURE_BUILD_SCHEMA_VERSION = "1.0.0"
@@ -38,6 +43,7 @@ TRIAL_RECORD = "enclosure-trial.json"
 OBSERVATIONS = "observations.json"
 MEASUREMENTS = "measurements.json"
 THERMAL = "thermal.json"
+LID = "lid.json"
 # A temperature is only a figure once it has stopped changing.
 MINIMUM_SETTLED_MINUTES = 10.0
 THERMAL_GUIDANCE = (
@@ -63,6 +69,10 @@ class EnclosureCheck(str, Enum):
     DISPLAY_ALIGNED = "display_aligned"
     DISPLAY_RETAINED = "display_retained"
     NOTHING_RATTLES = "nothing_rattles"
+    HINGE_SWINGS = "hinge_swings_free"
+    CATCH_HOLDS = "catch_holds_lid"
+    LID_SLIDES = "lid_slides_free"
+    DETENT_HOLDS = "detent_holds_lid"
 
 
 CHECK_GUIDANCE = {
@@ -96,6 +106,39 @@ CHECK_GUIDANCE = {
         "clipped into its retainer"
     ),
     EnclosureCheck.NOTHING_RATTLES: "Nothing moves or rattles when shaken",
+    EnclosureCheck.HINGE_SWINGS: (
+        "With the pin in, the lid swings from shut to fully open without "
+        "catching the base, a part inside, or the display's cable, and turns "
+        "on the pin without binding"
+    ),
+    EnclosureCheck.CATCH_HOLDS: (
+        "The catch clicks home as the lid closes, holds it shut when the box "
+        "is shaken, and releases when you lift its lip"
+    ),
+    EnclosureCheck.LID_SLIDES: (
+        "The lid pushes in along its grooves and out over the entry wall "
+        "without binding or scraping, and stops against the far wall"
+    ),
+    EnclosureCheck.DETENT_HOLDS: (
+        "The detent clicks as the lid reaches home and holds it shut when "
+        "the box is shaken"
+    ),
+}
+LID_GUIDANCE = {
+    "hinge": (
+        "Fit the pin and open and close the lid. Turn the pin by hand, then swing "
+        "the lid to its limit and read the angle against a protractor. Pull the "
+        "catch's lip with a spring scale at the lip until it lets go. Then open "
+        "and close the lid as many times as you will, counting, and say whether "
+        "anything cracked, whitened, or wore loose."
+    ),
+    "slide": (
+        "Push the lid open and closed along its grooves with a spring scale on its "
+        "end, and write down the force that starts it moving out of the detent. "
+        "Then open and close it as many times as you will, counting, and say "
+        "whether the grooves, the detent tongues, or the lid wore, cracked, or "
+        "whitened."
+    ),
 }
 
 
@@ -138,6 +181,12 @@ def applicable_checks(enclosure: Enclosure) -> tuple[EnclosureCheck, ...]:
     if enclosure.display_support is None:
         skipped |= {EnclosureCheck.DISPLAY_ALIGNED, EnclosureCheck.DISPLAY_RETAINED}
 
+    if enclosure.hinge is None:
+        skipped |= {EnclosureCheck.HINGE_SWINGS, EnclosureCheck.CATCH_HOLDS}
+
+    if enclosure.slide is None:
+        skipped |= {EnclosureCheck.LID_SLIDES, EnclosureCheck.DETENT_HOLDS}
+
     return tuple(check for check in EnclosureCheck if check not in skipped)
 
 
@@ -173,12 +222,49 @@ def nominal_measurements(
         nominals["cable_opening_width_mm"] = cable.opening_width_mm
         nominals["cable_opening_height_mm"] = cable.opening_height_mm
 
+    if enclosure.hinge is not None:
+        # The pin hole as modelled: the pin's clearance hole grown for the printer.
+        nominals["hinge_pin_hole_diameter_mm"] = (
+            get_fastener(design.hinge_pin).clearance_hole_mm
+            + design.hole_compensation_mm
+        )
+
+    if enclosure.slide is not None:
+        nominals["slide_clearance_per_side_mm"] = enclosure.slide.clearance_mm
+
     if display is not None:
         clearance = display.recommended_window_clearance_mm
         nominals["display_window_width_mm"] = display.active_width_mm + 2 * clearance
         nominals["display_window_height_mm"] = display.active_height_mm + 2 * clearance
 
     return {name: round(value, 3) for name, value in nominals.items()}
+
+
+def lid_summary(enclosure: Enclosure) -> dict[str, Any] | None:
+    """What a hinged or sliding lid was designed to do, for a trial to compare
+    with: ``None`` for a screwed or snap lid."""
+
+    hinge, slide = enclosure.hinge, enclosure.slide
+
+    if hinge is not None:
+        return {
+            "kind": "hinge",
+            "pin": hinge.pin_description,
+            "knuckles": hinge.knuckles,
+            "swing_degrees": hinge.swing_degrees,
+            "catch_strain_percent": round(100 * hinge.catch.strain, 2),
+        }
+
+    if slide is not None:
+        return {
+            "kind": "slide",
+            "entry_edge": slide.entry_edge,
+            "clearance_per_side_mm": slide.clearance_mm,
+            "travel_mm": round(slide.travel_mm, 1),
+            "detent_strain_percent": round(100 * slide.detent.strain, 2),
+        }
+
+    return None
 
 
 def write_build_record(
@@ -224,6 +310,7 @@ def write_build_record(
         "side_clearance_mm": list(enclosure.side_clearance_mm),
         "board_support": enclosure.board_support,
         "display_support": enclosure.display_support,
+        "lid": lid_summary(enclosure),
         "thermal": enclosure.thermal.to_dict() if enclosure.thermal else None,
         "vents": enclosure.vents.to_dict() if enclosure.vents else None,
         "fan": enclosure.fan.to_dict() if enclosure.fan else None,
@@ -276,6 +363,12 @@ def start_enclosure_trial(build_record_path: Path) -> Path:
     (trial / THERMAL).write_text(
         json.dumps(_thermal_template(build), indent=2) + "\n", encoding="utf-8"
     )
+
+    if build.get("lid"):
+        (trial / LID).write_text(
+            json.dumps(_lid_template(build["lid"]), indent=2) + "\n", encoding="utf-8"
+        )
+
     (trial / OBSERVATIONS).write_text(
         json.dumps(observations, indent=2) + "\n", encoding="utf-8"
     )
@@ -284,6 +377,34 @@ def start_enclosure_trial(build_record_path: Path) -> Path:
     )
 
     return trial
+
+
+def _lid_template(lid: dict[str, Any]) -> dict[str, Any]:
+    """The lid template: what the build designed, and blanks for what a
+    protractor, a spring scale, and a count of openings say. Leave it blank for
+    a trial that does not try the lid."""
+
+    common = {"openings_counted": None, "damage_observed": None, "notes": ""}
+
+    if lid["kind"] == "hinge":
+        return {
+            "guidance": LID_GUIDANCE["hinge"],
+            "designed": {"swing_degrees": lid["swing_degrees"], "pin": lid["pin"]},
+            "pin_turns_freely": None,
+            "swing_degrees_reached": None,
+            "catch_release_force_n": None,
+            **common,
+        }
+
+    return {
+        "guidance": LID_GUIDANCE["slide"],
+        "designed": {
+            "clearance_per_side_mm": lid["clearance_per_side_mm"],
+            "travel_mm": lid["travel_mm"],
+        },
+        "slide_force_n": None,
+        **common,
+    }
 
 
 def _thermal_template(build: dict[str, Any]) -> dict[str, Any]:
@@ -404,6 +525,102 @@ def _thermal(trial: Path, build: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _positive(entry: dict[str, Any], name: str, where: str) -> float | None:
+    value = entry.get(name)
+
+    if value is None:
+        return None
+
+    if isinstance(value, bool) or not isinstance(value, int | float) or value <= 0:
+        raise ValueError(f"{where}: {name} must be a number above zero, not {value!r}")
+
+    return float(value)
+
+
+def _lid(trial: Path, build: dict[str, Any]) -> dict[str, Any] | None:
+    """The trial's lid record, validated and set beside what was designed;
+    ``None`` when the lid was not tried."""
+
+    path = trial / LID
+
+    if not path.is_file():
+        return None
+
+    entry = _read(path)
+    designed = build.get("lid")
+    where = "lid.json"
+
+    if not designed:
+        raise ValueError(
+            "The build record has no hinged or sliding lid, so a lid trial has "
+            "nothing to be compared with"
+        )
+
+    names = (
+        ("swing_degrees_reached", "catch_release_force_n", "pin_turns_freely")
+        if designed["kind"] == "hinge"
+        else ("slide_force_n",)
+    )
+    measured = {name: entry.get(name) for name in (*names, "openings_counted")}
+
+    if all(value is None for value in measured.values()):
+        return None
+
+    record: dict[str, Any] = {"kind": designed["kind"], "designed": designed}
+
+    if designed["kind"] == "hinge":
+        turns = entry.get("pin_turns_freely")
+
+        if turns is not None and not isinstance(turns, bool):
+            raise TypeError(f"{where}: pin_turns_freely must be true or false")
+
+        reached = _positive(entry, "swing_degrees_reached", where)
+
+        if reached is not None and reached > 180.0:
+            raise ValueError(f"{where}: swing_degrees_reached cannot exceed 180")
+
+        record |= {
+            "pin_turns_freely": turns,
+            "swing_degrees_reached": reached,
+            "catch_release_force_n": _positive(entry, "catch_release_force_n", where),
+            # Above zero, the lid opened less than designed.
+            "swing_shortfall_degrees": (
+                None
+                if reached is None
+                else round(designed["swing_degrees"] - reached, 1)
+            ),
+        }
+    else:
+        record["slide_force_n"] = _positive(entry, "slide_force_n", where)
+
+    record |= _wear(entry, where)
+    record["notes"] = entry.get("notes", "")
+
+    return record
+
+
+def _wear(entry: dict[str, Any], where: str) -> dict[str, Any]:
+    """The count of openings and whether the lid was damaged by them. Damage
+    needs a count: a lid is only as worn as the number of times it was worked."""
+
+    count = entry.get("openings_counted")
+    damage = entry.get("damage_observed")
+
+    if count is None:
+        if damage is not None:
+            raise ValueError(f"{where}: damage_observed needs openings_counted")
+
+        return {"openings_counted": None, "damage_observed": None}
+
+    if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+        raise ValueError(f"{where}: openings_counted must be a whole number from 1")
+
+    if not isinstance(damage, bool):
+        raise TypeError(f"{where}: damage_observed must be true or false")
+
+    return {"openings_counted": count, "damage_observed": damage}
+
+
 def _observations(trial: Path, required: list[str]) -> list[dict[str, Any]]:
     payload = _read(trial / OBSERVATIONS)
     missing = sorted(set(required) - set(payload))
@@ -486,16 +703,18 @@ def complete_enclosure_trial(
     observations = _observations(trial, build["checks"])
     measurements = _measurements(trial)
     thermal = _thermal(trial, build)
+    lid = _lid(trial, build)
     failed = [entry["check"] for entry in observations if not entry["passed"]]
 
     if (
         disposition is not EnclosureTrialDisposition.FAIL
         and not measurements
         and thermal is None
+        and lid is None
     ):
         raise ValueError(
-            f"A {disposition.value} trial needs at least one measurement or a "
-            "recorded temperature"
+            f"A {disposition.value} trial needs at least one measurement, a "
+            "recorded temperature, or a lid reading"
         )
 
     if disposition is EnclosureTrialDisposition.PASS and failed:
@@ -518,6 +737,7 @@ def complete_enclosure_trial(
             for measurement in measurements
         ],
         "thermal": thermal,
+        "lid": lid,
         "notes": notes,
         "completed_at_utc": datetime.now(UTC).isoformat(),
     }

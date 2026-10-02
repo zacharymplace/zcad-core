@@ -105,6 +105,11 @@ class HingeReport:
     wall_needed_mm: float
     # A pin longer than any screw is a threaded rod, cut to ``pin_length_mm``.
     pin_is_rod: bool = False
+    # The pin's axis in the enclosure's frame (a point on it and its
+    # direction), and the sign of the turn that opens the lid.
+    axis_point: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    axis_direction: tuple[float, float, float] = (1.0, 0.0, 0.0)
+    swing_sign: float = 1.0
 
     @property
     def pin_description(self) -> str:
@@ -117,6 +122,15 @@ class HingeReport:
             )
 
         return f"{self.pin} x {self.pin_length_mm} mm screw and nut"
+
+
+def swung_lid(lid: cq.Shape, hinge: HingeReport, degrees: float) -> cq.Shape:
+    """The lid turned open about the pin by ``degrees``, as the sweep turns it."""
+
+    point = cq.Vector(*hinge.axis_point)
+    direction = cq.Vector(*hinge.axis_direction)
+
+    return lid.rotate(point, point + direction, hinge.swing_sign * degrees)
 
 
 def hinge_edges(
@@ -391,9 +405,8 @@ def add_hinge(
     base = base.cut(hole_world)
     lid = lid.cut(hole_world)
 
-    _require_free_swing(
-        base, lid, cavity, hinge_edge, axis_u, axis_z, hardware, carried or {}
-    )
+    point, direction, sign = _swing_axis(lid, cavity, hinge_edge, axis_u, axis_z)
+    _require_free_swing(base, lid, (point, direction, sign), hardware, carried or {})
 
     catch_center = _catch_center(cavity, closure_edge, openings)
     local_center = EDGE_SIGN[closure_edge] * (
@@ -421,6 +434,9 @@ def add_hinge(
         catch=catch,
         wall_needed_mm=needed,
         pin_is_rod=pin_is_rod,
+        axis_point=(point.x, point.y, point.z),
+        axis_direction=(direction.x, direction.y, direction.z),
+        swing_sign=sign,
     )
 
     return base, lid, report
@@ -481,18 +497,11 @@ def _add_catch(
     )
 
 
-def _require_free_swing(
-    base: cq.Workplane,
-    lid: cq.Workplane,
-    cavity: Cavity,
-    edge: str,
-    axis_u: float,
-    axis_z: float,
-    hardware: Mapping[str, cq.Shape],
-    carried: Mapping[str, cq.Shape],
-) -> None:
-    """Sweep the lid open in steps and refuse one that meets the base or any
-    part inside it."""
+def _swing_axis(
+    lid: cq.Workplane, cavity: Cavity, edge: str, axis_u: float, axis_z: float
+) -> tuple[cq.Vector, cq.Vector, float]:
+    """The pin's axis (a point on it, and its direction) and the sign of the
+    turn that lifts the lid's free edge."""
 
     angle = math.radians(EDGE_ANGLE[edge])
     anchor_x, anchor_y = wall_anchor(edge, cavity)
@@ -511,6 +520,21 @@ def _require_free_swing(
     ):
         sign = -1.0
 
+    return point, direction, sign
+
+
+def _require_free_swing(
+    base: cq.Workplane,
+    lid: cq.Workplane,
+    axis: tuple[cq.Vector, cq.Vector, float],
+    hardware: Mapping[str, cq.Shape],
+    carried: Mapping[str, cq.Shape],
+) -> None:
+    """Sweep the lid open in steps and refuse one that meets the base or any
+    part inside it."""
+
+    point, direction, sign = axis
+    lid_shape = _solids(lid)
     moving = {"the lid": lid_shape, **carried}
     obstacles = {"the base": _solids(base), **hardware}
     degrees = SWING_STEP_DEGREES

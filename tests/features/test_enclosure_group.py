@@ -301,6 +301,7 @@ def test_the_cli_exports_a_validated_pair_with_a_review(
     assert output["bays"] == ["pi5", "pi5"]
     assert output["screws"]["lid"].startswith("M3 x 8 mm")
     assert Path(output["review_step"]).is_file()
+    assert output["review_lid"] == "lifted"
     assert Path(output["parts"]["base"]["stl"]).is_file()
 
 

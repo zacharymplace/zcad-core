@@ -12,7 +12,8 @@ from zcad_core.assemblies import (
     build_board_assembly,
     build_board_display_assembly,
 )
-from zcad_core.features import Enclosure, build_enclosure
+from zcad_core.cli import main
+from zcad_core.features import Enclosure, EnclosureDesign, build_enclosure
 from zcad_core.features.enclosure_trial import (
     EnclosureCheck,
     EnclosureTrialDisposition,
@@ -205,3 +206,248 @@ def test_refuses_a_trial_of_changed_parts(enclosure: Enclosure, tmp_path: Path) 
             disposition=EnclosureTrialDisposition.PASS,
             material_profile_id="petg",
         )
+
+
+# --- a hinged or sliding lid ------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def hinged() -> Enclosure:
+    assembly = build_board_display_assembly(
+        board=BOARD,
+        display=DISPLAY,
+        board_placement=Placement(),
+        display_placement=Placement(z_mm=8.0),
+        board_display_clearance_mm=1.0,
+        connector_access_clearance_mm=2.0,
+    )
+
+    return build_enclosure(
+        assembly,
+        board=BOARD,
+        display=DISPLAY,
+        design=EnclosureDesign(lid_attachment="hinge", bottom_clearance_mm=6.0),
+    )
+
+
+@pytest.fixture(scope="module")
+def slid() -> Enclosure:
+    plain = build_board_assembly(
+        board=BOARD, board_placement=Placement(), connector_access_clearance_mm=2.0
+    )
+
+    return build_enclosure(
+        plain, board=BOARD, design=EnclosureDesign(lid_attachment="slide")
+    )
+
+
+def build_lid_record(enclosure: Enclosure, directory: Path) -> Path:
+    parts = {}
+
+    for name in ("base", "lid"):
+        parts[name] = directory / f"{name}.stl"
+        parts[name].write_text(f"solid {name}\n", encoding="utf-8")
+
+    return write_build_record(
+        directory,
+        enclosure=enclosure,
+        design_name="lid-case",
+        board_identifier=BOARD.identifier,
+        display=None,
+        part_stls=parts,
+        printer_profile_id="bambu-lab-a1-mini",
+    )
+
+
+def write_lid(trial: Path, **values: object) -> None:
+    lid = json.loads((trial / "lid.json").read_text("utf-8"))
+    lid.update(values)
+    (trial / "lid.json").write_text(json.dumps(lid), "utf-8")
+
+
+def test_a_hinged_lid_adds_its_checks_and_a_pin_hole_to_measure(
+    hinged: Enclosure,
+) -> None:
+    names = {check.value for check in applicable_checks(hinged)}
+
+    assert {"hinge_swings_free", "catch_holds_lid"} <= names
+    assert not names & {"lid_slides_free", "detent_holds_lid"}
+    # M3's 3.4 mm clearance hole, with no compensation in the default design.
+    assert nominal_measurements(hinged, None)["hinge_pin_hole_diameter_mm"] == 3.4
+
+
+def test_a_sliding_lid_adds_its_checks_and_a_clearance_to_measure(
+    slid: Enclosure,
+) -> None:
+    names = {check.value for check in applicable_checks(slid)}
+
+    assert {"lid_slides_free", "detent_holds_lid"} <= names
+    assert not names & {"hinge_swings_free", "catch_holds_lid"}
+    assert nominal_measurements(slid, None)["slide_clearance_per_side_mm"] == 0.2
+
+
+def test_a_screwed_lid_has_no_lid_record(enclosure: Enclosure, tmp_path: Path) -> None:
+    record = json.loads(build_record(enclosure, tmp_path).read_text("utf-8"))
+
+    assert record["lid"] is None
+
+    trial = start_enclosure_trial(tmp_path / "enclosure.json")
+
+    assert not (trial / "lid.json").exists()
+
+
+def test_the_build_record_says_what_the_lid_was_designed_to_do(
+    hinged: Enclosure, slid: Enclosure, tmp_path: Path
+) -> None:
+    (tmp_path / "h").mkdir()
+    (tmp_path / "s").mkdir()
+    hinge = json.loads(build_lid_record(hinged, tmp_path / "h").read_text("utf-8"))
+    slide = json.loads(build_lid_record(slid, tmp_path / "s").read_text("utf-8"))
+
+    assert hinge["lid"]["kind"] == "hinge" and hinge["lid"]["swing_degrees"] == 100.0
+    assert (
+        slide["lid"]["kind"] == "slide" and slide["lid"]["clearance_per_side_mm"] == 0.2
+    )
+    assert slide["lid"]["travel_mm"] > 0
+
+
+def test_a_hinge_trial_records_the_swing_against_the_design(
+    hinged: Enclosure, tmp_path: Path
+) -> None:
+    trial = start_enclosure_trial(build_lid_record(hinged, tmp_path))
+    template = json.loads((trial / "lid.json").read_text("utf-8"))
+
+    assert template["designed"]["swing_degrees"] == 100.0
+    assert template["swing_degrees_reached"] is None
+    assert "protractor" in template["guidance"]
+
+    fill(trial)
+    write_lid(
+        trial,
+        pin_turns_freely=True,
+        swing_degrees_reached=92.0,
+        catch_release_force_n=4.5,
+        openings_counted=200,
+        damage_observed=False,
+    )
+    record = json.loads(
+        complete_enclosure_trial(
+            trial,
+            disposition=EnclosureTrialDisposition.PASS,
+            material_profile_id="petg",
+        ).read_text("utf-8")
+    )
+    lid = record["lid"]
+
+    assert lid["kind"] == "hinge"
+    assert lid["swing_shortfall_degrees"] == 8.0
+    assert lid["catch_release_force_n"] == 4.5
+    assert lid["openings_counted"] == 200 and lid["damage_observed"] is False
+    assert lid["designed"]["swing_degrees"] == 100.0
+
+
+def test_a_slide_trial_records_the_force(slid: Enclosure, tmp_path: Path) -> None:
+    trial = start_enclosure_trial(build_lid_record(slid, tmp_path))
+    template = json.loads((trial / "lid.json").read_text("utf-8"))
+
+    assert template["designed"]["clearance_per_side_mm"] == 0.2
+    assert template["slide_force_n"] is None
+
+    fill(trial)
+    write_lid(trial, slide_force_n=6.0, openings_counted=50, damage_observed=True)
+    record = json.loads(
+        complete_enclosure_trial(
+            trial,
+            disposition=EnclosureTrialDisposition.REVISE,
+            material_profile_id="petg",
+        ).read_text("utf-8")
+    )
+
+    assert record["lid"]["slide_force_n"] == 6.0
+    assert record["lid"]["damage_observed"] is True
+
+
+def test_a_blank_lid_template_is_left_out_of_the_record(
+    hinged: Enclosure, tmp_path: Path
+) -> None:
+    trial = start_enclosure_trial(build_lid_record(hinged, tmp_path))
+    fill(trial)
+    record = json.loads(
+        complete_enclosure_trial(
+            trial,
+            disposition=EnclosureTrialDisposition.PASS,
+            material_profile_id="petg",
+        ).read_text("utf-8")
+    )
+
+    assert record["lid"] is None
+
+
+def test_a_lid_reading_alone_is_enough_to_complete_a_trial(
+    slid: Enclosure, tmp_path: Path
+) -> None:
+    trial = start_enclosure_trial(build_lid_record(slid, tmp_path))
+    fill(trial, measure=False)
+    write_lid(trial, slide_force_n=3.0)
+    record = json.loads(
+        complete_enclosure_trial(
+            trial,
+            disposition=EnclosureTrialDisposition.PASS,
+            material_profile_id="petg",
+        ).read_text("utf-8")
+    )
+
+    assert record["lid"]["slide_force_n"] == 3.0
+
+
+@pytest.mark.parametrize(
+    ("values", "error", "message"),
+    [
+        ({"slide_force_n": -1.0}, ValueError, "above zero"),
+        ({"slide_force_n": True}, ValueError, "above zero"),
+        ({"slide_force_n": 3.0, "openings_counted": 0}, ValueError, "whole number"),
+        ({"slide_force_n": 3.0, "openings_counted": 5}, TypeError, "true or false"),
+        ({"slide_force_n": 3.0, "damage_observed": True}, ValueError, "needs openings"),
+    ],
+)
+def test_a_lid_reading_that_cannot_be_right_is_refused(
+    slid: Enclosure,
+    tmp_path: Path,
+    values: dict[str, object],
+    error: type[Exception],
+    message: str,
+) -> None:
+    trial = start_enclosure_trial(build_lid_record(slid, tmp_path))
+    fill(trial)
+    write_lid(trial, **values)
+
+    with pytest.raises(error, match=message):
+        complete_enclosure_trial(
+            trial,
+            disposition=EnclosureTrialDisposition.PASS,
+            material_profile_id="petg",
+        )
+
+
+def test_a_swing_past_180_degrees_is_refused(hinged: Enclosure, tmp_path: Path) -> None:
+    trial = start_enclosure_trial(build_lid_record(hinged, tmp_path))
+    fill(trial)
+    write_lid(trial, swing_degrees_reached=200.0)
+
+    with pytest.raises(ValueError, match="cannot exceed 180"):
+        complete_enclosure_trial(
+            trial,
+            disposition=EnclosureTrialDisposition.PASS,
+            material_profile_id="petg",
+        )
+
+
+def test_the_trial_start_command_names_the_lid_file(
+    hinged: Enclosure, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    record = build_lid_record(hinged, tmp_path)
+    code = main(["enclosure", "trial", "start", "--build-record", str(record)])
+    output = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert output["lid"].endswith("lid.json") and Path(output["lid"]).is_file()

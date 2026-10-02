@@ -10,6 +10,7 @@ import cadquery as cq
 import pytest
 
 from zcad_core.cli import main
+from zcad_core.cli.enclosure_group import _review_lid, _write_review
 from zcad_core.features.enclosure_group import (
     GroupDesign,
     GroupEnclosure,
@@ -17,6 +18,7 @@ from zcad_core.features.enclosure_group import (
 )
 from zcad_core.features.enclosure_group_dividers import Divider
 from zcad_core.features.enclosure_group_model import Bay
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware import get_raspberry_pi5
 
@@ -260,3 +262,38 @@ def test_the_command_builds_a_sliding_group(
     assert output["hinge"] is None
     assert output["screws"]["lid"] is None
     assert output["validation_status"] == "PASS"
+
+
+# --- the review ---------------------------------------------------------------
+
+
+def test_a_hinged_group_is_reviewed_with_its_lid_open(
+    hinged: GroupEnclosure, tmp_path: Path
+) -> None:
+    lid, pose = _review_lid(hinged)
+
+    assert hinged.hinge is not None
+    assert pose == "open 100 degrees on its pin"
+    # The free edge is well above the closed lid.
+    assert lid.BoundingBox().zmax > workplane_shape(hinged.lid).BoundingBox().zmax + 50
+    path, written = _write_review(hinged, tmp_path / "review", "row")
+
+    assert written == pose and path.is_file()
+
+
+def test_a_sliding_group_is_reviewed_with_its_lid_pushed_out(
+    slid: GroupEnclosure,
+) -> None:
+    lid, pose = _review_lid(slid)
+    closed = workplane_shape(slid.lid).BoundingBox()
+    out = lid.BoundingBox()
+
+    assert slid.slide is not None
+    assert pose.startswith("slid ") and slid.slide.entry_edge in pose
+    assert abs(out.xmin - closed.xmin) == pytest.approx(slid.slide.travel_mm, abs=1e-3)
+
+
+def test_a_screwed_group_is_reviewed_with_its_lid_lifted() -> None:
+    plain = build_group_enclosure(("pi5", "pi5"))
+
+    assert _review_lid(plain)[1] == "lifted"

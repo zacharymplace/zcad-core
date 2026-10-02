@@ -302,7 +302,10 @@ enclosure = build_enclosure(
 `export_enclosure_review` (or `--review`) writes:
 
 - `enclosure-review.glb`: the base, the lid lifted clear of it, and the
-  hardware, coloured by part. Open it in Preview on macOS.
+  hardware, coloured by part. Open it in Preview on macOS. A **hinged** lid
+  is shown open on its pin and a **sliding** one pushed out over its entry
+  wall, with a display or a fan in the lid moving with it; the report says
+  which in `lid_pose`.
 - `enclosure-review.step`: the assembled enclosure and hardware.
 - `enclosure-review-{top,front,right,isometric}.svg`: views of the exploded
   enclosure.
@@ -312,7 +315,11 @@ enclosure = build_enclosure(
   screwed display the longest that its PCB and posts take), and five
   checks: no interference, one solid per part, open screw paths, a plug
   body that clears the floor, and contact only where expected (the board on
-  its supports, the display on its pads).
+  its supports, the display on its pads). A hinged or sliding lid adds a
+  sixth, `lid_motion_clear`: the lid's swing or slide, with what it carries,
+  swept again against the hardware inside. It does not sweep the base: the
+  build did that with the catch and the detent left off, since they are
+  meant to touch it.
 
 ## Printing and recording a trial
 
@@ -364,12 +371,39 @@ zcad-validation enclosure trial complete \
 ```
 
 `pass` needs every check to pass and at least one measurement (or a recorded
-temperature, below); `revise` needs a measurement or a temperature; `fail`
-needs neither. The record stores each measurement's deviation from nominal,
+temperature or lid reading, below); `revise` needs a measurement, a
+temperature or a lid reading; `fail` needs none. The record stores each measurement's deviation from nominal,
 and it refuses parts whose STL no longer matches the build record. A completed
 trial is never overwritten:
 `zcad-validation enclosure trial start --build-record .../enclosure.json`
 opens the next one.
+
+### Trying a hinged or sliding lid
+
+A hinged lid adds two checks, `hinge_swings_free` and `catch_holds_lid`, and a
+sliding lid `lid_slides_free` and `detent_holds_lid`. The measurements add the
+pin hole's diameter (a pin gauge: the largest that enters) for a hinge, or the
+gap per side (a feeler gauge) for a slide, each beside the nominal the build
+modelled.
+
+The trial also opens a `lid.json`, with what the build designed beside blanks for
+what you find:
+
+- **Hinge:** `pin_turns_freely`, `swing_degrees_reached` (a protractor, against
+  the 100 designed), and `catch_release_force_n` (a spring scale at the catch's
+  lip, the force at which it lets go).
+- **Slide:** `slide_force_n`, the force that starts the lid moving out of its
+  detent, from a spring scale on its end.
+- **Both:** `openings_counted` and `damage_observed`: open and close the lid as
+  many times as you will, counting, and say whether anything cracked, whitened or
+  wore loose. Damage needs a count.
+
+The record keeps each figure with the designed one beside it (and the swing's
+shortfall in degrees). **The engine states no figure for any of them**: it has no
+sourced limit for a hinge's swing or a slide's force, and no cycle life, so a
+trial records them and decides nothing. A blank `lid.json` is left out of the
+record, so a trial that does not try the lid is unchanged. Any one reading is
+enough to complete a trial.
 
 ### Recording a temperature
 
