@@ -508,7 +508,8 @@ def test_the_command_builds_a_row_with_a_board_in_it(
     assert exit_code == 0
     assert output["validation_status"] == "PASS"
     assert output["bays"] == ["pi5", "board"]
-    assert any("counts only the Pi bays" in w for w in output["warnings"])
+    # The board's own 0.5 W is in the estimate beside the Pi's.
+    assert any("EXAMPLE_BOARD" in source for source in output["thermal"]["sources"])
     assert Path(output["review_step"]).is_file()
 
 

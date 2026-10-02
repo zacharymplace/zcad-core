@@ -70,6 +70,7 @@ from zcad_core.features.enclosure_group_openings import (
     require_openings_under_lid,
 )
 from zcad_core.features.enclosure_lid import VENT_RIM_MM, Cavity
+from zcad_core.features.fan_bay import FanPlan, cut_fan_bay, fan_report, plan_fan
 from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
@@ -93,6 +94,7 @@ from zcad_core.features.mounts import (
 )
 from zcad_core.features.pcb_mounts import PcbStandoffParameters, add_pcb_standoff
 from zcad_core.features.vent_patterns import (
+    VentFill,
     VentReport,
     add_lid_outlets,
     add_wall_inlets,
@@ -101,6 +103,7 @@ from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware import (
     FastenerSpec,
     RaspberryPi5Spec,
+    get_fan,
     get_fastener,
     get_raspberry_pi5,
 )
@@ -326,6 +329,17 @@ def build_group_enclosure(
         pi=pi,
     )
 
+    lid, fan_bodies, fan_cuts = _cut_fans(
+        base,
+        lid,
+        specs=specs,
+        layouts=layouts,
+        design=design,
+        outer=outer,
+        inner_size=(inner_width, inner_depth),
+        cavity_top=cavity_top,
+        hardware=hardware,
+    )
     base, lid, vents = _add_vents(
         base,
         lid,
@@ -344,6 +358,27 @@ def build_group_enclosure(
         cavity_top=cavity_top,
         openings=openings,
         hardware=hardware,
+        carried=fan_bodies,
+    )
+    hardware.update(fan_bodies)
+    slots_mm2 = (
+        len(_vent_centres(layouts, modules, pi, wall))
+        * _VENT_SLOTS
+        * _VENT_LENGTH_MM
+        * _VENT_WIDTH_MM
+        if design.vents
+        else 0.0
+    )
+    fans = tuple(
+        fan_report(
+            plan,
+            guard,
+            plate_mm=design.lid_mm,
+            screw=get_fastener(plan.fan.screw),
+            openings=openings,
+            vent_free_mm2=slots_mm2 + (vents.outlet_mm2 if vents else 0.0),
+        )
+        for plan, guard in fan_cuts
     )
     base, pads, mount = _add_mount(
         base,
@@ -381,6 +416,8 @@ def build_group_enclosure(
         vents=vents,
         hinge=hinge,
         slide=slide,
+        fans=fans,
+        lid_carried=tuple(fan_bodies),
     )
 
 
@@ -394,6 +431,7 @@ def _attach_lid(
     cavity_top: float,
     openings: list[ConnectorCutoutParameters],
     hardware: dict[str, cq.Shape],
+    carried: dict[str, cq.Shape],
 ) -> tuple[cq.Workplane, cq.Workplane, HingeReport | None, SlideReport | None]:
     """Hinge or slide the lid, as the design asks; a screwed lid is left as it
     is. Both are the single-board builders on the group's cavity, and refuse a
@@ -424,6 +462,7 @@ def _attach_lid(
             hole_compensation_mm=0.0,
             openings=front,
             hardware=hardware,
+            carried=carried,
             hinge_edge="positive_y",
         )
 
@@ -444,6 +483,7 @@ def _attach_lid(
         hole_compensation_mm=0.0,
         openings=openings,
         hardware=hardware,
+        carried=carried,
         entry=design.slide_entry,
     )
 
@@ -589,6 +629,74 @@ def _add_mount(
     return base, pads, plate
 
 
+def _cut_fans(
+    base: cq.Workplane,
+    lid: cq.Workplane,
+    *,
+    specs: tuple[Bay, ...],
+    layouts: tuple[BayLayout, ...],
+    design: GroupDesign,
+    outer: tuple[float, float, float],
+    inner_size: tuple[float, float],
+    cavity_top: float,
+    hardware: dict[str, cq.Shape],
+) -> tuple[cq.Workplane, dict[str, cq.Shape], list[tuple[FanPlan, VentFill]]]:
+    """Each fan bay's fan: its frame flat against the lid's inside over the bay's
+    middle, and the guarded opening and four screw holes in the lid. The frames
+    go with the lid, so the hinge and the slide carry them."""
+
+    cavity = Cavity(
+        center_x_mm=outer[0] / 2,
+        center_y_mm=outer[1] / 2,
+        width_mm=inner_size[0],
+        depth_mm=inner_size[1],
+        floor_z_mm=design.floor_mm,
+        top_z_mm=cavity_top,
+        wall_mm=design.wall_mm,
+    )
+    bodies: dict[str, cq.Shape] = {}
+    cuts: list[tuple[FanPlan, VentFill]] = []
+
+    for bay, layout in zip(specs, layouts, strict=True):
+        if bay.kind != "fan":
+            continue
+
+        fan = get_fan(str(bay.fan))
+        label = f"bay {layout.index} (fan)"
+
+        try:
+            plan = plan_fan(
+                base,
+                cavity,
+                fan=fan,
+                position="lid",
+                direction=bay.fan_direction,
+                lid_mm=design.lid_mm,
+                offset_mm=(
+                    design.wall_mm + layout.center_x_mm - cavity.center_x_mm,
+                    layout.center_y_mm - cavity.center_y_mm,
+                ),
+                openings=[],
+                wall_top_z_mm=cavity_top,
+                hardware={**hardware, **bodies},
+                display_bounds=None,
+            )
+            lid, guard = cut_fan_bay(
+                lid,
+                plan,
+                plate_mm=design.lid_mm,
+                screw=get_fastener(fan.screw),
+                hole_compensation_mm=0.0,
+            )
+        except ValueError as error:
+            raise ValueError(f"{label}: {error}") from error
+
+        bodies[f"bay-{layout.index}"] = plan.body
+        cuts.append((plan, guard))
+
+    return lid, bodies, cuts
+
+
 def _add_cradle(
     base: cq.Workplane,
     layout: BayLayout,
@@ -620,7 +728,7 @@ def _add_cradle(
 def _module(bay: Bay, pi: RaspberryPi5Spec, index: int) -> BayModule | None:
     """What a bay holds: a Pi, a board from a board file, or nothing."""
 
-    if bay.kind == "open":
+    if bay.kind in ("open", "fan"):
         return None
 
     if bay.kind != "board" or bay.board is None:
@@ -820,6 +928,34 @@ def _add_join_features(
     return base
 
 
+def _vent_centres(
+    layouts: tuple[BayLayout, ...],
+    modules: tuple[BayModule | None, ...],
+    pi: RaspberryPi5Spec,
+    wall: float,
+) -> list[tuple[float, float]]:
+    """Where the lid's slots go: over each Pi's fan, and over each part of a board
+    that draws air from above."""
+
+    centres: list[tuple[float, float]] = []
+
+    for layout, module in zip(layouts, modules, strict=True):
+        if layout.holds_pi:
+            centres.append(
+                (
+                    wall + layout.center_x_mm + pi.fan_center_x_mm,
+                    layout.center_y_mm + pi.fan_center_y_mm,
+                )
+            )
+        elif module is not None:
+            centres.extend(
+                (wall + layout.center_x_mm + x, layout.center_y_mm + y)
+                for x, y in module.vents
+            )
+
+    return centres
+
+
 def _lid(
     outer: tuple[float, float, float],
     *,
@@ -854,23 +990,7 @@ def _lid(
     if not design.vents:
         return lid
 
-    # Slots over each Pi's fan, and over each part of a board that draws air from
-    # above.
-    centres: list[tuple[float, float]] = []
-
-    for layout, module in zip(layouts, modules, strict=True):
-        if layout.holds_pi:
-            centres.append(
-                (
-                    wall + layout.center_x_mm + pi.fan_center_x_mm,
-                    layout.center_y_mm + pi.fan_center_y_mm,
-                )
-            )
-        elif module is not None:
-            centres.extend(
-                (wall + layout.center_x_mm + x, layout.center_y_mm + y)
-                for x, y in module.vents
-            )
+    centres = _vent_centres(layouts, modules, pi, wall)
 
     for fan_x, fan_y in centres:
         for index in range(_VENT_SLOTS):

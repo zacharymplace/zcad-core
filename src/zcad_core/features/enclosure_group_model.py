@@ -13,6 +13,7 @@ import cadquery as cq
 
 from zcad_core.features.connector_cutouts import MINIMUM_OPENING_WEB_MM
 from zcad_core.features.enclosure_group_dividers import Divider
+from zcad_core.features.fan_bay import FanReport
 from zcad_core.features.lid_hinge import HingeReport
 from zcad_core.features.lid_slide import SlideReport, slide_clearance_error
 from zcad_core.features.mount_rack import RACK, FrontPads
@@ -30,10 +31,12 @@ from zcad_core.hardware.electronics.board_file import BoardFileSpec
 GROUP_LID_ATTACHMENTS = ("screws", "hinge", "slide")
 SLIDE_ENTRIES = ("negative_x", "positive_x")
 
-BayKind = Literal["pi5", "reserved", "open", "board"]
-BAY_KINDS: tuple[BayKind, ...] = ("pi5", "reserved", "open", "board")
+BayKind = Literal["pi5", "reserved", "open", "board", "fan"]
+BAY_KINDS: tuple[BayKind, ...] = ("pi5", "reserved", "open", "board", "fan")
 # Bays that hold a Raspberry Pi 5, fitted or not.
 PI_KINDS = ("pi5", "reserved")
+# Bays that stand a board up.
+BOARD_KINDS = ("pi5", "reserved", "board")
 OpeningWall = Literal["front", "back"]
 OPENING_WALLS: tuple[OpeningWall, ...] = ("front", "back")
 # Wall left between an opening and the shelf's ends, and under the lid.
@@ -214,6 +217,10 @@ class Bay:
     rotate: int | None = None
     align: str = "back"
     screw: str | None = None
+    # A ``fan`` bay's fan, from the fan catalog, and which way it blows. The fan
+    # is screwed to the lid's inside over the bay's middle.
+    fan: str | None = None
+    fan_direction: str = "in"
 
 
 BayLike = BayKind | Bay
@@ -263,7 +270,7 @@ class BayLayout:
     def holds_board(self) -> bool:
         """Whether the bay stands a board up: a Pi, fitted or not, or a board from
         a board file."""
-        return self.kind != "open"
+        return self.kind in BOARD_KINDS
 
 
 @dataclass(frozen=True)
@@ -299,6 +306,10 @@ class GroupEnclosure:
     # The hinge and its catch, or the slide, when the design asks for one.
     hinge: HingeReport | None = None
     slide: SlideReport | None = None
+    # The fans in the lid, and the hardware keys that go with the lid when it
+    # swings or slides.
+    fans: tuple[FanReport, ...] = ()
+    lid_carried: tuple[str, ...] = ()
 
     @property
     def cavity_top_z_mm(self) -> float:

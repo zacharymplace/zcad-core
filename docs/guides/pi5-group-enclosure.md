@@ -37,6 +37,7 @@ slot-then-gap pattern, so any bay can take a Pi.
 | `pi5` | Four M2.5 standoffs, port openings, vents. Envelope and every extracted part checked. |
 | `reserved` | The same as `pi5`, with no Pi fitted yet. Drop one in later with no reprint. |
 | `board` | Any board a board file describes: its own standoffs, envelope and openings. See [Board bays](#board-bays). |
+| `fan` | A fan from the fan catalog, screwed to the lid's inside over the bay. See [Fan bays](#fan-bays). |
 | `open` | A flat shelf, `--open-bay-width-mm` wide (40), for an SSD, a switch, or a power supply. Wall openings are cut only where you ask; see [Openings for open bays](#openings-for-open-bays). |
 
 The Pi is held by four M2.5 self-tapping screws through its mounting holes
@@ -96,8 +97,40 @@ cannot be written on the command line.
 - **Lid vents.** A part the board file marks `lid_vent` (a cooler's fan, say) gets
   the same five slots in the lid that a Pi's fan does, if the design's `vents` is
   on.
-- **Not built yet.** The temperature estimate counts only the Pi bays, and the
-  build says so.
+- **Heat.** The temperature estimate counts the board's own power figure; see
+  [Temperature estimate](#temperature-estimate).
+
+## Fan bays
+
+```bash
+zcad-validation enclosure-group build \
+  --bays "pi5,fan:fan=NOCTUA_NF_A4X10_5V:direction=out" \
+  --output-directory exports/fanned
+```
+
+A `fan` bay takes a fan from the catalog (`fan=`) and which way it blows
+(`direction=in` or `out`, `in` by default). The bay is as wide as the fan's frame
+and a 3 mm margin each side. The fan sits flat against the lid's inside over the
+bay's middle and is screwed from outside: the lid has a round opening 90 per cent
+of the frame, crossed by a guard of hex cells 5 mm across flats, and a clearance
+hole at each of the frame's four holes, as in the
+[single-board builder](enclosure-builder.md). The summary's `fans` gives each
+fan's opening, guard, screws, the maker's free-air figure and its draw.
+
+- **It goes with the lid.** A hinged lid carries the fan, and the hinge's sweep
+  includes it; a sliding lid cannot, since a fan under the lid meets the entry wall
+  as it slides out, and the build says so. The review model moves the fan with the
+  lid.
+- **The bay needs the headroom.** It is refused if its headroom is under the fan's
+  thickness and half a millimetre: a 25 mm fan needs `headroom=27`.
+- **The fan's figures are provisional.** The catalog's three fans were read from
+  search excerpts of the makers' pages, not the pages, so the fan's report says its
+  figures are not read from the maker's own page and the build prints that as a
+  warning. The airflow is the free-air figure and is not credited in the
+  temperature estimate.
+- **There is no duct.** The fan moves air in the shared cavity; nothing leads it to
+  the board beside it. Put the fan where its air path is open, and add vents with
+  `--vent-area-mm2` so it has somewhere to draw from or push to.
 
 ## Heights per bay
 
@@ -359,15 +392,19 @@ the pair, `--vent-area-mm2 400` gives 30 hex cells 4 mm across flats in each of
 the inlet and outlet zones, about 416 mm2 each, and every check still passes.
 The estimate credits no vents, and a group's lid always has slots over a fitted
 Pi's fan, so the group is never a closed box for a trial's purposes. There are
-no fans in the group enclosure yet, and no trial records for it: those need a
-build record, which the group does not write.
+no trial records for the group: those need a build record, which the group does
+not write.
 
 ## Temperature estimate
 
 The build prints an estimate of the closed row's air temperature under
 `thermal`, counting 3.0 W for each fitted Pi 5 (an idle figure from community
-measurements; Raspberry Pi publishes none, and no load figure was found) and
-nothing for a `reserved` or `open` bay. The pair, at 176 x 96 x 28.4 mm, is
+measurements; Raspberry Pi publishes none, and no load figure was found), each
+[board bay](#board-bays)'s own figure from the `power` section of its board
+file (the user's, with the source it states), each fan's draw, and nothing for a
+`reserved` or `open` bay. A board file with no `power` section is counted as
+unknown, never as zero: the estimate lists it under `missing` and is then a lower
+bound. The pair, at 176 x 96 x 28.4 mm, is
 about 0.049 m2, so its two Pis at idle raise the air by about 15 degrees: 40
 degrees C from a 25 degree room, which is a minimum, because a loaded Pi
 gives off more. Declare what you know with `--power-w` (an SSD, a switch) and

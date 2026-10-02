@@ -144,8 +144,8 @@ catalog's provisional status carried through.
    side faces, the cradle bay, the lid vents over a board's parts, and what the
    lid's bosses and dividers do round modules of different size. (The depth and
    wall-reach checks came with phase 1.)
-3. **Heat and fans.** The per-board power figure in the estimate and the `fan`
-   bay, with the fan's figures still provisional.
+3. **Heat and fans (built).** The per-board power figure in the estimate and the
+   `fan` bay, with the fan's figures still provisional.
 4. **Joinable units.** The standard joint face, the pass-through, and
    `check-join`.
 5. **The group's build record and trials.** `enclosure-group.json`, with each bay's
@@ -225,6 +225,34 @@ catalog's provisional status carried through.
   collision check. It is fixed: a bay with no parts has nothing to collide.
 - **Pi builds are unchanged, measured again.** The ten builds of phase 1 compare
   equal after this change.
+
+### What phase 3 changed
+
+- **Boards, fans and Pis all count in the estimate, by what each is given.** A board
+  bay's `power` section is the user's figure with the source they state; a fan's draw
+  is the catalog's; a Pi is the catalog's idle figure as before. A board file with no
+  `power` section is counted as unknown and listed under `missing`, so the estimate
+  is a lower bound and says so. The phase 1 warning that board bays add no heat is
+  gone, since they do now.
+- **A fan bay is a fan in the lid, with no duct.** The design had the bay carry the
+  fan's frame, its guarded opening, and a duct to the board beside it. The fan is
+  built with the single-board fan bay's own planning and cutting (the frame flat
+  against the lid's inside, a guarded round opening, four screw holes), on the
+  group's cavity. A duct has to lead air from somewhere to somewhere, and a row has
+  no air path to draw one along, so none is built; the guide says to add vents.
+- **Fans are in the lid only.** The single-board fan can also stand in a long wall.
+  A group's long walls carry the ports of every board, so a wall fan is left out
+  until a row has a wall free for it.
+- **The lid carries the fan.** A hinged lid sweeps it with the lid, a sliding lid
+  refuses it by name (the slide's existing rule), and the review model moves it
+  with the lid. `GroupEnclosure` gains `fans` and `lid_carried` for this.
+- **The fan's figures stay provisional, and the build says so.** The catalog's three
+  fans were read from search excerpts, not the makers' pages; the fan report and a
+  build warning carry that. Verifying them is its own follow-on.
+- **A closed box is one with nothing to move air.** Slots over a Pi's fan or a
+  board's `lid_vent` part, a vent pattern, or a fan open the box, so the estimate's
+  `closed` follows them.
+- **Pi builds are unchanged, measured again.** The ten builds of phase 1 compare equal.
 
 Each phase is one PR. Phases 1 and 4 add bay kinds and a joint face, so every
 existing group build keeps its output unless a design asks for the new ones.
