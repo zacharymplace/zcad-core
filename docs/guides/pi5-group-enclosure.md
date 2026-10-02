@@ -11,7 +11,9 @@ zcad-validation enclosure-group build --bays pi5,pi5 \
 
 writes `<name>-base` and `<name>-lid` STEP, STL, and metadata files after
 export validation against the printer profile passes, plus a STEP review
-model in `review/` (the lid lifted, each Pi as a green envelope). The JSON
+model in `review/` (the lid lifted, or open on its pin for a hinged lid and
+pushed out over its entry for a sliding one, each Pi as a green envelope; the
+summary's `review_lid` says which). The JSON
 summary lists the fit checks and the screws to buy. The command exits
 non-zero if a check fails.
 

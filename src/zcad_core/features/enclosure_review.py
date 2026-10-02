@@ -4,12 +4,19 @@ The package holds a coloured, exploded GLB of the base, lid, and hardware,
 the assembled STEP, orthographic SVG views, and ``enclosure-review.json``,
 which records the part sizes, the nearest gap from each part to each piece of
 hardware, the screws to buy, and the checks the enclosure must pass.
+
+A screwed or snap lid is shown lifted straight up. A hinged lid is shown open
+on its pin and a sliding lid pushed out over its entry wall, each with what it
+carries (a display, a fan in the lid) moving with it, and the review sweeps that
+motion again against the hardware inside.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +24,8 @@ import cadquery as cq
 
 from zcad_core.assemblies import DeviceAssembly
 from zcad_core.features.enclosure import Enclosure
+from zcad_core.features.lid_hinge import SWING_STEP_DEGREES, swung_lid
+from zcad_core.features.lid_slide import TRAVEL_STEP_MM, slid_lid
 from zcad_core.geometry.intersection import intersection_volume
 
 ENCLOSURE_REVIEW_SCHEMA_VERSION = "1.0.0"
@@ -100,19 +109,18 @@ def export_enclosure_review(
         )
         for component in assembly.components
     }
-    lifted_lid = lid.moved(cq.Location(cq.Vector(0, 0, exploded_gap_mm)))
+    move, pose = _lid_pose(enclosure, exploded_gap_mm)
+    lifted_lid = move(lid)
 
     if enclosure.fan_body is not None:
         hardware["fan"] = (enclosure.fan_body, "fan")
 
-    # A fan in the lid is screwed to it, so it lifts with it.
+    # What the lid carries goes with it: a fan in the lid always, and a display
+    # when the lid swings or slides rather than lifting off.
     exploded = dict(hardware)
 
-    if enclosure.fan is not None and enclosure.fan.position == "lid":
-        exploded["fan"] = (
-            hardware["fan"][0].moved(cq.Location(cq.Vector(0, 0, exploded_gap_mm))),
-            "fan",
-        )
+    for name in _carried(enclosure, hardware, moving=pose != _LIFTED):
+        exploded[name] = (move(hardware[name][0]), hardware[name][1])
 
     _assembly(base, lifted_lid, exploded).export(str(glb_path))
     _assembly(base, lid, hardware).export(str(step_path))
@@ -121,6 +129,7 @@ def export_enclosure_review(
     )
 
     report = _report(enclosure, base=base, lid=lid, hardware=hardware)
+    report["lid_pose"] = pose
     report["artifacts"] = {
         "glb": str(glb_path),
         "step": str(step_path),
@@ -145,6 +154,120 @@ def export_enclosure_review(
         passed=bool(report["passed"]),
         report=report,
     )
+
+
+_LIFTED = "lifted"
+
+
+def _lid_pose(
+    enclosure: Enclosure, exploded_gap_mm: float
+) -> tuple[Callable[[cq.Shape], cq.Shape], str]:
+    """How the lid is shown: open on its pin, slid out, or lifted off."""
+
+    hinge, slide = enclosure.hinge, enclosure.slide
+
+    if hinge is not None:
+        return (
+            partial(swung_lid, hinge=hinge, degrees=hinge.swing_degrees),
+            f"open {hinge.swing_degrees:.0f} degrees on its pin",
+        )
+
+    if slide is not None:
+        return (
+            partial(slid_lid, slide=slide, distance_mm=slide.travel_mm),
+            f"slid {slide.travel_mm:.0f} mm out over the {slide.entry_edge} wall",
+        )
+
+    def lift(shape: cq.Shape) -> cq.Shape:
+        return shape.moved(cq.Location(cq.Vector(0, 0, exploded_gap_mm)))
+
+    return lift, _LIFTED
+
+
+def _carried(
+    enclosure: Enclosure,
+    hardware: dict[str, tuple[cq.Shape, str]],
+    *,
+    moving: bool,
+) -> list[str]:
+    """The hardware that goes with the lid: its fan, and its display if the lid
+    swings or slides (a lifted lid leaves the display where it is)."""
+
+    carried = []
+
+    if enclosure.fan is not None and enclosure.fan.position == "lid":
+        carried.append("fan")
+
+    if moving:
+        carried.extend(
+            name for name, (_, kind) in hardware.items() if kind == "display"
+        )
+
+    return carried
+
+
+def _motion_clear(
+    enclosure: Enclosure,
+    lid: cq.Shape,
+    hardware: dict[str, tuple[cq.Shape, str]],
+) -> dict[str, Any] | None:
+    """Sweep a hinged lid open, or a sliding lid out, against the hardware
+    inside, with what the lid carries moving with it. ``None`` for a lid that
+    does neither."""
+
+    hinge, slide = enclosure.hinge, enclosure.slide
+
+    if hinge is None and slide is None:
+        return None
+
+    names = _carried(enclosure, hardware, moving=True)
+    movers = {"the lid": lid, **{name: hardware[name][0] for name in names}}
+    fixed = {name: shape for name, (shape, _) in hardware.items() if name not in names}
+
+    if hinge is not None:
+        steps = [
+            step * SWING_STEP_DEGREES
+            for step in range(1, int(hinge.swing_degrees // SWING_STEP_DEGREES) + 1)
+        ]
+
+        def pose(shape: cq.Shape, step: float) -> cq.Shape:
+            return swung_lid(shape, hinge, step)
+
+        unit, motion = "degrees", "swing"
+    else:
+        assert slide is not None
+        steps = [
+            step * TRAVEL_STEP_MM
+            for step in range(1, int(slide.travel_mm // TRAVEL_STEP_MM) + 2)
+        ]
+
+        def pose(shape: cq.Shape, step: float) -> cq.Shape:
+            return slid_lid(shape, slide, step)
+
+        unit, motion = "mm", "slide"
+
+    for step in steps:
+        for mover_name, mover in movers.items():
+            moved = pose(mover, step)
+
+            for name, obstacle in fixed.items():
+                if intersection_volume(moved, obstacle) > _TOLERANCE_MM3:
+                    return {
+                        "passed": False,
+                        "detail": (
+                            f"{mover_name.capitalize()} hits {name} at {step:g} "
+                            f"{unit} of its {motion}."
+                        ),
+                    }
+
+    return {
+        "passed": True,
+        "detail": (
+            f"The lid's {motion}, with what it carries, clears the hardware "
+            "inside at every step. The base is swept at build, where the catch "
+            "and the detent are left off because they are meant to touch."
+        ),
+    }
 
 
 def recommended_screw_length_mm(enclosure: Enclosure) -> int:
@@ -340,6 +463,7 @@ def _checks(
     base: cq.Shape,
     lid: cq.Shape,
     clearances: list[dict[str, Any]],
+    hardware: dict[str, tuple[cq.Shape, str]],
 ) -> dict[str, dict[str, Any]]:
     spec = enclosure.specification
     cavity_top = spec.bottom_z_mm + spec.inner_height_mm
@@ -356,7 +480,11 @@ def _checks(
         if row["contact"] and (row["part"], row["hardware"]) not in _EXPECTED_CONTACT
     )
 
+    motion = _motion_clear(enclosure, lid, hardware)
+    extra = {"lid_motion_clear": motion} if motion is not None else {}
+
     return {
+        **extra,
         "no_interference": {
             "passed": all(row["overlap_mm3"] <= _TOLERANCE_MM3 for row in clearances),
             "detail": "No part overlaps any hardware.",
@@ -396,7 +524,9 @@ def _report(
     hardware: dict[str, tuple[cq.Shape, str]],
 ) -> dict[str, Any]:
     clearances = _clearances({"base": base, "lid": lid}, hardware)
-    checks = _checks(enclosure, base=base, lid=lid, clearances=clearances)
+    checks = _checks(
+        enclosure, base=base, lid=lid, clearances=clearances, hardware=hardware
+    )
     spec = enclosure.specification
 
     return {

@@ -8,10 +8,10 @@ open, for a box that is opened often, such as a battery box, a field device,
 or anything with a card or a switch inside. A slide lid opens by pushing it
 along the box, with nothing to lose and no fasteners.
 
-Phases 1 (the pin hinge and its catch), 2 (the slide lid), and 3 (both on the
-Pi 5 group enclosure) are built, and each differs from the first design in ways found by building it
-(see *What phase 1 changed*, *What phase 2 changed*, and *What phase 3
-changed* below).
+Phases 1 (the pin hinge and its catch), 2 (the slide lid), 3 (both on the
+Pi 5 group enclosure), and 4 (review and trials) are built, and each differs
+from the first design in ways found by building it (see *What phase 1
+changed* through *What phase 4 changed* below).
 
 ## Where it fits
 
@@ -103,9 +103,9 @@ The parts pass through the same export pipeline as the enclosure.
    the detent, `--lid slide`.
 3. **Pi 5 group enclosure (built)**: a hinge along its back wall and a slide
    along its row, each with the group's dividers and cable openings in the way.
-4. **Review and trials**: the hinge's swing and the slide's travel in the
-   exploded review model, and trial measurements for pin fit and slide force
-   in the Validation Lab.
+4. **Review and trials (built)**: the hinge's swing and the slide's travel in
+   the review model, and trial readings for pin fit, swing, catch and slide
+   force, and wear. See *What phase 4 changed* below.
 
 ### What phase 1 changed
 
@@ -178,6 +178,40 @@ The parts pass through the same export pipeline as the enclosure.
   opening in a long wall that high is not re-cut, and has not been tried.
 - **A lone bay cannot slide** (it is deeper than wide). A row of three bays
   is past the A1 mini's bed in any case, and past a 250 mm rod for a hinge.
+
+### What phase 4 changed
+
+- **The review shows the lid's motion, not a lift.** An exploded view that lifts a
+  hinged lid straight up pulls it off its pin and shows nothing about the
+  hinge. A hinged lid is shown open at its designed 100 degrees, a sliding lid
+  pushed out its full length over the entry wall, and what it carries (a display,
+  a fan in the lid) goes with it. The hinge report now carries its axis and the
+  sign of the turn, and the slide report its direction, so the review turns the
+  lid exactly as the build's sweep did. Screwed and snap lids are shown lifted, as
+  before. The group's review STEP does the same, and its summary says which in
+  `review_lid`.
+- **The review re-sweeps the motion against the hardware, not the base.** A new
+  `lid_motion_clear` check swings or slides the lid again with its carried parts
+  against everything inside. It leaves the base out: the catch's hook and the
+  detent's bumps are meant to touch the base as the lid starts to move, so a rigid
+  sweep of the finished lid would report them as collisions. The build swept the
+  base before they were added.
+- **Trials record readings; they decide nothing.** The design asked for
+  "pin fit and slide force". There is no sourced figure here for an acceptable
+  swing shortfall, catch force, slide force, or number of openings, so a hinged
+  or sliding lid's trial gets a `lid.json` with the designed figures beside blanks
+  for the findings, and the completed record keeps them, the swing's shortfall,
+  and a count of openings with whether the lid was damaged. Nothing is
+  compared against a limit; a cycle life is something a pooled set of these would
+  eventually support, and that is not built.
+- **Pin fit is measured as the hole.** The trial's measurements add the pin hole's
+  diameter beside the one modelled (the clearance hole plus the design's hole
+  compensation) for a hinge, and the gap per side for a slide. Whether the pin turns freely is a reading.
+- **The group has a review but no trials.** The group enclosure writes no build
+  record, so there is nothing for a trial to measure against; its pose is in the
+  review STEP only. Trials for the group need that record first.
+- **The Validation Lab did not change.** The trial tooling lives in the
+  enclosure's own `trial` commands, as the thermal records do.
 
 Each phase is one PR. Phases 1 and 2 add lid attachments, so existing builds
 and records are unchanged unless a design asks for them.

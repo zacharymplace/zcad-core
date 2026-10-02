@@ -46,6 +46,8 @@ from zcad_core.features.enclosure_thermal import (
     estimate_thermal,
     require_not_too_hot,
 )
+from zcad_core.features.lid_hinge import swung_lid
+from zcad_core.features.lid_slide import slid_lid
 from zcad_core.features.mounts import flexure_payload
 from zcad_core.features.vent_patterns import PATTERNS
 from zcad_core.geometry.cadquery_support import workplane_shape
@@ -204,11 +206,38 @@ def _bay_summary(group: GroupEnclosure) -> list[dict[str, object]]:
     ]
 
 
-def _write_review(group: GroupEnclosure, directory: Path, name: str) -> Path:
-    """The enclosure with its lid lifted, and each Pi's envelope, as STEP."""
+def _review_lid(group: GroupEnclosure) -> tuple[Any, str]:
+    """The lid as the review shows it: open on its pin, slid out over its entry
+    wall, or lifted straight up."""
+
+    if group.hinge is not None:
+        return (
+            swung_lid(
+                workplane_shape(group.lid), group.hinge, group.hinge.swing_degrees
+            ),
+            f"open {group.hinge.swing_degrees:.0f} degrees on its pin",
+        )
+
+    if group.slide is not None:
+        return (
+            slid_lid(workplane_shape(group.lid), group.slide, group.slide.travel_mm),
+            (
+                f"slid {group.slide.travel_mm:.0f} mm out over the "
+                f"{group.slide.entry_edge} wall"
+            ),
+        )
+
+    return group.lid.translate((0, 0, _REVIEW_LID_LIFT_MM)), "lifted"
+
+
+def _write_review(
+    group: GroupEnclosure, directory: Path, name: str
+) -> tuple[Path, str]:
+    """The enclosure with its lid open, slid out, or lifted, and each Pi's
+    envelope, as STEP."""
 
     directory.mkdir(parents=True, exist_ok=True)
-    lid = group.lid.translate((0, 0, _REVIEW_LID_LIFT_MM))
+    lid, pose = _review_lid(group)
     assembly = cq.Assembly()
     assembly.add(group.base, name="base", color=cq.Color(0.6, 0.6, 0.65))
     assembly.add(lid, name="lid", color=cq.Color(0.3, 0.5, 0.8, 0.5))
@@ -219,7 +248,7 @@ def _write_review(group: GroupEnclosure, directory: Path, name: str) -> Path:
     path = directory / f"{name}-review.step"
     assembly.export(str(path))
 
-    return path
+    return path, pose
 
 
 def _require_fits_bed(group: GroupEnclosure, profile: dict[str, Any]) -> None:
@@ -448,7 +477,9 @@ def _group_build(args: argparse.Namespace) -> int:
             },
         )
     )
-    review_path = _write_review(group, args.output_directory / "review", name)
+    review_path, review_lid = _write_review(
+        group, args.output_directory / "review", name
+    )
     join = (
         f"{group.fastener.identifier} x {group.recommended_join_screw_mm} mm, "
         f"{len(group.join_positions)} per joint"
@@ -497,6 +528,7 @@ def _group_build(args: argparse.Namespace) -> int:
                 ),
             },
             "review_step": str(review_path),
+            "review_lid": review_lid,
             "print": printed,
             "parts": {
                 part.part_name: {

@@ -69,6 +69,16 @@ class SlideReport:
     travel_mm: float
     detent: Flexure
     wall_top_above_cavity_mm: float
+    # The way the lid slides out, as a unit vector in the enclosure's frame.
+    direction: tuple[float, float, float] = (1.0, 0.0, 0.0)
+
+
+def slid_lid(lid: cq.Shape, slide: SlideReport, distance_mm: float) -> cq.Shape:
+    """The lid pushed ``distance_mm`` out toward its entry wall."""
+
+    x, y, z = slide.direction
+
+    return lid.translate(cq.Vector(x, y, z) * distance_mm)
 
 
 def slide_clearance_error(clearance_mm: float) -> str | None:
@@ -377,6 +387,7 @@ def add_slide(
         travel_mm=lid_length,
         detent=detent,
         wall_top_above_cavity_mm=wall_top - top,
+        direction=(0.0, sign, 0.0) if along_y else (sign, 0.0, 0.0),
     )
 
     return base, lid, report

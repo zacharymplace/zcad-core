@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
+import cadquery as cq
 import pytest
 
 from zcad_core.assemblies import (
     DeviceAssembly,
     Placement,
+    build_board_assembly,
     build_board_display_assembly,
 )
 from zcad_core.features import (
@@ -20,6 +23,9 @@ from zcad_core.features import (
     export_enclosure_review,
     recommended_screw_length_mm,
 )
+from zcad_core.features.enclosure_review import _motion_clear
+from zcad_core.features.lid_hinge import swung_lid
+from zcad_core.features.lid_slide import slid_lid
 from zcad_core.hardware import (
     get_fastener,
     get_raspberry_pi_pico2,
@@ -127,3 +133,127 @@ def test_screw_length_fits_the_lid_and_insert(enclosure: Enclosure) -> None:
     assert recommended_screw_length_mm(enclosure) == 6
     assert recommended_screw_length_mm(m2) == 5
     assert recommended_screw_length_mm(thick_lid) == 8
+
+
+# --- a lid that swings or slides ------------------------------------------------------------------
+
+
+def plain_assembly() -> DeviceAssembly:
+    return build_board_assembly(
+        board=BOARD, board_placement=Placement(), connector_access_clearance_mm=2.0
+    )
+
+
+@pytest.fixture(scope="module")
+def hinged() -> Enclosure:
+    return build_enclosure(
+        pico2_oled_assembly(),
+        board=BOARD,
+        display=DISPLAY,
+        design=EnclosureDesign(lid_attachment="hinge", bottom_clearance_mm=6.0),
+    )
+
+
+@pytest.fixture(scope="module")
+def slid() -> Enclosure:
+    return build_enclosure(
+        plain_assembly(), board=BOARD, design=EnclosureDesign(lid_attachment="slide")
+    )
+
+
+def solid(model: cq.Workplane) -> cq.Shape:
+    return cq.Compound.makeCompound(
+        [
+            part
+            for item in model.vals()
+            if isinstance(item, cq.Shape)
+            for part in item.Solids()
+        ]
+    )
+
+
+def test_a_hinged_lid_is_reviewed_open_on_its_pin(
+    hinged: Enclosure, tmp_path: Path
+) -> None:
+    review = export_enclosure_review(
+        hinged, pico2_oled_assembly(), output_directory=tmp_path / "review"
+    )
+    report = review.report
+
+    assert review.passed
+    assert report["lid_pose"] == "open 100 degrees on its pin"
+    assert report["checks"]["lid_motion_clear"]["passed"] is True
+    assert report["fasteners"]["lid"] == "hinged"
+
+
+def test_the_open_lid_turns_about_the_pin_and_rises_clear_of_the_base(
+    hinged: Enclosure,
+) -> None:
+    assert hinged.hinge is not None
+    lid = solid(hinged.lid)
+    opened = swung_lid(lid, hinged.hinge, hinged.hinge.swing_degrees)
+    axis = cq.Vector(*hinged.hinge.axis_point)
+
+    # A point on the pin does not move, and the free edge lifts well above the
+    # closed lid.
+    pin = cq.Solid.makeCylinder(
+        0.5, 4.0, pnt=axis, dir=cq.Vector(*hinged.hinge.axis_direction)
+    )
+    centre = pin.Center()
+
+    assert swung_lid(pin, hinged.hinge, 100.0).Center().sub(centre).Length < 1e-6
+    assert opened.BoundingBox().zmax > lid.BoundingBox().zmax + 20.0
+
+
+def test_a_sliding_lid_is_reviewed_pushed_out_over_its_entry(
+    slid: Enclosure, tmp_path: Path
+) -> None:
+    review = export_enclosure_review(
+        slid, plain_assembly(), output_directory=tmp_path / "review"
+    )
+
+    assert slid.slide is not None
+    assert review.passed
+    assert review.report["lid_pose"].startswith("slid ")
+    assert slid.slide.entry_edge in review.report["lid_pose"]
+    assert review.report["checks"]["lid_motion_clear"]["passed"] is True
+
+
+def test_the_slid_lid_moves_its_travel_toward_the_entry(slid: Enclosure) -> None:
+    assert slid.slide is not None
+    lid = solid(slid.lid)
+    out = slid_lid(lid, slid.slide, slid.slide.travel_mm)
+    dx, dy, dz = slid.slide.direction
+
+    assert abs(dx) + abs(dy) == pytest.approx(1.0) and dz == 0.0
+    moved = out.Center().sub(lid.Center())
+
+    assert moved.x == pytest.approx(dx * slid.slide.travel_mm, abs=1e-6)
+    assert moved.y == pytest.approx(dy * slid.slide.travel_mm, abs=1e-6)
+
+
+def test_a_screwed_lid_is_still_shown_lifted(
+    enclosure: Enclosure, tmp_path: Path
+) -> None:
+    review = export_enclosure_review(
+        enclosure, pico2_oled_assembly(), output_directory=tmp_path / "review"
+    )
+
+    assert review.report["lid_pose"] == "lifted"
+    assert "lid_motion_clear" not in review.report["checks"]
+
+
+def test_a_part_in_the_lids_path_fails_the_motion_check(hinged: Enclosure) -> None:
+    lid = solid(hinged.lid)
+    box = lid.BoundingBox()
+    # A block standing above the lid, where the opening lid must pass.
+    blocker = (
+        cq.Workplane("XY")
+        .box(10, 10, 10)
+        .translate((box.center.x, box.center.y, box.zmax + 15.0))
+    )
+    hardware = {"BLOCKER": (cast(cq.Shape, blocker.val()), "connector")}
+    result = _motion_clear(hinged, lid, hardware)
+
+    assert result is not None and result["passed"] is False
+    assert "BLOCKER" in result["detail"]
