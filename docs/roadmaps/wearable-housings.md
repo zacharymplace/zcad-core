@@ -143,7 +143,7 @@ antimicrobial anything is not built.
 
 ## Phases
 
-1. **The wearable file.** The capture file generalised: an outline, face features, an
+1. **The wearable file (built).** The capture file generalised: an outline, face features, an
    optional mass, a device of the user's own. `wearable check` for it; the Dexcom and
    Mobi checks and candidates unchanged.
 2. **Housings.** The housing file with `template`, `check` and `build`; the `cradle`
@@ -158,6 +158,31 @@ antimicrobial anything is not built.
    enclosure trials' style with wear readings: a retention force from a spring scale, a
    pull test of a lug or a loop, a count of wears and whether anything wore or cracked,
    and whether skin was irritated. The engine states no limit for any of them.
+
+### What phase 1 changed
+
+- **A custom device is `"device": "custom"` with a `name`, not any name.** The design
+  said the device could be "a catalog key or a name of the user's". A free name would
+  turn a typo of a catalog key (`dexcom-g8`) into a device with no published size to be
+  checked against, silently. So `custom` is the one word that means "mine", it needs a
+  `name`, and anything else unknown is still refused, with `custom` offered in the
+  message. A catalog device takes no `name`.
+- **A custom device skips only the published-size check.** It has no published size, so
+  the 25 per cent test and the 2 mm question are not asked. The three readings, their
+  spread warning, the `source`, the edge-feature check and every other rule apply.
+- **Face features are boxes, checked against the outline's corners too.** Each corner of
+  a feature's box must lie inside the body, so a feature in a rounded corner that a
+  rectangle would accept is refused. They are optional, so a capture made before them is
+  valid; only a custom device is questioned for leaving them out.
+- **Only a rectangle and a rounded rectangle.** A polygon outline is not built, as the
+  design said; the radius is bounded by half the body's width.
+- **The mass is checked for sense and used by nothing yet.** Between zero and 5000 g with
+  a source. Only trials' readings will use it.
+- **The catalog devices did not move into files.** They stay in code with their
+  published sizes, which the design allowed ("stay in the catalog"); the capture file for
+  either is what a measurement replaces, as before. Their candidates, scripts and the
+  retention pipeline are untouched.
+- **The schema version stays 1.0.0,** since every addition is optional.
 
 Each phase is one PR. The wearable file adds optional fields, so no existing capture
 file changes, and the shell scripts keep their output.

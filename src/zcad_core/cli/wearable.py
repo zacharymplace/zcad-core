@@ -8,6 +8,7 @@ from pathlib import Path
 
 from zcad_core.cli._common import emit
 from zcad_core.hardware.wearables import (
+    CUSTOM,
     DEVICES,
     capture_template,
     check_capture,
@@ -31,6 +32,17 @@ def _wearable_check(args: argparse.Namespace) -> int:
         capture = load_capture(args.file)
         payload["sha256"] = capture.sha256
         payload["device"] = capture.device
+        payload["name"] = capture.name
+        payload["outline"] = (
+            "rectangle"
+            if capture.outline_radius_mm is None
+            else f"rounded rectangle, {capture.outline_radius_mm:g} mm corners"
+        )
+        payload["face_features"] = [
+            f"{feature.identifier} ({feature.width_mm:g} x {feature.depth_mm:g} mm)"
+            for feature in capture.face_features
+        ]
+        payload["mass_g"] = capture.mass_g
         payload["body_mm"] = {
             "length": capture.length_mm,
             "width": capture.width_mm,
@@ -84,7 +96,7 @@ def register(
     template = commands.add_parser(
         "template", help="print an example caliper capture to fill in"
     )
-    template.add_argument("--device", required=True, choices=sorted(DEVICES))
+    template.add_argument("--device", required=True, choices=[*sorted(DEVICES), CUSTOM])
     template.add_argument(
         "--output", type=Path, help="write the example here instead of printing it"
     )

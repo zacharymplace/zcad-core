@@ -76,6 +76,38 @@ bottom face are not listed: the candidate is the clips alone, each standing at
 its edge and hooking `overhang_mm` (0.6 mm) over the top edge, so it touches
 neither face.
 
+## A device of your own
+
+`--device custom` writes a capture for any sealed device, not only the two the
+catalog knows:
+
+```bash
+zcad-validation wearable template --device custom --output tracker.json
+```
+
+Set `"device": "custom"` and give it a `name`. A custom device has **no published
+size**, so the check has nothing to compare your readings with: the three readings
+and your `source` are all that stand behind it. (A typo such as `dexcom-g8` is still
+refused, because only `custom` is taken as your own.) Everything above applies to it
+unchanged, and three optional sections, which a Dexcom or Mobi capture may also use:
+
+- **`outline`**: the body seen from above, `"rectangle"` (the default) or
+  `{"type": "rounded_rectangle", "radius_mm": 3.0}`. The radius is at least 0.1 mm
+  and no more than half the body's width.
+- **`face_features`**: the buttons, windows, screens and ports on the face away from
+  the body, which a housing must leave open. Each has an `identifier` and a box in the
+  same frame as the edge features: `center_x_mm` and `center_y_mm` from the device's
+  centre (+X east, +Y north), and `width_mm` along X and `depth_mm` along Y. Every
+  corner of the box must lie inside the outline, including a rounded corner. An empty
+  list says there are none; a custom device with no `face_features` at all is
+  questioned, since a sensor or tracker usually has something on its face.
+- **`mass`**: `{"value_g": 18.5, "source": "a kitchen scale, one tracker"}`, between
+  zero and 5000 g, with how it was found. Only a trial's readings use it.
+
+A capture made before these existed is still valid, and loads with no outline radius,
+no face features and no mass. `wearable check` prints the device's name, its outline,
+its face features and its mass beside the sizes.
+
 ## What the check does
 
 `wearable check` lists every problem at once and exits 1 if the capture cannot
