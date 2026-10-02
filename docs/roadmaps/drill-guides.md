@@ -17,7 +17,8 @@ builds the guide and refuses one that cannot work.
 A holding nest (a pocket that cradles a part for sanding or gluing) and a PCB
 test fixture are the same base with different parts on top. The nest is built
 here as the guide's lower half; the test fixture has its own design,
-[PCB test fixtures](pcb-test-fixtures.md).
+[PCB test fixtures](pcb-test-fixtures.md). A holding nest with a floor, notches and a label,
+and an insert jig, are designed in [Nests and jigs](nests-and-jigs.md).
 
 This is a design, not built work. Nothing below exists in the code yet.
 
