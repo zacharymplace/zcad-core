@@ -14,6 +14,7 @@ import pytest
 
 from zcad_core.cli import main
 from zcad_core.features.guide_bores import printer_numbers
+from zcad_core.features.guide_file import load_part_file
 from zcad_core.features.jig import (
     bore_diameter_mm,
     build_jig,
@@ -26,6 +27,7 @@ from zcad_core.features.jig_file import (
     inspect_jig_file,
     jig_template,
 )
+from zcad_core.features.jig_holes import part_holes
 from zcad_core.profiles import load_printer_profile
 
 PRINTER_PATH = (
@@ -370,3 +372,180 @@ def test_the_commands_write_check_and_build_a_jig(slab: Path, tmp_path: Path) ->
     assert record["jig_file"]["sha256"] and record["part"]["sha256"]
     assert "no temperature, time or force" in record["not_claimed"]
     assert record["settings"]["plate_thickness_mm"] == pytest.approx(6.0)
+
+
+# --- phase 4: insert positions from the part's own holes ---------------------------------------
+
+
+@pytest.fixture(scope="module")
+def drilled(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A 50 x 30 x 16 block with two blind 4.6 x 6 pockets, a 3.4 mm hole right through it,
+    and a hole opening on its side face, which is no place for an insert."""
+
+    def hole(x: float, y: float, diameter: float, depth: float) -> cq.Workplane:
+        return (
+            cq.Workplane("XY")
+            .circle(diameter / 2)
+            .extrude(depth)
+            .translate((x, y, 16 - depth))
+        )
+
+    model = (
+        block(50, 30, 16)
+        .cut(hole(-10, -5, 4.6, 6))
+        .cut(hole(10, -5, 4.6, 6))
+        .cut(hole(0, 8, 3.4, 16))
+        .cut(cq.Workplane("YZ").circle(2).extrude(10).translate((-25, 0, 6)))
+    )
+    path = tmp_path_factory.mktemp("drilled") / "drilled.step"
+    cq.exporters.export(model, str(path))
+
+    return path
+
+
+def jig_from_holes(directory: Path, part: Path, holes: dict[str, Any]) -> Path:
+    data = copy.deepcopy(jig_template(part))
+    data["source"] = "a drilled block for tests"
+    data["iron"] = dict(IRON)
+    data.pop("inserts")
+    data["insert_holes"] = holes
+    path = directory / "jig.json"
+    path.write_text(json.dumps(data))
+
+    return path
+
+
+def test_the_part_holes_open_at_the_top_face_are_found(drilled: Path) -> None:
+    part = load_part_file(drilled, None, None)
+    found = part_holes(part.shape, part.height_mm)
+
+    assert [h.identifier for h in found] == ["H01", "H02", "H03"]
+    first, second, through = found
+    assert (first.x_mm, first.y_mm) == (pytest.approx(-10.0), pytest.approx(-5.0))
+    assert (second.x_mm, second.y_mm) == (pytest.approx(10.0), pytest.approx(-5.0))
+    assert first.diameter_mm == pytest.approx(4.6)
+    assert first.depth_mm == pytest.approx(6.0)
+    assert not first.through
+    assert through.through and through.diameter_mm == pytest.approx(3.4)
+
+
+def test_the_picked_holes_become_bores_over_the_pockets(
+    drilled: Path, tmp_path: Path
+) -> None:
+    path = jig_from_holes(
+        tmp_path, drilled, {"from_part": True, "holes": ["H01", "H02"]}
+    )
+    report, spec, part = inspect_jig_file(path, PROFILE)
+
+    assert report.valid, report.errors
+    assert spec is not None and part is not None
+    jig = build_jig(spec, part, PROFILE)
+
+    assert jig.passed
+    assert [(b.identifier, b.origin) for b in jig.bores] == [
+        ("H01", "part"),
+        ("H02", "part"),
+    ]
+    assert jig.bores[0].centre[0] == pytest.approx(-10.0)
+    assert jig.bores[0].centre[1] == pytest.approx(-5.0)
+    assert not inside(jig.body, -10.0, -5.0, 3.0)
+
+
+def test_a_hole_too_small_for_the_insert_is_refused_when_it_is_taken(
+    drilled: Path, tmp_path: Path
+) -> None:
+    # No pick: all three, and the 3.4 mm through hole cannot take an M3 insert.
+    path = jig_from_holes(tmp_path, drilled, {"from_part": True})
+    report = check_jig_file(path, PROFILE)
+
+    assert not report.valid
+    assert any("H03" in e and "too small for a M3 insert" in e for e in report.errors)
+
+
+def test_a_pocket_found_too_shallow_is_refused(drilled: Path, tmp_path: Path) -> None:
+    path = jig_from_holes(tmp_path, drilled, {"from_part": True, "holes": ["H01"]})
+    data = json.loads(path.read_text())
+    data["jig"]["depth_below_face_mm"] = 2.0
+    path.write_text(json.dumps(data))
+    report = check_jig_file(path, PROFILE)
+
+    assert any("H01" in e and "too shallow" in e for e in report.errors)
+
+
+def test_a_hole_the_part_does_not_have_is_named_with_the_ones_it_has(
+    drilled: Path, tmp_path: Path
+) -> None:
+    path = jig_from_holes(tmp_path, drilled, {"from_part": True, "holes": ["H09"]})
+    report = check_jig_file(path, PROFILE)
+
+    assert any("names H09" in e and "H01, H02, H03" in e for e in report.errors)
+
+
+def test_a_part_with_no_holes_to_read_is_refused(slab: Path, tmp_path: Path) -> None:
+    path = jig_from_holes(tmp_path, slab, {"from_part": True})
+    report = check_jig_file(path, PROFILE)
+
+    assert any("no round hole open at its top face" in e for e in report.errors)
+
+
+def test_typed_and_found_inserts_can_be_mixed(drilled: Path, tmp_path: Path) -> None:
+    path = jig_from_holes(tmp_path, drilled, {"from_part": True, "holes": ["H01"]})
+    data = json.loads(path.read_text())
+    data["inserts"] = [{"id": "T1", "x_mm": 15.0, "y_mm": 8.0}]
+    path.write_text(json.dumps(data))
+    report, spec, part = inspect_jig_file(path, PROFILE)
+
+    assert report.valid, report.errors
+    assert spec is not None and part is not None
+    jig = build_jig(spec, part, PROFILE)
+
+    assert {b.identifier: b.origin for b in jig.bores} == {
+        "T1": "typed",
+        "H01": "part",
+    }
+
+
+@pytest.mark.parametrize(
+    ("holes", "message"),
+    [
+        ({"from_part": "yes"}, "must be true or false"),
+        ({"from_part": True, "holes": []}, "list of hole names"),
+        ({"holes": ["H01"]}, "needs insert_holes.from_part"),
+        ({"from_part": True, "colour": 1}, "unknown fields: colour"),
+    ],
+)
+def test_a_badly_written_holes_section_is_refused(holes: Any, message: str) -> None:
+    data = copy.deepcopy(jig_template())
+    data["iron"]["source"] = "measured"
+    data["insert_holes"] = holes
+    report = check_jig_data(data)
+
+    assert any(message in e for e in report.errors), report.errors
+
+
+def test_a_file_with_neither_inserts_nor_holes_is_refused() -> None:
+    data = copy.deepcopy(jig_template())
+    data["iron"]["source"] = "measured"
+    data.pop("inserts")
+    report = check_jig_data(data)
+
+    assert any("unless insert_holes.from_part" in e for e in report.errors)
+
+
+def test_the_record_says_where_each_position_came_from(
+    drilled: Path, tmp_path: Path
+) -> None:
+    path = jig_from_holes(tmp_path, drilled, {"from_part": True, "holes": ["H01"]})
+    code, out = run(
+        "jig",
+        "build",
+        "--jig-file",
+        str(path),
+        "--output-directory",
+        str(tmp_path / "out"),
+    )
+
+    assert code == 0, out
+    record = json.loads(Path(out["build_record"]).read_text())
+
+    assert record["bores"][0]["origin"] == "part"
