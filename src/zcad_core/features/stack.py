@@ -27,6 +27,7 @@ from zcad_core.features.stack_file import (
     StackSpec,
     load_stack_profile,
 )
+from zcad_core.features.stack_holding import Holding, holding_for, screw_length_mm
 from zcad_core.features.stack_profile import StackProfile
 from zcad_core.features.stack_solids import (
     DIVIDER_MM,
@@ -37,12 +38,15 @@ from zcad_core.features.stack_solids import (
     add_scoop,
     baseplate_solid,
     bin_solid,
+    cut_foot_pockets,
+    cut_plate_holding,
+    holding_centres,
     solid_count,
 )
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.intersection import intersection_volume
 
-_TOLERANCE_MM3 = 1e-3
+TOLERANCE_MM3 = 1e-3
 NOT_CLAIMED = (
     "The engine states no load rating, no stable height for a stack, and no "
     "compatibility with any other maker's parts: a part is built to the profile in the "
@@ -83,6 +87,17 @@ def _bin(
     if item.scoop:
         model = add_scoop(model, (width, depth), floor_z, DEFAULT_SCOOP_MM)
 
+    holding = holding_for(item.holding, item.magnet, item.fastener)
+
+    if holding.holds:
+        model = cut_foot_pockets(
+            model,
+            profile,
+            item.cells,
+            holding.pocket_diameter_mm,
+            holding.pocket_depth_mm,
+        )
+
     summary: dict[str, Any] = {
         "kind": "bin",
         "cells": list(item.cells),
@@ -95,6 +110,7 @@ def _bin(
         "divider_mm": DIVIDER_MM,
         "label_tab": item.label_tab,
         "scoop": item.scoop,
+        **_holding_summary(holding, item.floor_mm),
     }
 
     return model, top, summary
@@ -104,19 +120,79 @@ def _baseplate(
     item: Item, profile: StackProfile
 ) -> tuple[cq.Workplane, float, dict[str, Any]]:
     model, floor = baseplate_solid(profile, item.cells, item.floor_mm, item.rim_mm)
+    holding = holding_for(item.holding, item.magnet, item.fastener)
+
+    if holding.holds:
+        model = cut_plate_holding(
+            model,
+            profile,
+            item.cells,
+            holding.kind,
+            holding.pocket_diameter_mm
+            if holding.kind == "magnet"
+            else holding.hole_diameter_mm,
+            holding.pocket_depth_mm,
+            floor,
+        )
+
     summary = {
         "kind": "baseplate",
         "cells": list(item.cells),
         "floor_mm": item.floor_mm,
         "rim_mm": item.rim_mm,
         "ridge_top_mm": RIDGE_TOP_MM,
+        **_holding_summary(holding, item.floor_mm),
     }
 
     return model, floor, summary
 
 
-def _overlap(first: cq.Workplane, second: cq.Workplane) -> float:
+def _holding_summary(holding: Holding, floor_mm: float) -> dict[str, Any]:
+    """What an item holds with and the sizes of it, with no claim of how hard."""
+
+    if not holding.holds:
+        return {"holding": "lip"}
+
+    return {
+        "holding": holding.kind,
+        "holding_part": holding.identifier,
+        "pocket_diameter_mm": round(holding.pocket_diameter_mm, 3),
+        "pocket_depth_mm": round(holding.pocket_depth_mm, 3),
+        "screw_length_at_least_mm": screw_length_mm(holding, floor_mm),
+    }
+
+
+def _pockets_void(
+    model: cq.Workplane, item: Item, profile: StackProfile, holding: Holding
+) -> bool:
+    """Every holding point is open: nothing is left standing where a pocket or a hole
+    was cut."""
+
+    if item.kind == "bin" or holding.kind == "bolt":
+        z = holding.pocket_depth_mm / 2 if item.kind == "bin" else item.floor_mm / 2
+    else:
+        z = item.floor_mm - holding.pocket_depth_mm / 2
+
+    solids = workplane_shape(model).Solids()
+
+    return not any(
+        solid.isInside(cq.Vector(x, y, z))
+        for x, y in holding_centres(profile, item.cells)
+        for solid in solids
+    )
+
+
+def overlap_mm3(first: cq.Workplane, second: cq.Workplane) -> float:
     return intersection_volume(workplane_shape(first), workplane_shape(second))
+
+
+def build_item(
+    item: Item, profile: StackProfile
+) -> tuple[cq.Workplane, float, dict[str, Any]]:
+    """One item's solid, the height a thing stacked on it sits at (a bin's walls' tops,
+    a baseplate's pocket floor), and what the build says of it."""
+
+    return _bin(item, profile) if item.kind == "bin" else _baseplate(item, profile)
 
 
 def build_stack(spec: StackSpec, printer: Mapping[str, Any]) -> Stack:
@@ -133,24 +209,27 @@ def build_stack(spec: StackSpec, printer: Mapping[str, Any]) -> Stack:
     }
 
     for item in spec.items:
-        if item.kind == "bin":
-            model, height, summary = _bin(item, profile)
-        else:
-            model, height, summary = _baseplate(item, profile)
+        model, height, summary = build_item(item, profile)
 
         parts[item.name] = model
         checks[f"{item.name}.one_solid"] = solid_count(model) == 1
         items[item.name] = summary
+        holding = holding_for(item.holding, item.magnet, item.fastener)
+
+        if holding.holds:
+            checks[f"{item.name}.holding_points_open"] = _pockets_void(
+                model, item, profile, holding
+            )
 
         if item.kind == "bin":
             checks[f"{item.name}.stacks_on_itself"] = (
-                _overlap(model.translate((0, 0, height)), model) <= _TOLERANCE_MM3
+                overlap_mm3(model.translate((0, 0, height)), model) <= TOLERANCE_MM3
             )
             plate, floor = plates.get(item.cells) or baseplate_solid(
                 profile, item.cells, item.floor_mm, 1.2
             )
             checks[f"{item.name}.sits_on_baseplate"] = (
-                _overlap(model.translate((0, 0, floor)), plate) <= _TOLERANCE_MM3
+                overlap_mm3(model.translate((0, 0, floor)), plate) <= TOLERANCE_MM3
             )
 
     return Stack(

@@ -51,6 +51,7 @@ _TOP_LEVEL = frozenset(
         "foot",
         "lip",
         "min_nest_clearance_mm",
+        "holding_points",
         "needs_review",
     }
 )
@@ -60,6 +61,10 @@ Section = tuple[tuple[float, float], ...]
 # specification: src/core/standard.scad, commit 910e22d. An example, to check and cite.
 _EXAMPLE_FOOT = [[2.95, 0.0], [2.15, 0.8], [2.15, 2.6], [0.0, 4.75]]
 _EXAMPLE_LIP = [[2.6, 0.0], [1.9, 0.7], [1.9, 2.5], [0.0, 4.4]]
+# The library's holes sit 8 mm in from the side of the 42 mm cell: 13 mm from its centre.
+_EXAMPLE_HOLDING_POINTS = [[13.0, 13.0], [13.0, -13.0], [-13.0, 13.0], [-13.0, -13.0]]
+MAXIMUM_HOLDING_POINTS = 16
+MINIMUM_POINT_SPACING_MM = 5.0
 
 
 @dataclass(frozen=True)
@@ -78,6 +83,9 @@ class StackProfile:
     source: str
     sha256: str
     path: Path
+    # Where, from a cell's centre, a magnet pocket or a bolt goes: in the foot's bottom
+    # and in a baseplate's floor.
+    holding_points: tuple[tuple[float, float], ...] = ()
 
     @property
     def cell_top_mm(self) -> float:
@@ -129,6 +137,7 @@ def profile_template() -> dict[str, Any]:
         "foot": _EXAMPLE_FOOT,
         "lip": _EXAMPLE_LIP,
         "min_nest_clearance_mm": 0.25,
+        "holding_points": _EXAMPLE_HOLDING_POINTS,
     }
 
 
@@ -235,6 +244,58 @@ def _check_source(data: Mapping[str, Any], findings: Findings) -> None:
         )
 
 
+def _check_holding_points(
+    data: Mapping[str, Any], findings: Findings
+) -> tuple[tuple[float, float], ...]:
+    """Where a magnet or a bolt goes in a cell: each ``[x, y]`` from the cell's centre,
+    inside the cell and clear of the others."""
+
+    entries = data.get("holding_points")
+
+    if entries is None:
+        return ()
+
+    if not isinstance(entries, list) or len(entries) > MAXIMUM_HOLDING_POINTS:
+        findings.errors.append(
+            f"holding_points must be a list of up to {MAXIMUM_HOLDING_POINTS} [x, y] points"
+        )
+
+        return ()
+
+    pitch = data.get("pitch_mm")
+    half = pitch / 2 if isinstance(pitch, int | float) else 150.0
+    points: list[tuple[float, float]] = []
+
+    for index, entry in enumerate(entries):
+        valid = (
+            isinstance(entry, list)
+            and len(entry) == 2
+            and all(
+                isinstance(v, int | float) and not isinstance(v, bool) for v in entry
+            )
+        )
+
+        if not valid:
+            findings.errors.append(f"holding_points[{index}] must be [x, y] numbers")
+        elif max(abs(entry[0]), abs(entry[1])) >= half:
+            findings.errors.append(
+                f"holding_points[{index}] is outside the cell: it must be within "
+                f"{half:g} mm of the centre"
+            )
+        else:
+            points.append((float(entry[0]), float(entry[1])))
+
+    for index, (x, y) in enumerate(points):
+        for other_x, other_y in points[index + 1 :]:
+            if (x - other_x) ** 2 + (y - other_y) ** 2 < MINIMUM_POINT_SPACING_MM**2:
+                findings.errors.append(
+                    f"holding points ({x:g}, {y:g}) and ({other_x:g}, {other_y:g}) are "
+                    f"under {MINIMUM_POINT_SPACING_MM:g} mm apart"
+                )
+
+    return tuple(points)
+
+
 def _check_geometry(
     profile: Mapping[str, float], foot: Section, findings: Findings
 ) -> None:
@@ -301,6 +362,7 @@ def check_profile_data(data: Any) -> ProfileCheck:
             ("min_nest_clearance_mm", 0.0, 2.0),
         )
     }
+    points = _check_holding_points(data, findings)
     foot = _check_section(data.get("foot"), "foot", findings)
     lip = _check_section(data.get("lip"), "lip", findings)
 
@@ -331,6 +393,7 @@ def check_profile_data(data: Any) -> ProfileCheck:
         "foot_height_mm": foot[-1][1],
         "lip_height_mm": lip[-1][1],
         "nest_clearance_mm": round(clearance, 4),
+        "holding_points": [list(point) for point in points],
     }
 
     return ProfileCheck(tuple(findings.errors), tuple(findings.warnings), summary)
@@ -371,4 +434,7 @@ def load_profile(path: Path) -> StackProfile:
         source=str(data["source"]),
         sha256=digest,
         path=path,
+        holding_points=tuple(
+            (float(x), float(y)) for x, y in data.get("holding_points", [])
+        ),
     )

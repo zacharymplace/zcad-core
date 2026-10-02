@@ -23,6 +23,11 @@ from typing import Any
 
 from zcad_core.features.guide_bores import printer_numbers
 from zcad_core.features.guide_common import IDENTIFIER, Findings, number, section
+from zcad_core.features.stack_holding import (
+    check_holding_fields,
+    check_holding_fits,
+    holding_for,
+)
 from zcad_core.features.stack_profile import (
     StackProfile,
     load_profile,
@@ -69,9 +74,23 @@ _ITEM = {
             "dividers",
             "label_tab",
             "scoop",
+            "holding",
+            "magnet",
+            "fastener",
         }
     ),
-    "baseplate": frozenset({"kind", "name", "cells", "floor_mm", "rim_mm"}),
+    "baseplate": frozenset(
+        {
+            "kind",
+            "name",
+            "cells",
+            "floor_mm",
+            "rim_mm",
+            "holding",
+            "magnet",
+            "fastener",
+        }
+    ),
 }
 
 
@@ -89,6 +108,9 @@ class Item:
     dividers: tuple[int, int] = (0, 0)
     label_tab: bool = False
     scoop: bool = False
+    holding: str = "lip"
+    magnet: str = ""
+    fastener: str = ""
 
 
 @dataclass(frozen=True)
@@ -261,6 +283,8 @@ def _check_item(entry: Any, index: int, names: list[str], findings: Findings) ->
         number(entry, "floor_mm", where, findings, low=0.4, high=10.0, required=False)
         number(entry, "rim_mm", where, findings, low=0.4, high=10.0, required=False)
 
+    check_holding_fields(entry, where, findings)
+
 
 def check_stack_data(data: Any) -> StackCheck:
     """Check a stack file's contents without reading what it names."""
@@ -339,6 +363,9 @@ def _item(entry: Mapping[str, Any]) -> Item:
         dividers=(int(dividers.get("x", 0)), int(dividers.get("y", 0))),
         label_tab=bool(entry.get("label_tab", False)),
         scoop=bool(entry.get("scoop", False)),
+        holding=str(entry.get("holding", "lip")),
+        magnet=str(entry.get("magnet", "")),
+        fastener=str(entry.get("fastener", "")),
     )
 
 
@@ -403,6 +430,17 @@ def _check_item_fits(
     least_floor: float,
     errors: list[str],
 ) -> None:
+    check_holding_fits(
+        item.name,
+        item.kind,
+        holding_for(item.holding, item.magnet, item.fastener),
+        item.floor_mm,
+        profile,
+        least_wall,
+        least_floor,
+        errors,
+    )
+
     if item.kind == "baseplate":
         if item.floor_mm < least_floor:
             errors.append(

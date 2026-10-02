@@ -161,7 +161,7 @@ is the user's; the engine only places the plate and the spacers.
 1. **The profile and the grid (built).** The profile file with `template` and `check`; `bin` and
    `baseplate`, with dividers, a label tab and a scoop; the lip-and-foot nesting check;
    the profile's figures read from the published specification and cited.
-2. **Holding.** Bolts, magnets and latches in the profile, built into any item, and
+2. **Holding (built, without latches).** Bolts, magnets and latches in the profile, built into any item, and
    `check-stack` for two items.
 3. **Trays and drawers.** The stacking tray with a snap lid, and the stack frame with
    sliding drawers.
@@ -232,3 +232,30 @@ See [Stackable items](../guides/stackable-items.md).
   design lists.
 - **The label tab and the scoop are the engine's own sizes** (a 12 mm ledge with a 45 degree gusset, a 10 mm quarter-round),
   refused where a bin is too low or narrow for them, and not figures from a source.
+
+### What phase 2 changed
+
+See *How an item holds* and *Does it stack* in [Stackable items](../guides/stackable-items.md).
+
+- **Latches are not built.** The design asked for a printed hook on the upper unit and a keeper on the lower. On
+  this grid there is nowhere for one: bins stand 0.5 mm apart, so a hook outside the outline strikes the next bin,
+  and the lip's inside is taken by the foot. A latch needs its own design, starting with the open question of where
+  a keeper goes. Magnets and bolts are built and `check-stack` knows `lip`, `magnet` and `bolt`; `latch` joins when it
+  has a design.
+- **Pockets meet at the foot and the baseplate, not between two bins.** A magnet or a bolt at a holding point is in
+  the bottom of a foot and in a baseplate's floor. Between two bins nothing lies under a foot's holding point, because
+  it stands over the cavity, so a bin on a bin is held by the lip alone and `check-stack` says so.
+- **An item holds one way.** `holding` is one of `lip`, `magnet`, `bolt`, since a magnet pocket and a screw hole
+  would share a point. The library the figures came from puts a screw through the magnet hole; here that is two
+  choices, not one point.
+- **The profile gives the points; the catalogues give the sizes.** A holding point is a position in the profile; a
+  magnet's pocket comes from the magnet catalogue (6.3 mm by 2.1 mm for a D6X2, which is under the 6.5 mm by 2.4 mm the
+  library lists for a magnet of 6 mm by 2 mm), and an insert's from the fastener catalogue. The pocket the library draws is
+  a design choice of its own, and this is the catalogue's.
+- **The baseplate floor grows to take a magnet.** A baseplate's 1.2 mm floor cannot hold a 2.1 mm pocket, so a magnet
+  baseplate is refused until `floor_mm` is at least 3.3 mm. M3 inserts cannot go in a 4.75 mm foot, and M2 can. These
+  refusals are the printer's minimums at work, not a limit the engine chose.
+- **`check-stack` takes two items, not two records.** The build record is phase 6, so the check reads stack files
+  (`FILE:NAME`). Checking two records joins it then.
+- **The check lays real solids.** As well as comparing what holds them, it places the upper on the lower and
+  measures any overlap, as the build does for one item against its own baseplate and itself.
