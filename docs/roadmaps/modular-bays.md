@@ -316,7 +316,8 @@ existing group build keeps its output unless a design asks for the new ones.
   its own design.
 - **Hot-swapping electrically.** A unit swaps mechanically; its wiring is the
   user's.
-- **Stacking units in Z.** Units join along the row, not on top of one another.
+- **Stacking units in Z.** Units join along the row, not on top of one another; see
+  [Stackable items](stackable-items.md).
 - **A board with no board file.** The STEP import and `board promote` make a board
   file from a model; a bay does not read a model directly.
 - **Catalogued modules other than boards and fans.** A shelf with openings stays
