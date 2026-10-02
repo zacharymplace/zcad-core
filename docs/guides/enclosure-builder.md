@@ -145,6 +145,10 @@ mm for a 4 mm plate) and is refused if a screw head would come within 2 mm
 of a pad, which a footprint near the pattern's size cannot avoid; try the
 other pattern.
 
+`--mount stack --stack-profile profile.json` makes the plate a **stack plate**: a flat plate on a
+[stack profile](stackable-items.md)'s foot, in whole cells, that stands on a baseplate or a bin of the
+same cells. See *Enclosures on the grid* there.
+
 The keyhole plate is refused if a keyhole would come within 2 mm of a screw
 hole or an edge, which small enclosures cannot avoid; the plate then needs a
 larger footprint.

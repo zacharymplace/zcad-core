@@ -165,7 +165,7 @@ is the user's; the engine only places the plate and the spacers.
    `check-stack` for two items.
 3. **Trays and drawers (built).** The stacking tray with a snap lid, and the stack frame with
    sliding drawers.
-4. **Enclosures on the grid.** `--mount stack` on the single-board enclosure and the Pi 5
+4. **Enclosures on the grid (built).** `--mount stack` on the single-board enclosure and the Pi 5
    group, and `check-stack` over their build records.
 5. **Electronics layers.** The layer from a board file, with its spacers and checks.
 6. **The record and stack trials.** A stack's build record, and trials in the housing
@@ -282,3 +282,21 @@ See *Caps, frames and drawers* in [Stackable items](../guides/stackable-items.md
 - **A frame's front wall comes out with its inside corners.** Taking out only the wall leaves a wedge of the rounded
   corner that a drawer's corners would strike, so the cut takes the wedge too, and a drawer's corners carry the inside
   corner's radius less the clearance.
+
+### What phase 4 changed
+
+See *Enclosures on the grid* in [Stackable items](../guides/stackable-items.md).
+
+- **The stack plate is a cap that screws on.** The design said a mount plate whose underside has the foot. It is built as the
+  cap is, a plate on the foot, with the screw holes of a mount plate through it; the screws are M3 (or the enclosure's fastener) from
+  below, so each goes through a foot, which a recess in the foot's bottom lets it do.
+- **The cells are searched, not just rounded.** The design said "rounded up from the enclosure's footprint". A pad can land on a
+  foot's edge in the least plate, so the build tries up to two more cells each way, smallest area first, and refuses if no plate puts all
+  four pads inside a foot. A Pico 2 takes 1 x 2 and a one-bay Pi 5 group 3 x 3 with the example profile.
+- **A plate bigger than the bed is refused with its cells.** The Pi 5 pair would need 5 x 3 cells, 210 mm, on a 180 mm bed. The design
+  had no answer to a footprint wider than the bed; this one is refused clearly, and a wider enclosure is built as units that bolt together.
+- **The record names the plate and `check-stack` reads it.** Both build records carry a `stack` entry, and `check-stack --upper` takes the
+  record. Phase 6 adds the stack's own record; this is the enclosures'.
+- **The enclosure's top is unchanged.** Nothing stacks on an enclosure's lid, as the design left open. That is `--stack-top`, off by
+  default, and not built.
+- **Existing builds are unchanged.** `stack` is another value of `--mount`, and the design and record fields default to none.

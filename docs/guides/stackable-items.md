@@ -3,7 +3,8 @@
 A **stack profile** says how an item's top and bottom faces meet another's. Bins and
 baseplates built on one profile sit on each other, and a bin stacks on a bin like it. This
 release builds bins, baseplates, caps, and drawer frames with their drawers, holds them with magnets
-or bolts, and checks whether two items stack; latches, enclosures and layers come in later releases (see the
+or bolts, puts the enclosures on the grid, and checks whether two items stack; latches and layers come
+in later releases (see the
 [stackable items design](../roadmaps/stackable-items.md)).
 
 ```bash
@@ -107,6 +108,38 @@ profile.
 **The build lays real solids.** A frame and a cap are one solid each. A cap sits on a bin of its cells with no
 overlap. And a drawer is put in every slot of its frame, shut and pulled out by half and nine tenths of its length, and
 must touch the frame nowhere, so a drawer that is too tall for its slot fails the build.
+
+## Enclosures on the grid
+
+```bash
+zcad-validation enclosure build --board raspberry_pi_pico_2 --mount stack \
+  --stack-profile my-profile.json --output-directory exports/pico-on-grid
+zcad-validation enclosure-group build --bays pi5 --mount stack \
+  --stack-profile my-profile.json --output-directory exports/pi5-on-grid
+```
+
+`--mount stack` is one more mount, with the four pads under the floor that the others use. The plate is a **stack
+plate**: a flat plate on the profile's foot, in whole cells, that bolts to the pads and stands on a baseplate, or on a bin
+or frame of the same cells, like any item on the profile. An enclosure built without it is unchanged.
+
+- **The cells** are the least that cover the pads, rounded up (a Pico 2 takes 1 x 2, a Pi 5 group of one bay 3 x 3), and the
+  plate is centred on the pads.
+- **The screws come from below,** up through a foot. A recess in the foot's bottom sinks each head (the screw's diameter plus
+  0.5 mm deep), and the foot above it, the plate and the insert's depth are the screw's reach, so the build prints a screw
+  length. The recess must lie inside a foot's bottom with a millimetre round it: if a pad would land on a foot's edge the build
+  tries one more cell across or deep, up to two, and refuses if none works.
+- **The plate must fit the bed.** A stack plate bigger than the printer's bed is refused, saying how many cells it is and
+  what the bed is: a Pi 5 pair is 176 mm wide and needs 5 cells, 210 mm, on a 180 mm bed. Build shorter units and bolt them together.
+
+The build record names the plate under `stack`: the profile by path and hash, the cells, the plate's thickness and the screw's
+reach. `check-stack` takes that record in place of `FILE:NAME`:
+
+```bash
+zcad-validation stack check-stack --upper exports/pico-on-grid/enclosure.json --lower my-stack.json:base
+```
+
+It checks it as it checks a bin: the profile by hash (a profile that has changed since the build is not trusted), the cells, the
+holding (a stack plate holds by the lip alone) and the overlap of real solids. Nothing stacks on a stack plate.
 
 ## How an item holds
 

@@ -45,6 +45,7 @@ from zcad_core.features.enclosure_trial import (
 from zcad_core.features.fan_bay import FAN_DIRECTIONS, FAN_POSITIONS
 from zcad_core.features.lid_hinge import HingeReport
 from zcad_core.features.lid_slide import SlideReport
+from zcad_core.features.mount_stack import require_plate_fits_bed
 from zcad_core.features.mounts import MOUNTS, flexure_payload
 from zcad_core.features.vent_patterns import PATTERNS
 from zcad_core.hardware import (
@@ -230,6 +231,7 @@ def _design(args: argparse.Namespace) -> EnclosureDesign:
         minimum_opening_web_mm=args.minimum_opening_web_mm,
         mount=args.mount,
         mount_plate_mm=args.mount_plate_mm,
+        stack_profile=str(args.stack_profile) if args.stack_profile else None,
     )
 
 
@@ -248,7 +250,8 @@ def _mount_payload(enclosure: Enclosure) -> dict[str, object] | None:
 
     return {
         "kind": enclosure.design.mount,
-        "screws": f"{enclosure.fastener.identifier} countersunk x "
+        "screws": f"{enclosure.fastener.identifier} "
+        f"{'in a head recess' if enclosure.mount.stack else 'countersunk'} x "
         f"{enclosure.mount.recommended_screw_mm} mm, "
         f"{len(enclosure.mount_pads.positions)} per plate",
         "device_screws": enclosure.mount.device_screws,
@@ -256,6 +259,7 @@ def _mount_payload(enclosure: Enclosure) -> dict[str, object] | None:
         "flexure": flexure_payload(enclosure.mount.flexure),
         "pad_height_mm": enclosure.mount_pads.height_mm,
         "plate_size_mm": list(enclosure.mount.size_mm),
+        "stack": enclosure.mount.stack,
     }
 
 
@@ -363,6 +367,7 @@ def _build(
     enclosure = build_enclosure(assembly, board=board, display=display, design=design)
     name = args.name or f"{board.identifier.lower().replace('_', '-')}-enclosure"
     printer_profile = load_printer_profile(args.printer_profile)
+    require_plate_fits_bed(enclosure.mount, printer_profile.get("build_volume_mm"))
     result = export_parts(
         ExportRequest(
             design_name=name,
@@ -753,6 +758,12 @@ def register(
         help="add four mount pads under the floor and a plate that bolts to them",
     )
     build.add_argument("--mount-plate-mm", type=float, default=4.0)
+    build.add_argument(
+        "--stack-profile",
+        type=Path,
+        default=None,
+        help="the stack profile file a --mount stack plate is built to",
+    )
     build.add_argument(
         "--vent-pattern",
         choices=PATTERNS,

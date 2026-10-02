@@ -12,13 +12,15 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 import cadquery as cq
 
+from zcad_core.features.stack_profile import StackProfile
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware import FastenerSpec, get_fastener
 
-MOUNTS = ("keyhole", "vesa75", "vesa100", "din")
+MOUNTS = ("keyhole", "vesa75", "vesa100", "din", "stack")
 
 # Floor left above an insert pocket, so the pocket never breaks into the cavity.
 POCKET_ROOF_MM = 1.0
@@ -126,6 +128,8 @@ class MountPlate:
     # names each; ``plate`` is then the first. Otherwise the plate is the
     # one part, "mount".
     pieces: dict[str, cq.Workplane] | None = None
+    # A stack plate's profile, cells and screws, for the build record and ``check-stack``.
+    stack: dict[str, Any] | None = None
 
     @property
     def parts(self) -> dict[str, cq.Workplane]:
@@ -216,11 +220,26 @@ def build_mount(
     fastener: FastenerSpec,
     plate_mm: float = 4.0,
     hole_compensation_mm: float = 0.0,
+    stack_profile: StackProfile | None = None,
 ) -> MountPlate:
     """The plate for ``kind``, in the enclosure's frame, seated on the pads."""
 
     if kind not in MOUNTS:
         raise ValueError(f"mount must be one of {MOUNTS}")
+
+    if kind == "stack":
+        if stack_profile is None:
+            raise ValueError("a stack mount needs a stack profile")
+
+        from zcad_core.features.mount_stack import build_stack_plate
+
+        return build_stack_plate(
+            pads,
+            fastener=fastener,
+            profile=stack_profile,
+            plate_mm=plate_mm,
+            compensation=hole_compensation_mm,
+        )
 
     if kind in VESA_PATTERNS_MM:
         return _vesa_plate(

@@ -10,7 +10,7 @@ from pathlib import Path
 from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.stack import build_stack, require_fits_bed
-from zcad_core.features.stack_check import check_stackable, locate
+from zcad_core.features.stack_check import check_items
 from zcad_core.features.stack_file import (
     check_stack_file,
     load_stack,
@@ -93,9 +93,7 @@ def _stack_check_stack(args: argparse.Namespace) -> int:
     """Whether one item stacks on another; exits 1 if it does not."""
 
     profile = load_printer_profile(args.printer_profile)
-    upper_file, upper_name = locate(args.upper)
-    lower_file, lower_name = locate(args.lower)
-    report = check_stackable(upper_file, upper_name, lower_file, lower_name, profile)
+    report = check_items(args.upper, args.lower, profile)
     emit(
         {
             "stacks": report.stacks,
@@ -211,7 +209,9 @@ def register(
         help="check whether one item stacks on another; exits 1 if it does not",
     )
     check_stack.add_argument(
-        "--upper", required=True, help="the item on top, as FILE:NAME"
+        "--upper",
+        required=True,
+        help="the item on top: FILE:NAME, or an enclosure's build record for its stack plate",
     )
     check_stack.add_argument(
         "--lower", required=True, help="the item below, as FILE:NAME"
