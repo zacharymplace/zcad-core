@@ -18,6 +18,12 @@ from zcad_core.features.enclosure_group_model import (
     BayOpening,
     GroupDesign,
 )
+from zcad_core.features.enclosure_group_modules import (
+    ALIGNMENTS,
+    HEADROOM_MARGIN_MM,
+    ROTATIONS,
+    BayModule,
+)
 from zcad_core.hardware import RaspberryPi5Spec
 
 # The card must clear the floor: its depth under the board plus this much.
@@ -34,20 +40,49 @@ def resolve_bay(bay: BayLike) -> Bay:
     if resolved.kind not in BAY_KINDS:
         raise ValueError(f"unknown bay kind '{resolved.kind}'; use one of {BAY_KINDS}")
 
+    _check_board_settings(resolved)
+
     return resolved
 
 
+def _check_board_settings(bay: Bay) -> None:
+    """A board bay needs a board; no other bay takes one or its settings."""
+
+    if bay.kind == "board":
+        if bay.board is None:
+            raise ValueError("a board bay needs a board file: board:file=PATH")
+
+        if bay.rotate is not None and bay.rotate not in ROTATIONS:
+            raise ValueError(f"rotate must be one of {ROTATIONS}, not {bay.rotate!r}")
+
+        if bay.align not in ALIGNMENTS:
+            raise ValueError(f"align must be one of {ALIGNMENTS}, not {bay.align!r}")
+
+        return
+
+    if bay.board is not None or bay.rotate is not None or bay.screw is not None:
+        raise ValueError(
+            f"a {bay.kind} bay takes no board, rotate or screw: only a board bay does"
+        )
+
+
 def layout_bays(
-    bays: tuple[Bay, ...], design: GroupDesign, pi: RaspberryPi5Spec
+    bays: tuple[Bay, ...],
+    design: GroupDesign,
+    modules: tuple[BayModule | None, ...],
+    inner_depth: float,
 ) -> tuple[tuple[BayLayout, ...], float]:
-    """Each bay's gap, slot, and heights, and the cavity's inner width."""
+    """Each bay's gap, slot, and heights, and the cavity's inner width.
+
+    ``modules`` holds each bay's board, or ``None`` for an open shelf, and
+    ``inner_depth`` is how deep the row is, which sets where each board sits front
+    to back."""
 
     layouts: list[BayLayout] = []
     # The first bay's header faces the left wall across the end margin.
     cursor = design.end_margin_mm
 
-    for index, bay in enumerate(bays):
-        is_open = bay.kind == "open"
+    for index, (bay, module) in enumerate(zip(bays, modules, strict=True)):
         divider_start = 0.0
 
         if bay.divider is not None:
@@ -63,15 +98,15 @@ def layout_bays(
             divider_start = cursor
             cursor = divider_start + design.divider_mm + design.divider_clearance_mm
 
-        gap = _OPEN_BAY_STRIP_MM if is_open else design.service_gap_mm
-        slot = (
-            design.open_bay_width_mm
-            if is_open
-            else pi.board_width_mm + 2 * design.slot_pad_mm
-        )
-        standoff, headroom = _heights(bay, index, design, pi)
+        if module is None:
+            gap, slot = _OPEN_BAY_STRIP_MM, design.open_bay_width_mm
+        else:
+            gap = design.service_gap_mm if module.is_pi else design.board_gap_mm
+            slot = module.width_mm + 2 * design.slot_pad_mm
+
+        standoff, headroom = _heights(bay, index, design, module)
         board_bottom = design.floor_mm + standoff
-        board_top = board_bottom + (0.0 if is_open else pi.board_thickness_mm)
+        board_top = board_bottom + (0.0 if module is None else module.thickness_mm)
         layouts.append(
             BayLayout(
                 index=index,
@@ -87,12 +122,35 @@ def layout_bays(
                 openings=check_openings(bay, index, slot),
                 divider=bay.divider,
                 divider_start_mm=divider_start,
+                center_y_mm=_center_y(bay, module, design, inner_depth),
             )
         )
         cursor += slot + gap
 
     # The last bay's service gap runs to the right wall.
     return tuple(layouts), cursor
+
+
+def _center_y(
+    bay: Bay, module: BayModule | None, design: GroupDesign, inner_depth: float
+) -> float:
+    """Where a bay's board is centred front to back: against the back wall unless
+    the bay says front or centre, which for the deepest board is the same place."""
+
+    wall = design.wall_mm
+    front = wall + design.front_clearance_mm
+    back = wall + inner_depth - design.back_clearance_mm
+
+    if module is None:
+        return (front + back) / 2
+
+    if bay.align == "front":
+        return front + module.depth_mm / 2
+
+    if bay.align == "center":
+        return (front + back) / 2
+
+    return back - module.depth_mm / 2
 
 
 def check_openings(bay: Bay, index: int, slot_width: float) -> tuple[BayOpening, ...]:
@@ -149,7 +207,7 @@ def _overlap(first: BayOpening, second: BayOpening) -> bool:
 
 
 def _heights(
-    bay: Bay, index: int, design: GroupDesign, pi: RaspberryPi5Spec
+    bay: Bay, index: int, design: GroupDesign, module: BayModule | None
 ) -> tuple[float, float]:
     """A bay's standoff height and headroom, from its own or the design's."""
 
@@ -159,23 +217,36 @@ def _heights(
     if headroom <= 0:
         raise ValueError(f"{label}: headroom_mm must be greater than zero")
 
-    if bay.kind == "open":
+    if module is None:
         if bay.standoff_height_mm is not None:
             raise ValueError(f"{label}: an open bay has no board to stand off")
 
         return 0.0, headroom
 
-    standoff = (
-        bay.standoff_height_mm
-        if bay.standoff_height_mm is not None
-        else design.standoff_height_mm
-    )
-    minimum = pi.sd_card_depth_below_board_mm + _MINIMUM_SD_FLOOR_GAP_MM
+    if bay.standoff_height_mm is not None:
+        standoff = bay.standoff_height_mm
+    elif module.default_standoff_mm is not None:
+        standoff = module.default_standoff_mm
+    else:
+        standoff = design.standoff_height_mm
+
+    minimum = module.minimum_standoff_mm
 
     if standoff < minimum:
+        reason = (
+            "the microSD card clears the floor"
+            if module.is_pi
+            else "the parts under the board clear the floor"
+        )
         raise ValueError(
-            f"{label}: standoff_height_mm must be at least {minimum:.1f} mm "
-            "so the microSD card clears the floor"
+            f"{label}: standoff_height_mm must be at least {minimum:.1f} mm so {reason}"
+        )
+
+    if not module.is_pi and headroom < module.tallest_mm + HEADROOM_MARGIN_MM:
+        raise ValueError(
+            f"{label}: headroom_mm is {headroom:g} mm but the board's tallest part "
+            f"stands {module.tallest_mm:g} mm above it and needs "
+            f"{HEADROOM_MARGIN_MM:g} mm more: raise headroom"
         )
 
     return standoff, headroom

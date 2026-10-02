@@ -1,4 +1,8 @@
-"""Build one printable enclosure around a row of Raspberry Pi 5 bays.
+"""Build one printable enclosure around a row of bays.
+
+A bay holds a Raspberry Pi 5, a board from a board file, or an open shelf; what a
+bay holds is read from a module (:mod:`zcad_core.features.enclosure_group_modules`).
+The rest of this describes a Pi bay.
 
 Every Pi sits portrait, its Ethernet and USB edge against the back wall and
 its microSD end against the front wall. Its USB-C power and micro-HDMI edge
@@ -32,16 +36,10 @@ from zcad_core.features.enclosure_group_dividers import (
     build_divider,
     require_divider_fits,
 )
-from zcad_core.features.enclosure_group_envelope import (
-    make_box,
-    pi_envelope,
-    pi_parts,
-    single_shape,
-)
+from zcad_core.features.enclosure_group_envelope import make_box, single_shape
 from zcad_core.features.enclosure_group_layout import (
     BOSS_WALL_OVERLAP_MM,
     boss_column_xs,
-    hole_positions,
     layout_bays,
     resolve_bay,
 )
@@ -58,8 +56,14 @@ from zcad_core.features.enclosure_group_model import (
     GroupEnclosure,
     OpeningWall,
 )
+from zcad_core.features.enclosure_group_modules import (
+    BayModule,
+    board_module,
+    pi_module,
+)
 from zcad_core.features.enclosure_group_openings import (
     bay_openings,
+    board_openings,
     cut_openings,
     pi_openings,
     require_openings_under_lid,
@@ -116,8 +120,6 @@ __all__ = [
 ]
 
 _INTERFERENCE_TOLERANCE_MM3 = 1e-6
-_STANDOFF_DIAMETER_MM = 6.0
-_PI_STANDOFF_FASTENER = "M2.5"
 _VENT_SLOTS = 5
 _VENT_PITCH_MM = 5.0
 _VENT_LENGTH_MM = 30.0
@@ -150,6 +152,7 @@ def build_group_enclosure(
         raise ValueError("bays must list at least one bay")
 
     specs = tuple(resolve_bay(bay) for bay in bays)
+    modules = tuple(_module(spec, pi, index) for index, spec in enumerate(specs))
 
     fastener = get_fastener(design.fastener)
     insert_diameter = fastener.heat_set_insert_diameter_mm
@@ -159,15 +162,25 @@ def build_group_enclosure(
         raise ValueError(f"Fastener {fastener.identifier} has no heat-set insert")
 
     radius = insert_diameter / 2 + design.boss_radial_wall_mm
-    layouts, inner_width = layout_bays(specs, design, pi)
+    # The row is as deep as its deepest board needs, and a row of shelves is as
+    # deep as a Pi.
+    depths = [module.depth_mm for module in modules if module is not None]
     inner_depth = (
-        design.front_clearance_mm + pi.board_length_mm + (design.back_clearance_mm)
+        design.front_clearance_mm
+        + (max(depths) if depths else pi.board_length_mm)
+        + design.back_clearance_mm
     )
+    layouts, inner_width = layout_bays(specs, design, modules, inner_depth)
     cavity_top = max(layout.needed_top_z_mm for layout in layouts)
     inner_height = cavity_top - design.floor_mm
     require_openings_under_lid(layouts, inner_height)
     wall = design.wall_mm
-    pi_center_y = wall + design.front_clearance_mm + pi.board_length_mm / 2
+    pi_layouts = [layout for layout in layouts if layout.holds_pi]
+    pi_center_y = (
+        pi_layouts[0].center_y_mm
+        if pi_layouts
+        else wall + design.front_clearance_mm + pi.board_length_mm / 2
+    )
     screwed = design.lid_attachment == "screws"
     # A sliding lid rides over the dividers, so they stop short of it.
     divider_height = inner_height - (
@@ -181,7 +194,6 @@ def build_group_enclosure(
         pi=pi,
         inner_height=divider_height,
         inner_depth=inner_depth,
-        pi_center_y=pi_center_y,
     )
 
     outer = (
@@ -224,49 +236,54 @@ def build_group_enclosure(
     for divider, placement in dividers:
         base = base.union(build_divider(divider, placement))
 
-    standoff_fastener = get_fastener(_PI_STANDOFF_FASTENER)
     hardware: dict[str, cq.Shape] = {}
     parts: dict[str, dict[str, cq.Shape]] = {}
 
-    for layout in layouts:
-        if not layout.holds_pi:
+    for layout, module in zip(layouts, modules, strict=True):
+        if module is None:
             continue
 
         center_x = wall + layout.center_x_mm
+        standoff_fastener = get_fastener(module.standoff_screw)
 
-        for hx, hy in hole_positions(pi):
+        for hx, hy in module.holes:
             base = add_pcb_standoff(
                 base,
                 parameters=PcbStandoffParameters(
                     x=center_x + hx,
-                    y=pi_center_y + hy,
+                    y=layout.center_y_mm + hy,
                     base_height_mm=FLOOR_EMBED_MM,
                     standoff_height_mm=layout.standoff_height_mm,
-                    outer_diameter_mm=_STANDOFF_DIAMETER_MM,
+                    outer_diameter_mm=module.standoff_diameter_mm,
                     hole_diameter_mm=standoff_fastener.tap_hole_mm,
                     base_z_mm=design.floor_mm - FLOOR_EMBED_MM,
                 ),
             )
 
-        hardware[f"bay-{layout.index}"] = pi_envelope(
-            pi,
+        hardware[f"bay-{layout.index}"] = module.envelope(
             center_x,
-            pi_center_y,
+            layout.center_y_mm,
             layout.board_bottom_z_mm,
             layout.board_top_z_mm,
         )
-        parts[f"bay-{layout.index}"] = pi_parts(
-            pi, center_x, pi_center_y, layout.board_top_z_mm
+        parts[f"bay-{layout.index}"] = module.parts(
+            center_x, layout.center_y_mm, layout.board_top_z_mm
         )
 
-    openings = pi_openings(
-        layouts=layouts,
-        design=design,
-        pi=pi,
-        radius=radius,
-        wall=wall,
-        boss_columns=boss_columns,
-    ) + bay_openings(layouts, design)
+    openings = (
+        pi_openings(
+            layouts=layouts,
+            design=design,
+            pi=pi,
+            radius=radius,
+            wall=wall,
+            boss_columns=boss_columns,
+        )
+        + board_openings(
+            layouts=layouts, modules=modules, design=design, inner_depth=inner_depth
+        )
+        + bay_openings(layouts, design)
+    )
     base = cut_openings(base, openings)
 
     join_positions: tuple[tuple[float, float], ...] = ()
@@ -297,7 +314,6 @@ def build_group_enclosure(
         boss_positions=boss_positions,
         layouts=layouts,
         pi=pi,
-        pi_center_y=pi_center_y,
     )
 
     base, lid, vents = _add_vents(
@@ -563,6 +579,21 @@ def _add_mount(
     return base, pads, plate
 
 
+def _module(bay: Bay, pi: RaspberryPi5Spec, index: int) -> BayModule | None:
+    """What a bay holds: a Pi, a board from a board file, or nothing."""
+
+    if bay.kind == "open":
+        return None
+
+    if bay.kind != "board" or bay.board is None:
+        return pi_module(pi)
+
+    try:
+        return board_module(bay.board, rotate=bay.rotate, screw=bay.screw)
+    except ValueError as error:
+        raise ValueError(f"bay {index} (board): {error}") from error
+
+
 def _part_collisions(
     base: cq.Workplane,
     lid: cq.Workplane,
@@ -596,7 +627,6 @@ def _dividers(
     pi: RaspberryPi5Spec,
     inner_height: float,
     inner_depth: float,
-    pi_center_y: float,
 ) -> list[tuple[Divider, DividerPlacement]]:
     """Each bay's divider and where it stands, refused if it does not fit.
 
@@ -610,9 +640,11 @@ def _dividers(
         if layout.divider is None:
             continue
 
-        notch_y = pi_center_y + (pi.header_center_y_mm if layout.holds_pi else 0.0)
+        notch_y = layout.center_y_mm + (
+            pi.header_center_y_mm if layout.holds_pi else 0.0
+        )
         notch_bottom = (
-            layout.board_top_z_mm if layout.holds_pi else design.floor_mm + 2.0
+            layout.board_top_z_mm if layout.holds_board else design.floor_mm + 2.0
         )
         placement = DividerPlacement(
             x_start_mm=design.wall_mm + layout.divider_start_mm,
@@ -757,7 +789,6 @@ def _lid(
     boss_positions: tuple[tuple[float, float], ...],
     layouts: tuple[BayLayout, ...],
     pi: RaspberryPi5Spec,
-    pi_center_y: float,
 ) -> cq.Workplane:
     """A plate over the walls, a clearance hole over each boss, and vent
     slots over each Pi's SoC and cooler."""
@@ -786,7 +817,7 @@ def _lid(
             continue
 
         fan_x = wall + layout.center_x_mm + pi.fan_center_x_mm
-        fan_y = pi_center_y + pi.fan_center_y_mm
+        fan_y = layout.center_y_mm + pi.fan_center_y_mm
 
         for index in range(_VENT_SLOTS):
             offset = (index - (_VENT_SLOTS - 1) / 2) * _VENT_PITCH_MM
