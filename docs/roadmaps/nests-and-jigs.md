@@ -137,7 +137,7 @@ zcad-validation jig build --jig-file my-jig.json --output-directory exports/my-j
    `build` for a tray with its floor, flange and finger notches; the record.
 2. **The lip, the strap slots and the label (built).** The retaining tabs with their strain check, the strap slots from the user's strap figures, and the
    label.
-3. **The insert jig.** The `jig` file with typed positions, the bore, the iron's figures and the plate-as-stop, `check` and `build`, and the record.
+3. **The insert jig (built).** The `jig` file with typed positions, the bore, the iron's figures and the plate-as-stop, `check` and `build`, and the record.
 4. **Inserts from the part's holes.** `from_part` and `holes`, reading the through-holes, and the checks of a found hole against the insert.
 5. **Trials.** `nest trial` and `jig trial`, in the other trials' style: for a nest, whether the part seats, lifts out, stays in, and the strap holds
    it still, with a count of uses and whether anything wore; for a jig, whether each insert went in square and to what measured depth below the face,
@@ -193,3 +193,19 @@ See [A holding nest for your part](../guides/holding-nest.md).
 - **Strap slots sit on the flange at the ends of the longer side**, on the X ends when the part is longer in X; `strap_slots_in_flange` checks them against the real solid. The strap's width, thickness and `source` are the user's.
 - **The label goes on the side the slots are not on**, and is refused when it is longer than the side or the flange is narrower than the text.
 - **Not covered:** how hard a lip grips and what a strap will bear. The record still says unverified until a printed trial (phase 5).
+
+### What phase 3 changed
+
+See [An insert jig for your part](../guides/insert-jig.md).
+
+- **The jig is its own files.** `jig_file.py` (the file, its checks and the insert's pocket checks), `jig.py` (the build and the record) and `cli/jig.py` (`jig template`, `check`, `build`).
+  It runs on `nest_core` (`pocketed`, `clear`, `lifts_off`) as the guide does, and reads the part with the guide's `load_part_file`. The guide and the nest are unchanged.
+- **The bore is the catalogued insert's diameter** plus the sliding clearance each side and the hole oversize, the guide's own rule for a printed hole. The catalogue's insert size is
+  taken as the insert's outside diameter.
+- **The plate is the stop.** Its thickness is `tip_length_mm - depth_below_face_mm`; `iron_reaches_insert` is that identity checked on the built plate.
+- **The iron's fit has two engine choices.** The tip must be at least one sliding clearance narrower than the bore, and the shoulder wider than the bore by a minimum wall each side. Neither is a
+  figure from a source, so the guide names them as the engine's.
+- **The iron's source is refused when it starts with EXAMPLE**, as the housing's and the stack's sources are, so the template does not build until the figures are measured.
+- **A typed pocket is optional.** A pocket under the insert's size by more than 0.3 mm, or shallower than the insert needs, is refused; one 0.3 mm or more off the size warns; one left out is noted as unchecked.
+- **Bores must lie in the shadow** with their whole width, and keep a minimum wall between them. The plate over the pocket's wall is not used for a bore.
+- **Not covered, still:** reading the positions from the part's holes (phase 4) and the trial (phase 5).
