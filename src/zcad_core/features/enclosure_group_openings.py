@@ -110,9 +110,12 @@ def board_openings(
     modules: tuple[BayModule | None, ...],
     design: GroupDesign,
     inner_depth: float,
+    radius: float,
+    boss_columns: tuple[float, ...],
 ) -> list[ConnectorCutoutParameters]:
     """Back and front wall openings for each board bay's connectors, refusing a
-    connector whose board edge is too far from its wall to reach it."""
+    connector whose board edge is too far from its wall to reach it, and a front
+    opening along each service space, for the cable of a connector on a side."""
 
     wall = design.wall_mm
     depth = 2 * (wall + 0.5)
@@ -155,7 +158,69 @@ def board_openings(
         for group in by_wall.values():
             openings.extend(merge_close_openings(group, design.minimum_opening_web_mm))
 
+        openings.extend(_service_exits(layout, module, design, radius, boss_columns))
+
     return openings
+
+
+def _service_exits(
+    layout: BayLayout,
+    module: BayModule,
+    design: GroupDesign,
+    radius: float,
+    boss_columns: tuple[float, ...],
+) -> list[ConnectorCutoutParameters]:
+    """The front-wall opening at the end of a board bay's service space on each
+    side with a connector, where a plugged-in cable bends toward the front and
+    leaves, as a Pi's does along its gap. It stops short of the boss that closes
+    the gap."""
+
+    wall = design.wall_mm
+    depth = 2 * (wall + 0.5)
+    spans = []
+
+    if module.faces_right:
+        spans.append(
+            (
+                wall + layout.slot_end_mm + 1.0,
+                boss_columns[layout.index + 1] - radius - _BOSS_CLEARANCE_MM,
+                "right",
+            )
+        )
+
+    if module.faces_left:
+        spans.append(
+            (
+                wall + layout.slot_start_mm - layout.left_space_mm + 1.0,
+                wall + layout.slot_start_mm - 1.0,
+                "left",
+            )
+        )
+
+    exits = []
+
+    for start, end, side in spans:
+        if end - start < 6.0:
+            raise ValueError(
+                f"bay {layout.index} (board): the {side} service space leaves "
+                f"{max(end - start, 0.0):.1f} mm for the cable, and the least is 6 mm: "
+                "raise service_gap_mm"
+            )
+
+        exits.append(
+            ConnectorCutoutParameters(
+                edge="negative_y",
+                center_offset_mm=(start + end) / 2,
+                bottom_z_mm=layout.board_top_z_mm - 1.0,
+                width_mm=end - start,
+                height_mm=_CABLE_EXIT_HEIGHT_MM,
+                width_clearance_mm=0.0,
+                height_clearance_mm=0.0,
+                cutter_depth_mm=depth,
+            )
+        )
+
+    return exits
 
 
 def require_openings_under_lid(

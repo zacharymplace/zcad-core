@@ -193,26 +193,14 @@ def test_the_standoff_screw_is_the_largest_the_holes_pass(
         board_module(board, screw="M9")
 
 
-def test_a_board_with_no_mounting_holes_is_refused_for_now(tmp_path: Path) -> None:
-    bare = load_board(write_board(tmp_path, mounting_holes=None))
-
-    with pytest.raises(ValueError, match="no mounting holes"):
-        board_module(bare)
-
-
-def test_a_connector_facing_a_neighbour_is_refused_with_the_way_round(
+def test_a_turn_takes_the_connector_to_the_wall_or_the_side_it_then_faces(
     board: BoardFileSpec,
 ) -> None:
-    # The USB-C is on the front edge: a quarter turn faces it right, three
-    # quarters left.
-    with pytest.raises(ValueError, match="USB_C faces the right"):
-        board_module(board, rotate=90)
-
-    with pytest.raises(ValueError, match="USB_C faces the left"):
-        board_module(board, rotate=270)
-
+    # The USB-C is on the front edge.
     assert [o.wall for o in board_module(board).openings] == ["negative_y"]
     assert [o.wall for o in board_module(board, rotate=180).openings] == ["positive_y"]
+    assert board_module(board, rotate=90).openings == ()
+    assert board_module(board, rotate=270).openings == ()
 
 
 def test_a_part_marked_as_reached_through_an_edge_gets_an_opening(
@@ -522,3 +510,234 @@ def test_the_command_builds_a_row_with_a_board_in_it(
     assert output["bays"] == ["pi5", "board"]
     assert any("counts only the Pi bays" in w for w in output["warnings"])
     assert Path(output["review_step"]).is_file()
+
+
+# --- service spaces for connectors on the sides ------------------------------------------
+
+
+def connector(edge: str) -> dict[str, Any]:
+    return {
+        "identifier": "USB_C",
+        "edge": edge,
+        "width_mm": 9.0,
+        "height_mm": 3.3,
+        "depth_mm": 7.5,
+        "center_offset_mm": 0.0,
+        "bottom_offset_from_board_top_mm": 0.0,
+    }
+
+
+@pytest.fixture(scope="module")
+def right_facing(tmp_path_factory: pytest.TempPathFactory) -> BoardFileSpec:
+    return load_board(
+        write_board(
+            tmp_path_factory.mktemp("right"), cable_connector=connector("positive_x")
+        )
+    )
+
+
+@pytest.fixture(scope="module")
+def left_facing(tmp_path_factory: pytest.TempPathFactory) -> BoardFileSpec:
+    return load_board(
+        write_board(
+            tmp_path_factory.mktemp("left"), cable_connector=connector("negative_x")
+        )
+    )
+
+
+def test_a_connector_on_a_side_is_a_service_space_not_a_wall_opening(
+    board: BoardFileSpec, right_facing: BoardFileSpec, left_facing: BoardFileSpec
+) -> None:
+    right, left = board_module(right_facing), board_module(left_facing)
+
+    assert right.faces_right and not right.faces_left
+    assert left.faces_left and not left.faces_right
+    assert right.openings == () and left.openings == ()
+    assert [p.label for p in right.side_ports] == ["USB_C"]
+    # A quarter turn takes the front-edge connector to the right.
+    assert board_module(board, rotate=90).faces_right
+    assert board_module(board, rotate=270).faces_left
+
+
+def test_a_right_facing_connector_takes_the_service_gap_a_pi_takes(
+    right_facing: BoardFileSpec, board: BoardFileSpec
+) -> None:
+    group = build_group_enclosure((Bay("board", board=right_facing),))
+    plain = build_group_enclosure((Bay("board", board=board, align="front"),))
+    layout = group.bays[0]
+
+    assert group.passed, group.checks
+    assert layout.gap_end_mm - layout.gap_start_mm == group.design.service_gap_mm
+    assert plain.bays[0].gap_end_mm - plain.bays[0].gap_start_mm == (
+        group.design.board_gap_mm
+    )
+
+
+def test_the_cable_leaves_by_an_opening_in_the_front_wall_at_the_gaps_end(
+    right_facing: BoardFileSpec,
+) -> None:
+    group = build_group_enclosure((Bay("board", board=right_facing),))
+    layout = group.bays[0]
+    wall = group.design.wall_mm
+    z = layout.board_top_z_mm + 1.0
+    middle = wall + (layout.gap_start_mm + layout.gap_end_mm) / 2
+
+    assert not inside(group.base, middle, 1.0, z)
+    # The wall stands in front of the slot.
+    assert inside(group.base, wall + layout.center_x_mm, 1.0, z)
+
+
+def test_a_left_facing_connector_takes_a_service_space_before_its_slot(
+    left_facing: BoardFileSpec,
+) -> None:
+    group = build_group_enclosure((Bay("board", board=left_facing),))
+    layout = group.bays[0]
+    design = group.design
+
+    assert group.passed, group.checks
+    assert layout.left_space_mm == design.service_gap_mm
+    # The first bay: the end margin, then the space, then the slot.
+    assert layout.slot_start_mm == pytest.approx(
+        design.end_margin_mm + design.service_gap_mm
+    )
+
+    wall = design.wall_mm
+    middle = wall + layout.slot_start_mm - layout.left_space_mm / 2
+
+    assert not inside(group.base, middle, 1.0, layout.board_top_z_mm + 1.0)
+
+
+def test_a_row_of_boards_facing_each_other_builds(
+    right_facing: BoardFileSpec, left_facing: BoardFileSpec
+) -> None:
+    group = build_group_enclosure(
+        (
+            Bay("board", board=right_facing),
+            Bay("board", board=left_facing, divider=Divider(notch=True)),
+        )
+    )
+    first, second = group.bays
+
+    assert group.passed, group.checks
+    # Their spaces are separate: the first's gap, a divider, then the second's own.
+    assert second.left_space_mm == group.design.service_gap_mm
+    assert second.slot_start_mm - second.left_space_mm >= first.gap_end_mm
+
+
+def test_a_service_space_too_small_for_the_cable_is_refused(
+    right_facing: BoardFileSpec,
+) -> None:
+    with pytest.raises(ValueError, match="service space leaves"):
+        build_group_enclosure(
+            (Bay("board", board=right_facing),), design=GroupDesign(service_gap_mm=14.0)
+        )
+
+
+# --- lid vents over a board's parts ------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def vented(tmp_path_factory: pytest.TempPathFactory) -> BoardFileSpec:
+    return load_board(
+        write_board(
+            tmp_path_factory.mktemp("vented"),
+            components=[
+                {
+                    "identifier": "SOC",
+                    "center_x_mm": 4.0,
+                    "center_y_mm": -3.0,
+                    "width_mm": 10.0,
+                    "depth_mm": 10.0,
+                    "height_mm": 3.0,
+                    "bottom_offset_from_board_top_mm": 0.0,
+                    "lid_vent": True,
+                }
+            ],
+        )
+    )
+
+
+def test_a_part_that_draws_air_from_above_gets_slots_in_the_lid(
+    vented: BoardFileSpec,
+) -> None:
+    group = build_group_enclosure((Bay("board", board=vented, align="front"),))
+    layout = group.bays[0]
+    x = group.design.wall_mm + layout.center_x_mm + 4.0
+    y = layout.center_y_mm - 3.0
+    z = group.cavity_top_z_mm + group.design.lid_mm / 2
+
+    # The middle slot is open over the part, and the lid is solid beside it.
+    assert not inside(group.lid, x, y, z)
+    assert inside(group.lid, x, y + 2.5, z)
+
+    closed = build_group_enclosure(
+        (Bay("board", board=vented, align="front"),), design=GroupDesign(vents=False)
+    )
+
+    assert inside(closed.lid, x, y, z)
+
+
+# --- a cradle for a board with no mounting holes ----------------------------------------
+
+
+@pytest.fixture(scope="module")
+def holeless(tmp_path_factory: pytest.TempPathFactory) -> BoardFileSpec:
+    return load_board(
+        write_board(tmp_path_factory.mktemp("holeless"), mounting_holes=None)
+    )
+
+
+def test_a_board_with_no_holes_stands_in_a_cradle(holeless: BoardFileSpec) -> None:
+    module = board_module(holeless)
+
+    assert module.support == "cradle"
+    assert module.holes == () and module.standoff_screw == ""
+    assert module.connector_wall == "negative_y"
+
+
+def test_a_cradle_bay_builds_with_a_ledge_under_the_boards_edge(
+    holeless: BoardFileSpec,
+) -> None:
+    group = build_group_enclosure((Bay("board", board=holeless, align="front"),))
+    layout = group.bays[0]
+    x = group.design.wall_mm + layout.center_x_mm
+    z = layout.board_bottom_z_mm - 0.3
+
+    assert group.passed, group.checks
+    assert not group.part_collisions
+    # The ledge runs 1 mm in under each side edge, and the middle is open.
+    # (off the middle of the side, where the snap clip's slot is)
+    assert inside(group.base, x + 14.5, layout.center_y_mm + 8.0, z)
+    assert not inside(group.base, x + 13.0, layout.center_y_mm + 8.0, z)
+    assert not inside(group.base, x, layout.center_y_mm, z)
+
+
+def test_a_cradle_follows_a_rounded_outline(tmp_path: Path) -> None:
+    rounded = load_board(
+        write_board(
+            tmp_path,
+            mounting_holes=None,
+            outline={"type": "rounded_rectangle", "radius_mm": 5.0},
+        )
+    )
+    module = board_module(rounded)
+
+    assert module.outline is not None and len(module.outline) > 4
+    assert build_group_enclosure((Bay("board", board=rounded, align="front"),)).passed
+
+
+def test_a_cradle_bay_takes_no_divider_and_no_screw(holeless: BoardFileSpec) -> None:
+    with pytest.raises(ValueError, match="side clips would meet its divider"):
+        build_group_enclosure(
+            ("pi5", Bay("board", board=holeless, align="front", divider=Divider()))
+        )
+
+    with pytest.raises(ValueError, match="stands in a cradle, which takes no screw"):
+        board_module(holeless, screw="M2.5")
+
+
+def test_a_board_with_no_parts_listed_builds(tmp_path: Path) -> None:
+    bare = load_board(write_board(tmp_path, components=[]))
+    group = build_group_enclosure((Bay("board", board=bare, align="front"),))
+
+    assert group.passed and not group.part_collisions

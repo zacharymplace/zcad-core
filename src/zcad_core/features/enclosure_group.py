@@ -29,6 +29,7 @@ from collections.abc import Sequence
 
 import cadquery as cq
 
+from zcad_core.features.board_cradle import BoardCradleParameters, add_board_cradle
 from zcad_core.features.connector_cutouts import ConnectorCutoutParameters
 from zcad_core.features.enclosure_group_dividers import (
     Divider,
@@ -244,9 +245,12 @@ def build_group_enclosure(
             continue
 
         center_x = wall + layout.center_x_mm
-        standoff_fastener = get_fastener(module.standoff_screw)
+
+        if module.support == "cradle":
+            base = _add_cradle(base, layout, module, design, center_x)
 
         for hx, hy in module.holes:
+            standoff_fastener = get_fastener(module.standoff_screw)
             base = add_pcb_standoff(
                 base,
                 parameters=PcbStandoffParameters(
@@ -280,7 +284,12 @@ def build_group_enclosure(
             boss_columns=boss_columns,
         )
         + board_openings(
-            layouts=layouts, modules=modules, design=design, inner_depth=inner_depth
+            layouts=layouts,
+            modules=modules,
+            design=design,
+            inner_depth=inner_depth,
+            radius=radius,
+            boss_columns=boss_columns,
         )
         + bay_openings(layouts, design)
     )
@@ -313,6 +322,7 @@ def build_group_enclosure(
         fastener=fastener,
         boss_positions=boss_positions,
         layouts=layouts,
+        modules=modules,
         pi=pi,
     )
 
@@ -579,6 +589,34 @@ def _add_mount(
     return base, pads, plate
 
 
+def _add_cradle(
+    base: cq.Workplane,
+    layout: BayLayout,
+    module: BayModule,
+    design: GroupDesign,
+    center_x: float,
+) -> cq.Workplane:
+    """A snap-in cradle for a board with no mounting holes."""
+
+    try:
+        return add_board_cradle(
+            base,
+            parameters=BoardCradleParameters(
+                center_x_mm=center_x,
+                center_y_mm=layout.center_y_mm,
+                board_width_mm=module.width_mm,
+                board_depth_mm=module.depth_mm,
+                board_bottom_z_mm=layout.board_bottom_z_mm,
+                board_thickness_mm=module.thickness_mm,
+                base_z_mm=design.floor_mm - FLOOR_EMBED_MM,
+                connector_edge=module.connector_wall,  # type: ignore[arg-type]
+                outline_points_mm=module.outline,
+            ),
+        )
+    except ValueError as error:
+        raise ValueError(f"bay {layout.index} (board): {error}") from error
+
+
 def _module(bay: Bay, pi: RaspberryPi5Spec, index: int) -> BayModule | None:
     """What a bay holds: a Pi, a board from a board file, or nothing."""
 
@@ -606,6 +644,9 @@ def _part_collisions(
 
     for name, solid in (("base", single_shape(base)), ("lid", single_shape(lid))):
         for bay, shapes in parts.items():
+            if not shapes:
+                continue
+
             together = cq.Compound.makeCompound(list(shapes.values()))
 
             if intersection_volume(solid, together) <= _INTERFERENCE_TOLERANCE_MM3:
@@ -788,6 +829,7 @@ def _lid(
     fastener: FastenerSpec,
     boss_positions: tuple[tuple[float, float], ...],
     layouts: tuple[BayLayout, ...],
+    modules: tuple[BayModule | None, ...],
     pi: RaspberryPi5Spec,
 ) -> cq.Workplane:
     """A plate over the walls, a clearance hole over each boss, and vent
@@ -812,13 +854,25 @@ def _lid(
     if not design.vents:
         return lid
 
-    for layout in layouts:
-        if not layout.holds_pi:
-            continue
+    # Slots over each Pi's fan, and over each part of a board that draws air from
+    # above.
+    centres: list[tuple[float, float]] = []
 
-        fan_x = wall + layout.center_x_mm + pi.fan_center_x_mm
-        fan_y = layout.center_y_mm + pi.fan_center_y_mm
+    for layout, module in zip(layouts, modules, strict=True):
+        if layout.holds_pi:
+            centres.append(
+                (
+                    wall + layout.center_x_mm + pi.fan_center_x_mm,
+                    layout.center_y_mm + pi.fan_center_y_mm,
+                )
+            )
+        elif module is not None:
+            centres.extend(
+                (wall + layout.center_x_mm + x, layout.center_y_mm + y)
+                for x, y in module.vents
+            )
 
+    for fan_x, fan_y in centres:
         for index in range(_VENT_SLOTS):
             offset = (index - (_VENT_SLOTS - 1) / 2) * _VENT_PITCH_MM
             lid = lid.cut(

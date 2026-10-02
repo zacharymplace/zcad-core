@@ -242,6 +242,9 @@ class BayLayout:
     divider_start_mm: float = 0.0
     # Where the bay's board centre is front to back (the enclosure frame).
     center_y_mm: float = 0.0
+    # The service space to the left of the slot, for a connector on the
+    # board's left side: it is before ``slot_start_mm``, after any divider.
+    left_space_mm: float = 0.0
 
     @property
     def needed_top_z_mm(self) -> float:
