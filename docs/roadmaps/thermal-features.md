@@ -205,7 +205,8 @@ A fan is hardware, so it goes in the catalog beside the boards:
   catalog is the Sunon MF30100V1-1000U-A99 (30 x 10), the Noctua NF-A4x10 5V
   (40 x 11), and the Noctua NF-A6x25 5V (60 x 25). Their figures came from search
   excerpts of the makers' pages, which then returned HTTP 429 or 403 when
-  opened, so each entry says `read: false` and the build says so. They are
+  opened, so each entry said `read: false` and the build says so. The follow-on
+  below checked them against the makers' documents. They are
   probably right, a cross-check holds (the 60 mm fan's listed 0.187 A at 5 V is
   the 0.935 W the maker lists), and they have not been checked. The 30 mm
   fan's 24 mm hole spacing is the usual pattern, from retailers' listings, and
@@ -295,3 +296,21 @@ reviewed needs a revised build.
 - **Which fans to catalog first.** Proposed: 30, 40, and 60 mm, in 10 mm
   thickness, with the datasheets of one maker for each size rather than
   several makers' averages.
+
+### What the fan datasheet verification changed
+
+The three catalogued fans were checked against the makers' own documents, where they could be reached.
+
+- **The Sunon MF30100V1-1000U-A99 is now read.** Sunon's catalog page (a PDF of the catalog hosted by Digi-Key, page 17) gives 30 x 30 x 10 mm, holes 24 mm square
+  and 3.2 mm across, 5 V, 120 mA, 0.60 W and 5.5 CFM. That confirms the size, thickness, hole spacing and current, and sets `read: true`.
+- **Two Sunon figures changed.** The airflow was 9.24 m3/h from a retailer's 0.154 m3/min and is 9.34 m3/h from the catalog's 5.5 CFM. The screw was M2
+  and is M3: a 3.2 mm hole does not take an M2. The drawing is marked 3-phi 3.2 where the photo shows four holes; the engine keeps four.
+  The catalog gives no maximum current, so that stays empty.
+- **The two Noctua fans are checked against their information sheets, not fully read.** The sheets give the size, the maximum power and the airflow,
+  and they match the catalog: NF-A4x10 5V is 40 x 40 mm, 0.25 W at 5 V (0.05 A), 8.2 m3/h; NF-A6x25 5V is 60 x 60 x 25 mm, 1.3 W at 5 V (0.26 A), 29.2 m3/h. They give
+  **no hole pattern and no typical current**, so the 32 and 50 mm spacings and the 0.187 A and 0.044 A typical currents stay from search excerpts of
+  the specifications pages, which Noctua's site refuses to serve. Those entries stay `read: false`, and each now lists what is unverified.
+- **The NF-A4x10's thickness is in doubt.** The sheet says 40 x 40 x 10 mm and a search excerpt of the specifications page says 11 mm without anti-vibration
+  pads. The catalog keeps 11 mm, the larger, so a bay built for it also takes a 10 mm fan, and names the difference.
+- **Each entry says what is unverified.** `FanSource.unverified` names every figure no read document supports, and the build's warning for a fan not read
+  names them. A Noctua entry becomes `read: true` when the hole pattern is read from a drawing or the specifications page.

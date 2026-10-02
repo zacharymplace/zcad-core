@@ -476,7 +476,8 @@ def _group_warnings(group: GroupEnclosure) -> list[str]:
     """What a fan's figures were not checked against."""
 
     return [
-        f"{fan.model}: its figures were not read from the maker's own page; check them"
+        f"{fan.model}: its figures were not read from the maker's own page; check "
+        f"them{fan.unverified}"
         for fan in group.fans
         if not fan.datasheet_read
     ]

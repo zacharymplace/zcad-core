@@ -56,18 +56,64 @@ def test_the_catalog_has_the_three_sizes() -> None:
 
 
 @pytest.mark.parametrize("identifier", [FAN_30, FAN_40, FAN_60])
-def test_every_fan_carries_a_source_and_says_it_was_not_read(identifier: str) -> None:
+def test_every_fan_carries_a_source_and_says_what_is_still_unverified(
+    identifier: str,
+) -> None:
     fan = get_fan(identifier)
 
     assert fan.source.url.startswith("https://")
     assert fan.source.kind == "vendor"
-    # The maker's page was only seen in a search excerpt, and the entry says so.
-    assert fan.source.read is False
-    assert "could not be opened" in fan.source.detail
+    assert "screw" in fan.source.unverified
     assert "assumption" in fan.source.detail
     assert get_fastener(fan.screw).clearance_hole_mm > 0
     assert fan.hole_spacing_mm < fan.size_mm
     assert fan.opening_diameter_mm == pytest.approx(0.9 * fan.size_mm)
+
+
+@pytest.mark.parametrize("identifier", [FAN_40, FAN_60])
+def test_the_noctua_fans_were_checked_against_the_info_sheet_but_not_their_holes(
+    identifier: str,
+) -> None:
+    fan = get_fan(identifier)
+
+    # The maker's sheet gives the size, the maximum power and the airflow; it gives no
+    # hole pattern, so that is still an excerpt and the entry says so.
+    assert "information sheet was read" in fan.source.detail
+    assert "could not be opened" in fan.source.detail
+    assert fan.source.read is False
+    assert "hole_spacing_mm" in fan.source.unverified
+    assert "current_typical_a" in fan.source.unverified
+    assert "hole_spacing_mm" in fan.unverified_note
+
+
+def test_the_noctua_sheets_agree_with_the_catalog_on_what_they_state() -> None:
+    small, large = get_fan(FAN_40), get_fan(FAN_60)
+
+    # NF-A4x10 5V: 40 x 40 mm, 0.25 W at 5 V maximum (0.05 A), 8.2 m3/h.
+    assert small.size_mm == 40.0 and small.rated_v == 5.0
+    assert small.peak_w == pytest.approx(0.25) and small.airflow_m3h == 8.2
+    # The sheet says 10 mm thick and a search excerpt of the page says 11 without
+    # pads: the larger is kept, and the entry names the difference.
+    assert small.thickness_mm == 11.0 and "thickness_mm" in small.source.unverified
+    assert "the sheet says 10 mm" in small.source.detail
+    # NF-A6x25 5V: 60 x 60 x 25 mm, 1.3 W at 5 V maximum (0.26 A), 29.2 m3/h.
+    assert large.size_mm == 60.0 and large.thickness_mm == 25.0
+    assert large.peak_w == pytest.approx(1.3) and large.airflow_m3h == 29.2
+
+
+def test_the_sunon_fan_was_read_in_the_makers_catalog() -> None:
+    fan = get_fan(FAN_30)
+
+    assert fan.source.read is True
+    assert "catalog page was read" in fan.source.detail
+    assert fan.source.unverified == ("current_max_a", "screw")
+    # 30 x 30 x 10 mm, holes 24 mm square and 3.2 mm across, 5 V, 120 mA, 0.60 W, 5.5 CFM.
+    assert (fan.size_mm, fan.thickness_mm, fan.hole_spacing_mm) == (30.0, 10.0, 24.0)
+    assert fan.typical_w == pytest.approx(0.60)
+    assert fan.airflow_m3h == pytest.approx(5.5 * 1.69901, abs=0.01)
+    # A 3.2 mm hole takes an M3, not the M2 an earlier excerpt assumed.
+    assert fan.screw == "M3"
+    assert "not from a document that was read" in fan.unverified_note
 
 
 def test_a_fans_draw_is_its_voltage_times_its_listed_current() -> None:
