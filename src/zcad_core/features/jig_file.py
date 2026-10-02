@@ -30,6 +30,7 @@ from zcad_core.features.guide_file import (
     _check_partsection,
     load_part_file,
 )
+from zcad_core.features.jig_holes import part_holes
 from zcad_core.hardware.fasteners import get_fastener
 
 JIG_SCHEMA_VERSION = "1.0.0"
@@ -63,6 +64,7 @@ _TOP_LEVEL = frozenset(
         "insert",
         "iron",
         "inserts",
+        "insert_holes",
         "needs_review",
     }
 )
@@ -88,6 +90,8 @@ class InsertSite:
     y_mm: float
     pocket_diameter_mm: float | None = None
     pocket_depth_mm: float | None = None
+    # "typed" in the file, or "part" when read from the part's own hole.
+    origin: str = "typed"
 
 
 @dataclass(frozen=True)
@@ -111,6 +115,9 @@ class JigSpec:
     notes: str
     file_path: Path
     file_sha256: str
+    # Take insert positions from the part's own holes: all of them, or only these.
+    from_part: bool = False
+    hole_pick: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -296,11 +303,59 @@ def _check_iron(data: Mapping[str, Any], findings: Findings) -> None:
         )
 
 
+def _check_insert_holes(data: Mapping[str, Any], findings: Findings) -> bool:
+    """Check ``insert_holes``; whether the file takes insert positions from the part."""
+
+    holes = data.get("insert_holes")
+
+    if holes is None:
+        return False
+
+    if not isinstance(holes, Mapping):
+        findings.errors.append("insert_holes must be an object")
+
+        return False
+
+    unknown = sorted(set(holes) - {"from_part", "holes"})
+
+    if unknown:
+        findings.errors.append(f"insert_holes has unknown fields: {', '.join(unknown)}")
+
+    from_part = holes.get("from_part", False)
+
+    if not isinstance(from_part, bool):
+        findings.errors.append("insert_holes.from_part must be true or false")
+
+        return False
+
+    picked = holes.get("holes")
+
+    if picked is not None and (
+        not isinstance(picked, list)
+        or not picked
+        or not all(isinstance(name, str) for name in picked)
+    ):
+        findings.errors.append(
+            "insert_holes.holes must be a list of hole names such as ['H01', 'H03']"
+        )
+    elif picked is not None and not from_part:
+        findings.errors.append("insert_holes.holes needs insert_holes.from_part")
+
+    return from_part
+
+
 def _check_sites(data: Mapping[str, Any], findings: Findings) -> None:
+    holes = _check_insert_holes(data, findings)
     sites = data.get("inserts")
 
+    if sites is None and holes:
+        return
+
     if not isinstance(sites, list) or not sites:
-        findings.errors.append("inserts must be a list of at least one insert")
+        findings.errors.append(
+            "inserts must be a list of at least one insert, unless insert_holes.from_part "
+            "takes them from the part"
+        )
 
         return
 
@@ -449,6 +504,8 @@ def jig_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> JigSpec:
     iron = data["iron"]
     step = Path(part["step"])
     depth = jig.get("depth_mm")
+    holes = data.get("insert_holes") or {}
+    picked = holes.get("holes")
 
     return JigSpec(
         identifier=str(data["identifier"]),
@@ -474,12 +531,14 @@ def jig_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> JigSpec:
                 _optional(site, "pocket_diameter_mm"),
                 _optional(site, "pocket_depth_mm"),
             )
-            for site in data["inserts"]
+            for site in data.get("inserts") or []
         ),
         source=str(data.get("source", "")),
         notes=str(data.get("notes", "")),
         file_path=path,
         file_sha256=sha256,
+        from_part=bool(holes.get("from_part", False)),
+        hole_pick=None if picked is None else tuple(str(name) for name in picked),
     )
 
 
@@ -501,6 +560,59 @@ def load_jig_part(spec: JigSpec) -> GuidePart:
     """Read the part from its STEP file, refusing one that has changed."""
 
     return load_part_file(spec.part_path, spec.part_sha256, spec.solid_index)
+
+
+def resolved_sites(spec: JigSpec, part: GuidePart) -> tuple[InsertSite, ...]:
+    """The typed sites and, when the file asks, the part's own holes as sites, each with the
+    pocket size and depth the part gives. Refuses a hole named that the part does not have, a
+    part with no holes to read, and a name used twice."""
+
+    sites = list(spec.sites)
+
+    if spec.from_part:
+        found = part_holes(part.shape, part.height_mm)
+        names = [hole.identifier for hole in found]
+
+        if not found:
+            raise ValueError(
+                "insert_holes.from_part is set, but the part has no round hole open at its "
+                "top face; the model must have +Z up"
+            )
+
+        missing = [name for name in spec.hole_pick or () if name not in names]
+
+        if missing:
+            raise ValueError(
+                f"insert_holes.holes names {', '.join(missing)}; the part's holes are "
+                f"{', '.join(names)}"
+            )
+
+        wanted = set(spec.hole_pick) if spec.hole_pick is not None else set(names)
+        sites.extend(
+            InsertSite(
+                hole.identifier,
+                round(hole.x_mm, 3),
+                round(hole.y_mm, 3),
+                round(hole.diameter_mm, 3),
+                round(hole.depth_mm, 3),
+                "part",
+            )
+            for hole in found
+            if hole.identifier in wanted
+        )
+
+    seen: set[str] = set()
+
+    for site in sites:
+        if site.identifier in seen:
+            raise ValueError(f"The insert name {site.identifier!r} is used twice")
+
+        seen.add(site.identifier)
+
+    if not sites:
+        raise ValueError("The jig has no inserts")
+
+    return tuple(sites)
 
 
 def insert_figures(spec: JigSpec) -> tuple[float, float]:
@@ -595,7 +707,13 @@ def check_part(
             f"{part.height_mm:.1f} mm tall"
         )
 
-    errors.extend(_site_errors(spec, diameter, needed, notes))
+    try:
+        sites = resolved_sites(spec, part)
+    except ValueError as error:
+        errors.append(str(error))
+        sites = ()
+
+    errors.extend(_site_errors(spec, sites, diameter, needed, notes))
 
     if profile is not None:
         try:
@@ -629,13 +747,17 @@ def check_part(
 
 
 def _site_errors(
-    spec: JigSpec, diameter: float, needed: float, notes: list[str]
+    spec: JigSpec,
+    sites: tuple[InsertSite, ...],
+    diameter: float,
+    needed: float,
+    notes: list[str],
 ) -> list[str]:
     """What the typed pockets say against the catalogued insert."""
 
     errors: list[str] = []
 
-    for site in spec.sites:
+    for site in sites:
         size = site.pocket_diameter_mm
 
         if size is not None:

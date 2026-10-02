@@ -138,7 +138,7 @@ zcad-validation jig build --jig-file my-jig.json --output-directory exports/my-j
 2. **The lip, the strap slots and the label (built).** The retaining tabs with their strain check, the strap slots from the user's strap figures, and the
    label.
 3. **The insert jig (built).** The `jig` file with typed positions, the bore, the iron's figures and the plate-as-stop, `check` and `build`, and the record.
-4. **Inserts from the part's holes.** `from_part` and `holes`, reading the through-holes, and the checks of a found hole against the insert.
+4. **Inserts from the part's holes (built).** `from_part` and `holes`, reading the through-holes, and the checks of a found hole against the insert.
 5. **Trials.** `nest trial` and `jig trial`, in the other trials' style: for a nest, whether the part seats, lifts out, stays in, and the strap holds
    it still, with a count of uses and whether anything wore; for a jig, whether each insert went in square and to what measured depth below the face,
    with the measured offset from the pocket's centre. The engine states no limit for any reading.
@@ -209,3 +209,15 @@ See [An insert jig for your part](../guides/insert-jig.md).
 - **A typed pocket is optional.** A pocket under the insert's size by more than 0.3 mm, or shallower than the insert needs, is refused; one 0.3 mm or more off the size warns; one left out is noted as unchecked.
 - **Bores must lie in the shadow** with their whole width, and keep a minimum wall between them. The plate over the pocket's wall is not used for a bore.
 - **Not covered, still:** reading the positions from the part's holes (phase 4) and the trial (phase 5).
+
+### What phase 4 changed
+
+See [An insert jig for your part](../guides/insert-jig.md).
+
+- **It reads holes open at the top face, not only through-holes.** The roadmap said "the through-holes the guide import already finds", but a heat-set insert goes in a blind pocket, which `through_holes`
+  (cylinders spanning the whole height) skips. `jig_holes.part_holes` finds round holes whose upper end is at the top face, blind or through, with each one's diameter and depth, and flags which run through.
+  The guide import is unchanged.
+- **The file key is `insert_holes`**, `{from_part, holes}`, beside `inserts` rather than inside it, so typed and found positions mix. `holes` names them `H01...` as the guide import does; leaving it out takes all.
+- **A found hole is checked as a typed pocket is**, with the hole's own diameter and depth: too small for the insert refused, 0.3 mm off the catalogued size a warning, too shallow refused.
+- **Depth comes from the face's vertices**, not its bounding box, which OCC pads by about a hundredth of a millimetre.
+- **Not covered:** a hole off the vertical axis, a countersunk or stepped hole (only the part open at the face counts), and a part modelled with +Z not up.

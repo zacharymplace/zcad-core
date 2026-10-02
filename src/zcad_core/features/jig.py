@@ -31,6 +31,7 @@ from zcad_core.features.jig_file import (
     JigSpec,
     insert_figures,
     pocket_depth_mm,
+    resolved_sites,
 )
 from zcad_core.features.nest_core import TOLERANCE_MM3, clear, lifts_off, pocketed
 from zcad_core.geometry.intersection import intersection_volume
@@ -53,10 +54,13 @@ class Bore:
     identifier: str
     centre: Point
     diameter_mm: float
+    # "typed", or "part" when the position was read from the part's own hole.
+    origin: str = "typed"
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.identifier,
+            "origin": self.origin,
             "centre_mm": [round(self.centre[0], 3), round(self.centre[1], 3)],
             "diameter_mm": round(self.diameter_mm, 3),
         }
@@ -143,7 +147,8 @@ def plan_bores(
     least a minimum wall between them."""
 
     bores = tuple(
-        Bore(site.identifier, (site.x_mm, site.y_mm), diameter) for site in sites
+        Bore(site.identifier, (site.x_mm, site.y_mm), diameter, site.origin)
+        for site in sites
     )
     errors: list[str] = []
 
@@ -220,7 +225,9 @@ def build_jig(spec: JigSpec, part: GuidePart, profile: dict[str, Any]) -> Jig:
     insert_diameter, _ = insert_figures(spec)
     diameter = bore_diameter_mm(insert_diameter, fits)
     outline = part.silhouette.points
-    bores, problems = plan_bores(spec.sites, diameter, outline, least_wall)
+    bores, problems = plan_bores(
+        resolved_sites(spec, part), diameter, outline, least_wall
+    )
     problems += iron_errors(spec, diameter, clearance, least_wall)
     thickness = spec.iron.tip_length_mm - spec.depth_below_face_mm
 

@@ -26,7 +26,10 @@ what, which says the jig is **unverified**.
 | `insert.size` | A catalogued fastener, such as `M3`. Its heat-set insert's diameter and length come from the catalogue. |
 | `iron.tip_diameter_mm`, `iron.shoulder_diameter_mm`, `iron.tip_length_mm` | **Your iron's figures.** The tip that goes down the bore, the wider body above it, and how far the tip stands out below the shoulder. |
 | `iron.source` | Where those figures came from. It is needed, and the template's placeholder is refused until you replace it. |
-| `inserts` | One entry per insert: `id`, `x_mm`, `y_mm` in the part's frame, and optionally `pocket_diameter_mm` and `pocket_depth_mm` for the pocket the part already has. |
+| `inserts` | Typed positions, one entry per insert: `id`, `x_mm`, `y_mm` in the part's frame, and optionally `pocket_diameter_mm` and `pocket_depth_mm` for the pocket the part already has. |
+| `insert_holes` | `{"from_part": true, "holes": ["H01", "H03"]}`: take positions from the part's own holes. `holes` picks some; left out, every hole found is taken. |
+
+A file needs `inserts`, `insert_holes`, or both. Typed and found positions can be mixed, and every name must be different.
 
 The part's frame is its own: centred on its bounding box in X and Y, with +X right and +Y up the page seen from above, and its **top face at z = 0**. Everything is
 in millimetres.
@@ -45,6 +48,17 @@ what it would need. Those clearances and the land are the engine's own choices.
 Each bore must lie wholly in the part's shadow, and two bores keep at least a minimum wall of plate between them. An insert whose length, ending `depth_below_face_mm`
 below the face, is more than the part's height is refused.
 
+## Positions from the part's own holes
+
+With `insert_holes.from_part` the jig reads the part's model for **round holes open at its top face**, blind pockets and through-holes alike: a cylinder about the
+vertical axis, at least 1 mm across, whose upper end is at the top face and whose axis is in the void. A hole in the part's side, or a boss, is not one. They are named
+`H01`, `H02` and so on in order of place (lowest Y first, then X), the same naming and order the drill-guide import uses, and `jig check` lists them in its errors when you
+name one the part does not have. A part with none is refused.
+
+Each found hole is a position, with its diameter and depth as the pocket's, so it gets the same checks as a typed pocket (below). Naming no `holes` takes every hole found,
+so a hole that is too small for the insert, such as a clearance hole for the screw, is refused by name: pick the holes you mean. The positions come from the model, which is
+the part as modelled, not as made; the record marks each bore's `origin` as `part` or `typed`.
+
 ## The pocket the part already has
 
 If you give a pocket's size and depth the engine checks them against the catalogued insert: a pocket **smaller** than the insert's size by more than 0.3 mm is
@@ -59,4 +73,3 @@ The iron's tip reaches the insert's top when the shoulder rests on the plate. Th
 **The engine states no temperature, time or force for installing an insert, and nothing about whether an insert holds or a part survives the heat.** It says where
 each insert is and how far the iron can go. A jig is unverified until a printed trial has passed.
 
-Inserts typed in the file are the only way to place them so far; reading them from the part's own holes comes next.
