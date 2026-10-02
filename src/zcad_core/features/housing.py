@@ -262,6 +262,8 @@ def _cradle_summary(
         "houses": capture.name,
         "device_sha256": capture.sha256,
         "device_mm": [capture.length_mm, capture.width_mm, capture.thickness_mm],
+        "device_mass_g": capture.mass_g,
+        "device_mass_source": capture.mass_source,
         "outer_size_mm": [round(v, 3) for v in plan.outer_size_mm],
         "tabs": [{"edge": tab.edge, "offset_mm": tab.offset_mm} for tab in plan.tabs],
         "tab": {

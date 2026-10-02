@@ -152,9 +152,9 @@ antimicrobial anything is not built.
 3. **Ways of wearing (built).** The strap lugs, the band ears, the belt clip, the adhesive
    plate and the lanyard tab, each from the user's figures with their source, and the
    checks on them. These are the five a wearer needs, built together.
-4. **The skin side.** The rounded edges and their radius check, and the statement of
+4. **The skin side (built).** The rounded edges and their radius check, and the statement of
    what stands off the skin.
-5. **The record and wear trials.** A housing's build record, and trials in the
+5. **The record and wear trials (built).** A housing's build record, and trials in the
    enclosure trials' style with wear readings: a retention force from a spring scale, a
    pull test of a lug or a loop, a count of wears and whether anything wore or cracked,
    and whether skin was irritated. The engine states no limit for any of them.
@@ -300,3 +300,20 @@ See *The skin side* in [A housing for something you wear](../guides/wearable-hou
 - **The check is on the geometry.** A corner of the skin face must be rounded away, and
   whatever stands below the face must be exactly what the ways of wearing report.
 - **The radius is a comfort setting.** The build says it is not a medical figure.
+
+### What phase 5 changed
+
+See *The build record and wear trials* in
+[A housing for something you wear](../guides/wearable-housing.md).
+
+- **The record is `housing-build.json`, written by `housing build`,** as the group's is;
+  the build's output names it. A trial is `housing trial start` and `complete`, reading the
+  enclosure trials' checks, measurements and dispositions.
+- **Skin irritation is kept, with no conclusion.** The open question proposed a yes-or-no with
+  notes and a line saying the engine draws none; that is what it is. It needs a count of wears.
+- **The clip's retention is a recorded force with the device's mass.** No limit is stated, as
+  proposed; pooling readings into one is a later question.
+- **An adhesive plate has no pull test.** The patch's adhesive holds it, which is not the
+  housing's; the plate's fit is a check, and a retention force still applies.
+- **There is no thermal reading.** A housing is not sealed or fan-cooled, and a wearable's
+  heat is the device's.

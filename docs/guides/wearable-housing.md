@@ -135,9 +135,37 @@ The skin side is the lowest face of the housing's body, the one a body touches.
   the belt goes. The build reports `skin_side` with how far anything stands below the face
   and which ways of wearing do, and checks that this matches what the ways report.
 
+## The build record and wear trials
+
+`housing build` writes `housing-build.json` beside the parts: the style, the housing file and
+the file it houses by hash, each way of wearing with the figures and source you gave, the skin
+side, each part's STL hash, the checks a trial asks, the dimensions it measures, and what the
+engine does not claim. It refuses to replace one.
+
+```bash
+zcad-validation housing trial start --build-record exports/my-housing/housing-build.json
+# print it, fit it, wear it; fill in observations.json, measurements.json and wear.json
+zcad-validation housing trial complete --trial-directory exports/my-housing/trials/trial-001 \
+  --disposition pass
+```
+
+`wear.json` holds the readings of wearing it, each left blank if not taken:
+
+- **Retention force**: the highest force a spring scale read pulling the device out of a
+  cradle, or lifting a case's lid, with the device's mass if the capture gave one.
+- **A pull test** for each strap, band, lanyard and clip: the load reached and what gave, or
+  that nothing did. An adhesive plate has none, since the patch holds it, not the housing.
+- **A count of wears**, and whether anything wore or cracked. Both answers need the count.
+- **Whether skin was irritated**: a person's observation, kept as written with its notes.
+  The engine draws no conclusion from it.
+
+**The engine states no limit for any reading** and no figure to compare one with. A
+completed trial checks that the printed parts still match the record by hash, is never
+overwritten, and a passing one cannot have a failed check.
+
 ## What is not built yet
 
-A housing build record and trials. The snap shell is not a
+The snap shell is not a
 housing style: it is clips alone, with nothing to hang a strap from, and a cradle is the form
 of it that can be worn. A cradle for a catalog device without a caliper capture is not offered:
 the capture is what the cradle is built round.

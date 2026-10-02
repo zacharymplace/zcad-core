@@ -9,6 +9,7 @@ from pathlib import Path
 
 from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
+from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.housing import (
     build_housing,
     print_oriented,
@@ -19,6 +20,11 @@ from zcad_core.features.housing_file import (
     check_housing_file,
     housing_template,
     load_housing,
+)
+from zcad_core.features.housing_trial import (
+    complete_housing_trial,
+    start_housing_trial,
+    write_housing_record,
 )
 from zcad_core.features.housing_wear import WEAR_KINDS
 from zcad_core.profiles import load_printer_profile
@@ -112,9 +118,17 @@ def _housing_build(args: argparse.Namespace) -> int:
         }
         for exported in result.parts
     }
+    record = write_housing_record(
+        args.output_directory,
+        housing=housing,
+        design_name=name,
+        printer_profile_id=str(profile.get("profile_id", "")),
+        part_stls={e.part_name: e.stl_path for e in result.parts},
+    )
     emit(
         {
             "design_name": name,
+            "build_record": str(record),
             "warnings": list(report.warnings),
             "housing": housing.summary,
             "checks": housing.checks,
@@ -123,6 +137,37 @@ def _housing_build(args: argparse.Namespace) -> int:
                 "evaluated_status"
             ),
             "parts": files,
+        }
+    )
+
+    return 0
+
+
+def _trial_start(args: argparse.Namespace) -> int:
+    trial = start_housing_trial(args.build_record)
+    emit(
+        {
+            "trial": str(trial),
+            "observations": str(trial / "observations.json"),
+            "measurements": str(trial / "measurements.json"),
+            "wear": str(trial / "wear.json"),
+        }
+    )
+
+    return 0
+
+
+def _trial_complete(args: argparse.Namespace) -> int:
+    record = complete_housing_trial(
+        args.trial_directory,
+        disposition=EnclosureTrialDisposition(args.disposition),
+        material_profile_id=args.material_profile,
+        notes=args.notes,
+    )
+    emit(
+        {
+            "trial_record": str(record),
+            "passed": json.loads(record.read_text(encoding="utf-8"))["passed"],
         }
     )
 
@@ -172,3 +217,23 @@ def register(
     build.add_argument("--output-directory", required=True, type=Path)
     build.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
     build.set_defaults(handler=_housing_build)
+    trial = commands.add_parser("trial", help="record a print and wear of a housing")
+    trial_commands = trial.add_subparsers(dest="trial_command", required=True)
+    start = trial_commands.add_parser(
+        "start",
+        help="write the next trial's observation, measurement and wear templates",
+    )
+    start.add_argument("--build-record", required=True, type=Path)
+    start.set_defaults(handler=_trial_start)
+    complete = trial_commands.add_parser(
+        "complete", help="validate a filled-in trial and write its record"
+    )
+    complete.add_argument("--trial-directory", required=True, type=Path)
+    complete.add_argument(
+        "--disposition",
+        required=True,
+        choices=[disposition.value for disposition in EnclosureTrialDisposition],
+    )
+    complete.add_argument("--material-profile", default="petg")
+    complete.add_argument("--notes", default="")
+    complete.set_defaults(handler=_trial_complete)
