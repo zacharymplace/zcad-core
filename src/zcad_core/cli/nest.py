@@ -101,6 +101,8 @@ def _nest_build(args: argparse.Namespace) -> int:
                 "wall_mm": spec.wall_mm,
                 "floor_mm": spec.floor_mm,
                 "finger_notches": len(nest.notches),
+                "lip_tabs": len(nest.tabs),
+                "strap_slots": len(nest.slots),
                 "part_sha256": part.sha256,
             },
         )
@@ -122,6 +124,9 @@ def _nest_build(args: argparse.Namespace) -> int:
             "warnings": list({*report.warnings, *nest.warnings}),
             "depth_mm": nest.depth_mm,
             "notches": [notch.to_dict() for notch in nest.notches],
+            "strap_slots": [slot.to_dict() for slot in nest.slots],
+            "label": None if nest.label is None else nest.label.to_dict(),
+            "lip_tabs": [tab.to_dict() for tab in nest.tabs],
             "checks": nest.checks,
             "tolerance_status": nest.tolerance_status,
             "clearance_per_side_mm": nest.clearance_mm,

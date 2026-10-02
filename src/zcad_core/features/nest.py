@@ -24,6 +24,26 @@ import cadquery as cq
 from zcad_core.features.guide_bores import printer_numbers
 from zcad_core.features.guide_file import GuidePart
 from zcad_core.features.nest_core import clear, lifts_out, pocketed
+from zcad_core.features.nest_features import (
+    DEFAULT_EMBOSS_MM,
+    DEFAULT_TEXT_SIZE_MM,
+    HOOK_FACE_MM,
+    HOOK_GAP_MM,
+    HOOK_HEIGHT_MM,
+    SLIT_MM,
+    TAB_ROOT_MM,
+    TAB_WIDTH_MM,
+    Label,
+    StrapSlot,
+    Tab,
+    label_solid,
+    lip_errors,
+    plan_label,
+    plan_strap,
+    slot_cutter,
+    strap_slots_clear,
+    tab_strain,
+)
 from zcad_core.features.nest_file import (
     NOTCH_MARGIN_MM,
     NOTCH_WIDTH_MM,
@@ -76,6 +96,9 @@ class Nest:
     checks: dict[str, bool]
     problems: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+    slots: tuple[StrapSlot, ...] = ()
+    label: Label | None = None
+    tabs: tuple[Tab, ...] = ()
 
     @property
     def passed(self) -> bool:
@@ -98,15 +121,9 @@ def _signed_area(points: tuple[Point, ...]) -> float:
     )
 
 
-def notch_sites(
-    points: tuple[Point, ...], count: int
-) -> tuple[tuple[Notch, ...], list[str]]:
-    """Where ``count`` finger notches go: the middle of the longest straight stretches of the
-    outline, each long enough for a notch with a margin past its ends. Fewer long stretches than
-    notches asked for is refused, naming how many there are."""
-
-    if count == 0:
-        return (), []
+def stretch_sites(points: tuple[Point, ...]) -> list[Notch]:
+    """The straight stretches of the outline long enough for a notch or a tab, the longest
+    first, each with the direction along it and the one outward from the part."""
 
     sign = 1.0 if _signed_area(points) > 0 else -1.0
     wanted = NOTCH_WIDTH_MM + 2 * NOTCH_MARGIN_MM
@@ -122,6 +139,22 @@ def notch_sites(
             stretches.append(Notch(centre, outward, along, length))
 
     stretches.sort(key=lambda notch: -notch.stretch_mm)
+
+    return stretches
+
+
+def notch_sites(
+    points: tuple[Point, ...], count: int
+) -> tuple[tuple[Notch, ...], list[str]]:
+    """Where ``count`` finger notches go: the middle of the longest straight stretches of the
+    outline, each long enough for a notch with a margin past its ends. Fewer long stretches than
+    notches asked for is refused, naming how many there are."""
+
+    if count == 0:
+        return (), []
+
+    wanted = NOTCH_WIDTH_MM + 2 * NOTCH_MARGIN_MM
+    stretches = stretch_sites(points)
 
     if len(stretches) < count:
         message = (
@@ -218,15 +251,28 @@ def build_nest(spec: NestSpec, part: GuidePart, profile: dict[str, Any]) -> Nest
             _notch_cutter(notch, clearance, spec.wall_mm, floor_top, wall_top + 1.0)
         )
 
-    solid = body.val()
-    checks = {
-        "one_solid": len(body.solids().vals()) == 1,
-        "part_fits_pocket": clear(solid, part.shape),
-        "part_lifts_out": lifts_out(part.shape, solid, depth),
-        "notches_open": _notches_open(
-            solid, notches, clearance, spec.wall_mm, floor_top, wall_top
-        ),
-    }
+    slots, label, extra = _plan_features(spec, part, profile, clearance, least_wall)
+    plain = body
+
+    if extra:
+        raise ValueError("The nest cannot be built:\n- " + "\n- ".join(extra))
+
+    for slot in slots:
+        body = body.cut(slot_cutter(slot, floor_bottom - 0.5, floor_top + 0.5))
+        plain = plain.cut(slot_cutter(slot, floor_bottom - 0.5, floor_top + 0.5))
+
+    if label is not None:
+        body = body.union(label_solid(label, floor_top))
+        plain = plain.union(label_solid(label, floor_top))
+
+    tabs = _tab_sites(spec, part, notches, clearance)
+
+    for tab in tabs:
+        body, plain = _add_tab(body, plain, tab, spec, clearance, floor_top, wall_top)
+
+    checks = _nest_checks(
+        spec, part, body, plain, notches, slots, tabs, clearance, least_wall, depth
+    )
 
     return Nest(
         spec=spec,
@@ -239,7 +285,212 @@ def build_nest(spec: NestSpec, part: GuidePart, profile: dict[str, Any]) -> Nest
         notches=notches,
         checks=checks,
         warnings=(),
+        slots=slots,
+        label=label,
+        tabs=tabs,
     )
+
+
+def _nest_checks(
+    spec: NestSpec,
+    part: GuidePart,
+    body: cq.Workplane,
+    plain: cq.Workplane,
+    notches: tuple[Notch, ...],
+    slots: tuple[StrapSlot, ...],
+    tabs: tuple[Tab, ...],
+    clearance: float,
+    least_wall: float,
+    depth: float,
+) -> dict[str, bool]:
+    """Every check on the built nest; ``plain`` is the body without a lip's hooks."""
+
+    points = part.silhouette.points
+    floor_top = -part.height_mm
+    floor_bottom = floor_top - spec.floor_mm
+    wall_top = floor_top + depth
+    solid = body.val()
+    checks = {
+        "one_solid": len(body.solids().vals()) == 1,
+        "part_fits_pocket": clear(solid, part.shape),
+        # A lip's hooks give way as the part is lifted, so the part lifts out of the nest as it
+        # is without them.
+        "part_lifts_out": lifts_out(part.shape, plain.val(), depth),
+        "notches_open": _notches_open(
+            solid, notches, clearance, spec.wall_mm, floor_top, wall_top
+        ),
+    }
+
+    if slots:
+        checks["strap_slots_in_flange"] = strap_slots_clear(
+            slots,
+            points,
+            clearance,
+            spec.wall_mm,
+            spec.flange_mm,
+            least_wall,
+            floor_bottom,
+            floor_top,
+        )
+
+    if tabs:
+        checks["lip_over_part"] = _lip_over_part(part, tabs, clearance, spec)
+
+    return checks
+
+
+def _plan_features(
+    spec: NestSpec,
+    part: GuidePart,
+    profile: dict[str, Any],
+    clearance: float,
+    least_wall: float,
+) -> tuple[tuple[StrapSlot, ...], Label | None, list[str]]:
+    """The strap slots and the label, and everything that stops the nest's features being built."""
+
+    points = part.silhouette.points
+    slots, errors = plan_strap(spec, points, clearance, least_wall)
+    minimums = profile.get("minimums_mm", {})
+    label, label_errors = plan_label(
+        spec,
+        points,
+        clearance,
+        float(minimums.get("text_size", DEFAULT_TEXT_SIZE_MM)),
+        float(minimums.get("emboss_height", DEFAULT_EMBOSS_MM)),
+        slots,
+    )
+    errors += label_errors
+    errors += lip_errors(spec, part.height_mm, part.silhouette.top_share, clearance)
+
+    return slots, label, errors
+
+
+def _tab_sites(
+    spec: NestSpec, part: GuidePart, notches: tuple[Notch, ...], clearance: float
+) -> tuple[Tab, ...]:
+    """The lip's tabs: on the longest stretches the finger notches have not taken."""
+
+    if spec.lip_tabs == 0:
+        return ()
+
+    taken = {n.centre for n in notches}
+    free = [
+        site
+        for site in stretch_sites(part.silhouette.points)
+        if site.centre not in taken
+    ]
+
+    if len(free) < spec.lip_tabs:
+        raise ValueError(
+            f"{spec.lip_tabs} lip tabs need {spec.lip_tabs} straight stretches of outline at "
+            f"least {NOTCH_WIDTH_MM + 2 * NOTCH_MARGIN_MM:g} mm long that the finger notches "
+            f"have not taken; the part's shadow has {len(free)}"
+        )
+
+    strain, reach, deflection = tab_strain(
+        part.height_mm, spec.wall_mm, spec.lip_overhang_mm, clearance
+    )
+
+    return tuple(
+        Tab(site.centre, site.outward, site.along, strain, reach, deflection)
+        for site in free[: spec.lip_tabs]
+    )
+
+
+def _add_tab(
+    body: cq.Workplane,
+    plain: cq.Workplane,
+    tab: Tab,
+    spec: NestSpec,
+    clearance: float,
+    floor_top: float,
+    wall_top: float,
+) -> tuple[cq.Workplane, cq.Workplane]:
+    """The tab's wall rises above the wall's top, carries a hook that overhangs the part's top
+    face, and is cut free of the wall beside it by a slit each side. Returns the body with the
+    hook and the body without it, for the release check."""
+
+    top = wall_top + HOOK_GAP_MM + HOOK_HEIGHT_MM
+    angle = math.degrees(math.atan2(tab.along[1], tab.along[0]))
+    wall = spec.wall_mm
+    mid = clearance + wall / 2
+
+    def placed(
+        box: cq.Workplane, along: float, across: float, z: float
+    ) -> cq.Workplane:
+        return box.rotate((0, 0, 0), (0, 0, 1), angle).translate(
+            (
+                tab.centre[0] + tab.along[0] * along + tab.outward[0] * across,
+                tab.centre[1] + tab.along[1] * along + tab.outward[1] * across,
+                z,
+            )
+        )
+
+    rise = cq.Workplane("XY").box(
+        TAB_WIDTH_MM, wall, top - wall_top, centered=(True, True, False)
+    )
+    extension = placed(rise, 0.0, mid, wall_top)
+    length = clearance + spec.lip_overhang_mm
+    wedge = (
+        cq.Workplane("XZ")
+        .polyline(
+            [
+                (0.0, HOOK_GAP_MM),
+                (length, HOOK_GAP_MM),
+                (length, HOOK_GAP_MM + HOOK_FACE_MM),
+                (0.0, HOOK_GAP_MM + HOOK_HEIGHT_MM),
+            ]
+        )
+        .close()
+        .extrude(TAB_WIDTH_MM / 2, both=True)
+    )
+    inward = math.degrees(math.atan2(-tab.outward[1], -tab.outward[0]))
+    face = (
+        tab.centre[0] + tab.outward[0] * clearance,
+        tab.centre[1] + tab.outward[1] * clearance,
+    )
+    hook = wedge.rotate((0, 0, 0), (0, 0, 1), inward).translate(
+        (face[0], face[1], wall_top)
+    )
+    slit_height = top + 1.0 - (floor_top + TAB_ROOT_MM)
+    slits = [
+        placed(
+            cq.Workplane("XY").box(
+                SLIT_MM, wall + 1.5, slit_height, centered=(True, True, False)
+            ),
+            sign * (TAB_WIDTH_MM / 2 + SLIT_MM / 2),
+            mid,
+            floor_top + TAB_ROOT_MM,
+        )
+        for sign in (1.0, -1.0)
+    ]
+    body = body.union(extension).union(hook)
+    plain = plain.union(extension)
+
+    for slit in slits:
+        body = body.cut(slit)
+        plain = plain.cut(slit)
+
+    return body, plain
+
+
+def _lip_over_part(
+    part: GuidePart, tabs: tuple[Tab, ...], clearance: float, spec: NestSpec
+) -> bool:
+    """Each hook has the part's top face under it: the point under the middle of the hook's
+    overhang, just below the part's top, is inside the part."""
+
+    reach = clearance + spec.lip_overhang_mm
+    solids = part.shape.Solids()
+
+    for tab in tabs:
+        x = tab.centre[0] + tab.outward[0] * (clearance - reach / 2)
+        y = tab.centre[1] + tab.outward[1] * (clearance - reach / 2)
+
+        if not any(solid.isInside(cq.Vector(x, y, -0.1)) for solid in solids):
+            return False
+
+    return True
 
 
 def _notches_open(
@@ -321,9 +572,26 @@ def nest_record(nest: Nest, files: dict[str, dict[str, Any]]) -> dict[str, Any]:
             "floor_mm": spec.floor_mm,
             "flange_mm": spec.flange_mm,
             "finger_notches": spec.finger_notches,
+            "lip": (
+                None
+                if spec.lip_tabs == 0
+                else {"tabs": spec.lip_tabs, "overhang_mm": spec.lip_overhang_mm}
+            ),
+            "strap": (
+                None
+                if spec.strap is None
+                else {
+                    "width_mm": spec.strap.width_mm,
+                    "thickness_mm": spec.strap.thickness_mm,
+                    "source": spec.strap.source,
+                }
+            ),
             "clearance_per_side_mm": nest.clearance_mm,
         },
         "notches": [notch.to_dict() for notch in nest.notches],
+        "strap_slots": [slot.to_dict() for slot in nest.slots],
+        "label": None if nest.label is None else nest.label.to_dict(),
+        "lip_tabs": [tab.to_dict() for tab in nest.tabs],
         "size_mm": [round(width, 3), round(depth, 3), round(height, 3)],
         "printer_profile_id": nest.profile_id,
         "tolerance_status": nest.tolerance_status,

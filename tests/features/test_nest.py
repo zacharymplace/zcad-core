@@ -134,7 +134,19 @@ def test_the_template_names_a_part_by_its_real_hash(slab: Path) -> None:
         (lambda d: d["nest"].update(bearing="top"), "unknown fields: bearing"),
         (lambda d: d["features"].update(finger_notches=5), "outside 0 to 4"),
         (lambda d: d["features"].update(finger_notches=1.5), "whole number"),
-        (lambda d: d["features"].update(lip=1), "unknown fields: lip"),
+        (lambda d: d["features"].update(grip=1), "unknown fields: grip"),
+        (lambda d: d["features"].update(lip={"tabs": 9}), "features.lip.tabs"),
+        (
+            lambda d: (
+                d["features"].update(lip={"tabs": 2}) or d["nest"].update(depth_mm=5)
+            ),
+            "cannot be set with a lip",
+        ),
+        (
+            lambda d: d["features"].update(strap={"width_mm": 20, "thickness_mm": 1.5}),
+            "features.strap.source",
+        ),
+        (lambda d: d["features"].update(label="x" * 30), "the most is 24"),
         (lambda d: d["part"].update(sha256="abc"), "part.sha256"),
         (lambda d: d.update(needs_review="unchecked"), "not reviewed"),
     ],
@@ -390,3 +402,121 @@ def test_the_check_command_exits_1_for_a_nest_it_cannot_use(
     code, report = run("nest", "check", str(path))
 
     assert code == 1 and report["valid"] is False
+
+
+# --- phase 2: strap slots, a label and a lip -----------------------------------------------------
+
+STRAP = {
+    "width_mm": 20.0,
+    "thickness_mm": 1.5,
+    "source": "a hook-and-loop strap, measured",
+}
+
+
+def test_strap_slots_go_through_the_flange_at_each_end(
+    slab: Path, tmp_path: Path
+) -> None:
+    nest = built(
+        tmp_path, slab, features={"finger_notches": 0, "strap": STRAP}, flange_mm=10.0
+    )
+
+    assert len(nest.slots) == 2 and nest.checks["strap_slots_in_flange"]
+    assert nest.passed
+
+    for slot in nest.slots:
+        # the slot is open through the floor and the flange round it is solid
+        assert not inside(nest.body, slot.centre[0], slot.centre[1], -17.0)
+        assert inside(nest.body, slot.centre[0], slot.centre[1] + 12.0, -17.0)
+
+
+def test_a_flange_too_narrow_for_the_strap_is_refused(
+    slab: Path, tmp_path: Path
+) -> None:
+    path = write_nest(
+        tmp_path, slab, features={"finger_notches": 0, "strap": STRAP}, flange_mm=3.0
+    )
+    report, _, _ = inspect_nest_file(path, PROFILE)
+
+    assert not report.valid
+    assert any("nest.flange_mm must be at least" in e for e in report.errors)
+
+
+def test_a_label_stands_on_the_flange(slab: Path, tmp_path: Path) -> None:
+    nest = built(tmp_path, slab, features={"finger_notches": 0, "label": "PLATE 3"})
+
+    assert nest.label is not None and nest.label.text == "PLATE 3"
+    assert nest.passed
+    (tmp_path / "plain").mkdir()
+    plain = built(tmp_path / "plain", slab, features={"finger_notches": 0})
+
+    assert nest.body.val().Volume() > plain.body.val().Volume() + 1.0
+
+
+def test_a_label_too_long_for_the_side_is_refused(slab: Path, tmp_path: Path) -> None:
+    path = write_nest(tmp_path, slab, features={"finger_notches": 0, "label": "A" * 24})
+    report, _, _ = inspect_nest_file(path, PROFILE)
+
+    assert not report.valid and any("use shorter text" in e for e in report.errors)
+
+
+def test_a_lip_takes_the_whole_height_and_hooks_over_the_part(
+    slab: Path, tmp_path: Path
+) -> None:
+    data = nest_template(slab)
+    data["features"] = {"finger_notches": 2, "lip": {"tabs": 2}}
+    data["source"] = "a block for tests"
+    path = tmp_path / "lip.json"
+    path.write_text(json.dumps(data))
+    report, spec, loaded = inspect_nest_file(path, PROFILE)
+
+    assert report.valid, report.errors
+    assert spec is not None and loaded is not None
+    lipped = build_nest(spec, loaded, PROFILE)
+
+    assert lipped.depth_mm == pytest.approx(16.0)
+    assert len(lipped.tabs) == 2
+    assert lipped.checks["lip_over_part"] and lipped.checks["part_lifts_out"]
+    assert lipped.passed
+
+    for tab in lipped.tabs:
+        assert tab.strain <= 0.015
+        # the hook is above the part's top face, overhanging the part
+        x = tab.centre[0] + tab.outward[0] * (0.2 - 0.3)
+        y = tab.centre[1] + tab.outward[1] * (0.2 - 0.3)
+
+        assert inside(lipped.body, x, y, 0.3 + 0.5)
+
+
+def test_a_lip_that_would_strain_too_far_is_refused(slab: Path, tmp_path: Path) -> None:
+    data = nest_template(slab)
+    data["features"] = {"finger_notches": 0, "lip": {"tabs": 2, "overhang_mm": 2.0}}
+    data["nest"]["wall_mm"] = 4.0
+    data["source"] = "a block for tests"
+    path = tmp_path / "lip.json"
+    path.write_text(json.dumps(data))
+    report, _, _ = inspect_nest_file(path, PROFILE)
+
+    assert not report.valid and any("would strain" in e for e in report.errors)
+
+
+def test_the_build_command_reports_the_new_features(slab: Path, tmp_path: Path) -> None:
+    path = write_nest(
+        tmp_path,
+        slab,
+        features={"finger_notches": 1, "strap": STRAP, "label": "BASE"},
+        flange_mm=10.0,
+    )
+    code, out = run(
+        "nest",
+        "build",
+        "--nest-file",
+        str(path),
+        "--output-directory",
+        str(tmp_path / "out"),
+    )
+
+    assert code == 0, out
+    assert len(out["strap_slots"]) == 2 and out["label"]["text"] == "BASE"
+    record = json.loads(Path(out["build_record"]).read_text())
+
+    assert record["strap_slots"] and record["label"]["text"] == "BASE"

@@ -135,7 +135,7 @@ zcad-validation jig build --jig-file my-jig.json --output-directory exports/my-j
 
 1. **The nest core and the holding nest (built).** `nest_core.py` extracted from `build_guide` with no change to a guide; the `nest` file, `check` and
    `build` for a tray with its floor, flange and finger notches; the record.
-2. **The lip, the strap slots and the label.** The retaining tabs with their strain check, the strap slots from the user's strap figures, and the
+2. **The lip, the strap slots and the label (built).** The retaining tabs with their strain check, the strap slots from the user's strap figures, and the
    label.
 3. **The insert jig.** The `jig` file with typed positions, the bore, the iron's figures and the plate-as-stop, `check` and `build`, and the record.
 4. **Inserts from the part's holes.** `from_part` and `holes`, reading the through-holes, and the checks of a found hole against the insert.
@@ -177,3 +177,19 @@ See [A holding nest for your part](../guides/holding-nest.md).
 - **Notches take the longest stretches first.** The design said "the longest straight stretches"; ties go to the earlier edge, and a stretch needs 3 mm of margin past a notch's ends.
 - **The pocket's depth defaults.** Half the part's height, at least 3 mm, never more than the part's height, which the design gave and the file now computes when `nest.depth_mm` is left out.
 - **The part must stand on its bottom.** The floor's top is the part's bottom, so a part with a rounded or tilted bottom is not held by it, as the design said under *Not covered*.
+
+### What phase 2 changed
+
+See [A holding nest for your part](../guides/holding-nest.md).
+
+- **Features are in `nest_features.py`.** Strap slots, the label and the lip's tab strain live there; `nest.py` places them and `nest_file.py` parses them. `nest_file.py` imports the
+  feature planners inside one function, because they read its `NestSpec`.
+- **The lip takes the part's whole height.** The wall must reach the part's top for a hook to overhang it, so `nest.depth_mm` is refused alongside a lip, and `pocket_depth_mm` gives the part's height.
+- **A hook is a wedge on a raised tab.** Each tab rises 1.3 mm above the wall (a 0.3 mm gap over the part, a 1.0 mm hook), is 10 mm wide with a 0.8 mm slit each side, and keeps 2 mm of wall root below the slits. These
+  are the engine's own sizes. The tab's strain is the cantilever's from `mounts.flexure_for`, over the wall's reach to the hook, against the provisional 1.5% limit.
+- **The part is lifted out of the nest without its hooks.** They give way as the part goes by, so `part_lifts_out` is run on the body with the tab extensions but not the wedges. `lip_over_part` checks that the
+  part's top lies under each hook.
+- **Tabs take stretches the notches have not.** `stretch_sites` finds the straight stretches; notches take the longest, tabs the next.
+- **Strap slots sit on the flange at the ends of the longer side**, on the X ends when the part is longer in X; `strap_slots_in_flange` checks them against the real solid. The strap's width, thickness and `source` are the user's.
+- **The label goes on the side the slots are not on**, and is refused when it is longer than the side or the flange is narrower than the text.
+- **Not covered:** how hard a lip grips and what a strap will bear. The record still says unverified until a printed trial (phase 5).
