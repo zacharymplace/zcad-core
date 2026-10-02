@@ -158,7 +158,7 @@ is the user's; the engine only places the plate and the spacers.
 
 ## Phases
 
-1. **The profile and the grid.** The profile file with `template` and `check`; `bin` and
+1. **The profile and the grid (built).** The profile file with `template` and `check`; `bin` and
    `baseplate`, with dividers, a label tab and a scoop; the lip-and-foot nesting check;
    the profile's figures read from the published specification and cited.
 2. **Holding.** Bolts, magnets and latches in the profile, built into any item, and
@@ -201,3 +201,34 @@ existing build changes unless a design asks for the new thing.
 - **Where a latch's keeper goes on a bin.** The lip is on the outside, where a latch would
   catch. The proposal is a keeper recess in the lip, refused where a divider or a label tab
   meets it.
+
+### What phase 1 changed
+
+See [Stackable items](../guides/stackable-items.md).
+
+- **The figures are the Gridfinity Rebuilt library's, as an example to cite.** The design said the
+  figures would be read from the published specification. The specification page at
+  <https://gridfinity.xyz/specification/> carries a magnet size (6 mm by 2 mm) and an M3 screw, and none of the profile's
+  numbers in a form that could be read. The OpenSCAD library that says it follows the page (`src/core/standard.scad`,
+  commit `910e22d`) has them, so the template carries those and its source says so; the file is refused until the user
+  replaces that source. The engine still ships no profile.
+- **What the library gives for the foot and the lip.** Pitch 42 mm and a height unit of 7 mm; a cell's top 41.5 mm, a
+  corner radius of 3.75 mm; a foot of a 0.8 mm chamfer, 1.8 mm straight and a 2.15 mm chamfer, 4.75 mm in all, drawn in
+  2.95 mm at its bottom; a lip of 0.7 mm chamfer, 1.8 mm straight and 1.9 mm chamfer, 4.4 mm high, reaching 2.6 mm in.
+  Laid together they leave 0.25 mm across the wall at their tightest, which is what the check computes.
+- **Figures for phase 2, found now.** Magnet holes 6.5 mm across and 2.4 mm deep, screw holes 3 mm, 8 mm in from the side
+  of the cell (so 26 mm apart across it). Nothing is built from them yet.
+- **The lip is cut off where it comes to a point.** The section ends at a zero-width tip, which cannot print. The build cuts it
+  where its reach falls to 0.4 mm, a nozzle's width, so a bin is 0.4 mm lower in its lip than the section says. The nest check
+  uses the whole section, which is the more careful of the two.
+- **A baseplate's pocket is the foot grown by the clearance.** The design said "the profile's receiving section", meaning the
+  lip. A baseplate takes a foot, not a lip, so its pocket is the foot's own section grown by `min_nest_clearance_mm`, and
+  stops where the ridge between two pockets is 0.8 mm wide (4.35 mm up the foot, with the example figures). That ridge is under the
+  printer's 1.2 mm minimum wall; it is the engine's choice and the guide says so.
+- **A plate has a rim.** Pockets at the edge would leave no wall at the plate's outline, so a baseplate is a rim wider
+  than its cells, 1.2 mm by default. A rim is the engine's choice, not the profile's.
+- **Two files, one check.** `stack check` reads a profile or a stack file and says which; both carry `file_kind`.
+- **The build names its inputs by hash and writes no record.** The stack's build record and trials are phase 6, as the
+  design lists.
+- **The label tab and the scoop are the engine's own sizes** (a 12 mm ledge with a 45 degree gusset, a 10 mm quarter-round),
+  refused where a bin is too low or narrow for them, and not figures from a source.

@@ -33,6 +33,7 @@ from zcad_core.cli import (
     review,
     revision,
     slice_check,
+    stack,
     status,
     target,
     thermal,
@@ -57,6 +58,7 @@ _COMMAND_GROUPS = (
     thermal,
     slice_check,
     wearable,
+    stack,
 )
 
 
