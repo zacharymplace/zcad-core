@@ -23,14 +23,17 @@ from zcad_core.features.vent_patterns import PATTERNS, VentReport
 # its front wall.
 GROUP_MOUNTS = (*MOUNTS, RACK)
 from zcad_core.hardware import FastenerSpec
+from zcad_core.hardware.electronics.board_file import BoardFileSpec
 
 # How the lid attaches: screwed to inserts, hinged along the back wall, or
 # slid along the row.
 GROUP_LID_ATTACHMENTS = ("screws", "hinge", "slide")
 SLIDE_ENTRIES = ("negative_x", "positive_x")
 
-BayKind = Literal["pi5", "reserved", "open"]
-BAY_KINDS: tuple[BayKind, ...] = ("pi5", "reserved", "open")
+BayKind = Literal["pi5", "reserved", "open", "board"]
+BAY_KINDS: tuple[BayKind, ...] = ("pi5", "reserved", "open", "board")
+# Bays that hold a Raspberry Pi 5, fitted or not.
+PI_KINDS = ("pi5", "reserved")
 OpeningWall = Literal["front", "back"]
 OPENING_WALLS: tuple[OpeningWall, ...] = ("front", "back")
 # Wall left between an opening and the shelf's ends, and under the lid.
@@ -68,6 +71,12 @@ class GroupDesign:
     back_clearance_mm: float = 3.0
     slot_pad_mm: float = 0.25
     open_bay_width_mm: float = 40.0
+    # The space right of a board bay's slot (a board bay has no Pi's service
+    # gap): room for the boss that closes it and the next bay's edge.
+    board_gap_mm: float = 12.0
+    # A board's connector reaches the wall through an opening only if the
+    # board's edge is within this of the wall.
+    board_reach_mm: float = 4.0
     plug_margin_mm: float = 1.5
     vents: bool = True
     join_bolts: bool = True
@@ -136,6 +145,8 @@ class GroupDesign:
             "service_gap_mm",
             "end_margin_mm",
             "open_bay_width_mm",
+            "board_gap_mm",
+            "board_reach_mm",
             "divider_mm",
             "divider_notch_width_mm",
             "divider_notch_height_mm",
@@ -195,6 +206,14 @@ class Bay:
     headroom_mm: float | None = None
     openings: tuple[BayOpening, ...] = ()
     divider: Divider | None = None
+    # A ``board`` bay's board, how it is turned (90 degree steps, or ``None``
+    # for the longer side front to back), where it sits front to back when
+    # the row is deeper than it is, and the screw its standoffs take (or
+    # ``None`` for the largest its mounting holes pass).
+    board: BoardFileSpec | None = None
+    rotate: int | None = None
+    align: str = "back"
+    screw: str | None = None
 
 
 BayLike = BayKind | Bay
@@ -221,6 +240,8 @@ class BayLayout:
     divider: Divider | None = None
     # Where the divider's left face is, when there is one.
     divider_start_mm: float = 0.0
+    # Where the bay's board centre is front to back (the enclosure frame).
+    center_y_mm: float = 0.0
 
     @property
     def needed_top_z_mm(self) -> float:
@@ -233,6 +254,12 @@ class BayLayout:
 
     @property
     def holds_pi(self) -> bool:
+        return self.kind in PI_KINDS
+
+    @property
+    def holds_board(self) -> bool:
+        """Whether the bay stands a board up: a Pi, fitted or not, or a board from
+        a board file."""
         return self.kind != "open"
 
 

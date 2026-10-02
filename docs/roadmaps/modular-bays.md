@@ -136,7 +136,7 @@ catalog's provisional status carried through.
 
 ## Phases
 
-1. **Bay modules and board bays.** The module record, `pi5`, `reserved` and `open`
+1. **Bay modules and board bays (built).** The module record, `pi5`, `reserved` and `open`
    moved onto it with their builds unchanged, and `board:FILE` bays: slot,
    standoffs or cradle, openings and envelope from the board file, with orientation
    and alignment. A row of a Pi and a board file builds and passes its checks.
@@ -154,6 +154,45 @@ catalog's provisional status carried through.
    the joint; and the lid readings the single-board enclosure's hinged and sliding
    lids take. This also gives the Pi 5 group the build record its trials have
    been waiting for.
+
+### What phase 1 changed
+
+- **The Pi's builds are unchanged, and that was measured.** `pi5`, `reserved` and
+  `open` now read their slot, standoffs, envelope and parts from a module record.
+  Ten builds (a pair, a lone Pi, reserved and open, per-bay heights, a divider, an
+  open bay's openings, a hinged lid, a slide lid, a vent pattern, rack ears) were
+  built before and after, and their base, lid and envelope volumes and bounding
+  boxes, their checks, bay layouts and Pi centre agree exactly.
+- **The Pi's openings, service gap and fan slots stay Pi code.** The design had the
+  module carry its openings. A Pi's are its ports merged, its microSD card, and the
+  cable exit along its gap, tied to the boss that closes the gap, and its fan slots
+  are in the lid over its fan; making those generic would have changed a Pi bay's
+  build for no gain here. The module record carries a board bay's openings, and
+  the Pi's stay in `enclosure_group_openings` and `_lid`, to be generalised only
+  when a second board needs the same.
+- **Every opening source counts.** A board file names its connectors three ways: the
+  cable connector every board has, `wall_openings`, and parts marked `access_edge`.
+  All three become openings, and ones that overlap merge by the web rule.
+- **Cradle bays are not built.** The design said "standoffs or a cradle". A board
+  with no mounting holes is refused, saying so. The cradle's clips sit at the
+  board's edges, against the neighbouring bay's divider or service space (an open
+  question in the design), and the single-board cradle is built round one board in
+  a box of its own; that interplay needs the row rules first.
+- **A board's connector on a side is refused, not given a gap.** The service space
+  that a connector facing a neighbour needs is the next phase's. Refusing it with
+  the way round (`rotate=`) means no board is built with an opening that cannot
+  reach.
+- **Alignment is back by default for every bay.** For the deepest board, which is a
+  Pi in every row there was before, back, front and centre are the same place.
+- **The standoff height is the board's own.** A board bay takes the board file's
+  recommended standoff, not the design's 4 mm, since the board file knows what is
+  under it. It is still checked against the parts under the board.
+- **Two design fields, `board_gap_mm` and `board_reach_mm`,** hold the gap right of
+  a board bay and how far from a wall a connector can still be opened to it.
+- **Heat is not counted yet.** The build's temperature estimate counts only the Pi
+  bays, and says so when a board bay is present; that is phase 3.
+- **`board_assembly` moved to `board_solids`,** a neutral module, so the group and
+  the test fixture share it.
 
 Each phase is one PR. Phases 1 and 4 add bay kinds and a joint face, so every
 existing group build keeps its output unless a design asks for the new ones.

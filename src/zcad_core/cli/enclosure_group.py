@@ -51,6 +51,7 @@ from zcad_core.features.lid_slide import slid_lid
 from zcad_core.features.mounts import flexure_payload
 from zcad_core.features.vent_patterns import PATTERNS
 from zcad_core.geometry.cadquery_support import workplane_shape
+from zcad_core.hardware import load_board
 from zcad_core.printing import SliceError, slice_models
 from zcad_core.profiles import (
     load_printer_profile,
@@ -127,9 +128,35 @@ def _divider(value: str) -> Divider:
     )
 
 
+_BOARD_OPTIONS = (
+    "file=<board file>, rotate=<0|90|180|270>, align=<front|center|back>, screw=<M2.5>"
+)
+
+
+def _board_option(name: str, value: str, settings: dict[str, Any]) -> bool:
+    """Take a board bay's option into ``settings``; ``False`` if it is not one."""
+
+    if name == "file":
+        settings["board"] = load_board(Path(value))
+    elif name == "rotate":
+        try:
+            settings["rotate"] = int(value)
+        except ValueError:
+            raise ValueError(
+                f"rotate must be 0, 90, 180 or 270; got '{value}'"
+            ) from None
+    elif name in ("align", "screw"):
+        settings[name] = value
+    else:
+        return False
+
+    return True
+
+
 def _bay(text: str) -> Bay:
     """One bay from ``kind``, with any of ``:standoff=10``, ``:headroom=30``,
-    ``:front=20x10``, ``:back=20x10@-5/3``, and ``:divider=vents+notch``."""
+    ``:front=20x10``, ``:back=20x10@-5/3``, and ``:divider=vents+notch``; a board
+    bay is ``board:file=PATH`` with ``:rotate=``, ``:align=`` and ``:screw=``."""
 
     kind, *options = (part.strip() for part in text.split(":"))
     kinds = [known for known in BAY_KINDS if known == kind]
@@ -137,7 +164,8 @@ def _bay(text: str) -> Bay:
     if not kinds:
         raise ValueError(f"bay kind must be one of {BAY_KINDS}; got '{kind}'")
 
-    heights: dict[str, float] = {}
+    heights: dict[str, Any] = {}
+    board: dict[str, Any] = {}
     openings: list[BayOpening] = []
     divider: Divider | None = None
 
@@ -153,10 +181,14 @@ def _bay(text: str) -> Bay:
             divider = _divider(value)
             continue
 
+        if value and _board_option(name, value, board):
+            continue
+
         if name not in _BAY_OPTIONS or not value:
             raise ValueError(
                 "bay option must be standoff=<mm>, headroom=<mm>, "
-                f"{_OPENING_SYNTAX}, or divider=<{_DIVIDER_TOKENS}>; got '{option}'"
+                f"{_OPENING_SYNTAX}, divider=<{_DIVIDER_TOKENS}>, or, for a board "
+                f"bay, {_BOARD_OPTIONS}; got '{option}'"
             )
 
         try:
@@ -164,7 +196,13 @@ def _bay(text: str) -> Bay:
         except ValueError:
             raise ValueError(f"bay option '{option}' needs a number") from None
 
-    return Bay(kind=kinds[0], openings=tuple(openings), divider=divider, **heights)
+    return Bay(
+        kind=kinds[0],
+        openings=tuple(openings),
+        divider=divider,
+        **heights,
+        **board,
+    )
 
 
 def _bays(text: str) -> tuple[Bay, ...]:
@@ -399,6 +437,23 @@ def _parts(group: GroupEnclosure) -> dict[str, cq.Workplane]:
     return parts
 
 
+def _group_warnings(group: GroupEnclosure) -> list[str]:
+    """What the build did not take into account."""
+
+    boards = [str(bay.index) for bay in group.bays if bay.kind == "board"]
+
+    if not boards:
+        return []
+
+    return [
+        (
+            f"The temperature estimate counts only the Pi bays: board bay(s) "
+            f"{', '.join(boards)} add no heat to it yet, and the lid has no fan "
+            "slots over them"
+        )
+    ]
+
+
 def _group_thermal(group: GroupEnclosure, args: argparse.Namespace) -> ThermalEstimate:
     """The temperature estimate for the row, counting each fitted Pi; a
     reserved bay is empty until a Pi goes in it."""
@@ -493,6 +548,7 @@ def _group_build(args: argparse.Namespace) -> int:
             "bays": [bay.kind for bay in bays],
             "bay_heights": _bay_summary(group),
             "outer_size_mm": list(group.outer_size_mm),
+            "warnings": _group_warnings(group),
             "thermal": thermal.to_dict(),
             "vents": group.vents.to_dict() if group.vents else None,
             "lid": design.lid_attachment,

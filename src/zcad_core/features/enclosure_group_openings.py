@@ -1,8 +1,8 @@
-"""The wall openings of a Pi 5 group enclosure.
+"""The wall openings of a group enclosure.
 
 A Pi's own openings (its Ethernet and USB plugs, its microSD card, and the
-cable exit at the end of its service gap) and the openings an ``open`` bay
-asks for."""
+cable exit at the end of its service gap), the openings a board bay's connectors
+need, and the openings an ``open`` bay asks for."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from zcad_core.features.enclosure_group_model import (
     BayLayout,
     GroupDesign,
 )
+from zcad_core.features.enclosure_group_modules import BayModule
 from zcad_core.hardware import RaspberryPi5Spec
 
 _BOSS_CLEARANCE_MM = 1.0
@@ -99,6 +100,60 @@ def pi_openings(
                 cutter_depth_mm=depth,
             )
         )
+
+    return openings
+
+
+def board_openings(
+    *,
+    layouts: tuple[BayLayout, ...],
+    modules: tuple[BayModule | None, ...],
+    design: GroupDesign,
+    inner_depth: float,
+) -> list[ConnectorCutoutParameters]:
+    """Back and front wall openings for each board bay's connectors, refusing a
+    connector whose board edge is too far from its wall to reach it."""
+
+    wall = design.wall_mm
+    depth = 2 * (wall + 0.5)
+    margin = 2 * design.plug_margin_mm
+    openings: list[ConnectorCutoutParameters] = []
+
+    for layout, module in zip(layouts, modules, strict=True):
+        if module is None or module.is_pi:
+            continue
+
+        front_gap = layout.center_y_mm - module.depth_mm / 2 - wall
+        back_gap = wall + inner_depth - (layout.center_y_mm + module.depth_mm / 2)
+        by_wall: dict[str, list[ConnectorCutoutParameters]] = {}
+
+        for port in module.openings:
+            gap = back_gap if port.wall == "positive_y" else front_gap
+
+            if gap > design.board_reach_mm:
+                side = "back" if port.wall == "positive_y" else "front"
+                raise ValueError(
+                    f"bay {layout.index} (board): {port.label} is at the {side} "
+                    f"edge, which stands {gap:.1f} mm from the {side} wall, and an "
+                    f"opening reaches only {design.board_reach_mm:g} mm: set "
+                    "align= the other way, or make the row deeper"
+                )
+
+            by_wall.setdefault(port.wall, []).append(
+                ConnectorCutoutParameters(
+                    edge=port.wall,  # type: ignore[arg-type]
+                    center_offset_mm=wall + layout.center_x_mm + port.along_mm,
+                    bottom_z_mm=layout.board_top_z_mm + port.bottom_mm - 0.5,
+                    width_mm=port.width_mm,
+                    height_mm=port.height_mm,
+                    width_clearance_mm=margin,
+                    height_clearance_mm=design.plug_margin_mm,
+                    cutter_depth_mm=depth,
+                )
+            )
+
+        for group in by_wall.values():
+            openings.extend(merge_close_openings(group, design.minimum_opening_web_mm))
 
     return openings
 

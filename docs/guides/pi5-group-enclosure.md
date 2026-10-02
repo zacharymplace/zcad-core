@@ -36,11 +36,54 @@ slot-then-gap pattern, so any bay can take a Pi.
 | --- | --- |
 | `pi5` | Four M2.5 standoffs, port openings, vents. Envelope and every extracted part checked. |
 | `reserved` | The same as `pi5`, with no Pi fitted yet. Drop one in later with no reprint. |
+| `board` | Any board a board file describes: its own standoffs, envelope and openings. See [Board bays](#board-bays). |
 | `open` | A flat shelf, `--open-bay-width-mm` wide (40), for an SSD, a switch, or a power supply. Wall openings are cut only where you ask; see [Openings for open bays](#openings-for-open-bays). |
 
 The Pi is held by four M2.5 self-tapping screws through its mounting holes
 into the standoffs. The lid screws into six M3 heat-set inserts (corners and
 the end of each gap but the last).
+
+## Board bays
+
+A bay can hold any board a [board file](board-file.md) describes, not only a Pi:
+
+```bash
+zcad-validation enclosure-group build --bays "pi5,board:file=my-board.json:align=front" \
+  --output-directory exports/mixed
+```
+
+`board:file=PATH` takes the same per-bay settings a Pi bay has (`standoff=`,
+`headroom=`, `divider=`) and three of its own: `rotate=` (0, 90, 180 or 270),
+`align=` (`front`, `center` or `back`) and `screw=`. In Python it is
+`Bay("board", board=load_board(path))`. A path with a comma or a colon in it
+cannot be written on the command line.
+
+- **Turning.** The board is turned in quarter turns, counterclockwise seen from
+  above, so its longer side runs front to back as a Pi's does; `rotate=` sets it
+  yourself. The turn takes the board's connectors with it.
+- **Depth.** The row is as deep as its deepest board needs. A shallower board sits
+  against the back wall by default, or the front or middle with `align=`; the
+  deepest board fills the row, so for it the three are the same. A row of open
+  shelves alone is as deep as a Pi.
+- **Standoffs.** The board stands on a standoff at each of its mounting holes, on
+  the largest catalog screw the holes pass (M2.5 for a 2.7 mm hole), or `screw=`.
+  Its height is the board file's recommended standoff unless the bay says
+  otherwise, and it is refused if it is too low for a part under the board.
+- **Headroom.** A bay takes the design's headroom, and is refused if the board's
+  tallest part, plus half a millimetre, does not fit under it.
+- **Openings.** The board's cable connector, its wall openings, and each part
+  marked as reached through an edge get an opening through the back or front wall,
+  merged where they would leave too thin a web. An opening is cut only if the
+  board's edge is within `board_reach_mm` (4) of the wall: a connector on a
+  shallow board against the wrong wall is refused, naming the distance, so you
+  can set `align=` the other way or build a deeper row.
+- **The gap.** A board bay's gap to its right is `board_gap_mm` (12), which holds
+  the boss that closes it; it has no Pi's 25 mm service gap.
+- **What is not built yet.** A connector facing a neighbouring bay (to the board's
+  left or right once turned) is refused with its way round, since it needs a
+  service space; a board with no mounting holes is refused, since a cradle bay
+  comes later; the temperature estimate counts only the Pi bays, and the build
+  says so; and the lid's fan slots are over Pi bays only.
 
 ## Heights per bay
 

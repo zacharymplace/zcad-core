@@ -27,6 +27,10 @@ from typing import Any
 
 import cadquery as cq
 
+from zcad_core.features.board_solids import board_assembly
+from zcad_core.features.board_solids import box as _box
+from zcad_core.features.board_solids import cylinder as _cylinder
+from zcad_core.features.board_solids import shape_of as _solid
 from zcad_core.features.lid_hinge import HingeReport, swung_lid
 from zcad_core.features.pcb_fixture_closure import (
     NOTCH_RADIUS_MM,
@@ -42,7 +46,6 @@ from zcad_core.features.pcb_fixture_plan import (
     RELIEF_MARGIN_MM,
     SUPPORT_POST_MM,
     FixturePlan,
-    mounting_holes,
     outline_points,
     plan_fixture,
 )
@@ -81,77 +84,6 @@ class PcbFixture:
     @property
     def passed(self) -> bool:
         return all(self.checks.values()) and not self.problems
-
-
-def _cylinder(
-    x: float, y: float, z0: float, z1: float, diameter: float
-) -> cq.Workplane:
-    return cq.Workplane("XY").add(
-        cq.Solid.makeCylinder(
-            diameter / 2, z1 - z0, pnt=cq.Vector(x, y, z0), dir=cq.Vector(0, 0, 1)
-        )
-    )
-
-
-def _box(
-    cx: float, cy: float, width: float, depth: float, z0: float, z1: float
-) -> cq.Workplane:
-    return cq.Workplane("XY").add(
-        cq.Solid.makeBox(
-            width, depth, z1 - z0, pnt=cq.Vector(cx - width / 2, cy - depth / 2, z0)
-        )
-    )
-
-
-def board_assembly(board: BoardFileSpec, *, with_envelope: bool = True) -> cq.Shape:
-    """The board and its parts as solids: its outline with its mounting holes,
-    and each part's box."""
-
-    points = outline_points(board)
-    body = outline_prism(points, -board.board_thickness_mm, 0.0)
-
-    if board.mounting_hole_diameter_mm is not None:
-        for x, y in mounting_holes(board):
-            body = body.cut(
-                _cylinder(
-                    x,
-                    y,
-                    -board.board_thickness_mm - 1.0,
-                    1.0,
-                    board.mounting_hole_diameter_mm,
-                )
-            )
-
-    shapes: list[cq.Shape] = [_solid(body)]
-
-    for part in board.components:
-        if part.identifier == ENVELOPE_IDENTIFIER and not with_envelope:
-            continue
-
-        z0 = part.bottom_offset_from_board_top_mm
-        shapes.append(
-            _solid(
-                _box(
-                    part.center_x_mm,
-                    part.center_y_mm,
-                    part.width_mm,
-                    part.depth_mm,
-                    z0,
-                    z0 + part.height_mm,
-                )
-            )
-        )
-
-    return cq.Compound.makeCompound(shapes)
-
-
-def _solid(model: cq.Workplane) -> cq.Shape:
-    value = model.val()
-
-    if not isinstance(value, cq.Shape):
-        raise TypeError("Expected a shape")
-
-    return value
 
 
 def _build_nest(
