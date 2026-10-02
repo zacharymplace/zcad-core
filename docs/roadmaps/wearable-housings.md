@@ -149,8 +149,8 @@ antimicrobial anything is not built.
 2. **Housings (built).** The housing file with `template`, `check` and `build`; the
    `cradle` for a sealed device and the `case` for a board. No wear yet: a housing you
    hold. (`shell` through the housing file moved to phase 3.)
-3. **Ways of wearing.** The strap lugs, the band slots, the belt clip, the adhesive
-   plate and the lanyard hole, each from the user's figures with their source, and the
+3. **Ways of wearing (built).** The strap lugs, the band ears, the belt clip, the adhesive
+   plate and the lanyard tab, each from the user's figures with their source, and the
    checks on them. These are the five a wearer needs, built together.
 4. **The skin side.** The rounded edges and their radius check, and the statement of
    what stands off the skin.
@@ -219,6 +219,45 @@ See the guide [A housing for something you wear](../guides/wearable-housing.md).
   and each part's STL hash.
 - **The build says what it does not claim.** Every build prints that the engine states no
   claim about skin, water, comfort or the device's function.
+
+### What phase 3 changed
+
+See *Ways of wearing* in [A housing for something you wear](../guides/wearable-housing.md).
+
+- **`shell` through the housing file is dropped, not moved.** Phase 2 said it moved here.
+  The snap shell is clip-only geometry: it has no body for a lug or an ear to be one piece
+  with, so a wearing option on it would float. The cradle is the wearable form of a snap
+  shell, and the Validation Lab's shell candidates are left as they are.
+- **The band has ears, not slots through the sides.** The design said "two slots through the
+  housing's long sides". A housing's walls are 1.2 mm thick and a band is 20 mm wide, so a slot
+  through a wall has no wall left. An ear at each end on the skin plane, with the slot through
+  the ear, is where the band can pass; the band threads down through one ear, round the limb
+  and up through the other.
+- **The belt clip is a bridge arm, not a vertical clip.** The design said "a flexure clip
+  with the strain check the snap clips use". A clip hanging down the back has the same
+  problem the cradle's tabs did, too short to bend: with a belt 4 mm thick the hanging arm is
+  under 6 mm and would strain over 5 per cent. The arm instead runs along the housing under
+  its back, fixed at one end and free at the other, with a nub that grips the belt, and bends up
+  and down along up to 18 mm. Its strain is the end-loaded cantilever's, checked as the tabs'
+  are, and a housing too short for it is refused with the arm length it needs. The nub height
+  and the gap are the engine's constants, not figures from a source.
+- **The adhesive plate is a flange, with no lip.** The design said "a flat plate on the skin
+  side, larger than the housing, with a lip that holds it", which reads as a separate plate the
+  housing drops into. A lip that holds a housing without a hook is only a recess, and a hook is
+  another retention design. The flange is one piece with the housing at the skin plane, the
+  adhesive goes under it, and nothing needs holding. The patch is a bounding size from the user,
+  and the engine does not know its shape.
+- **The lanyard is a flat tab, not a hole through the wall.** A cord needs material round the
+  hole, which the wall does not have, so the tab stands off the +Y side on the skin plane.
+- **The file refuses an example.** A `wear` entry needs its `source`, and one that still starts
+  with `EXAMPLE` is refused, so no example becomes a figure by being left in. The template adds
+  examples when asked with `--wear`.
+- **Prongs, ears and flanges are checked against the housing's width, not its straight run.**
+  A rounded housing's end face is straight only in the middle, so a strap's lug is built as a
+  block that bridges the curved corners and joins the straight part, and the strap is limited by
+  the housing's width less the lug's thickness.
+- **It still prints unverified.** A belt clip hangs below the floor and a lug's hole prints
+  across the layers. The output says no print has shown any of them prints cleanly.
 
 Each phase is one PR. The wearable file adds optional fields, so no existing capture
 file changes, and the shell scripts keep their output.

@@ -28,6 +28,13 @@ from typing import Any
 
 from zcad_core.features.guide_bores import printer_numbers
 from zcad_core.features.guide_common import IDENTIFIER, Findings, number, section
+from zcad_core.features.housing_wear import (
+    FIGURES,
+    PATCH_RANGE_MM,
+    WEAR_KINDS,
+    Wear,
+    conflicts,
+)
 from zcad_core.hardware import load_board
 from zcad_core.hardware.electronics.board_file import BoardFileSpec
 from zcad_core.hardware.wearables import WearableCapture, check_capture, load_capture
@@ -58,6 +65,7 @@ _TOP_LEVEL = frozenset(
         "clearance_mm",
         "corner_radius_mm",
         "retention_edges",
+        "wear",
         "needs_review",
     }
 )
@@ -78,6 +86,7 @@ class HousingSpec:
     clearance_mm: float
     corner_radius_mm: float
     retention_edges: tuple[str, ...]
+    wear: tuple[Wear, ...]
     source: str
     notes: str
     file_path: Path
@@ -97,7 +106,18 @@ class HousingCheck:
         return not self.errors
 
 
-def housing_template(style: str, input_file: Path | None = None) -> dict[str, Any]:
+_EXAMPLE_WEAR: dict[str, dict[str, Any]] = {
+    "strap": {"strap_width_mm": 20.0, "bar_diameter_mm": 1.8},
+    "band": {"band_width_mm": 20.0, "band_thickness_mm": 2.0},
+    "clip": {"belt_thickness_mm": 4.0},
+    "adhesive": {"patch_mm": [60.0, 45.0]},
+    "lanyard": {"cord_diameter_mm": 3.0},
+}
+
+
+def housing_template(
+    style: str, input_file: Path | None = None, wear: tuple[str, ...] = ()
+) -> dict[str, Any]:
     """An example housing file to edit, naming ``input_file`` by its real hash if
     one is given."""
 
@@ -129,6 +149,24 @@ def housing_template(style: str, input_file: Path | None = None) -> dict[str, An
     else:
         data["lid_mm"] = DEFAULT_LID_MM
         data["corner_radius_mm"] = DEFAULT_CORNER_RADIUS_MM
+
+    if wear:
+        unknown = [kind for kind in wear if kind not in WEAR_KINDS]
+
+        if unknown:
+            raise ValueError(f"wear must be drawn from {WEAR_KINDS}, not {unknown}")
+
+        data["wear"] = [
+            {
+                "kind": kind,
+                **_EXAMPLE_WEAR[kind],
+                "source": (
+                    "EXAMPLE ONLY: where these figures came from, such as the strap "
+                    "or band you will use, measured"
+                ),
+            }
+            for kind in wear
+        ]
 
     return data
 
@@ -210,6 +248,7 @@ def check_housing_data(data: Any) -> HousingCheck:
         number(data, name, "", findings, low=low, high=high, required=False)
 
     _check_edges(data, findings)
+    _check_wear(data, findings)
 
     if not str(data.get("source", "")).strip():
         findings.warnings.append(
@@ -217,6 +256,103 @@ def check_housing_data(data: Any) -> HousingCheck:
         )
 
     return HousingCheck(tuple(findings.errors), tuple(findings.warnings))
+
+
+def _check_wear(data: Mapping[str, Any], findings: Findings) -> None:
+    """The ways of wearing: each a kind, the figures it needs, and their source."""
+
+    entries = data.get("wear")
+
+    if entries is None:
+        return
+
+    if not isinstance(entries, list):
+        findings.errors.append("wear must be a list of ways of wearing")
+
+        return
+
+    kinds: list[str] = []
+
+    for index, entry in enumerate(entries):
+        where = f"wear[{index}]"
+
+        if not isinstance(entry, Mapping):
+            findings.errors.append(f"{where} must be an object")
+
+            continue
+
+        kind = entry.get("kind")
+
+        if kind not in WEAR_KINDS:
+            findings.errors.append(f"{where}.kind must be one of {WEAR_KINDS}")
+
+            continue
+
+        if kind in kinds:
+            findings.errors.append(f"{where}: {kind} is listed twice")
+
+        kinds.append(str(kind))
+        _check_wear_entry(entry, str(kind), where, findings)
+
+    findings.errors.extend(conflicts(kinds))
+
+
+def _check_wear_entry(
+    entry: Mapping[str, Any], kind: str, where: str, findings: Findings
+) -> None:
+    allowed = {"kind", "source", *FIGURES[kind]}
+
+    if kind == "adhesive":
+        allowed |= {"patch_mm", "corner_radius_mm"}
+
+    unknown = sorted(set(entry) - allowed)
+
+    if unknown:
+        findings.errors.append(f"{where} has unknown fields: {', '.join(unknown)}")
+
+    for name, (low, high) in FIGURES[kind].items():
+        number(entry, name, where, findings, low=low, high=high)
+
+    if kind == "adhesive":
+        patch = entry.get("patch_mm")
+
+        if (
+            not isinstance(patch, list)
+            or len(patch) != 2
+            or not all(
+                isinstance(v, int | float)
+                and not isinstance(v, bool)
+                and PATCH_RANGE_MM[0] <= v <= PATCH_RANGE_MM[1]
+                for v in patch
+            )
+        ):
+            findings.errors.append(
+                f"{where}.patch_mm must be [width, depth] in millimetres, each from "
+                f"{PATCH_RANGE_MM[0]:g} to {PATCH_RANGE_MM[1]:g}"
+            )
+
+        number(
+            entry,
+            "corner_radius_mm",
+            where,
+            findings,
+            low=0.5,
+            high=50.0,
+            required=False,
+        )
+
+    source = entry.get("source")
+
+    if not isinstance(source, str) or not source.strip():
+        findings.errors.append(
+            f"{where}.source must say where the figures came from: they are yours, "
+            "and the engine has none of its own"
+        )
+    elif source.strip().upper().startswith("EXAMPLE"):
+        findings.errors.append(
+            f"{where}.source is still the template's example: replace the figures "
+            "and say where they came from"
+        )
 
 
 def _check_edges(data: Mapping[str, Any], findings: Findings) -> None:
@@ -285,6 +421,18 @@ def housing_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> Housi
         clearance_mm=float(data.get("clearance_mm", DEFAULT_CLEARANCE_MM)),
         corner_radius_mm=float(data.get("corner_radius_mm", DEFAULT_CORNER_RADIUS_MM)),
         retention_edges=tuple(edges),
+        wear=tuple(
+            Wear(
+                kind=str(entry["kind"]),
+                figures={
+                    key: value
+                    for key, value in entry.items()
+                    if key not in ("kind", "source")
+                },
+                source=str(entry["source"]),
+            )
+            for entry in data.get("wear") or []
+        ),
         source=str(data.get("source", "")),
         notes=str(data.get("notes", "")),
         file_path=path,
