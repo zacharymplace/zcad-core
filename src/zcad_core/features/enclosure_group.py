@@ -38,6 +38,7 @@ from zcad_core.features.enclosure_group_dividers import (
     require_divider_fits,
 )
 from zcad_core.features.enclosure_group_envelope import make_box, single_shape
+from zcad_core.features.enclosure_group_join import cut_pass_through, joint_positions
 from zcad_core.features.enclosure_group_layout import (
     BOSS_WALL_OVERLAP_MM,
     boss_column_xs,
@@ -128,9 +129,7 @@ _VENT_SLOTS = 5
 _VENT_PITCH_MM = 5.0
 _VENT_LENGTH_MM = 30.0
 _VENT_WIDTH_MM = 2.4
-_JOIN_HEIGHT_ABOVE_FLOOR_MM = 8.0
 _JOIN_BOSS_REACH_MM = 8.0
-_JOIN_Y_FRACTIONS = (0.65, 0.83)
 _SCREW_LENGTHS_MM = (4, 5, 6, 8, 10, 12, 16, 20)
 # A divider stops this far below a sliding lid, beyond the slide's clearance.
 _SLIDE_DIVIDER_DROP_MM = 0.3
@@ -301,12 +300,14 @@ def build_group_enclosure(
     join_positions: tuple[tuple[float, float], ...] = ()
 
     if design.join_bolts:
-        join_positions = tuple(
-            (
-                wall + inner_depth * fraction,
-                design.floor_mm + _JOIN_HEIGHT_ABOVE_FLOOR_MM,
-            )
-            for fraction in _JOIN_Y_FRACTIONS
+        join_positions = joint_positions(
+            design,
+            wall=wall,
+            inner_depth=inner_depth,
+            outer_depth=outer[1],
+            radius=radius,
+            corner_x=corner_x,
+            screwed=screwed,
         )
         base = _add_join_features(
             base,
@@ -316,6 +317,16 @@ def build_group_enclosure(
             outer_width=outer[0],
             radius=radius,
         )
+
+    base = cut_pass_through(
+        base,
+        design,
+        outer=outer,
+        cavity_top=cavity_top,
+        radius=radius,
+        corner_x=corner_x,
+        screwed=screwed,
+    )
 
     lid = _lid(
         outer,

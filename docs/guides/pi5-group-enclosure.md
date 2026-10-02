@@ -294,6 +294,48 @@ A rack-ear or underside mount works with either lid.
   both walls into the insert. Turn the join features off with
   `--no-join-bolts`.
 
+### Joining units of different sizes
+
+Those bolts are at fractions of the unit's depth, so they mate only units of the
+same depth. `--joint standard` puts them on the **standard joint face** instead: 20
+and 38 mm from the unit's front outer face, 10 mm up from its underside, in every
+unit, so any unit's left wall meets any other's right over the depth they share.
+A unit's height is its own, since the lids are separate. The standard face is
+opt-in, and a build that does not ask for it is unchanged.
+
+```bash
+zcad-validation enclosure-group build --bays pi5 --joint standard \
+  --output-directory exports/pi-unit
+zcad-validation enclosure-group build --bays "board:file=my-board.json:align=front" \
+  --joint standard --output-directory exports/board-unit
+zcad-validation enclosure-group check-join --left-bays pi5 \
+  --right-bays "board:file=my-board.json:align=front"
+```
+
+- **The unit has to be deep enough.** The bolts need 44.1 mm of outer depth, and a
+  screwed lid's corner bosses need 52.8 mm so the bolts' bosses clear them; a
+  shallower unit is refused, naming the depth. A hinged or sliding lid has no corner
+  bosses, so only the first applies.
+- **A cable pass-through.** `--pass-through 16x6` cuts a rectangle of that width and
+  height, centred 29 mm from the front, its lower edge 16 mm up, in the join
+  walls, so a cable runs from one unit to the next. `--pass-through-sides` says
+  `both` (the default), `left` or `right`; the outer ends of a row are join walls
+  too, so a pass-through there is an open hole to plug or cover. It is refused if it
+  would reach the lid's seat (a 6 mm one fits the lowest unit, 24.6 mm inside; the
+  slide's entry wall needs 5 mm more), meet the bolts' bosses, or meet the lid's
+  corner bosses.
+- **`check-join` builds both units and puts the second against the first's right
+  wall.** It checks that they use the same screw, that the walls meet with no gap and
+  no overlap, that a screw goes through each of the first unit's holes and into a
+  boss of the second's, and that a pass-through, where both have one, is the same
+  size. Every check is read from the geometry, so it can say a pair of original-face
+  units of the same depth mates, and that a standard unit and an original one of
+  another depth does not, with a note that a unit is not on the standard face. It
+  exits 1 if the pair cannot bolt. `--left-joint`, `--right-joint`,
+  `--left-pass-through` and the matching `--right-` flags set each unit; `--wall-mm`,
+  `--floor-mm`, `--fastener` and `--lid` are shared, and a design setting not named
+  there does not move the joint.
+
 ## Settings
 
 `GroupDesign` (Python) and the matching flags:

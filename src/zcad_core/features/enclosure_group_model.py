@@ -29,6 +29,10 @@ from zcad_core.hardware.electronics.board_file import BoardFileSpec
 # How the lid attaches: screwed to inserts, hinged along the back wall, or
 # slid along the row.
 GROUP_LID_ATTACHMENTS = ("screws", "hinge", "slide")
+# Where the join bolts go: at fractions of the unit's depth, or at the standard
+# distances from its front and its underside so any two units mate.
+JOINT_FACES = ("fractions", "standard")
+PASS_THROUGH_SIDES = ("both", "left", "right")
 SLIDE_ENTRIES = ("negative_x", "positive_x")
 
 BayKind = Literal["pi5", "reserved", "open", "board", "fan"]
@@ -83,6 +87,13 @@ class GroupDesign:
     plug_margin_mm: float = 1.5
     vents: bool = True
     join_bolts: bool = True
+    # ``fractions`` (the original) or ``standard``; see
+    # :mod:`zcad_core.features.enclosure_group_join`.
+    joint_face: str = "fractions"
+    # A cable pass-through (width, height) in the join walls, on the standard
+    # face only, and which of the two walls takes one.
+    pass_through_mm: tuple[float, float] | None = None
+    pass_through_sides: str = "both"
     divider_mm: float = 2.0
     divider_clearance_mm: float = 0.75
     divider_notch_width_mm: float = 20.0
@@ -123,8 +134,28 @@ class GroupDesign:
             if self.slide_entry not in SLIDE_ENTRIES:
                 raise ValueError(f"slide_entry must be one of {SLIDE_ENTRIES}")
 
+    def _validate_joint(self) -> None:
+        if self.joint_face not in JOINT_FACES:
+            raise ValueError(f"joint_face must be one of {JOINT_FACES}")
+
+        if self.pass_through_sides not in PASS_THROUGH_SIDES:
+            raise ValueError(f"pass_through_sides must be one of {PASS_THROUGH_SIDES}")
+
+        if self.pass_through_mm is None:
+            return
+
+        if self.joint_face != "standard":
+            raise ValueError(
+                "A pass-through is part of the standard joint face: set "
+                "joint_face to 'standard'"
+            )
+
+        if min(self.pass_through_mm) <= 0:
+            raise ValueError("pass_through_mm needs a width and a height above zero")
+
     def validate(self) -> None:
         self._validate_lid()
+        self._validate_joint()
 
         if self.vent_pattern not in PATTERNS:
             raise ValueError(f"vent_pattern must be one of {PATTERNS}")
