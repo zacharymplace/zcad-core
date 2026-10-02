@@ -1,5 +1,11 @@
 """Reusable engineering hardware specifications."""
 
+from zcad_core.hardware.bushings import (
+    BushingSource,
+    BushingSpec,
+    get_bushing,
+    list_bushings,
+)
 from zcad_core.hardware.electronics.board_file import (
     BoardCheck,
     BoardFileSpec,
@@ -49,6 +55,8 @@ __all__ = [
     "BoardEdge",
     "BoardFileSpec",
     "BoardSpec",
+    "BushingSource",
+    "BushingSpec",
     "DexcomG7Spec",
     "DisplayMountStyle",
     "DisplaySpec",
@@ -72,6 +80,7 @@ __all__ = [
     "get_adafruit_feather_rp2040",
     "get_arduino_uno_r4_wifi",
     "get_board",
+    "get_bushing",
     "get_dexcom_g7",
     "get_display",
     "get_fan",
@@ -84,6 +93,7 @@ __all__ = [
     "get_seeed_xiao_esp32s3",
     "get_tandem_mobi",
     "list_boards",
+    "list_bushings",
     "list_displays",
     "list_fans",
     "list_fasteners",

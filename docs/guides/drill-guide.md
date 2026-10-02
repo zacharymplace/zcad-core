@@ -139,9 +139,18 @@ with a hole through it for the drill, so it lasts. Give the bushing's figures:
             "source": "measured with calipers on the bushings I bought"}
 ```
 
-The figures are **yours**. The engine's catalog holds no bushing until a maker's
-datasheet has been read, so `source` is required, and the build record says the
-figures came from your file. The drill must fit through the bushing. The pocket
+The figures are **yours**, so `source` is required, and the build record says they came
+from your file. Or name a **catalogued bushing**, `"bushing": {"catalog": "DIN179A-4X12"}`, which takes
+no figures of its own and no flange. The drill must fit through the bushing.
+
+**The catalog** has the headless press-fit bushings of DIN 179 type A, named
+`DIN179A-<bore>X<length>` in millimetres: bores 2 to 8 mm (2, 3, 4, 5, 6, 7, 8) in the lengths
+the manufacturer lists, 18 in all, such as `DIN179A-4X12` (4 mm bore, 7 mm outside, 12 mm long). They are read from a
+manufacturer's part table (JW Winco's DIN 179), which gives the outer diameters in inches, converted
+here (0.276 in is 7.0 mm); the bore is its nominal size, and DIN 179's F7 fit leaves a drill of that
+size room. Headed bushings (DIN 172) are not catalogued, so a flange takes your own figures.
+The build record's `figures_from` says the figures came from the catalogue, and its `source` names the
+entry. The pocket
 is the outer diameter plus the press-fit clearance each side (and the
 `hole_oversize`). A flange sits on the plate's top face.
 

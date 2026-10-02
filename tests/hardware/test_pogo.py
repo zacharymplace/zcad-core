@@ -50,11 +50,43 @@ def test_a_pin_that_cannot_be_right_is_refused(
         replace(PIN, **change).validate()  # type: ignore[arg-type]
 
 
-def test_the_catalog_is_empty_until_a_datasheet_has_been_read() -> None:
-    assert list_pogo_pins() == ()
+def test_the_catalog_holds_only_pins_whose_datasheets_were_read() -> None:
+    assert list_pogo_pins() == (
+        "MILLMAX-0906-0-15-20-76-14-11-0",
+        "MILLMAX-0906-1-15-20-75-14-11-0",
+    )
 
-    with pytest.raises(ValueError, match="catalogued: none yet"):
+    for identifier in list_pogo_pins():
+        pin = get_pogo_pin(identifier)
+        pin.validate()
+
+        assert pin.maker == "Mill-Max" and pin.source.kind == "vendor"
+        assert pin.source.read is True
+        assert pin.source.url.startswith("https://")
+        assert pin.source.unverified == ("barrel_diameter_mm", "force_at_travel_mm")
+        assert "unverified: barrel_diameter_mm, force_at_travel_mm" in pin.figures_from
+        assert "names no travel for the 60 grams" in pin.source.detail
+
+    with pytest.raises(ValueError, match="catalogued: MILLMAX-0906-0"):
         get_pogo_pin("P75-E2")
+
+
+def test_the_mill_max_pins_carry_the_figures_of_their_data_sheets() -> None:
+    short = get_pogo_pin("millmax-0906-0-15-20-76-14-11-0")
+    long = get_pogo_pin("MILLMAX-0906-1-15-20-75-14-11-0")
+
+    # Drawing: .042 in tip, .072 in largest diameter. Initial height .137 in with a .039 in
+    # stroke (mid-stroke .0195 in) for the 76 spring; .177 in with .055 in (.0275 in) for 75.
+    assert short.tip_diameter_mm == pytest.approx(1.067, abs=0.001)
+    assert short.barrel_diameter_mm == pytest.approx(1.829, abs=0.001)
+    assert short.free_length_mm == pytest.approx(3.480, abs=0.001)
+    assert short.travel_mm == pytest.approx(0.991, abs=0.001)
+    assert short.force_at_travel_mm == pytest.approx(0.495, abs=0.001)
+    assert long.free_length_mm == pytest.approx(4.496, abs=0.001)
+    assert long.travel_mm == pytest.approx(1.397, abs=0.001)
+    assert long.force_at_travel_mm == pytest.approx(0.699, abs=0.001)
+    # Both springs are 60 grams force.
+    assert short.force_n == pytest.approx(0.5884, abs=0.0001) == long.force_n
 
 
 def test_where_the_figures_came_from_is_said() -> None:

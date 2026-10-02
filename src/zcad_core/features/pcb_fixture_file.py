@@ -10,8 +10,8 @@ right, and :func:`check_fixture_file` also reads the board and refuses a fixture
 that cannot reach its points: a pad the pin's tip is wider than, a pin pitch the
 printer cannot wall, locating by holes the board does not have.
 
-The pin is either catalogued, or the user's own figures. No pin is catalogued
-yet, so a fixture today names its pin's figures and says where they came from.
+The pin is either catalogued, or the user's own figures with where they came from.
+A catalogued pin's source says which figures no read datasheet supports.
 """
 
 from __future__ import annotations

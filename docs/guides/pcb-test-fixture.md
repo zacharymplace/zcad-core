@@ -48,8 +48,8 @@ would land on a part.
 
 A pogo pin's figures are a maker's datasheet: barrel and tip diameter, free
 length, travel, and the force it pushes back with at a stated travel. The engine
-**does not catalogue any pin yet**, because no datasheet has been read, so a
-fixture gives its pin's own figures:
+catalogues a pin only when its datasheet has been read, and a fixture either names a
+catalogued pin or gives its own figures:
 
 ```json
 "pin": {"maker": "...", "model": "...", "barrel_diameter_mm": 1.0, "tip_diameter_mm": 0.6,
@@ -57,9 +57,18 @@ fixture gives its pin's own figures:
         "source": "the maker's datasheet, page 2"}
 ```
 
-`source` is required, and the check says the figures are **yours**. When a pin
-is catalogued, `"pin": {"catalog": "ID"}` will name it; today that is refused
-with the list of catalogued pins, which is empty.
+`source` is required, and the check says the figures are **yours**.
+
+**Catalogued pins.** `"pin": {"catalog": "MILLMAX-0906-1-15-20-75-14-11-0"}` names one, and an
+unknown name is refused with the list. Two are catalogued, both Mill-Max 0906 spring-loaded
+pins read from the maker's data sheets (`0906-0-15-20-76-14-11-0`, 3.48 mm tall with a 0.99 mm
+stroke, and `0906-1-15-20-75-14-11-0`, 4.50 mm tall with a 1.40 mm stroke): a 1.07 mm tip, a
+1.83 mm largest diameter, and a spring of 60 grams force. The check names what the sheets do not
+state outright, in `figures_from`: the **barrel** is taken as the drawing's largest diameter, and
+the **force** is taken at the mid-stroke, the maker's working travel, since the sheet gives
+60 grams without naming a travel. These are small pins with a solder tail, not fixture
+sockets, and the fixture's own checks show it: they are too short for a board with a tall
+part under the plate.
 
 ## What it builds
 

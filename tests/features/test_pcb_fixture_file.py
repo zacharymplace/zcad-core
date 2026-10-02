@@ -96,7 +96,7 @@ def test_the_template_names_a_board_by_its_real_hash(tmp_path: Path) -> None:
         (lambda d: d["pin"].pop("force_n"), "pin.force_n is missing"),
         (lambda d: d.pop("working_travel_mm"), "working_travel_mm is missing"),
         (lambda d: d.update(working_travel_mm=0.01), "working_travel_mm"),
-        (lambda d: d.update(pin={"catalog": "P75-E2"}), "none yet"),
+        (lambda d: d.update(pin={"catalog": "P75-E2"}), "Unsupported pogo pin"),
         (lambda d: d.update(screw={"size": "M9"}), "screw.size must be one of"),
         (lambda d: d.update(hinge={"pin": "M9"}), "hinge.pin must be one of"),
         (lambda d: d.update(hinge={"catch_load_limit_n": 5}), "hinge.source"),
@@ -467,3 +467,28 @@ def test_a_hinge_pin_and_catch_limit_are_loaded_with_their_source(
     assert spec.hinge_pin == "M4"
     assert spec.catch_limit_n == 8.0
     assert spec.catch_source == "my pull test"
+
+
+def test_a_fixture_can_name_a_catalogued_pin_and_the_record_says_what_is_unverified(
+    tmp_path: Path,
+) -> None:
+    board = write_board(tmp_path, envelope={"top_mm": 1.0})
+    fixture = write_fixture(
+        tmp_path,
+        board,
+        pin={"catalog": "MILLMAX-0906-1-15-20-75-14-11-0"},
+        working_travel_mm=0.7,
+        screw={"size": "M2"},
+    )
+    report = check_fixture_file(fixture, PROFILE)
+    spec = load_fixture(fixture)
+
+    assert report.valid, report.errors
+    assert spec.pin.maker == "Mill-Max"
+    assert spec.pin.source.read is True
+    assert spec.pin.figures_from.startswith(
+        "Mill-Max data sheet 0906-1-15-20-75-14-11-0, read"
+    )
+    assert "unverified: barrel_diameter_mm, force_at_travel_mm" in spec.pin.figures_from
+    assert report.summary is not None
+    assert report.summary["pin"]["figures_from"] == spec.pin.figures_from
