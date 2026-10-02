@@ -223,6 +223,8 @@ def test_a_cradle_is_one_solid_that_leaves_room_for_the_device(g7: Any) -> None:
         "one_solid": True,
         "device_fits_pocket": True,
         "edge_features_open": True,
+        "nothing_proud_of_the_skin_face_unreported": True,
+        "skin_edge_rounded": True,
     }
     assert set(g7.parts) == {"housing"}
 

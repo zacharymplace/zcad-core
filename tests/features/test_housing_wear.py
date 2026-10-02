@@ -435,3 +435,97 @@ def test_the_commands_add_examples_and_build_once_they_are_replaced(
     assert [w["kind"] for w in output["housing"]["wear"]] == ["strap", "lanyard"]
     assert len(output["not_claimed"]) == 2
     assert "no figure for how well any way of wearing holds" in output["not_claimed"][1]
+
+
+# --- the skin side ------------------------------------------------------------------------------
+
+
+def test_the_skin_edge_is_rounded_and_the_default_is_a_comfort_setting(
+    tmp_path: Path,
+) -> None:
+    built = cradle(tmp_path, [])
+    skin = built.summary["skin_side"]
+
+    assert built.passed, built.checks
+    assert skin["edge_radius_mm"] == 0.8
+    assert "not a medical figure" in skin["edge_radius_note"]
+    assert skin["stands_proud"] == []
+    assert skin["proud_of_the_skin_face_mm"] == 0.0
+    # The corner of the skin face is rounded away; the middle of the face is not.
+    assert not inside(built, XMAX - 0.02, YMAX - 0.02, ZMIN + 0.02)
+    assert inside(built, 0.0, 0.0, ZMIN + 0.02)
+
+
+def test_a_square_skin_edge_keeps_its_corner(tmp_path: Path) -> None:
+    path = write_housing(
+        tmp_path,
+        "cradle",
+        write_capture(tmp_path),
+        [],
+        skin_edge_radius_mm=0.0,
+    )
+    built = build_housing(load_housing(path), PROFILE)
+
+    assert "skin_edge_rounded" not in built.checks
+    assert built.summary["skin_side"]["rounded"].startswith("nothing")
+    assert inside(built, 0.0, 14.0 - 0.5, ZMIN + 0.02)
+
+
+def test_a_belt_clip_is_the_only_thing_that_stands_proud_of_the_face(
+    tmp_path: Path,
+) -> None:
+    clip = cradle(tmp_path, [CLIP])
+    strap = cradle(tmp_path, [STRAP, LANYARD])
+
+    assert clip.passed, clip.checks
+    assert clip.summary["skin_side"]["stands_proud"] == ["clip"]
+    assert clip.summary["skin_side"]["proud_of_the_skin_face_mm"] > 0
+    assert strap.summary["skin_side"]["stands_proud"] == []
+    assert strap.summary["skin_side"]["proud_of_the_skin_face_mm"] == 0.0
+
+
+@pytest.mark.parametrize("wear", [[STRAP], [BAND], [ADHESIVE], [LANYARD]])
+def test_the_skin_side_stays_rounded_with_a_way_of_wearing(
+    tmp_path: Path, wear: list[Any]
+) -> None:
+    built = cradle(tmp_path, wear)
+
+    assert built.passed, built.checks
+    assert built.checks["skin_edge_rounded"]
+
+
+def test_a_skin_edge_rounder_than_the_corner_is_refused(tmp_path: Path) -> None:
+    # A skin edge as round as the outer corner leaves a sliver there, so it is refused.
+    path = write_housing(
+        tmp_path,
+        "case",
+        _board(tmp_path),
+        [],
+        skin_edge_radius_mm=1.2,
+        corner_radius_mm=1.2,
+    )
+
+    with pytest.raises(ValueError, match="skin_edge_radius_mm"):
+        build_housing(load_housing(path), PROFILE)
+
+
+def test_a_skin_edge_larger_than_the_floor_can_lose_is_refused(
+    tmp_path: Path,
+) -> None:
+    path = write_housing(
+        tmp_path,
+        "cradle",
+        write_capture(tmp_path),
+        [],
+        skin_edge_radius_mm=1.5,
+    )
+
+    with pytest.raises(ValueError, match="floor and the wall"):
+        build_housing(load_housing(path), PROFILE)
+
+
+def _board(directory: Path) -> Path:
+    path = directory / "board.json"
+    path.write_text(json.dumps(board_template()))
+
+    return path

@@ -47,6 +47,8 @@ DEFAULT_FLOOR_MM = 1.2
 DEFAULT_LID_MM = 2.0
 DEFAULT_CLEARANCE_MM = 0.3
 DEFAULT_CORNER_RADIUS_MM = 1.0
+# A comfort setting, not a medical figure.
+DEFAULT_SKIN_EDGE_RADIUS_MM = 0.8
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _TOP_LEVEL = frozenset(
     {
@@ -64,6 +66,7 @@ _TOP_LEVEL = frozenset(
         "lid_mm",
         "clearance_mm",
         "corner_radius_mm",
+        "skin_edge_radius_mm",
         "retention_edges",
         "wear",
         "needs_review",
@@ -85,6 +88,7 @@ class HousingSpec:
     lid_mm: float
     clearance_mm: float
     corner_radius_mm: float
+    skin_edge_radius_mm: float
     retention_edges: tuple[str, ...]
     wear: tuple[Wear, ...]
     source: str
@@ -141,6 +145,7 @@ def housing_template(
         key: {"file": file, "sha256": digest},
         "wall_mm": DEFAULT_WALL_MM,
         "floor_mm": DEFAULT_FLOOR_MM,
+        "skin_edge_radius_mm": DEFAULT_SKIN_EDGE_RADIUS_MM,
     }
 
     if style == "cradle":
@@ -244,6 +249,7 @@ def check_housing_data(data: Any) -> HousingCheck:
         ("lid_mm", 0.4, 10.0),
         ("clearance_mm", 0.05, 2.0),
         ("corner_radius_mm", 0.0, 20.0),
+        ("skin_edge_radius_mm", 0.0, 5.0),
     ):
         number(data, name, "", findings, low=low, high=high, required=False)
 
@@ -420,6 +426,9 @@ def housing_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> Housi
         lid_mm=float(data.get("lid_mm", DEFAULT_LID_MM)),
         clearance_mm=float(data.get("clearance_mm", DEFAULT_CLEARANCE_MM)),
         corner_radius_mm=float(data.get("corner_radius_mm", DEFAULT_CORNER_RADIUS_MM)),
+        skin_edge_radius_mm=float(
+            data.get("skin_edge_radius_mm", DEFAULT_SKIN_EDGE_RADIUS_MM)
+        ),
         retention_edges=tuple(edges),
         wear=tuple(
             Wear(

@@ -31,6 +31,13 @@ from zcad_core.features.housing_cradle import (
     plan_cradle,
 )
 from zcad_core.features.housing_file import HousingSpec, load_housing_input
+from zcad_core.features.housing_skin import (
+    SkinEdgeError,
+    proud_of_skin_face_mm,
+    radius_limit_mm,
+    round_skin_edge,
+    skin_side_summary,
+)
 from zcad_core.features.housing_wear import add_wear, body_of
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.intersection import intersection_volume
@@ -38,6 +45,9 @@ from zcad_core.hardware.electronics.board_file import BoardFileSpec
 from zcad_core.hardware.wearables import WearableCapture
 
 _TOLERANCE_MM3 = 1e-6
+# A rounded skin edge is this much smaller than the outer corner it turns: equal
+# radii leave a degenerate sliver at the corner.
+SKIN_CORNER_MARGIN_MM = 0.1
 # A snap lid's openings need the connector access the enclosure gives a plug.
 _CONNECTOR_ACCESS_MM = 2.0
 NOT_CLAIMED = (
@@ -77,21 +87,91 @@ def _wear(
     spec: HousingSpec,
     profile: Mapping[str, Any],
     corner_radius_mm: float,
-) -> tuple[cq.Workplane, list[dict[str, Any]]]:
-    """The body with each way of wearing added."""
+) -> tuple[cq.Workplane, list[dict[str, Any]], dict[str, Any], float]:
+    """The body with its skin edge rounded and each way of wearing added; and what
+    the skin side came out as."""
 
-    if not spec.wear:
-        return model, []
+    radius = spec.skin_edge_radius_mm
+    limit = radius_limit_mm(spec.floor_mm, spec.wall_mm)
 
-    fits, _, _ = printer_numbers(profile)
+    if radius > limit + 1e-9:
+        raise ValueError(
+            f"skin_edge_radius_mm is {radius:g}, more than the {limit:g} mm the "
+            "floor and the wall can lose to a rounded edge: use a smaller radius "
+            "or thicker walls"
+        )
 
-    return add_wear(
-        model,
-        body_of(model, corner_radius_mm),
-        spec.wear,
-        hole_oversize_mm=fits["hole_oversize"],
-        plate_mm=spec.floor_mm,
-    )
+    most = corner_radius_mm - SKIN_CORNER_MARGIN_MM
+
+    if corner_radius_mm > 0 and radius > most + 1e-9:
+        raise ValueError(
+            f"skin_edge_radius_mm is {radius:g}, and the housing's outer corners are "
+            f"{corner_radius_mm:g} mm in radius: a rounded edge cannot turn a corner "
+            f"that tight, and needs at most {most:g} mm"
+        )
+
+    try:
+        model = round_skin_edge(model, radius)
+    except SkinEdgeError as error:
+        raise ValueError(str(error)) from error
+
+    body = body_of(model, corner_radius_mm, radius)
+    worn: list[dict[str, Any]] = []
+
+    if spec.wear:
+        fits, _, _ = printer_numbers(profile)
+
+        try:
+            model, worn = add_wear(
+                model,
+                body,
+                spec.wear,
+                hole_oversize_mm=fits["hole_oversize"],
+                plate_mm=spec.floor_mm,
+            )
+        except SkinEdgeError as error:
+            raise ValueError(str(error)) from error
+
+    proud = proud_of_skin_face_mm(model, body.zmin)
+
+    return model, worn, skin_side_summary(radius, proud, worn), proud
+
+
+def _skin_checks(
+    model: cq.Workplane,
+    spec: HousingSpec,
+    worn: list[dict[str, Any]],
+    proud: float,
+) -> dict[str, bool]:
+    """The skin edge is rounded, and nothing stands off the face but what the ways
+    of wearing report."""
+
+    reported = max((w.get("proud_mm", 0.0) for w in worn), default=0.0)
+    checks = {"nothing_proud_of_the_skin_face_unreported": abs(proud - reported) < 1e-3}
+
+    if spec.skin_edge_radius_mm > 0:
+        checks["skin_edge_rounded"] = _edge_rounded(model, spec, proud)
+
+    return checks
+
+
+def _edge_rounded(model: cq.Workplane, spec: HousingSpec, proud: float) -> bool:
+    """A corner of the skin face is rounded away: the point a fraction of the radius
+    in from it is empty and the point just past the rounding is solid."""
+
+    shape = workplane_shape(model)
+    box = shape.BoundingBox()
+    radius = spec.skin_edge_radius_mm
+    delta = 0.05 * radius
+    x = (box.xmin + box.xmax) / 2 + 0.25 * (box.xmax - box.xmin)
+    z = box.zmin + proud
+    probe = cq.Vector(x, box.ymin + delta, z + delta)
+    past = cq.Vector(x, box.ymin + radius + 0.3, z + 0.05)
+
+    def solid(point: cq.Vector) -> bool:
+        return any(s.isInside(point) for s in shape.Solids())
+
+    return (not solid(probe)) and solid(past)
 
 
 def _single(model: cq.Workplane) -> bool:
@@ -119,12 +199,8 @@ def _build_cradle(
         floor_mm=spec.floor_mm,
         clearance_mm=spec.clearance_mm,
     )
-    tray, worn = _wear(
-        tray,
-        spec,
-        profile,
-        (capture.outline_radius_mm or 0.0) + spec.clearance_mm + spec.wall_mm,
-    )
+    outer_radius = (capture.outline_radius_mm or 0.0) + spec.clearance_mm + spec.wall_mm
+    tray, worn, skin, proud = _wear(tray, spec, profile, outer_radius)
     shape = workplane_shape(tray)
     checks = {
         "one_solid": _single(tray),
@@ -133,13 +209,18 @@ def _build_cradle(
         )
         <= _TOLERANCE_MM3,
         "edge_features_open": _features_open(tray, capture, spec),
+        **_skin_checks(tray, spec, worn, proud),
     }
 
     return Housing(
         spec=spec,
         parts={"housing": tray},
         checks=checks,
-        summary={**_cradle_summary(capture, plan, spec), "wear": worn},
+        summary={
+            **_cradle_summary(capture, plan, spec),
+            "wear": worn,
+            "skin_side": skin,
+        },
         profile_id=str(profile.get("profile_id", "")),
         notes=_notes(spec),
     )
@@ -264,14 +345,18 @@ def _build_case(
     )
     footprint = workplane_shape(enclosure.base).BoundingBox()
     base = _rounded(enclosure.base, footprint, spec.corner_radius_mm)
-    base, worn = _wear(base, spec, profile, spec.corner_radius_mm)
+    base, worn, skin, proud = _wear(base, spec, profile, spec.corner_radius_mm)
     lid = _rounded(enclosure.lid, footprint, spec.corner_radius_mm)
     size = workplane_shape(base).BoundingBox()
 
     return Housing(
         spec=spec,
         parts={"base": base, "lid": lid},
-        checks={"base_one_solid": _single(base), "lid_one_solid": _single(lid)},
+        checks={
+            "base_one_solid": _single(base),
+            "lid_one_solid": _single(lid),
+            **_skin_checks(base, spec, worn, proud),
+        },
         summary={
             "style": "case",
             "houses": board.identifier,
@@ -288,6 +373,7 @@ def _build_case(
             "corner_radius_mm": spec.corner_radius_mm,
             "corner_radius_limit_mm": round(limit, 2),
             "wear": worn,
+            "skin_side": skin,
         },
         profile_id=str(profile.get("profile_id", "")),
         notes=_notes(spec),

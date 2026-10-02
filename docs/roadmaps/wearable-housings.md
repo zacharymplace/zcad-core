@@ -119,7 +119,7 @@ take the same place are refused.
 The skin side is the face the body touches. It gets two things and no more:
 
 - **A rounded edge.** Every edge round the skin-facing perimeter has at least a radius
-  the housing sets (1.0 mm by default, marked a comfort setting and not a medical
+  the housing sets (0.8 mm by default, marked a comfort setting and not a medical
   figure), and the build refuses a housing whose own geometry cannot hold it, such as a
   wall thinner than the radius.
 - **No feature that stands off it** except the wear's: a strap's lugs and a clip's
@@ -210,8 +210,8 @@ See the guide [A housing for something you wear](../guides/wearable-housing.md).
   rounded". The outer vertical corners are rounded by cutting each part to a rounded box.
   The cavity's corners stay square, so rounding takes wall off the corner's diagonal, and
   the build refuses a radius that leaves under the printer's minimum there, naming the most
-  (1.2 mm on a 1.2 mm wall). Rounding the skin-side edges is phase 4, and a rounded cavity
-  needs the enclosure builder to learn it.
+  (1.2 mm on a 1.2 mm wall). Rounding the skin-side edges is phase 4 (below), and a rounded
+  cavity needs the enclosure builder to learn it.
 - **`shell` through the housing file moved to phase 3.** A shell has nothing to attach until
   there is a way of wearing it, so reaching it through the housing file does nothing yet.
 - **The build names its inputs by hash and writes no record.** The housing's own build record
@@ -286,3 +286,17 @@ file changes, and the shell scripts keep their output.
   a trial measures its force. The proposal is to record the measured force with the
   device's mass and say no more; whether a pooled set of them could support a limit is
   a later question.
+
+### What phase 4 changed
+
+See *The skin side* in [A housing for something you wear](../guides/wearable-housing.md).
+
+- **The default skin radius is 0.8 mm, not 1.0.** A fillet as large as the outer corner it
+  turns leaves a zero-width sliver there, and the STL check rejects it as a degenerate
+  triangle. The radius must be at least 0.1 mm under the corner's, and 0.8 sits under the
+  default 1.0 mm corner.
+- **Flat features are rounded on their free edges only.** The edges where an ear, a flange
+  or a tab joins the body stay as they are; a slot's edge is left square.
+- **The check is on the geometry.** A corner of the skin face must be rounded away, and
+  whatever stands below the face must be exactly what the ways of wearing report.
+- **The radius is a comfort setting.** The build says it is not a medical figure.
