@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -52,6 +53,7 @@ from zcad_core.features.mounts import flexure_payload
 from zcad_core.features.vent_patterns import PATTERNS
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware import load_board
+from zcad_core.hardware.thermal import PowerFigure
 from zcad_core.printing import SliceError, slice_models
 from zcad_core.profiles import (
     load_printer_profile,
@@ -129,7 +131,8 @@ def _divider(value: str) -> Divider:
 
 
 _BOARD_OPTIONS = (
-    "file=<board file>, rotate=<0|90|180|270>, align=<front|center|back>, screw=<M2.5>"
+    "file=<board file>, rotate=<0|90|180|270>, align=<front|center|back>, "
+    "screw=<M2.5>; for a fan bay, fan=<identifier>, direction=<in|out>"
 )
 
 
@@ -147,6 +150,10 @@ def _board_option(name: str, value: str, settings: dict[str, Any]) -> bool:
             ) from None
     elif name in ("align", "screw"):
         settings[name] = value
+    elif name == "fan":
+        settings["fan"] = value
+    elif name == "direction":
+        settings["fan_direction"] = value
     else:
         return False
 
@@ -244,28 +251,37 @@ def _bay_summary(group: GroupEnclosure) -> list[dict[str, object]]:
     ]
 
 
+def _review_pose(group: GroupEnclosure) -> tuple[Callable[[cq.Shape], cq.Shape], str]:
+    """How the lid is shown, as a move for the lid and what it carries: open on
+    its pin, slid out over its entry wall, or lifted straight up."""
+
+    hinge, slide = group.hinge, group.slide
+
+    if hinge is not None:
+        return (
+            lambda shape: swung_lid(shape, hinge, hinge.swing_degrees),
+            f"open {hinge.swing_degrees:.0f} degrees on its pin",
+        )
+
+    if slide is not None:
+        return (
+            lambda shape: slid_lid(shape, slide, slide.travel_mm),
+            (f"slid {slide.travel_mm:.0f} mm out over the {slide.entry_edge} wall"),
+        )
+
+    return (
+        lambda shape: shape.translate(cq.Vector(0, 0, _REVIEW_LID_LIFT_MM)),
+        "lifted",
+    )
+
+
 def _review_lid(group: GroupEnclosure) -> tuple[Any, str]:
-    """The lid as the review shows it: open on its pin, slid out over its entry
-    wall, or lifted straight up."""
+    """The lid as the review shows it."""
 
-    if group.hinge is not None:
-        return (
-            swung_lid(
-                workplane_shape(group.lid), group.hinge, group.hinge.swing_degrees
-            ),
-            f"open {group.hinge.swing_degrees:.0f} degrees on its pin",
-        )
+    move, pose = _review_pose(group)
+    lid = workplane_shape(group.lid)
 
-    if group.slide is not None:
-        return (
-            slid_lid(workplane_shape(group.lid), group.slide, group.slide.travel_mm),
-            (
-                f"slid {group.slide.travel_mm:.0f} mm out over the "
-                f"{group.slide.entry_edge} wall"
-            ),
-        )
-
-    return group.lid.translate((0, 0, _REVIEW_LID_LIFT_MM)), "lifted"
+    return move(lid), pose
 
 
 def _write_review(
@@ -275,13 +291,17 @@ def _write_review(
     envelope, as STEP."""
 
     directory.mkdir(parents=True, exist_ok=True)
-    lid, pose = _review_lid(group)
+    move, pose = _review_pose(group)
     assembly = cq.Assembly()
     assembly.add(group.base, name="base", color=cq.Color(0.6, 0.6, 0.65))
-    assembly.add(lid, name="lid", color=cq.Color(0.3, 0.5, 0.8, 0.5))
+    assembly.add(
+        move(workplane_shape(group.lid)), name="lid", color=cq.Color(0.3, 0.5, 0.8, 0.5)
+    )
 
     for identifier, shape in group.hardware.items():
-        assembly.add(shape, name=identifier, color=cq.Color(0.1, 0.6, 0.3))
+        # A fan screwed to the lid goes where the lid does.
+        placed = move(shape) if identifier in group.lid_carried else shape
+        assembly.add(placed, name=identifier, color=cq.Color(0.1, 0.6, 0.3))
 
     path = directory / f"{name}-review.step"
     assembly.export(str(path))
@@ -438,28 +458,69 @@ def _parts(group: GroupEnclosure) -> dict[str, cq.Workplane]:
 
 
 def _group_warnings(group: GroupEnclosure) -> list[str]:
-    """What the build did not take into account."""
-
-    boards = [str(bay.index) for bay in group.bays if bay.kind == "board"]
-
-    if not boards:
-        return []
+    """What a fan's figures were not checked against."""
 
     return [
-        (
-            f"The temperature estimate counts only the Pi bays: board bay(s) "
-            f"{', '.join(boards)} add no heat to it yet"
-        )
+        f"{fan.model}: its figures were not read from the maker's own page; check them"
+        for fan in group.fans
+        if not fan.datasheet_read
     ]
 
 
-def _group_thermal(group: GroupEnclosure, args: argparse.Namespace) -> ThermalEstimate:
-    """The temperature estimate for the row, counting each fitted Pi; a
-    reserved bay is empty until a Pi goes in it."""
+def _heat_sources(
+    bays: tuple[Bay, ...],
+) -> tuple[list[str], dict[str, PowerFigure]]:
+    """The parts that give off heat, by catalog identifier, and the figures a
+    board file brings of its own. A fitted Pi counts; a reserved bay is empty
+    until a Pi goes in it. A board with no power section is counted as unknown, and
+    the estimate says so."""
+
+    parts: list[str] = []
+    figures: dict[str, PowerFigure] = {}
+
+    for bay in bays:
+        if bay.kind == "pi5":
+            parts.append("RASPBERRY_PI_5")
+        elif bay.kind == "board" and bay.board is not None:
+            parts.append(bay.board.identifier)
+
+            if bay.board.power_figure is not None:
+                figures[bay.board.identifier] = bay.board.power_figure
+        elif bay.kind == "fan" and bay.fan is not None:
+            parts.append(bay.fan)
+
+    return parts, figures
+
+
+def _moves_air(group: GroupEnclosure, bays: tuple[Bay, ...]) -> bool:
+    """Whether anything lets air through: slots over a Pi's fan or a board's part,
+    a vent pattern, or a fan."""
+
+    slots = group.design.vents and any(
+        bay.kind == "pi5"
+        or (
+            bay.kind == "board"
+            and bay.board is not None
+            and any(part.lid_vent for part in bay.board.components)
+        )
+        for bay in bays
+    )
+
+    return bool(
+        slots or group.design.vent_area_mm2 or any(bay.kind == "fan" for bay in bays)
+    )
+
+
+def _group_thermal(
+    group: GroupEnclosure, bays: tuple[Bay, ...], args: argparse.Namespace
+) -> ThermalEstimate:
+    """The temperature estimate for the row, counting each fitted Pi, each board
+    that gives a power figure, and each fan; a reserved bay is empty until a Pi
+    goes in it."""
 
     width, depth, _ = group.outer_size_mm
     height = group.cavity_top_z_mm + group.design.lid_mm
-    fitted = [layout for layout in group.bays if layout.kind == "pi5"]
+    parts, figures = _heat_sources(bays)
     coefficient, source = CONVECTION_W_M2K, "the default, an assumption"
 
     if args.thermal_profile is not None:
@@ -467,16 +528,14 @@ def _group_thermal(group: GroupEnclosure, args: argparse.Namespace) -> ThermalEs
         coefficient, source = profile.coefficient_w_m2k, profile.describe()
 
     estimate = estimate_thermal(
-        ["RASPBERRY_PI_5"] * len(fitted),
+        parts,
         outer_size_mm=(width, depth, height),
         declared_power_w=args.power_w,
         ambient_c=args.ambient_c,
         coefficient_w_m2k=coefficient,
         coefficient_source=source,
-        # The lid's slots over each Pi's fan, or a vent pattern, are openings.
-        closed=not (
-            (group.design.vents and bool(fitted)) or group.design.vent_area_mm2
-        ),
+        figures=figures,
+        closed=not _moves_air(group, bays),
         limit_c=material_service_limit_c(args.material_profile)
         or DEFAULT_SERVICE_LIMIT_C,
     )
@@ -509,7 +568,7 @@ def _group_build(args: argparse.Namespace) -> int:
         hinge_pin=args.hinge_pin,
     )
     group = build_group_enclosure(bays, design=design)
-    thermal = _group_thermal(group, args)
+    thermal = _group_thermal(group, bays, args)
     name = args.name or f"pi5-group-{len(bays)}bay"
     profile = load_printer_profile(args.printer_profile)
     _require_fits_bed(group, profile)
@@ -548,6 +607,7 @@ def _group_build(args: argparse.Namespace) -> int:
             "bay_heights": _bay_summary(group),
             "outer_size_mm": list(group.outer_size_mm),
             "warnings": _group_warnings(group),
+            "fans": [fan.to_dict() for fan in group.fans],
             "thermal": thermal.to_dict(),
             "vents": group.vents.to_dict() if group.vents else None,
             "lid": design.lid_attachment,

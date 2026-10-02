@@ -24,7 +24,8 @@ from zcad_core.features.enclosure_group_modules import (
     ROTATIONS,
     BayModule,
 )
-from zcad_core.hardware import RaspberryPi5Spec
+from zcad_core.features.fan_bay import FAN_DIRECTIONS, FAN_MARGIN_MM
+from zcad_core.hardware import RaspberryPi5Spec, get_fan, list_fans
 
 # The card must clear the floor: its depth under the board plus this much.
 _MINIMUM_SD_FLOOR_GAP_MM = 0.4
@@ -45,6 +46,24 @@ def resolve_bay(bay: BayLike) -> Bay:
     return resolved
 
 
+def _check_fan_settings(bay: Bay) -> None:
+    """A fan bay needs a catalogued fan, and no board settings."""
+
+    if bay.fan is None:
+        raise ValueError("a fan bay needs a fan: fan:fan=<identifier>")
+
+    if bay.fan not in list_fans():
+        raise ValueError(f"fan must be one of {list_fans()}, not {bay.fan!r}")
+
+    if bay.fan_direction not in FAN_DIRECTIONS:
+        raise ValueError(
+            f"fan direction must be one of {FAN_DIRECTIONS}, not {bay.fan_direction!r}"
+        )
+
+    if bay.board is not None or bay.rotate is not None or bay.screw is not None:
+        raise ValueError("a fan bay takes no board, rotate or screw")
+
+
 def _check_cradle_divider(bay: Bay, module: BayModule | None, index: int) -> None:
     """A cradle's clips stand outside the board's side edges, where a divider
     stands, so a cradle bay takes none."""
@@ -59,6 +78,14 @@ def _check_cradle_divider(bay: Bay, module: BayModule | None, index: int) -> Non
 
 def _check_board_settings(bay: Bay) -> None:
     """A board bay needs a board; no other bay takes one or its settings."""
+
+    if bay.kind == "fan":
+        _check_fan_settings(bay)
+
+        return
+
+    if bay.fan is not None:
+        raise ValueError(f"a {bay.kind} bay takes no fan: only a fan bay does")
 
     if bay.kind == "board":
         if bay.board is None:
@@ -113,7 +140,11 @@ def layout_bays(
 
         left = 0.0
 
-        if module is None:
+        if bay.kind == "fan":
+            # The fan's frame and a margin each side, so it sits inside the slot.
+            gap = design.board_gap_mm
+            slot = get_fan(str(bay.fan)).size_mm + 2 * FAN_MARGIN_MM
+        elif module is None:
             gap, slot = _OPEN_BAY_STRIP_MM, design.open_bay_width_mm
         else:
             # A Pi's USB-C and micro-HDMI face right; a board's connectors facing
@@ -244,7 +275,18 @@ def _heights(
 
     if module is None:
         if bay.standoff_height_mm is not None:
-            raise ValueError(f"{label}: an open bay has no board to stand off")
+            kind = "an open" if bay.kind == "open" else "a fan"
+            raise ValueError(f"{label}: {kind} bay has no board to stand off")
+
+        if bay.kind == "fan":
+            thickness = get_fan(str(bay.fan)).thickness_mm
+
+            if headroom < thickness + HEADROOM_MARGIN_MM:
+                raise ValueError(
+                    f"{label}: headroom_mm is {headroom:g} mm but the fan is "
+                    f"{thickness:g} mm thick and needs {HEADROOM_MARGIN_MM:g} mm "
+                    "more: raise headroom"
+                )
 
         return 0.0, headroom
 
