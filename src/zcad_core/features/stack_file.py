@@ -23,6 +23,10 @@ from typing import Any
 
 from zcad_core.features.guide_bores import printer_numbers
 from zcad_core.features.guide_common import IDENTIFIER, Findings, number, section
+from zcad_core.features.stack_drawers import (
+    DEFAULT_CLEARANCE_MM,
+    plan_frame,
+)
 from zcad_core.features.stack_holding import (
     check_holding_fields,
     check_holding_fits,
@@ -37,7 +41,8 @@ from zcad_core.features.stack_solids import DIVIDER_MM
 
 STACK_SCHEMA_VERSION = "1.0.0"
 STACK_KIND = "stack"
-KINDS = ("bin", "baseplate")
+KINDS = ("bin", "baseplate", "cap", "frame", "drawer")
+MAXIMUM_DRAWERS = 8
 DEFAULT_WALL_MM = 1.2
 DEFAULT_FLOOR_MM = 1.2
 DEFAULT_RIM_MM = 1.2
@@ -91,6 +96,22 @@ _ITEM = {
             "fastener",
         }
     ),
+    "cap": frozenset({"kind", "name", "cells", "floor_mm"}),
+    "frame": frozenset(
+        {
+            "kind",
+            "name",
+            "cells",
+            "units",
+            "wall_mm",
+            "floor_mm",
+            "drawers",
+            "holding",
+            "magnet",
+            "fastener",
+        }
+    ),
+    "drawer": frozenset({"kind", "name", "frame", "wall_mm", "floor_mm", "pull"}),
 }
 
 
@@ -111,6 +132,9 @@ class Item:
     holding: str = "lip"
     magnet: str = ""
     fastener: str = ""
+    drawers: int = 0
+    frame: str = ""
+    pull: bool = True
 
 
 @dataclass(frozen=True)
@@ -275,15 +299,67 @@ def _check_item(entry: Any, index: int, names: list[str], findings: Findings) ->
     else:
         names.append(name)
 
-    _check_cells(entry, where, findings)
+    if kind != "drawer":
+        _check_cells(entry, where, findings)
+
+    _check_kind(entry, kind, where, findings)
+    check_holding_fields(entry, where, findings)
+
+
+def _check_kind(
+    entry: Mapping[str, Any], kind: str, where: str, findings: Findings
+) -> None:
+    """The fields only this kind of item has."""
+
+    floor = ("floor_mm", where, findings)
 
     if kind == "bin":
         _check_bin(entry, where, findings)
+    elif kind == "frame":
+        _check_frame(entry, where, findings)
+    elif kind == "drawer":
+        name = entry.get("frame")
+
+        if not isinstance(name, str) or not IDENTIFIER.fullmatch(name):
+            findings.errors.append(f"{where}.frame must name a frame in this file")
+
+        number(entry, "wall_mm", where, findings, low=0.4, high=10.0, required=False)
+
+        if not isinstance(entry.get("pull", True), bool):
+            findings.errors.append(f"{where}.pull must be true or false")
     else:
-        number(entry, "floor_mm", where, findings, low=0.4, high=10.0, required=False)
         number(entry, "rim_mm", where, findings, low=0.4, high=10.0, required=False)
 
-    check_holding_fields(entry, where, findings)
+    if kind != "bin":
+        number(entry, *floor, low=0.4, high=10.0, required=False)
+
+
+def _check_frame(entry: Mapping[str, Any], where: str, findings: Findings) -> None:
+    _whole(entry.get("units"), f"{where}.units", 1, MAXIMUM_UNITS, findings)
+    _whole(entry.get("drawers"), f"{where}.drawers", 1, MAXIMUM_DRAWERS, findings)
+    number(entry, "wall_mm", where, findings, low=0.4, high=10.0, required=False)
+
+
+def _check_drawer_frames(items: list[Any], findings: Findings) -> None:
+    """Each drawer names a frame that is in the file."""
+
+    frames = {
+        e.get("name")
+        for e in items
+        if isinstance(e, Mapping) and e.get("kind") == "frame"
+    }
+
+    for index, entry in enumerate(items):
+        if not isinstance(entry, Mapping) or entry.get("kind") != "drawer":
+            continue
+
+        name = entry.get("frame")
+
+        if isinstance(name, str) and name not in frames:
+            findings.errors.append(
+                f"items[{index}].frame {name!r} is not a frame in this file: "
+                f"{sorted(f for f in frames if isinstance(f, str))}"
+            )
 
 
 def check_stack_data(data: Any) -> StackCheck:
@@ -332,6 +408,8 @@ def check_stack_data(data: Any) -> StackCheck:
         for index, entry in enumerate(items):
             _check_item(entry, index, names, findings)
 
+        _check_drawer_frames(items, findings)
+
     if not str(data.get("source", "")).strip():
         findings.warnings.append("No source is stated: say what these items are for")
 
@@ -355,7 +433,7 @@ def _item(entry: Mapping[str, Any]) -> Item:
     return Item(
         kind=str(entry["kind"]),
         name=str(entry["name"]),
-        cells=(int(entry["cells"][0]), int(entry["cells"][1])),
+        cells=(int(entry.get("cells", [0, 0])[0]), int(entry.get("cells", [0, 0])[1])),
         units=int(entry.get("units", 1)),
         wall_mm=float(entry.get("wall_mm", DEFAULT_WALL_MM)),
         floor_mm=float(entry.get("floor_mm", DEFAULT_FLOOR_MM)),
@@ -366,6 +444,9 @@ def _item(entry: Mapping[str, Any]) -> Item:
         holding=str(entry.get("holding", "lip")),
         magnet=str(entry.get("magnet", "")),
         fastener=str(entry.get("fastener", "")),
+        drawers=int(entry.get("drawers", 0)),
+        frame=str(entry.get("frame", "")),
+        pull=bool(entry.get("pull", True)),
     )
 
 
@@ -429,6 +510,8 @@ def _check_item_fits(
     least_wall: float,
     least_floor: float,
     errors: list[str],
+    spec: StackSpec | None = None,
+    clearance: float = DEFAULT_CLEARANCE_MM,
 ) -> None:
     check_holding_fits(
         item.name,
@@ -441,16 +524,22 @@ def _check_item_fits(
         errors,
     )
 
-    if item.kind == "baseplate":
-        if item.floor_mm < least_floor:
-            errors.append(
-                f"{item.name}: floor_mm is {item.floor_mm:g}, under the printer's "
-                f"{least_floor:g} mm minimum floor"
-            )
+    _check_thickness(item, least_wall, least_floor, errors)
 
-        return
+    if item.kind in ("bin", "frame"):
+        _check_bin_fits(item, profile, errors)
 
-    if item.wall_mm < least_wall:
+    if item.kind == "frame":
+        _check_frame_plan(item, profile, clearance, errors)
+
+    if item.kind == "drawer" and spec is not None:
+        _check_drawer_plan(item, profile, spec, clearance, errors)
+
+
+def _check_thickness(
+    item: Item, least_wall: float, least_floor: float, errors: list[str]
+) -> None:
+    if item.kind in ("bin", "frame", "drawer") and item.wall_mm < least_wall:
         errors.append(
             f"{item.name}: wall_mm is {item.wall_mm:g}, under the printer's "
             f"{least_wall:g} mm minimum wall"
@@ -462,7 +551,56 @@ def _check_item_fits(
             f"{least_floor:g} mm minimum floor"
         )
 
-    _check_bin_fits(item, profile, errors)
+
+def _check_frame_plan(
+    item: Item, profile: StackProfile, clearance: float, errors: list[str]
+) -> None:
+    try:
+        plan_frame(
+            profile,
+            item.cells,
+            item.units,
+            item.drawers,
+            item.wall_mm,
+            item.floor_mm,
+            item.wall_mm,
+            item.floor_mm,
+            clearance,
+        )
+    except ValueError as error:
+        errors.append(f"{item.name}: {error}")
+
+
+def _check_drawer_plan(
+    item: Item,
+    profile: StackProfile,
+    spec: StackSpec,
+    clearance: float,
+    errors: list[str],
+) -> None:
+    frame = next((f for f in spec.items if f.name == item.frame), None)
+
+    if frame is None or frame.kind != "frame":
+        errors.append(f"{item.name}: {item.frame!r} is not a frame in this file")
+
+        return
+
+    try:
+        plan_frame(
+            profile,
+            frame.cells,
+            frame.units,
+            frame.drawers,
+            frame.wall_mm,
+            frame.floor_mm,
+            item.wall_mm,
+            item.floor_mm,
+            clearance,
+        )
+    except ValueError as error:
+        errors.append(f"{item.name}: {error}")
+
+        return
 
 
 def _check_bin_fits(item: Item, profile: StackProfile, errors: list[str]) -> None:
@@ -535,12 +673,15 @@ def check_stack_file(
 
     errors: list[str] = []
     warnings = list(report.warnings)
-    _, least_wall, least_floor = (
+    fits, least_wall, least_floor = (
         printer_numbers(printer) if printer is not None else ({}, 0.0, 0.0)
     )
+    clearance = fits.get("sliding_clearance_per_side", DEFAULT_CLEARANCE_MM)
 
     for item in spec.items:
-        _check_item_fits(item, profile, least_wall, least_floor, errors)
+        _check_item_fits(
+            item, profile, least_wall, least_floor, errors, spec, clearance
+        )
 
     summary = {
         "profile": profile.identifier,

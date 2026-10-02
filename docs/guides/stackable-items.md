@@ -2,8 +2,8 @@
 
 A **stack profile** says how an item's top and bottom faces meet another's. Bins and
 baseplates built on one profile sit on each other, and a bin stacks on a bin like it. This
-release builds the bins and baseplates, holds them with magnets or bolts, and checks whether two
-items stack; latches, trays, enclosures and layers come in later releases (see the
+release builds bins, baseplates, caps, and drawer frames with their drawers, holds them with magnets
+or bolts, and checks whether two items stack; latches, enclosures and layers come in later releases (see the
 [stackable items design](../roadmaps/stackable-items.md)).
 
 ```bash
@@ -60,6 +60,9 @@ is refused.
 | --- | --- |
 | `bin` | `cells` (across, deep), `units` high, optional `wall_mm`, `floor_mm` (1.2), `dividers` (counts along `x` and `y`), `label_tab`, `scoop`, `holding`. |
 | `baseplate` | `cells` (across, deep), optional `floor_mm` (1.2), `rim_mm` (1.2), `holding`. |
+| `cap` | `cells`, optional `floor_mm` (1.2), the thickness of its flat top. |
+| `frame` | `cells`, `units` high, `drawers` (1 to 8), optional `wall_mm`, `floor_mm`, `holding`. |
+| `drawer` | `frame`, the name of a frame in the same file; optional `wall_mm`, `floor_mm`, `pull` (true). |
 
 A footprint is whole cells and a height is whole units, because they are counts. A bin is refused if its wall
 or floor is under the printer's minimum, if its wall is thicker than the lip reaches in from the wall (2.6 mm
@@ -80,6 +83,30 @@ cells the bed takes.
 
 These dimensions (the lip's flat, the ridge's width, the divider, the tab, the scoop) are the engine's own
 design choices, not figures from the profile's source.
+
+## Caps, frames and drawers
+
+A **tray** is a bin that is not very tall, and a bin does not need another kind for that: a two-unit bin has 8 mm
+inside. What a tray adds is a lid, and a drawer is what a frame adds.
+
+- **A cap** is a flat lid on the profile's foot. It sits in the lip of a bin or a frame of the same cells, the way a
+  bin does, and nothing stacks on it. It is held by the lip alone: a cap does not snap, because a latch has no design yet.
+- **A frame** is a bin with its front wall taken out, a roof, and a pair of ledges up the inside of its side walls
+  for each of its `drawers`. It has the foot and the lip, so it stands on a baseplate and takes a bin or a cap on top.
+  It can hold by magnet or bolt in its foot, like a bin.
+- **A drawer** is a tray that slides along a slot's ledges, its front flush with the frame's front, with a half-round
+  finger pull in its front wall. The drawer is as wide as the frame inside less the printer's sliding clearance each
+  side (0.2 mm on the A1 mini), and stops short of the back wall by the same. **It is held by nothing: it comes out
+  when pulled.**
+
+A frame is refused, with the figures, if its drawers would be too shallow to hold anything (under 3 mm inside), or if
+it is too narrow for ledges and a drawer. The ledge (3 mm in, 1.6 mm thick), the roof (1.6 mm), the air above a
+drawer (0.6 mm) and the pull (a 6 mm radius at most) are the engine's own design choices, not figures from the
+profile.
+
+**The build lays real solids.** A frame and a cap are one solid each. A cap sits on a bin of its cells with no
+overlap. And a drawer is put in every slot of its frame, shut and pulled out by half and nine tenths of its length, and
+must touch the frame nowhere, so a drawer that is too tall for its slot fails the build.
 
 ## How an item holds
 
@@ -109,8 +136,9 @@ It reads two items, from the same stack file or two, and says whether the upper 
 with every reason at once:
 
 - they are built to **the same profile**, by its hash;
-- a **bin** goes on a **baseplate** whose cells cover its own, or on a bin with **the same cells**; a baseplate goes
-  on nothing;
+- a **bin** or **frame** goes on a **baseplate** whose cells cover its own, or on a bin or frame with **the same
+  cells**; a **cap** goes on a bin or frame with the same cells; a baseplate goes on nothing, nothing goes on a cap or a
+  drawer, and a drawer slides into a frame instead;
 - on a baseplate they **agree on what holds them**: the same magnet, the same fastener, or both the lip alone. A
   bin that holds by magnet on a plain baseplate is refused, and so is a magnet bin on a bolt baseplate; and
 - laid together as real solids, with the upper's first cell over the lower's, they **do not overlap**.
