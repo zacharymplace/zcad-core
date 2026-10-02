@@ -133,7 +133,7 @@ zcad-validation jig build --jig-file my-jig.json --output-directory exports/my-j
 
 ## Phases
 
-1. **The nest core and the holding nest.** `nest_core.py` extracted from `build_guide` with no change to a guide; the `nest` file, `check` and
+1. **The nest core and the holding nest (built).** `nest_core.py` extracted from `build_guide` with no change to a guide; the `nest` file, `check` and
    `build` for a tray with its floor, flange and finger notches; the record.
 2. **The lip, the strap slots and the label.** The retaining tabs with their strain check, the strap slots from the user's strap figures, and the
    label.
@@ -162,3 +162,18 @@ Each phase is one PR. The core's extraction is in phase 1 and is checked by the 
   from one STEP file. The proposal is to leave it at that.
 - **The iron's tip as a cylinder.** A real tip tapers. The proposal is the cylinder of the figures the user gives, with the build saying so, and a trial
   measuring what the real tip does.
+
+### What phase 1 changed
+
+See [A holding nest for your part](../guides/holding-nest.md).
+
+- **The core is the pocket and the release check, no more.** `nest_core.py` holds `pocketed` (a body round the outline grown by the clearance and the wall, with the pocket
+  cut between two heights), `clear`, `lifts_off` (the guide lifted off its part) and `lifts_out` (a part lifted out of a nest). `build_guide` calls them with the same arguments
+  it had inline, and every guide test runs unchanged and passes. The part is read by the guide's own `load_part_file`, which was already general.
+- **The flange goes all round, not on two sides.** The design said the floor reaches past the wall on two opposite sides, for the strap slots. A rounded offset of the whole outline is
+  one operation and a flange on every side is no worse for a tray; the slots in phase 2 choose their sides.
+- **A notch is a rectangular cut, not a scallop.** 12 mm wide through the wall and down to the floor, centred on the middle of a long stretch. It is simpler to place on any outline and to
+  check; a rounded one would not change what it does.
+- **Notches take the longest stretches first.** The design said "the longest straight stretches"; ties go to the earlier edge, and a stretch needs 3 mm of margin past a notch's ends.
+- **The pocket's depth defaults.** Half the part's height, at least 3 mm, never more than the part's height, which the design gave and the file now computes when `nest.depth_mm` is left out.
+- **The part must stand on its bottom.** The floor's top is the part's bottom, so a part with a rounded or tilted bottom is not held by it, as the design said under *Not covered*.
