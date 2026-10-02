@@ -39,15 +39,18 @@ from zcad_core.features.guide_file import (
     GuideSpec,
     nest_outline,
 )
+from zcad_core.features.nest_core import (
+    TOLERANCE_MM3,
+    clear,
+    lifts_off,
+    pocketed,
+)
 from zcad_core.geometry.intersection import intersection_volume
-from zcad_core.geometry.outline_prism import outline_prism
 from zcad_core.profiles.guide_accuracy import GuideAccuracyProfile
 
 GUIDE_RECORD_SCHEMA_VERSION = "4.0.0"
 GUIDE_RECORD = "guide.json"
-# How far the guide is lifted off the part per step in the release check.
-RELEASE_STEP_MM = 2.0
-_TOLERANCE_MM3 = 1e-6
+_TOLERANCE_MM3 = TOLERANCE_MM3
 
 
 @dataclass(frozen=True)
@@ -172,11 +175,15 @@ def build_guide(spec: GuideSpec, part: GuidePart, profile: dict[str, Any]) -> Gu
 
     top_z = base_z + thickness
     points = outline.points
-    outer = outline_prism(
-        points, -spec.nest_depth_mm, top_z, clearance + spec.nest_wall_mm
+    body = pocketed(
+        points,
+        clearance_mm=clearance,
+        wall_mm=spec.nest_wall_mm,
+        outer_z0=-spec.nest_depth_mm,
+        outer_z1=top_z,
+        pocket_z0=-spec.nest_depth_mm - 1.0,
+        pocket_z1=base_z,
     )
-    pocket = outline_prism(points, -spec.nest_depth_mm - 1.0, base_z, clearance)
-    body = outer.cut(pocket)
 
     for item in plan.bores:
         body = body.cut(_cutters(item, sections, top_z, base_z))
@@ -184,8 +191,8 @@ def build_guide(spec: GuideSpec, part: GuidePart, profile: dict[str, Any]) -> Gu
     solid = body.val()
     checks = {
         "one_solid": len(body.solids().vals()) == 1,
-        "part_fits_pocket": _clear(solid, part.shape),
-        "part_lifts_out": _lifts_out(solid, part),
+        "part_fits_pocket": clear(solid, part.shape),
+        "part_lifts_out": lifts_off(solid, part.shape, part.height_mm),
         "bores_open": _bores_open(solid, plan.bores, top_z),
     }
     reached, problems = _reach(body, plan.bores, sections, thickness, base_z)
@@ -277,33 +284,6 @@ def _bores_open(body: object, planned: tuple[PlannedBore, ...], top_z: float) ->
 
         if intersection_volume(body, drill) > _TOLERANCE_MM3:
             return False
-
-    return True
-
-
-def _clear(first: object, second: cq.Shape) -> bool:
-    if not isinstance(first, cq.Shape):
-        raise TypeError("Expected a shape")
-
-    return intersection_volume(first, second) <= _TOLERANCE_MM3
-
-
-def _lifts_out(body: object, part: GuidePart) -> bool:
-    """Lift the guide off the part in steps, to clear of its whole height, and
-    refuse one that meets the part on the way."""
-
-    if not isinstance(body, cq.Shape):
-        raise TypeError("Expected a shape")
-
-    lift = RELEASE_STEP_MM
-
-    while lift <= part.height_mm + RELEASE_STEP_MM:
-        moved = body.moved(cq.Location(cq.Vector(0, 0, lift)))
-
-        if intersection_volume(moved, part.shape) > _TOLERANCE_MM3:
-            return False
-
-        lift += RELEASE_STEP_MM
 
     return True
 
