@@ -6,10 +6,12 @@ enclosure the air moves a good deal less, so it is reported and never used to
 credit the temperature estimate.
 
 Every entry says where its figures came from and whether the maker's own page
-or drawing was read. ``read`` is ``False`` when the figures are from search
-excerpts of the maker's page and not from the page itself: they are probably
-right and have not been checked, and the build says so. Replace such an entry
-with one read from the datasheet when it can be.
+or drawing was read. ``read`` is ``True`` when the figures the build draws from
+(the frame, its thickness and its holes) are from a document of the maker's that
+was read. It is ``False`` when any of them is only from a search excerpt of the
+maker's page: probably right, not checked, and the build says so. ``unverified``
+names every figure, drawn or not, that no document read supports, so a build and a
+reader can see exactly what is still an excerpt or an assumption.
 """
 
 from __future__ import annotations
@@ -30,9 +32,11 @@ class FanSource:
     title: str
     url: str
     detail: str
-    # Whether the maker's page or drawing itself was read, rather than only an
-    # excerpt of it in a search result.
+    # Whether the maker's page or drawing itself was read, for the figures the build
+    # draws from, rather than only an excerpt of it in a search result.
     read: bool
+    # The figures no document read supports: from an excerpt, or an assumption.
+    unverified: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -63,6 +67,17 @@ class FanSpec:
             raise ValueError("The holes must lie inside the frame")
 
     @property
+    def unverified_note(self) -> str:
+        """What no read document supports, for a warning: empty when nothing is left."""
+
+        if not self.source.unverified:
+            return ""
+
+        return (
+            f" ({', '.join(self.source.unverified)} not from a document that was read)"
+        )
+
+    @property
     def opening_diameter_mm(self) -> float:
         """The round opening in the enclosure: 90 per cent of the frame, which
         leaves the blades' tips their room and a rim for the frame to seat on."""
@@ -88,44 +103,51 @@ class FanSpec:
 
 _NOCTUA_4X10 = FanSource(
     kind="vendor",
-    title="Noctua NF-A4x10 5V, specifications",
-    url="https://noctua.at/en/products/fan/nf-a4x10-5v/specification",
+    title="Noctua NF-A4x10 5V, information sheet",
+    url="https://cdn.noctua.at/media/noctua_nf_a4x10%205v_infosheet_en_web.pdf",
     detail=(
-        "from a search excerpt of the page, which could not be opened: 40 x 40 x "
-        "11 mm without anti-vibration pads, holes 32 x 32 mm, 5 V, input current "
-        "0.044 A typical and 0.05 A maximum, airflow 8.2 m3/h maximum; the screw "
-        "size is an assumption"
+        "the maker's information sheet was read (a PDF on the maker's own site): size "
+        "40 x 40 x 10 mm, 5 V, input power 0.25 W maximum (0.05 A), airflow 8.2 m3/h "
+        "maximum. Not in the sheet, and from a search excerpt of the specifications "
+        "page (https://noctua.at/en/products/fan/nf-a4x10-5v/specification), which "
+        "could not be opened: holes 32 x 32 mm, typical input 0.22 W (0.044 A), and a "
+        "thickness of 11 mm without anti-vibration pads, where the sheet says 10 mm "
+        "(the larger is kept); the screw size is an assumption"
     ),
     read=False,
+    unverified=("hole_spacing_mm", "thickness_mm", "current_typical_a", "screw"),
 )
 
 _NOCTUA_6X25 = FanSource(
     kind="vendor",
-    title="Noctua NF-A6x25 5V, specifications",
-    url="https://www.noctua.at/en/products/nf-a6x25-5v/specifications",
+    title="Noctua NF-A6x25 5V, information sheet",
+    url="https://www.quietpcusa.com/Assets/downloads/noctua_nf_a6x25_5v_datasheet_en.pdf",
     detail=(
-        "from a search excerpt of the page, which could not be opened: 60 x 60 x "
-        "25 mm without anti-vibration pads, holes 50 x 50 mm, 5 V, input current "
-        "0.187 A typical and 0.26 A maximum (0.935 W typical), airflow 29.2 m3/h "
-        "maximum; the screw size is an assumption"
+        "the maker's information sheet was read, from a retailer's copy of it (the "
+        "maker's site refused the request): size 60 x 60 x 25 mm, 5 V, input power "
+        "1.3 W maximum (0.26 A), airflow 29.2 m3/h maximum. Not in the sheet, and from "
+        "a search excerpt of the specifications page "
+        "(https://www.noctua.at/en/products/nf-a6x25-5v/specifications), which could "
+        "not be opened: holes 50 x 50 mm and typical input 0.935 W (0.187 A); the "
+        "screw size is an assumption"
     ),
     read=False,
+    unverified=("hole_spacing_mm", "current_typical_a", "screw"),
 )
 
 _SUNON_30 = FanSource(
     kind="vendor",
-    title="Sunon MF30100V1-1000U-A99 (as listed by Digi-Key)",
-    url=(
-        "https://www.digikey.com/en/products/detail/sunon-fans/"
-        "4132-MF30100V1-1000U-A99/9838571"
-    ),
+    title="Sunon DC Brushless Fan & Blower catalog, 30x30x10 mm (MF30100V1-1000U-A99)",
+    url="https://media.digikey.com/pdf/Data%20Sheets/Sunon%20PDFs/DC_Brushless_Fan&Blower_Cat.pdf",
     detail=(
-        "from a search excerpt of the listing, which could not be opened: 30 x 30 "
-        "x 10 mm, 5 V, 0.120 A, 600 mW, 5.5 CFM (0.154 m3/min); the 24 mm hole "
-        "spacing is the usual pattern for a 30 mm fan, from retailers' listings, "
-        "and Sunon's drawing was not read; the screw size is an assumption"
+        "the maker's catalog page was read, a PDF of Sunon's catalog hosted by Digi-Key "
+        "(page 17): 30 x 30 x 10 mm, holes 24 +-0.3 mm square and 3.2 +-0.3 mm across, "
+        "5 V, 120 mA, 0.60 W, airflow 5.5 CFM (9.34 m3/h). The drawing is marked "
+        "3-phi 3.2, while the engine builds the usual four holes; the catalog states no "
+        "maximum current, and the screw size (M3, for a 3.2 mm hole) is an assumption"
     ),
-    read=False,
+    read=True,
+    unverified=("current_max_a", "screw"),
 )
 
 _ENTRIES = {
@@ -164,11 +186,11 @@ _ENTRIES = {
         size_mm=30.0,
         thickness_mm=10.0,
         hole_spacing_mm=24.0,
-        screw="M2",
+        screw="M3",
         rated_v=5.0,
         current_typical_a=0.120,
         current_max_a=None,
-        airflow_m3h=9.24,
+        airflow_m3h=9.34,
         source=_SUNON_30,
     ),
 }

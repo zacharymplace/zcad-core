@@ -123,11 +123,13 @@ fan's opening, guard, screws, the maker's free-air figure and its draw.
   lid.
 - **The bay needs the headroom.** It is refused if its headroom is under the fan's
   thickness and half a millimetre: a 25 mm fan needs `headroom=27`.
-- **The fan's figures are provisional.** The catalog's three fans were read from
-  search excerpts of the makers' pages, not the pages, so the fan's report says its
-  figures are not read from the maker's own page and the build prints that as a
-  warning. The airflow is the free-air figure and is not credited in the
-  temperature estimate.
+- **The fan's figures are checked as far as the makers' documents go.** The Sunon fan
+  was read in the maker's catalog (size, holes, voltage, current and airflow). The two Noctua
+  fans were checked against their information sheets (size, maximum power, airflow), which give
+  no hole pattern, so their holes, typical current and screw stay from search excerpts or
+  assumptions: the fan's report says its figures are not read from the maker's own page, names
+  which, and the build prints that as a warning. The airflow is the free-air figure and is not
+  credited in the temperature estimate.
 - **There is no duct.** The fan moves air in the shared cavity; nothing leads it to
   the board beside it. Put the fan where its air path is open, and add vents with
   `--vent-area-mm2` so it has somewhere to draw from or push to.

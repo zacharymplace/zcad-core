@@ -249,7 +249,7 @@ catalog's provisional status carried through.
   with the lid. `GroupEnclosure` gains `fans` and `lid_carried` for this.
 - **The fan's figures stay provisional, and the build says so.** The catalog's three
   fans were read from search excerpts, not the makers' pages; the fan report and a
-  build warning carry that. Verifying them is its own follow-on.
+  build warning carry that. Verifying them was its own follow-on, which the thermal features roadmap records.
 - **A closed box is one with nothing to move air.** Slots over a Pi's fan or a
   board's `lid_vent` part, a vent pattern, or a fan open the box, so the estimate's
   `closed` follows them.

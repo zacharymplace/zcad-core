@@ -90,6 +90,7 @@ class FanReport:
     power_typical_w: float | None
     other_openings_mm2: float
     datasheet_read: bool
+    unverified: str = ""
 
     @property
     def open_ratio(self) -> float:
@@ -137,7 +138,7 @@ class FanReport:
                     ""
                     if self.datasheet_read
                     else " The fan's figures were not read from the maker's own "
-                    "page; check them."
+                    f"page; check them{self.unverified}."
                 )
             ),
         }
@@ -422,4 +423,5 @@ def fan_report(
         power_typical_w=fan.typical_w,
         other_openings_mm2=others + vent_free_mm2,
         datasheet_read=fan.source.read,
+        unverified=fan.unverified_note,
     )

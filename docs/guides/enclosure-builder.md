@@ -216,9 +216,10 @@ The fan's heat is added to the temperature estimate; its airflow is not,
 because the maker's free-air figure falls by a large and unknown amount in a
 box. The build reports the airflow beside the guard's free area, and whether
 the box's other openings pass at least as much, so the fan has somewhere to
-draw from or push to. **The fans' figures were taken from search excerpts of
-the makers' pages and have not been checked against the pages themselves;**
-the build says so with `datasheet_read: false`.
+draw from or push to. **The Sunon fan's figures were read in the maker's catalog; the two Noctua fans'
+were checked against their information sheets, which give no hole pattern,** so the build
+says `datasheet_read: false` for them and names the figures that are still an excerpt or an
+assumption.
 
 ## Temperature estimate
 
