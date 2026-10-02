@@ -146,9 +146,9 @@ antimicrobial anything is not built.
 1. **The wearable file (built).** The capture file generalised: an outline, face features, an
    optional mass, a device of the user's own. `wearable check` for it; the Dexcom and
    Mobi checks and candidates unchanged.
-2. **Housings.** The housing file with `template`, `check` and `build`; the `cradle`
-   for a sealed device and the `case` for a board; `shell` reached through it. No wear
-   yet: a housing you hold.
+2. **Housings (built).** The housing file with `template`, `check` and `build`; the
+   `cradle` for a sealed device and the `case` for a board. No wear yet: a housing you
+   hold. (`shell` through the housing file moved to phase 3.)
 3. **Ways of wearing.** The strap lugs, the band slots, the belt clip, the adhesive
    plate and the lanyard hole, each from the user's figures with their source, and the
    checks on them. These are the five a wearer needs, built together.
@@ -183,6 +183,42 @@ antimicrobial anything is not built.
   either is what a measurement replaces, as before. Their candidates, scripts and the
   retention pipeline are untouched.
 - **The schema version stays 1.0.0,** since every addition is optional.
+
+### What phase 2 changed
+
+See the guide [A housing for something you wear](../guides/wearable-housing.md).
+
+- **The cradle's retention is a tab that bends along the wall.** The design said "retention
+  clips or a rim" and left it open. A vertical clip needs the wall's height for its
+  length, and a thin device (the G7 is 4.7 mm) has none: a 1.2 mm tongue 5.7 mm long
+  strains over 3 per cent against the 1.5 per cent limit. The tab is instead the top
+  strip of the wall, cut free by a slit along its underside and one at its free end, a
+  beam fixed at one end that bends outward in the plane of the wall. It can be 12 mm long
+  whatever the device's thickness, and strains 0.75 per cent. The existing snap-shell
+  clips are not reused: they are clip-only geometry for the Validation Lab's retention
+  pipeline, with no wall or floor to hang a tab from.
+- **The cradle's face is open, so a face feature needs no window.** The design said the
+  cradle "cuts a window over each face feature". A cradle that leaves the face open has
+  nothing over a feature to cut, so the build instead refuses a tab whose hook would cover
+  one. A window belongs to a lid or cover over the face, which is not built.
+- **Edge features get notches, and the tabs keep clear of them.** The wall is cut open at
+  each feature a capture lists, a millimetre wider each side, and a tab is slid to the
+  nearest place clear of every notch and of the corners, by the rule the shell candidate
+  uses.
+- **The case is the enclosure builder with a snap lid, and its rounding is limited by the
+  wall.** The design said "thinner walls, and the outer corners and the skin-side edges
+  rounded". The outer vertical corners are rounded by cutting each part to a rounded box.
+  The cavity's corners stay square, so rounding takes wall off the corner's diagonal, and
+  the build refuses a radius that leaves under the printer's minimum there, naming the most
+  (1.2 mm on a 1.2 mm wall). Rounding the skin-side edges is phase 4, and a rounded cavity
+  needs the enclosure builder to learn it.
+- **`shell` through the housing file moved to phase 3.** A shell has nothing to attach until
+  there is a way of wearing it, so reaching it through the housing file does nothing yet.
+- **The build names its inputs by hash and writes no record.** The housing's own build record
+  and trials are phase 5, as the design lists; the output says which style, which input hash,
+  and each part's STL hash.
+- **The build says what it does not claim.** Every build prints that the engine states no
+  claim about skin, water, comfort or the device's function.
 
 Each phase is one PR. The wearable file adds optional fields, so no existing capture
 file changes, and the shell scripts keep their output.
