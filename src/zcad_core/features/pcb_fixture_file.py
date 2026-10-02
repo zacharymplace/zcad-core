@@ -38,13 +38,15 @@ from zcad_core.features.pcb_fixture_plan import (
     bore_diameter,
     plan_fixture,
 )
+from zcad_core.features.pcb_fixture_turn import turn_over
 from zcad_core.hardware import PogoSource, PogoSpec, get_pogo_pin, load_board
 from zcad_core.hardware.electronics.board_file import BoardFileSpec
 from zcad_core.hardware.fasteners import list_fasteners
 
 FIXTURE_SCHEMA_VERSION = "1.0.0"
-# Only the board's top side is probed in this version.
-SIDES = ("top",)
+# The side of the board a fixture probes. A bottom-side fixture holds the board turned
+# over (see :mod:`zcad_core.features.pcb_fixture_turn`).
+SIDES = ("top", "bottom")
 LOCATING = ("outline", "holes")
 CLOSURES = ("screws", "hinge")
 WORKING_TRAVEL_RANGE_MM = (0.1, 20.0)
@@ -252,10 +254,7 @@ def _check_choices(data: Mapping[str, Any], findings: Findings) -> None:
     side = data.get("side", "top")
 
     if side not in SIDES:
-        findings.errors.append(
-            f"side must be one of {SIDES}, not {side!r}; probing the bottom side "
-            "comes in a later release"
-        )
+        findings.errors.append(f"side must be one of {SIDES}, not {side!r}")
 
     if data.get("locating", "outline") not in LOCATING:
         findings.errors.append(f"locating must be one of {LOCATING}")
@@ -470,7 +469,8 @@ def load_fixture(path: Path) -> PcbFixtureSpec:
 
 def load_fixture_board(spec: PcbFixtureSpec) -> BoardFileSpec:
     """The board a fixture holds, refused if its file is missing, has changed
-    since the fixture file was written, or is itself not a valid board file."""
+    since the fixture file was written, or is itself not a valid board file. A
+    bottom-side fixture holds it turned over, so what it probes is on top."""
 
     if not spec.board_path.is_file():
         raise ValueError(f"The board file is missing: {spec.board_path}")
@@ -483,7 +483,9 @@ def load_fixture_board(spec: PcbFixtureSpec) -> BoardFileSpec:
             f"written: its SHA-256 is {digest}, the file says {spec.board_sha256}"
         )
 
-    return load_board(spec.board_path)
+    board = load_board(spec.board_path)
+
+    return turn_over(board) if spec.side == "bottom" else board
 
 
 def _hole_count(board: BoardFileSpec) -> int:
@@ -532,6 +534,7 @@ def check_fixture_file(
         },
         "pin": _pin_summary(spec.pin),
         "side": spec.side,
+        "board_turned_over": spec.side == "bottom",
         "working_travel_mm": spec.working_travel_mm,
         "locating": spec.locating,
         "closure": spec.closure,
@@ -581,9 +584,10 @@ def check_fixture_file(
 def _probed_points(
     spec: PcbFixtureSpec, board: BoardFileSpec, errors: list[str]
 ) -> list[Any]:
-    """The test points to probe: those named, or all of the side's."""
+    """The test points to probe: those named, or all of the side's. ``board`` is the
+    board as the fixture holds it, so the side probed is its top."""
 
-    on_side = [p for p in board.test_points if p.side == spec.side]
+    on_side = [p for p in board.test_points if p.side == "top"]
 
     if not on_side:
         errors.append(
