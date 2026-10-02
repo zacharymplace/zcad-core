@@ -34,6 +34,7 @@ from typing import Any
 
 import cadquery as cq
 
+from zcad_core.features.housing_skin import round_free_skin_edge
 from zcad_core.features.mounts import FLEXURE_STRAIN_LIMIT, flexure_for
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.outline_prism import outline_prism
@@ -96,6 +97,12 @@ class Body:
     zmin: float
     zmax: float
     corner_radius_mm: float
+    # How much to round the free edge of a flat feature on the skin plane.
+    skin_radius_mm: float = 0.0
+
+    @property
+    def region(self) -> tuple[float, float, float, float]:
+        return self.xmin, self.xmax, self.ymin, self.ymax
 
     @property
     def length(self) -> float:
@@ -124,13 +131,22 @@ class Body:
         return self.length / 2 - self.corner_radius_mm
 
 
-def body_of(model: cq.Workplane, corner_radius_mm: float) -> Body:
+def body_of(
+    model: cq.Workplane, corner_radius_mm: float, skin_radius_mm: float = 0.0
+) -> Body:
     """The body of a built housing part."""
 
     box = workplane_shape(model).BoundingBox()
 
     return Body(
-        box.xmin, box.xmax, box.ymin, box.ymax, box.zmin, box.zmax, corner_radius_mm
+        box.xmin,
+        box.xmax,
+        box.ymin,
+        box.ymax,
+        box.zmin,
+        box.zmax,
+        corner_radius_mm,
+        skin_radius_mm,
     )
 
 
@@ -229,6 +245,8 @@ def _strap(
 
     summary = {
         "kind": "strap",
+        "where": "at the two ends at mid-height, beyond the end faces",
+        "proud_mm": 0.0,
         "strap_width_mm": width,
         "bar_diameter_mm": bar,
         "bar_hole_mm": round(hole, 3),
@@ -269,9 +287,8 @@ def _band(
 
         for sign, end in ((1.0, body.xmax), (-1.0, body.xmin)):
             near, far = end - sign * EMBED_MM, end + sign * reach
-            add = add.union(
-                _box((min(near, far), max(near, far)), (-ear_y / 2, ear_y / 2), z)
-            )
+            ear = _box((min(near, far), max(near, far)), (-ear_y / 2, ear_y / 2), z)
+            add = add.union(round_free_skin_edge(ear, body.skin_radius_mm, body.region))
             s0 = end + sign * EAR_MARGIN_MM
             s1 = s0 + sign * slot_x
             cut = cut.union(
@@ -288,6 +305,8 @@ def _band(
         "band_thickness_mm": thickness,
         "slot_mm": [round(slot_x, 3), round(slot_y, 3)],
         "ear_width_mm": round(ear_y, 3),
+        "where": "on the skin plane, flush with it",
+        "proud_mm": 0.0,
     }
 
     return add, cut, summary, errors
@@ -337,6 +356,8 @@ def _clip(
 
     summary = {
         "kind": "clip",
+        "where": "on the back, where the belt goes, standing proud of it",
+        "proud_mm": round(gap + CLIP_THICKNESS_MM, 3),
         "belt_thickness_mm": belt,
         "belt_gap_mm": round(gap, 3),
         "arm_length_mm": round(arm, 3),
@@ -357,6 +378,13 @@ def _adhesive(
     errors: list[str] = []
     need_x, need_y = body.length + 2 * PATCH_MARGIN_MM, body.width + 2 * PATCH_MARGIN_MM
 
+    if body.skin_radius_mm > thickness_mm - 0.1:
+        errors.append(
+            f"The flange is {thickness_mm:g} mm thick and cannot have its edge rounded "
+            f"to {body.skin_radius_mm:g} mm: use a thicker floor or a smaller "
+            "skin_edge_radius_mm"
+        )
+
     if width < need_x or depth < need_y:
         errors.append(
             f"A {width:g} x {depth:g} mm patch does not hold the {body.length:.1f} x "
@@ -372,12 +400,15 @@ def _adhesive(
             width, depth, min(radius, min(width, depth) / 2 - 0.01)
         )
         centre = ((body.xmin + body.xmax) / 2, (body.ymin + body.ymax) / 2)
-        add = outline_prism(points, 0.0, thickness_mm).translate(
+        flange = outline_prism(points, 0.0, thickness_mm).translate(
             (centre[0], centre[1], body.zmin)
         )
+        add = round_free_skin_edge(flange, body.skin_radius_mm, body.region)
 
     summary = {
         "kind": "adhesive",
+        "where": "on the skin plane, flush with it",
+        "proud_mm": 0.0,
         "patch_mm": [width, depth],
         "plate_thickness_mm": thickness_mm,
         "corner_radius_mm": round(radius, 3),
@@ -404,11 +435,12 @@ def _lanyard(
 
     if not errors:
         reach = RING_MM + hole + RING_MM
-        add = _box(
+        tab = _box(
             (-across / 2, across / 2),
             (body.ymax - EMBED_MM, body.ymax + reach),
             (body.zmin, body.zmin + TAB_THICKNESS_MM),
         )
+        add = round_free_skin_edge(tab, body.skin_radius_mm, body.region)
         cut = _hole_along_z(
             0.0,
             body.ymax + RING_MM + hole / 2,
@@ -419,6 +451,8 @@ def _lanyard(
 
     summary = {
         "kind": "lanyard",
+        "where": "on the +Y side, on the skin plane, flush with it",
+        "proud_mm": 0.0,
         "cord_diameter_mm": cord,
         "hole_mm": round(hole, 3),
         "tab_width_mm": round(across, 3),

@@ -32,6 +32,7 @@ wear it is yours to judge. The build says this in its output.
 | `wall_mm`, `floor_mm` | The walls and the floor (1.2 mm each by default). Each must meet the printer's minimum. |
 | `clearance_mm` | A cradle's gap round the device (0.3 by default). |
 | `retention_edges` | A cradle's edges that carry a tab (all four by default); at least three. |
+| `skin_edge_radius_mm` | The radius of the skin face's outer edge (0.8, 0 to 5; 0 leaves it square). |
 | `lid_mm`, `corner_radius_mm` | A case's lid (2.0) and the radius of its outer vertical corners (1.0). |
 | `wear` | The ways of wearing it: a list, each with its figures and their source. See *Ways of wearing*. |
 
@@ -73,8 +74,7 @@ vertical corners of both parts.
 **The radius is limited by the wall.** The cavity's corners stay square, so rounding
 the outside takes wall from the corner's diagonal. The build refuses a radius that
 leaves the diagonal under the printer's minimum wall and says the most it can have:
-1.2 mm on a 1.2 mm wall, 2.6 mm on a 1.6 mm one. Rounding the skin-side edges and a
-rounded cavity come later.
+1.2 mm on a 1.2 mm wall, 2.6 mm on a 1.6 mm one. A rounded cavity comes later.
 
 ## Ways of wearing
 
@@ -119,9 +119,25 @@ examples to replace; a file whose `source` still says `EXAMPLE` is refused.
   clip 12 mm wide with a 1.2 mm arm and a 1.0 mm nub, and the belt gap the belt's thickness
   and 0.4 mm. They are design choices to be tried, not sourced figures.
 
+## The skin side
+
+The skin side is the lowest face of the housing's body, the one a body touches.
+
+- **Its outer edge is rounded** to `skin_edge_radius_mm` (0.8 mm by default). So is the
+  free edge of each flat feature on the skin plane: a band's ear, an adhesive flange, a
+  lanyard's tab. A slot's edge, where a band passes, is not rounded.
+- **The radius is a comfort setting, not a medical figure.** The build says so; the engine
+  states nothing about skin, comfort or contact.
+- **The radius is limited** to the floor's or the wall's thickness, whichever is less, and
+  to 0.1 mm under the housing's outer corner radius: a skin edge as round as the corner it
+  turns leaves a sliver there. The build refuses a larger one and says why.
+- **Nothing stands proud of the face** except a belt clip, which stands on the back where
+  the belt goes. The build reports `skin_side` with how far anything stands below the face
+  and which ways of wearing do, and checks that this matches what the ways report.
+
 ## What is not built yet
 
-The skin side's rounded edges, a housing build record and trials. The snap shell is not a
+A housing build record and trials. The snap shell is not a
 housing style: it is clips alone, with nothing to hang a strap from, and a cradle is the form
 of it that can be worn. A cradle for a catalog device without a caliper capture is not offered:
 the capture is what the cradle is built round.
