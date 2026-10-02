@@ -3,9 +3,9 @@
 Two items stack when they share a profile (by its hash), are the right kinds and sizes,
 **agree on what holds them**, and, laid together as real solids, do not overlap:
 
-- a **bin** goes on a **baseplate** whose cells cover its own, or on a **bin** with the same
-  cells;
-- a baseplate goes on nothing; and
+- a **bin** or a **frame** goes on a **baseplate** whose cells cover its own, or on a bin or
+  frame with the same cells; a **cap** goes on a bin or a frame with the same cells;
+- a baseplate goes on nothing, nothing goes on a cap, and a drawer slides into a frame; and
 - a bin on a baseplate agrees with it on what holds them: the same magnet, the same
   fastener, or both the lip alone. A bin on a bin is held by the lip alone, and a holding in
   either one's foot meets nothing there.
@@ -82,7 +82,7 @@ def _holding_errors(
     errors: list[str] = []
     warnings: list[str] = []
 
-    if lower.kind == "bin":
+    if lower.kind != "baseplate":
         for item, hold in ((upper, upper_hold), (lower, lower_hold)):
             if hold.holds:
                 warnings.append(
@@ -104,25 +104,36 @@ def _holding_errors(
     return errors, warnings
 
 
+# What has a lip, so takes the foot of the item above.
+LIPPED = ("bin", "frame")
+
+
 def _shape_errors(upper: Item, lower: Item) -> list[str]:
     if upper.kind == "baseplate":
         return [f"{upper.name} is a baseplate: it goes under bins and on nothing"]
 
-    up, down = (
-        f"{upper.cells[0]} x {upper.cells[1]}",
-        f"{lower.cells[0]} x {lower.cells[1]}",
-    )
+    if upper.kind == "drawer":
+        return [f"{upper.name} is a drawer: it slides into a frame and does not stack"]
 
-    if lower.kind == "bin":
+    if lower.kind in ("cap", "drawer"):
+        return [f"nothing stacks on {lower.name}, a {lower.kind}: its top is not a lip"]
+
+    up = f"{upper.cells[0]} x {upper.cells[1]}"
+    down = f"{lower.cells[0]} x {lower.cells[1]}"
+
+    if lower.kind in LIPPED:
         if upper.cells == lower.cells:
             return []
 
         message = (
-            f"{upper.name} is {up} cells and {lower.name} is {down}: a bin stacks on a "
-            "bin of the same cells, since the foot sits in the lip all round"
+            f"{upper.name} is {up} cells and {lower.name} is {down}: it stacks on one "
+            "of the same cells, since the foot sits in the lip all round"
         )
 
         return [message]
+
+    if upper.kind == "cap":
+        return [f"{upper.name} is a cap: it goes on a bin or a frame, not a baseplate"]
 
     if upper.cells[0] > lower.cells[0] or upper.cells[1] > lower.cells[1]:
         return [f"{upper.name} is {up} cells, more than the {down} of {lower.name}"]
@@ -168,12 +179,14 @@ def check_stackable(
     summary: dict[str, Any] = {
         "upper": _describe(upper, upper_hold),
         "lower": _describe(lower, lower_hold),
-        "held_by": "the lip alone" if lower.kind == "bin" else _held_by(upper_hold),
+        "held_by": (
+            "the lip alone" if lower.kind != "baseplate" else _held_by(upper_hold)
+        ),
         "not_claimed": NOT_CLAIMED,
     }
 
     if not errors:
-        errors += _overlap_errors(upper, lower, upper_profile, summary)
+        errors += _overlap_errors(upper, lower, upper_profile, printer, summary)
 
     return StackReport(not errors, tuple(errors), tuple(warnings), summary)
 
@@ -185,12 +198,16 @@ def _held_by(holding: Holding) -> str:
 
 
 def _overlap_errors(
-    upper: Item, lower: Item, profile: Any, summary: dict[str, Any]
+    upper: Item,
+    lower: Item,
+    profile: Any,
+    printer: Mapping[str, Any],
+    summary: dict[str, Any],
 ) -> list[str]:
     """Lay the upper solid on the lower and measure any overlap."""
 
-    upper_model, _, upper_summary = build_item(upper, profile)
-    lower_model, lower_height, _ = build_item(lower, profile)
+    upper_model, _, upper_summary = build_item(upper, profile, printer)
+    lower_model, lower_height, _ = build_item(lower, profile, printer)
     pitch = profile.pitch_mm
     # The upper's first cell sits over the lower's first cell, corner to corner.
     dx = (upper.cells[0] - lower.cells[0]) * pitch / 2

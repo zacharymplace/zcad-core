@@ -628,6 +628,7 @@ def two_files(
     tmp_path: Path,
     upper: dict[str, Any],
     lower: dict[str, Any],
+    extra: tuple[dict[str, Any], ...] = (),
     **profile: Any,
 ) -> tuple[Path, Path]:
     profile_path = write_profile(tmp_path, **profile)
@@ -637,7 +638,7 @@ def two_files(
         path = tmp_path / f"{name}.json"
         data = stack_template(profile_path)
         data["source"] = "a stack for tests"
-        data["items"] = [item]
+        data["items"] = [item, *extra]
         path.write_text(json.dumps(data))
         paths.append(path)
 
@@ -708,7 +709,7 @@ def test_two_bins_stack_by_their_lips_and_a_foot_pocket_meets_nothing(
 @pytest.mark.parametrize(
     ("upper", "lower", "message"),
     [
-        (BIN, {**BIN, "name": "down", "cells": [2, 1]}, "bin of the same cells"),
+        (BIN, {**BIN, "name": "down", "cells": [2, 1]}, "one of the same cells"),
         (PLATE | {"name": "up"}, PLATE, "is a baseplate"),
         ({**BIN, "cells": [3, 1]}, PLATE, "more than the 2 x 2"),
     ],
@@ -761,3 +762,235 @@ def test_the_check_stack_command_exits_1_when_items_do_not_stack(
     )
 
     assert code == 0 and report["stacks"] is True
+
+
+# --- caps, frames and drawers -------------------------------------------------------------------
+
+FRAME = {"kind": "frame", "name": "chest", "cells": [1, 2], "units": 6, "drawers": 3}
+DRAWER = {"kind": "drawer", "name": "drawer", "frame": "chest"}
+CAP = {"kind": "cap", "name": "lid", "cells": [1, 2]}
+
+
+@pytest.fixture(scope="module")
+def chest(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    return build(tmp_path_factory.mktemp("chest"), [FRAME, DRAWER, CAP])
+
+
+@pytest.mark.parametrize(
+    ("items", "message"),
+    [
+        ([{**FRAME, "drawers": 0}], "drawers is 0, outside 1 to 8"),
+        ([{**FRAME, "drawers": 9}], "outside 1 to 8"),
+        (
+            [{k: v for k, v in FRAME.items() if k != "drawers"}],
+            "drawers must be a whole",
+        ),
+        ([DRAWER], "is not a frame in this file"),
+        ([{"kind": "drawer", "name": "d"}], "frame must name a frame"),
+        ([FRAME, {**DRAWER, "pull": "yes"}], "pull must be true or false"),
+        ([{**CAP, "units": 2}], "unknown fields: units"),
+        ([{**FRAME, "scoop": True}], "unknown fields: scoop"),
+    ],
+)
+def test_caps_frames_and_drawers_that_cannot_be_right_are_refused(
+    items: list[Any], message: str
+) -> None:
+    report = check_stack_data(stack_data(items))
+
+    assert not report.valid
+    assert any(message in e for e in report.errors), report.errors
+
+
+@pytest.mark.parametrize(
+    ("items", "message"),
+    [
+        ([{**FRAME, "units": 3}], "leave each"),
+        (
+            [FRAME, {**DRAWER, "wall_mm": 0.8}],
+            "under the printer's 1.2 mm minimum wall",
+        ),
+        (
+            [FRAME, {**DRAWER, "floor_mm": 0.8}],
+            "under the printer's 1.2 mm minimum floor",
+        ),
+        ([{**FRAME, "wall_mm": 3.0}], "thicker than the 2.6 mm"),
+        ([{**CAP, "floor_mm": 0.8}], "under the printer's 1.2 mm minimum floor"),
+        (
+            [
+                {"kind": "drawer", "name": "d", "frame": "base"},
+                {"kind": "baseplate", "name": "base", "cells": [1, 1]},
+            ],
+            "is not a frame",
+        ),
+    ],
+)
+def test_a_frame_or_drawer_that_cannot_be_built_is_refused_with_why(
+    tmp_path: Path, items: list[dict[str, Any]], message: str
+) -> None:
+    report = check(tmp_path, items)
+
+    assert not report.valid
+    assert any(message in e for e in report.errors), report.errors
+
+
+def test_a_frame_with_drawers_and_a_cap_build_and_pass_their_checks(chest: Any) -> None:
+    assert chest.passed, chest.checks
+    assert set(chest.checks) == {
+        "chest.one_solid",
+        "chest.stacks_on_itself",
+        "chest.sits_on_baseplate",
+        "drawer.one_solid",
+        "drawer.slides_in_chest",
+        "lid.one_solid",
+        "lid.sits_on_a_bin",
+    }
+    frame = chest.summary["items"]["chest"]
+    assert frame["drawers"] == 3
+    assert frame["slot_pitch_mm"] == pytest.approx((42.0 - 1.6 - 5.95) / 3, abs=0.001)
+    drawer = chest.summary["items"]["drawer"]
+    assert drawer["size_mm"][0] == pytest.approx(39.1 - 0.4, abs=0.001)
+    assert drawer["clearance_per_side_mm"] == 0.2
+    assert "comes out when pulled" in drawer["held_by"]
+
+
+def test_a_frame_is_open_at_the_front_with_ledges_a_roof_and_a_lintel(
+    chest: Any,
+) -> None:
+    frame = chest.parts["chest"]
+    floor_z, front = 4.75 + 1.2, -41.75
+
+    # The front wall is out between the slots, the side walls and the floor are not.
+    assert not inside(frame, 0.0, front + 0.6, floor_z + 3.0)
+    assert inside(frame, 20.2, 0.0, floor_z + 3.0)
+    assert inside(frame, 0.0, 0.0, floor_z - 0.5)
+    # A ledge stands in from each side wall at each slot, and not across the middle.
+    for slot in range(3):
+        z = floor_z + slot * 11.4833 + 0.8
+        assert inside(frame, 17.5, 0.0, z)
+        assert inside(frame, -17.5, 0.0, z)
+        assert not inside(frame, 0.0, 0.0, z)
+    # The roof over the top slot, and a lintel above the front opening.
+    assert inside(frame, 0.0, 0.0, 42.0 - 0.8)
+    assert inside(frame, 0.0, front + 0.6, 42.0 - 0.8)
+    assert not inside(frame, 0.0, 0.0, 42.0 - 3.0)
+
+
+def test_a_drawer_rests_on_the_ledges_with_its_front_flush_and_a_finger_pull(
+    chest: Any,
+) -> None:
+    drawer = chest.parts["drawer"]
+    z0, front = 4.75 + 1.2 + 1.6, -41.75
+    height = chest.summary["items"]["drawer"]["size_mm"][2]
+
+    assert inside(drawer, 0.0, 0.0, z0 + 0.6)
+    assert not inside(drawer, 0.0, 0.0, z0 + 3.0)
+    assert inside(drawer, 10.0, front + 0.6, z0 + 3.0)
+    # The finger pull is a half-round notch in the front wall's top.
+    assert not inside(drawer, 0.0, front + 0.6, z0 + height - 1.0)
+    assert inside(drawer, 15.0, front + 0.6, z0 + height - 1.0)
+    # The front is flush with the frame's, and it stops short of the back wall.
+    box = workplane_shape(drawer).BoundingBox()
+    assert box.ymin == pytest.approx(front, abs=0.01)
+    assert box.ymax < 41.75 - 1.2 - 0.19
+
+
+def test_a_drawer_too_tall_for_its_slot_is_caught_as_an_overlap(tmp_path: Path) -> None:
+    from zcad_core.features.stack import _drawer_slides, frame_plan
+
+    stack = build(
+        tmp_path,
+        [FRAME, DRAWER, {**FRAME, "name": "short", "drawers": 2}],
+    )
+    spec = load_stack(tmp_path / "stack.json")
+    profile = load_profile(tmp_path / "profile.json")
+    taller = frame_plan(next(i for i in spec.items if i.name == "short"), profile, 0.2)
+    three = frame_plan(next(i for i in spec.items if i.name == "chest"), profile, 0.2)
+
+    assert taller.drawer_height > three.drawer_height
+    # The two-slot frame's drawer does not fit the three-slot frame.
+    from zcad_core.features.stack_drawers import drawer_solid
+
+    assert not _drawer_slides(drawer_solid(taller, True), stack.parts["chest"], three)
+    assert _drawer_slides(stack.parts["drawer"], stack.parts["chest"], three)
+
+
+def test_a_cap_is_a_flat_lid_on_the_foot_that_nothing_stacks_on(chest: Any) -> None:
+    box = workplane_shape(chest.parts["lid"]).BoundingBox()
+
+    assert box.xlen == pytest.approx(41.5, abs=0.01)
+    assert box.zlen == pytest.approx(4.75 + 1.2, abs=0.01)
+    assert chest.summary["items"]["lid"]["holding"] == "lip"
+
+
+@pytest.mark.parametrize(
+    ("upper", "lower", "stacks", "message"),
+    [
+        (CAP, {**FRAME, "name": "down"}, True, ""),
+        (
+            {**CAP, "cells": [1, 1]},
+            {"kind": "bin", "name": "down", "cells": [1, 1], "units": 2},
+            True,
+            "",
+        ),
+        (CAP, {**PLATE, "cells": [1, 2]}, False, "not a baseplate"),
+        ({**BIN, "cells": [1, 2]}, {**FRAME, "name": "down"}, True, ""),
+        ({**FRAME, "name": "up"}, {**PLATE, "cells": [1, 2]}, True, ""),
+        (
+            {**FRAME, "name": "up"},
+            {**CAP, "name": "down"},
+            False,
+            "nothing stacks on down",
+        ),
+        (
+            {**CAP, "cells": [2, 2]},
+            {**FRAME, "name": "down"},
+            False,
+            "of the same cells",
+        ),
+    ],
+)
+def test_check_stack_knows_caps_and_frames(
+    tmp_path: Path,
+    upper: dict[str, Any],
+    lower: dict[str, Any],
+    stacks: bool,
+    message: str,
+) -> None:
+    up, down = two_files(tmp_path, upper, lower)
+    report = stackable(up, down, upper["name"], lower["name"])
+
+    assert report.stacks is stacks, report.errors
+
+    if message:
+        assert any(message in e for e in report.errors), report.errors
+
+
+def test_a_drawer_slides_into_a_frame_and_nothing_stacks_on_it(tmp_path: Path) -> None:
+    drawer_file, frame_file = two_files(
+        tmp_path, DRAWER, {**FRAME, "name": "down"}, extra=(FRAME,)
+    )
+    on_frame = stackable(drawer_file, frame_file, "drawer", "down")
+    on_drawer = stackable(frame_file, drawer_file, "down", "drawer")
+
+    assert not on_frame.stacks
+    assert any("slides into a frame" in e for e in on_frame.errors)
+    assert not on_drawer.stacks
+    assert any("nothing stacks on drawer" in e for e in on_drawer.errors)
+
+
+def test_the_commands_build_a_frame_its_drawers_and_a_cap(tmp_path: Path) -> None:
+    profile = write_profile(tmp_path)
+    path = write_stack(tmp_path, profile, [FRAME, DRAWER, CAP])
+    code, built = run(
+        "stack",
+        "build",
+        "--stack-file",
+        str(path),
+        "--output-directory",
+        str(tmp_path / "out"),
+    )
+
+    assert code == 0
+    assert built["validation_status"] == "PASS"
+    assert set(built["parts"]) == {"chest", "drawer", "lid"}
+    assert built["checks"]["drawer.slides_in_chest"] is True

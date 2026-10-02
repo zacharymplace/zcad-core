@@ -163,7 +163,7 @@ is the user's; the engine only places the plate and the spacers.
    the profile's figures read from the published specification and cited.
 2. **Holding (built, without latches).** Bolts, magnets and latches in the profile, built into any item, and
    `check-stack` for two items.
-3. **Trays and drawers.** The stacking tray with a snap lid, and the stack frame with
+3. **Trays and drawers (built).** The stacking tray with a snap lid, and the stack frame with
    sliding drawers.
 4. **Enclosures on the grid.** `--mount stack` on the single-board enclosure and the Pi 5
    group, and `check-stack` over their build records.
@@ -259,3 +259,26 @@ See *How an item holds* and *Does it stack* in [Stackable items](../guides/stack
   (`FILE:NAME`). Checking two records joins it then.
 - **The check lays real solids.** As well as comparing what holds them, it places the upper on the lower and
   measures any overlap, as the build does for one item against its own baseplate and itself.
+
+### What phase 3 changed
+
+See *Caps, frames and drawers* in [Stackable items](../guides/stackable-items.md).
+
+- **A tray is a bin, and the new kinds are `cap`, `frame` and `drawer`.** The design listed a tray with a snap lid.
+  A shallow tray is a bin of two units, so no kind is needed for it; what it lacked was the lid, and the drawers.
+- **The finer unit for a tray's height is dropped.** The open question proposed a unit finer than the profile's so a
+  tray could be shallow. A bin's foot is 4.75 mm of a 7 mm unit, so the least bin has about 1 mm inside, and a tray of
+  two units has 8. Whole units stack with every bin, which a finer unit would not, so trays stay whole units.
+- **The lid is a cap, not a snap lid.** A snap needs the latch that phase 2 deferred. A cap sits in the lip and is held
+  by it, and nothing stacks on a cap. A snapping lid joins when latches do.
+- **A drawer rides on ledges, not in grooves.** The design said "the slide lid's grooves". The frame's walls are 1.2 mm
+  thick, too thin to groove, and a groove in a ledge 3 mm deep leaves no room for a drawer of any width beside it. A
+  drawer sits on a pair of ledges that stand in from the side walls, like a tray on shelves, and slides out along them.
+- **A drawer is held by nothing.** There is no stop, so it comes out when pulled. A stop would be a latch of its own,
+  and the engine states no retention.
+- **A drawer is checked by sweeping it.** As the hinges and slides did, the build puts the drawer in every slot and
+  pulls it out, and refuses one that touches the frame. The check found no clash for a drawer sized from the frame,
+  and does find one for a drawer from a taller slot.
+- **A frame's front wall comes out with its inside corners.** Taking out only the wall leaves a wedge of the rounded
+  corner that a drawer's corners would strike, so the cut takes the wedge too, and a drawer's corners carry the inside
+  corner's radius less the clearance.
