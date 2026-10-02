@@ -44,6 +44,7 @@ from zcad_core.hardware.electronics.board_file import (
 
 LAYER_SCHEMA_VERSION = "1.0.0"
 LAYER_KIND = "layer"
+LAYER_RECORD_KIND = "layer-build"
 DEFAULT_CLEARANCE_MM = 1.0
 DEFAULT_PLATE_MM = 2.0
 DEFAULT_WALL_MM = 1.2
@@ -652,18 +653,56 @@ def _sorted_holes(holes: list[list[float]]) -> list[tuple[float, float]]:
     return sorted((float(x), float(y)) for x, y in holes)
 
 
+def _summary_of(
+    path: Path, printer: Mapping[str, Any]
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """What a layer says of itself, from its file or from its build record; a record is
+    not trusted if the board it names has changed since the build."""
+
+    if path.suffix == ".json" and path.is_file():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            data = None
+
+        if isinstance(data, dict) and data.get("record_kind") == LAYER_RECORD_KIND:
+            return _summary_of_record(path, data)
+
+    report = check_layer_file(path, printer)
+
+    return report.summary, [f"{path.name}: {e}" for e in report.errors]
+
+
+def _summary_of_record(
+    path: Path, record: dict[str, Any]
+) -> tuple[dict[str, Any] | None, list[str]]:
+    board = Path(record["board"]["path"])
+
+    if not board.is_file():
+        return None, [f"{path.name}: the board {board} is missing"]
+
+    digest = hashlib.sha256(board.read_bytes()).hexdigest()
+
+    if digest != record["board"]["sha256"]:
+        message = (
+            f"{path.name}: the board {board} has changed since the build: its hash is "
+            f"{digest[:12]}, not {record['board']['sha256'][:12]}"
+        )
+
+        return None, [message]
+
+    return record["summary"], []
+
+
 def check_layers(
     upper_file: Path, lower_file: Path, printer: Mapping[str, Any]
 ) -> LayersReport:
     """Whether the upper layer's board stacks over the lower layer: the same hole
     pattern, since one bolt passes through both, and a fastener that passes them."""
 
-    errors: list[str] = []
-    upper_report = check_layer_file(upper_file, printer)
-    lower_report = check_layer_file(lower_file, printer)
-    errors += [f"{upper_file.name}: {e}" for e in upper_report.errors]
-    errors += [f"{lower_file.name}: {e}" for e in lower_report.errors]
-    upper, lower = upper_report.summary, lower_report.summary
+    upper, upper_errors = _summary_of(upper_file, printer)
+    lower, lower_errors = _summary_of(lower_file, printer)
+    errors = [*upper_errors, *lower_errors]
 
     if errors or upper is None or lower is None:
         return LayersReport(False, tuple(errors), {})

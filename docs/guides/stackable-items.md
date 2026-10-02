@@ -171,8 +171,26 @@ fastener will not pass the board's holes, when a spacer would stand on a part (i
 opening would come within the printer's minimum wall of a hole, or when the wall or plate is under the printer's
 minimums. The build also lays the spacers and the plate against the board's parts as solids and fails if they touch.
 
+`layer build` also writes `layer-build.json`: the layer file and the board by hash, the settings as built, the spacer's height and the
+holes, each part's STL hash, and the checks and dimensions a trial asks. `check-layers` takes a record in place of a layer file, and does not trust
+one whose board has changed since the build.
+
 `check-layers` says whether two layers stack: **their holes must be the same pattern** to within 0.1 mm, since one bolt
 passes through both boards, and they must use the same fastener. It reports the worst offset and the height of the lower layer.
+
+A layer's trial records one print fitted to a real board:
+
+```bash
+zcad-validation stack layer trial start --build-record exports/my-layer/layer-build.json
+# print it, fit it to the board; fill in observations.json, measurements.json and fitting.json
+zcad-validation stack layer trial complete --trial-directory exports/my-layer/trials/trial-001 \
+  --disposition pass
+```
+
+The checks are that it printed cleanly, the spacers stand flat, the plate seats with a screw through every hole, the openings line up, and the
+plate clears the tallest part. `fitting.json` takes the **air** a feeler gauge finds over the tallest part (set beside the air designed), whether
+the **bolts pass** every hole, and a **count of assemblies** with whether anything wore. The engine states no limit for any of them, and nothing about
+a board's function. A completed trial checks the parts by hash and is never overwritten.
 
 **The engine places a plate and spacers.** It makes no electrical connection, and states nothing about a header's alignment
 or what it carries. The air over a part, the margin round an opening and the spacer's wall are the engine's own choices.

@@ -332,8 +332,18 @@ See *The build record and stacking trials* in [Stackable items](../guides/stacka
   The record names the profile by path and hash, and a profile that has changed since the build is not trusted.
 - **Item names are changed for measurements.** A measurement's name must be lowercase with underscores, and an item's may have capitals,
   hyphens and dots, so `Tub-1` is measured as `tub_1_width_mm`, kept apart from another item that comes to the same.
-- **A layer has no build record.** `stack layer build` still writes only its parts. A layer's trial (whether the plate and spacers fit a
-  real board) is the board's own readings, and is left open.
+- **A layer has no build record yet.** `stack layer build` still writes only its parts; the layer record follows (below).
 
-All six phases are built. What remains open is the latch, and with it a snapping cap and a stop for a drawer; the enclosure lid's lip,
-`--stack-top`; and a record for layers.
+All six phases are built. What remains open is the latch, and with it a snapping cap and a stop for a drawer; and the enclosure lid's lip,
+`--stack-top`.
+
+### The layer record
+
+See *Electronics layers* in [Stackable items](../guides/stackable-items.md). It closes the one gap phase 6 left.
+
+- **`stack layer build` writes `layer-build.json`,** and `stack layer trial start | complete` record a print in the stack trials' style, with `fitting.json`
+  for the readings of fitting it to a real board: the air a feeler gauge finds over the tallest part (kept beside the air designed, with the shortfall), whether
+  the bolts pass every hole, and a count of assemblies with whether anything wore. No limit is stated.
+- **The checks are fixed, not conditional.** A plate is always opened for the cable connector, so `openings_line_up` is always asked.
+- **`check-layers` reads records.** A record's summary stands in for a layer file's, and a record is not trusted if its board has changed since the build.
+- **A layer trial says nothing about the board.** What the board does, and what a header between two boards carries, are the user's, as the layers section says.
