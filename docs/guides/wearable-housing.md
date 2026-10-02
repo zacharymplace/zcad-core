@@ -1,8 +1,7 @@
 # A housing for something you wear
 
-A wearable housing holds a device or a board so you can carry it. This release builds
-one you **hold**: how it attaches to a body (a strap, a band, a clip, an adhesive plate)
-comes later. There are two styles:
+A wearable housing holds a device or a board so you can carry it, and can be worn: on a
+strap, a band, a belt, an adhesive patch, or a lanyard. There are two styles:
 
 - a **cradle** for a **sealed device** (a sensor, a pump, a tracker) that a
   [caliper capture](wearable-capture.md) describes: one printed tray it snaps into; and
@@ -34,6 +33,7 @@ wear it is yours to judge. The build says this in its output.
 | `clearance_mm` | A cradle's gap round the device (0.3 by default). |
 | `retention_edges` | A cradle's edges that carry a tab (all four by default); at least three. |
 | `lid_mm`, `corner_radius_mm` | A case's lid (2.0) and the radius of its outer vertical corners (1.0). |
+| `wear` | The ways of wearing it: a list, each with its figures and their source. See *Ways of wearing*. |
 
 The file names what it houses by hash, and the check and the build refuse a housing
 whose device or board has changed since: change the housing file and its hash to say
@@ -76,9 +76,52 @@ leaves the diagonal under the printer's minimum wall and says the most it can ha
 1.2 mm on a 1.2 mm wall, 2.6 mm on a 1.6 mm one. Rounding the skin-side edges and a
 rounded cavity come later.
 
+## Ways of wearing
+
+`wear` is a list; each entry has a `kind`, **the figures that kind needs, and a `source`
+that says where they came from**. The engine has no figure for a strap, a band, a belt, a
+patch or a cord, so they are yours. `housing template --wear strap --wear lanyard` adds
+examples to replace; a file whose `source` still says `EXAMPLE` is refused.
+
+| Kind | You give | It builds |
+| --- | --- | --- |
+| `strap` | `strap_width_mm`, `bar_diameter_mm` | A lug at each end: a prong either side of the strap with a hole across them for a spring bar, and a web joining them to the body. |
+| `band` | `band_width_mm`, `band_thickness_mm` | An ear at each end on the skin plane, each with a slot the band threads through. |
+| `clip` | `belt_thickness_mm` | A spring arm under the back, fixed at one end and free at the other, with a nub that grips a belt slid between it and the back. |
+| `adhesive` | `patch_mm` (`[width, depth]`), optional `corner_radius_mm` | A flat flange of the patch's outline on the skin plane, one piece with the housing. |
+| `lanyard` | `cord_diameter_mm` | A flat tab on the +Y side with a hole a millimetre wider than the cord. |
+
+```json
+"wear": [
+  {"kind": "strap", "strap_width_mm": 20, "bar_diameter_mm": 1.8,
+   "source": "the strap I will use, measured with calipers"},
+  {"kind": "lanyard", "cord_diameter_mm": 3,
+   "source": "the cord I will use"}
+]
+```
+
+- **Each is checked against the housing.** A strap needs lugs `strap + 4 mm` across, so it
+  is refused if wider than the housing's width less 4 mm (23.1 mm on the G7's cradle); the
+  lugs must also be shorter than the housing is tall. A band needs ears `band + 3 mm` wide.
+  An adhesive patch must hold the housing with 2 mm to spare. A belt clip's arm is as long as
+  the housing allows, up to 18 mm, and is refused, with the length it would need, if its
+  strain would pass the provisional 1.5 per cent limit. Every problem is listed at once.
+- **Two that take the same place are refused:** a strap and a band (both stand on the two
+  ends), and an adhesive plate with a clip or a band (all on the skin side). A strap and a
+  lanyard, or a band and a clip, go together.
+- **They are built on the housing's body** (a cradle's tray, a case's base) and are one solid
+  with it. The cradle's pocket and the case's cavity are checked again afterwards.
+- **The engine states no figure for how well any holds a body**, and no print has shown yet
+  that any prints cleanly: a belt clip hangs below the floor, so the housing prints on
+  supports under it, and a lug's hole prints across the layers. A trial measures both.
+- **The constants are the engine's own, not yours:** the lug is 2.0 mm thick with 1.5 mm
+  round its hole, the bar 3 mm out from the end, the band's ear 2.0 mm thick, the belt
+  clip 12 mm wide with a 1.2 mm arm and a 1.0 mm nub, and the belt gap the belt's thickness
+  and 0.4 mm. They are design choices to be tried, not sourced figures.
+
 ## What is not built yet
 
-A way of wearing it (the next release), a `shell` style that reaches the snap-shell
-clips through the housing file, the skin side's rounded edges, a housing build record
-and trials. A cradle for a catalog device without a caliper capture is not offered:
+The skin side's rounded edges, a housing build record and trials. The snap shell is not a
+housing style: it is clips alone, with nothing to hang a strap from, and a cradle is the form
+of it that can be worn. A cradle for a catalog device without a caliper capture is not offered:
 the capture is what the cradle is built round.

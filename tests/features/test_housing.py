@@ -491,7 +491,7 @@ def test_the_commands_write_check_and_build_a_cradle(tmp_path: Path) -> None:
     assert code == 0
     assert output["validation_status"] == "PASS"
     assert all(output["checks"].values())
-    assert "no claim about skin" in output["not_claimed"]
+    assert "no claim about skin" in output["not_claimed"][0]
     assert Path(output["parts"]["housing"]["stl_path"]).is_file()
     assert output["housing"]["tab"]["strain_percent"] == 0.75
 

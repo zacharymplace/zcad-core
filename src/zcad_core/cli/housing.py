@@ -10,7 +10,6 @@ from pathlib import Path
 from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.housing import (
-    NOT_CLAIMED,
     build_housing,
     print_oriented,
     require_fits_bed,
@@ -21,6 +20,7 @@ from zcad_core.features.housing_file import (
     housing_template,
     load_housing,
 )
+from zcad_core.features.housing_wear import WEAR_KINDS
 from zcad_core.profiles import load_printer_profile
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
@@ -29,7 +29,7 @@ DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
 def _housing_template(args: argparse.Namespace) -> int:
     """Print a valid example housing file to copy and edit, or write it."""
 
-    template = housing_template(args.style, args.input_file)
+    template = housing_template(args.style, args.input_file, tuple(args.wear))
 
     if args.output is None:
         emit(template)
@@ -118,7 +118,7 @@ def _housing_build(args: argparse.Namespace) -> int:
             "warnings": list(report.warnings),
             "housing": housing.summary,
             "checks": housing.checks,
-            "not_claimed": NOT_CLAIMED,
+            "not_claimed": list(housing.notes),
             "validation_status": (result.validation_report or {}).get(
                 "evaluated_status"
             ),
@@ -150,6 +150,13 @@ def register(
     )
     template.add_argument(
         "--output", type=Path, help="write the example here instead of printing it"
+    )
+    template.add_argument(
+        "--wear",
+        action="append",
+        default=[],
+        choices=WEAR_KINDS,
+        help="a way of wearing to add, with example figures to replace; repeatable",
     )
     template.set_defaults(handler=_housing_template)
     check = commands.add_parser(

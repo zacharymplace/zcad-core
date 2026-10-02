@@ -31,6 +31,7 @@ from zcad_core.features.housing_cradle import (
     plan_cradle,
 )
 from zcad_core.features.housing_file import HousingSpec, load_housing_input
+from zcad_core.features.housing_wear import add_wear, body_of
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware.electronics.board_file import BoardFileSpec
@@ -61,6 +62,38 @@ class Housing:
         return all(self.checks.values())
 
 
+WEAR_NOT_CLAIMED = (
+    "The engine states no figure for how well any way of wearing holds a body, and no "
+    "print has shown that one prints cleanly: a trial measures that."
+)
+
+
+def _notes(spec: HousingSpec) -> tuple[str, ...]:
+    return (NOT_CLAIMED, WEAR_NOT_CLAIMED) if spec.wear else (NOT_CLAIMED,)
+
+
+def _wear(
+    model: cq.Workplane,
+    spec: HousingSpec,
+    profile: Mapping[str, Any],
+    corner_radius_mm: float,
+) -> tuple[cq.Workplane, list[dict[str, Any]]]:
+    """The body with each way of wearing added."""
+
+    if not spec.wear:
+        return model, []
+
+    fits, _, _ = printer_numbers(profile)
+
+    return add_wear(
+        model,
+        body_of(model, corner_radius_mm),
+        spec.wear,
+        hole_oversize_mm=fits["hole_oversize"],
+        plate_mm=spec.floor_mm,
+    )
+
+
 def _single(model: cq.Workplane) -> bool:
     return len(model.solids().vals()) == 1
 
@@ -86,6 +119,12 @@ def _build_cradle(
         floor_mm=spec.floor_mm,
         clearance_mm=spec.clearance_mm,
     )
+    tray, worn = _wear(
+        tray,
+        spec,
+        profile,
+        (capture.outline_radius_mm or 0.0) + spec.clearance_mm + spec.wall_mm,
+    )
     shape = workplane_shape(tray)
     checks = {
         "one_solid": _single(tray),
@@ -100,9 +139,9 @@ def _build_cradle(
         spec=spec,
         parts={"housing": tray},
         checks=checks,
-        summary=_cradle_summary(capture, plan, spec),
+        summary={**_cradle_summary(capture, plan, spec), "wear": worn},
         profile_id=str(profile.get("profile_id", "")),
-        notes=(NOT_CLAIMED,),
+        notes=_notes(spec),
     )
 
 
@@ -225,6 +264,7 @@ def _build_case(
     )
     footprint = workplane_shape(enclosure.base).BoundingBox()
     base = _rounded(enclosure.base, footprint, spec.corner_radius_mm)
+    base, worn = _wear(base, spec, profile, spec.corner_radius_mm)
     lid = _rounded(enclosure.lid, footprint, spec.corner_radius_mm)
     size = workplane_shape(base).BoundingBox()
 
@@ -247,9 +287,10 @@ def _build_case(
             "lid_mm": spec.lid_mm,
             "corner_radius_mm": spec.corner_radius_mm,
             "corner_radius_limit_mm": round(limit, 2),
+            "wear": worn,
         },
         profile_id=str(profile.get("profile_id", "")),
-        notes=(NOT_CLAIMED,),
+        notes=_notes(spec),
     )
 
 
