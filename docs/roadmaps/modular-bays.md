@@ -17,7 +17,8 @@ makes a unit (a box of one or more bays) something that bolts to another unit of
 a different size and can be swapped without reprinting its neighbours. This is
 the design for both.
 
-This is a design, not built work. Nothing below exists in the code yet.
+All five phases are built; each section of *Phases* and the *What phase N
+changed* notes below say where the build departed from the design.
 
 ## What the engine already has
 
@@ -148,7 +149,7 @@ catalog's provisional status carried through.
    `fan` bay, with the fan's figures still provisional.
 4. **Joinable units (built).** The standard joint face, the pass-through, and
    `check-join`.
-5. **The group's build record and trials.** `enclosure-group.json`, with each bay's
+5. **The group's build record and trials (built).** `enclosure-group.json`, with each bay's
    kind, the board file's hash, the module's placement, and the printed parts'
    hashes; `enclosure-group trial start|complete` in the enclosure trials' style,
    with per-bay checks and, for a pair of units, a reading of the gap measured at
@@ -280,6 +281,30 @@ catalog's provisional status carried through.
 - **Only the joint's own settings are shared.** `check-join` takes the wall, floor,
   fastener and lid as shared flags, and the joint face and pass-through per unit;
   heights and bays are the units' own, and no other design setting moves the joint.
+
+### What phase 5 changed
+
+- **A record, trials, and a check from records.** `enclosure-group build` writes
+  `enclosure-group.json`; `enclosure-group trial start|complete` and
+  `enclosure-group-trial.json` follow the single-board enclosure's trials, reusing its
+  readers for the observations, measurements, temperature and lid. `check-join` takes
+  `--left-record` and `--right-record` as well as bays.
+- **The record check does not rebuild, so it checks less.** Only the bolts' positions,
+  the screw, the joint face and the pass-through are in a record. The walls meeting
+  and the screw's path need the geometry, so the record check says it did not check
+  them; `check-join` from bays still does.
+- **Checks are per bay, named by index.** The design said per-bay checks. Each is
+  `bay-<n>-<check>` with its guidance by the bay's kind, so a row of mixed bays
+  lists what each asks and nothing else: no seating check for a fan, no fan check for a
+  board.
+- **The joint is a reading, not a check.** A pair of units needs both printed and
+  bolted for the gap to be read, so a trial of one unit cannot make it a pass or fail
+  check. `joint_gap_mm` is an optional measurement, nominally zero.
+- **Group trials are not pooled.** The enclosure's thermal and fit profiles pool its
+  own trial records; the group's are a separate file and are not read by them. A
+  group is almost never a closed box, which is what the thermal pooling requires.
+- **The hinge and slide trials' open question is closed.** The lid readings of the
+  hinges and slides roadmap's phase 4 now apply to the group too.
 
 Each phase is one PR. Phases 1 and 4 add bay kinds and a joint face, so every
 existing group build keeps its output unless a design asks for the new ones.

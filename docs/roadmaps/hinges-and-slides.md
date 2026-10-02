@@ -207,9 +207,10 @@ The parts pass through the same export pipeline as the enclosure.
 - **Pin fit is measured as the hole.** The trial's measurements add the pin hole's
   diameter beside the one modelled (the clearance hole plus the design's hole
   compensation) for a hinge, and the gap per side for a slide. Whether the pin turns freely is a reading.
-- **The group has a review but no trials.** The group enclosure writes no build
-  record, so there is nothing for a trial to measure against; its pose is in the
-  review STEP only. Trials for the group need that record first.
+- **The group had a review but no trials.** The group enclosure wrote no build
+  record, so there was nothing for a trial to measure against; its pose was in the
+  review STEP only. The modular bays work gave it the record and trials, with these
+  lid readings: see [Modular bays](modular-bays.md).
 - **The Validation Lab did not change.** The trial tooling lives in the
   enclosure's own `trial` commands, as the thermal records do.
 

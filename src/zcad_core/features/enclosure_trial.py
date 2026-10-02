@@ -33,6 +33,8 @@ import cadquery as cq
 
 from zcad_core.features.enclosure import Enclosure
 from zcad_core.features.insert_bosses import InsertBossParameters
+from zcad_core.features.lid_hinge import HingeReport
+from zcad_core.features.lid_slide import SlideReport
 from zcad_core.hardware import DisplaySpec, get_fastener
 from zcad_core.validation.measurements import PhysicalMeasurement
 
@@ -244,7 +246,13 @@ def lid_summary(enclosure: Enclosure) -> dict[str, Any] | None:
     """What a hinged or sliding lid was designed to do, for a trial to compare
     with: ``None`` for a screwed or snap lid."""
 
-    hinge, slide = enclosure.hinge, enclosure.slide
+    return lid_summary_of(enclosure.hinge, enclosure.slide)
+
+
+def lid_summary_of(
+    hinge: HingeReport | None, slide: SlideReport | None
+) -> dict[str, Any] | None:
+    """The same, from a lid's hinge or slide report."""
 
     if hinge is not None:
         return {
