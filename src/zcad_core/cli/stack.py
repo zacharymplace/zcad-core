@@ -9,6 +9,7 @@ from pathlib import Path
 
 from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
+from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.stack import build_stack, require_fits_bed
 from zcad_core.features.stack_check import check_items
 from zcad_core.features.stack_file import (
@@ -30,6 +31,11 @@ from zcad_core.features.stack_profile import (
     check_profile_data,
     profile_template,
     read_profile_file,
+)
+from zcad_core.features.stack_trial import (
+    complete_stack_trial,
+    start_stack_trial,
+    write_stack_record,
 )
 from zcad_core.profiles import load_printer_profile
 
@@ -111,6 +117,37 @@ def _stack_check(args: argparse.Namespace) -> int:
     )
 
     return 0 if stack.valid else 1
+
+
+def _trial_start(args: argparse.Namespace) -> int:
+    trial = start_stack_trial(args.build_record)
+    emit(
+        {
+            "trial": str(trial),
+            "observations": str(trial / "observations.json"),
+            "measurements": str(trial / "measurements.json"),
+            "stacking": str(trial / "stacking.json"),
+        }
+    )
+
+    return 0
+
+
+def _trial_complete(args: argparse.Namespace) -> int:
+    record = complete_stack_trial(
+        args.trial_directory,
+        disposition=EnclosureTrialDisposition(args.disposition),
+        material_profile_id=args.material_profile,
+        notes=args.notes,
+    )
+    emit(
+        {
+            "trial_record": str(record),
+            "passed": json.loads(record.read_text(encoding="utf-8"))["passed"],
+        }
+    )
+
+    return 0
 
 
 def _stack_check_stack(args: argparse.Namespace) -> int:
@@ -269,9 +306,17 @@ def _stack_build(args: argparse.Namespace) -> int:
         }
         for exported in result.parts
     }
+    record = write_stack_record(
+        args.output_directory,
+        stack=stack,
+        design_name=name,
+        printer_profile_id=str(profile.get("profile_id", "")),
+        part_stls={e.part_name: e.stl_path for e in result.parts},
+    )
     emit(
         {
             "design_name": name,
+            "build_record": str(record),
             "warnings": list(report.warnings),
             "stack": stack.summary,
             "checks": stack.checks,
@@ -371,3 +416,25 @@ def register(
         "--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE
     )
     layer_build.set_defaults(handler=_layer_build)
+    trial = commands.add_parser(
+        "trial", help="record a print and stacking of a stack's items"
+    )
+    trial_commands = trial.add_subparsers(dest="trial_command", required=True)
+    trial_start = trial_commands.add_parser(
+        "start",
+        help="write the next trial's observation, measurement and stacking templates",
+    )
+    trial_start.add_argument("--build-record", required=True, type=Path)
+    trial_start.set_defaults(handler=_trial_start)
+    trial_complete = trial_commands.add_parser(
+        "complete", help="validate a filled-in trial and write its record"
+    )
+    trial_complete.add_argument("--trial-directory", required=True, type=Path)
+    trial_complete.add_argument(
+        "--disposition",
+        required=True,
+        choices=[disposition.value for disposition in EnclosureTrialDisposition],
+    )
+    trial_complete.add_argument("--material-profile", default="petg")
+    trial_complete.add_argument("--notes", default="")
+    trial_complete.set_defaults(handler=_trial_complete)

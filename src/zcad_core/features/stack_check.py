@@ -36,6 +36,7 @@ from zcad_core.features.stack_file import (
 )
 from zcad_core.features.stack_holding import Holding, holding_for
 from zcad_core.features.stack_profile import StackProfile, load_profile
+from zcad_core.features.stack_trial import RECORD_KIND, item_from_record
 
 
 @dataclass(frozen=True)
@@ -205,6 +206,48 @@ def _from_record(path: Path) -> tuple[Resolved | None, list[str]]:
     return Resolved(item, profile), []
 
 
+def _is_stack_record(path: Path) -> bool:
+    if path.suffix != ".json" or not path.is_file():
+        return False
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return False
+
+    return isinstance(data, dict) and data.get("record_kind") == RECORD_KIND
+
+
+def _from_stack_record(path: Path, name: str) -> tuple[Resolved | None, list[str]]:
+    """One item of a stack's build record, with the profile the record names."""
+
+    record = json.loads(path.read_text(encoding="utf-8"))
+    entry = record["items"].get(name)
+
+    if entry is None:
+        return None, [
+            f"{path.name} has no item {name!r}: it has {sorted(record['items'])}"
+        ]
+
+    named = record["profile"]
+    profile_path = Path(named["path"])
+
+    if not profile_path.is_file():
+        return None, [f"{path.name}: the profile {profile_path} is missing"]
+
+    profile = load_profile(profile_path)
+
+    if profile.sha256 != named["sha256"]:
+        message = (
+            f"{path.name}: the profile {profile_path} has changed since the build: its "
+            f"hash is {profile.sha256[:12]}, not {named['sha256'][:12]}"
+        )
+
+        return None, [message]
+
+    return Resolved(item_from_record(entry["item"]), profile), []
+
+
 def resolve(text: str, printer: Mapping[str, Any]) -> tuple[Resolved | None, list[str]]:
     """One argument of ``check-stack``: ``FILE:NAME`` for an item in a stack file, or the
     path of an enclosure's or a group's build record, for its stack plate."""
@@ -218,6 +261,9 @@ def resolve(text: str, printer: Mapping[str, Any]) -> tuple[Resolved | None, lis
             return _from_record(path)
 
     file, name = locate(text)
+
+    if _is_stack_record(file):
+        return _from_stack_record(file, name)
 
     return _from_file(file, name, printer)
 

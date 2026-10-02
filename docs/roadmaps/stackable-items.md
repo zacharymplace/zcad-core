@@ -168,7 +168,7 @@ is the user's; the engine only places the plate and the spacers.
 4. **Enclosures on the grid (built).** `--mount stack` on the single-board enclosure and the Pi 5
    group, and `check-stack` over their build records.
 5. **Electronics layers (built).** The layer from a board file, with its spacers and checks.
-6. **The record and stack trials.** A stack's build record, and trials in the housing
+6. **The record and stack trials (built).** A stack's build record, and trials in the housing
    trials' style with stack readings: whether it stacks square, a wobble in mm by feeler gauge,
    a separation force by spring scale, a count of stackings with whether anything wore, and
    whether it sits on a named other maker's baseplate. The engine states no limit for any.
@@ -317,3 +317,23 @@ See *Electronics layers* in [Stackable items](../guides/stackable-items.md).
   and the engine does not model one: the clearance is the air over the tallest part, a setting, and `check-layers` compares holes.
 - **The check lays real solids.** The spacers and the plate are put against the board's parts, as the stack items are, and the
   build fails on any overlap. The air, the opening margin and the spacer's wall are the engine's own sizes.
+
+### What phase 6 changed
+
+See *The build record and stacking trials* in [Stackable items](../guides/stackable-items.md).
+
+- **The record is `stack-build.json`, written by `stack build`,** as the housing's is; the build's output names it. A trial is
+  `stack trial start` and `complete`, reading the enclosure trials' checks, measurements and dispositions.
+- **The readings are the design's four,** each per item: a wobble by feeler gauge, a separation force, a count of stackings with whether anything
+  wore, and the other makers' parts it was tried on. The last was "whether it sits on a named other maker's baseplate"; it is a list the user
+  fills in, each entry a part and whether it sat. No limit is stated and no compatibility is claimed from one.
+- **A drawer has no stacking reading.** A drawer does not stack, so its template has no wobble or separation force; its trial check is that it slides.
+- **`check-stack` reads two records, as phase 2 said it would.** An item of a build record, `RECORD:NAME`, stands in for one of a stack file.
+  The record names the profile by path and hash, and a profile that has changed since the build is not trusted.
+- **Item names are changed for measurements.** A measurement's name must be lowercase with underscores, and an item's may have capitals,
+  hyphens and dots, so `Tub-1` is measured as `tub_1_width_mm`, kept apart from another item that comes to the same.
+- **A layer has no build record.** `stack layer build` still writes only its parts. A layer's trial (whether the plate and spacers fit a
+  real board) is the board's own readings, and is left open.
+
+All six phases are built. What remains open is the latch, and with it a snapping cap and a stop for a drawer; the enclosure lid's lip,
+`--stack-top`; and a record for layers.
