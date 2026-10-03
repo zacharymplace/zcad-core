@@ -182,28 +182,16 @@
     "features/enclosure_geometry.py:_UNDER_BOARD_CLEARANCE_MM": {
       "status": "unstated"
     },
-    "features/enclosure_group.py:_INTERFERENCE_TOLERANCE_MM3": {
-      "status": "unstated"
-    },
-    "features/enclosure_group.py:_JOIN_BOSS_REACH_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure_group.py:_SCREW_LENGTHS_MM": {
-      "status": "unstated"
-    },
     "features/enclosure_group.py:_SLIDE_DIVIDER_DROP_MM": {
       "status": "unstated"
     },
-    "features/enclosure_group.py:_VENT_LENGTH_MM": {
+    "features/enclosure_group_base.py:_JOIN_BOSS_REACH_MM": {
       "status": "unstated"
     },
-    "features/enclosure_group.py:_VENT_PITCH_MM": {
+    "features/enclosure_group_checks.py:_INTERFERENCE_TOLERANCE_MM3": {
       "status": "unstated"
     },
-    "features/enclosure_group.py:_VENT_SLOTS": {
-      "status": "unstated"
-    },
-    "features/enclosure_group.py:_VENT_WIDTH_MM": {
+    "features/enclosure_group_checks.py:_SCREW_LENGTHS_MM": {
       "status": "unstated"
     },
     "features/enclosure_group_dividers.py:RIM_MM": {
@@ -282,6 +270,18 @@
       "status": "unstated"
     },
     "features/enclosure_group_layout.py:_OPEN_BAY_STRIP_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_lid.py:_VENT_LENGTH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_lid.py:_VENT_PITCH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_lid.py:_VENT_SLOTS": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_lid.py:_VENT_WIDTH_MM": {
       "status": "unstated"
     },
     "features/enclosure_group_model.py:FLOOR_EMBED_MM": {

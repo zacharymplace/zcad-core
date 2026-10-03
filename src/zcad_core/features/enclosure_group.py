@@ -18,6 +18,13 @@ together: each unit's left wall carries two heat-set insert bosses and its
 right wall two clearance holes, so a second, identical unit continues the
 row past the printer's bed.
 
+This module holds the builder, :func:`build_group_enclosure`. What it uses
+beside the types and bays in ``enclosure_group_model`` and
+``enclosure_group_modules``: ``enclosure_group_base`` (the shell, corner fills,
+mount, cradle, join features and dividers), ``enclosure_group_lid`` (the lid and
+how it is attached), ``enclosure_group_cooling`` (vents and fans) and
+``enclosure_group_checks`` (the refusals and the checks of what was built).
+
 The frame: the outer bottom-left-front corner is the origin, +X runs along
 the row, +Y runs front to back, +Z is up. The floor's top face is at
 ``z == floor_mm``.
@@ -30,21 +37,38 @@ from pathlib import Path
 
 import cadquery as cq
 
-from zcad_core.features.board_cradle import BoardCradleParameters, add_board_cradle
-from zcad_core.features.connector_cutouts import ConnectorCutoutParameters
-from zcad_core.features.enclosure_group_dividers import (
-    Divider,
-    DividerPlacement,
-    build_divider,
-    require_divider_fits,
+from zcad_core.features.enclosure_group_base import (
+    _add_cradle,
+    _add_join_features,
+    _add_mount,
+    _corner_fills,
+    _dividers,
+    _module,
+    _shell,
 )
-from zcad_core.features.enclosure_group_envelope import make_box, single_shape
+from zcad_core.features.enclosure_group_checks import (
+    _checks,
+    _longest_screw,
+    _part_collisions,
+    _require_stack_top_possible,
+)
+from zcad_core.features.enclosure_group_cooling import _add_vents, _cut_fans
+from zcad_core.features.enclosure_group_dividers import build_divider
+from zcad_core.features.enclosure_group_envelope import single_shape
 from zcad_core.features.enclosure_group_join import cut_pass_through, joint_positions
 from zcad_core.features.enclosure_group_layout import (
     BOSS_WALL_OVERLAP_MM,
     boss_column_xs,
     layout_bays,
     resolve_bay,
+)
+from zcad_core.features.enclosure_group_lid import (
+    _VENT_LENGTH_MM,
+    _VENT_SLOTS,
+    _VENT_WIDTH_MM,
+    _attach_lid,
+    _lid,
+    _vent_centres,
 )
 from zcad_core.features.enclosure_group_model import (
     BAY_KINDS,
@@ -59,11 +83,6 @@ from zcad_core.features.enclosure_group_model import (
     GroupEnclosure,
     OpeningWall,
 )
-from zcad_core.features.enclosure_group_modules import (
-    BayModule,
-    board_module,
-    pi_module,
-)
 from zcad_core.features.enclosure_group_openings import (
     bay_openings,
     board_openings,
@@ -71,20 +90,10 @@ from zcad_core.features.enclosure_group_openings import (
     pi_openings,
     require_openings_under_lid,
 )
-from zcad_core.features.enclosure_lid import VENT_RIM_MM, Cavity
-from zcad_core.features.fan_bay import FanPlan, cut_fan_bay, fan_report, plan_fan
+from zcad_core.features.fan_bay import fan_report
 from zcad_core.features.insert_bosses import (
     InsertBossParameters,
     add_heat_set_insert_boss,
-)
-from zcad_core.features.lid_hinge import HINGE_WEB_DEPTH_MM, HingeReport, add_hinge
-from zcad_core.features.lid_slide import SlideReport, add_slide
-from zcad_core.features.mount_rack import (
-    FrontPads,
-    add_front_pads,
-    build_rack_ears,
-    front_pads,
-    is_rack,
 )
 from zcad_core.features.mount_stack import (
     TopHolding,
@@ -93,31 +102,11 @@ from zcad_core.features.mount_stack import (
     lid_openings,
     plain_lid,
 )
-from zcad_core.features.mounts import (
-    MountPads,
-    MountPlate,
-    add_mount_pads,
-    build_mount,
-    mount_pads,
-    require_mount_clear,
-)
 from zcad_core.features.pcb_mounts import PcbStandoffParameters, add_pcb_standoff
 from zcad_core.features.stack_profile import load_profile
-from zcad_core.features.vent_patterns import (
-    VentFill,
-    VentReport,
-    add_lid_outlets,
-    add_wall_inlets,
-)
-from zcad_core.geometry.intersection import intersection_volume
-from zcad_core.hardware import (
-    FastenerSpec,
-    RaspberryPi5Spec,
-    get_fan,
-    get_fastener,
-    get_raspberry_pi5,
-)
+from zcad_core.hardware import RaspberryPi5Spec, get_fastener, get_raspberry_pi5
 
+# Kept importable from here, where they were defined before the split.
 __all__ = [
     "BAY_KINDS",
     "OPENING_WALLS",
@@ -133,13 +122,7 @@ __all__ = [
     "print_oriented_parts",
 ]
 
-_INTERFERENCE_TOLERANCE_MM3 = 1e-6
-_VENT_SLOTS = 5
-_VENT_PITCH_MM = 5.0
-_VENT_LENGTH_MM = 30.0
-_VENT_WIDTH_MM = 2.4
-_JOIN_BOSS_REACH_MM = 8.0
-_SCREW_LENGTHS_MM = (4, 5, 6, 8, 10, 12, 16, 20)
+
 # A divider stops this far below a sliding lid, beyond the slide's clearance.
 _SLIDE_DIVIDER_DROP_MM = 0.3
 
@@ -477,625 +460,6 @@ def build_group_enclosure(
     )
 
 
-def _require_stack_top_possible(design: GroupDesign, *, fans: int) -> None:
-    """Refuse a stack top on a lid that does not stay shut with its own screws or has a fan on
-    it: the plate would fix a hinged or sliding lid, and stand on a fan's frame. The lid's slots
-    and outlets are not a reason: the plate leaves a window over each."""
-
-    reasons: list[str] = []
-
-    if design.lid_attachment != "screws":
-        reasons.append(
-            f"the lid is '{design.lid_attachment}', and a stack top is held by a screwed "
-            "lid's own screws, so the lid must be 'screws'"
-        )
-
-    if fans:
-        reasons.append("a fan is mounted on the lid, and its frame stands above it")
-
-    if reasons:
-        raise ValueError(
-            "A stack top cannot go on this row:\n- " + "\n- ".join(reasons)
-        )
-
-
-def _attach_lid(
-    base: cq.Workplane,
-    lid: cq.Workplane,
-    *,
-    design: GroupDesign,
-    outer: tuple[float, float, float],
-    inner_size: tuple[float, float],
-    cavity_top: float,
-    openings: list[ConnectorCutoutParameters],
-    hardware: dict[str, cq.Shape],
-    carried: dict[str, cq.Shape],
-) -> tuple[cq.Workplane, cq.Workplane, HingeReport | None, SlideReport | None]:
-    """Hinge or slide the lid, as the design asks; a screwed lid is left as it
-    is. Both are the single-board builders on the group's cavity, and refuse a
-    lid that cannot swing or slide clear of the base and the Pis."""
-
-    if design.lid_attachment == "screws":
-        return base, lid, None, None
-
-    cavity = Cavity(
-        center_x_mm=outer[0] / 2,
-        center_y_mm=outer[1] / 2,
-        width_mm=inner_size[0],
-        depth_mm=inner_size[1],
-        floor_z_mm=design.floor_mm,
-        top_z_mm=cavity_top,
-        wall_mm=design.wall_mm,
-    )
-
-    if design.lid_attachment == "hinge":
-        _require_openings_clear_of_knuckles(openings, cavity_top)
-        front = [opening for opening in openings if opening.edge == "negative_y"]
-        base, lid, hinge = add_hinge(
-            base,
-            lid,
-            cavity,
-            lid_mm=design.lid_mm,
-            pin=get_fastener(design.hinge_pin),
-            hole_compensation_mm=0.0,
-            openings=front,
-            hardware=hardware,
-            carried=carried,
-            hinge_edge="positive_y",
-        )
-
-        return base, lid, hinge, None
-
-    if not cavity.long_walls_on_y:
-        raise ValueError(
-            "A sliding lid runs along the row, which must be at least as wide as "
-            "it is deep; add a bay, or use a hinged or screwed lid"
-        )
-
-    base, lid, slide = add_slide(
-        base,
-        lid,
-        cavity,
-        lid_mm=design.lid_mm,
-        clearance_mm=design.slide_clearance_mm,
-        hole_compensation_mm=0.0,
-        openings=openings,
-        hardware=hardware,
-        carried=carried,
-        entry=design.slide_entry,
-    )
-
-    return base, lid, None, slide
-
-
-def _require_openings_clear_of_knuckles(
-    openings: list[ConnectorCutoutParameters], cavity_top: float
-) -> None:
-    """The hinge's knuckles stand on the back wall's top edge, so no back-wall
-    opening may reach it."""
-
-    limit = cavity_top - HINGE_WEB_DEPTH_MM
-
-    for opening in openings:
-        top = opening.bottom_z_mm + opening.opening_height_mm
-
-        if opening.edge == "positive_y" and top > limit:
-            raise ValueError(
-                f"A back-wall opening reaches {top:.1f} mm and the hinge's knuckles "
-                f"need the wall above {limit:.1f} mm; raise headroom_mm by at "
-                f"least {top - limit:.1f} mm, lower the opening, or use a "
-                "sliding or screwed lid"
-            )
-
-
-def _add_vents(
-    base: cq.Workplane,
-    lid: cq.Workplane,
-    *,
-    design: GroupDesign,
-    outer: tuple[float, float, float],
-    inner_size: tuple[float, float],
-    cavity_top: float,
-    keepout_mm: float,
-) -> tuple[cq.Workplane, cq.Workplane, VentReport | None]:
-    """Inlets low in the two side walls and outlets in the lid, sized to the
-    design's free area. The long walls are the front and back, which carry the
-    Pis' openings; the side walls carry only the row's join features, which the
-    cells keep clear of."""
-
-    if not design.vent_area_mm2:
-        return base, lid, None
-
-    wall = design.wall_mm
-    cavity = Cavity(
-        center_x_mm=outer[0] / 2,
-        center_y_mm=outer[1] / 2,
-        width_mm=inner_size[0],
-        depth_mm=inner_size[1],
-        floor_z_mm=design.floor_mm,
-        top_z_mm=cavity_top,
-        wall_mm=wall,
-    )
-    base, inlets = add_wall_inlets(
-        base,
-        cavity,
-        kind=design.vent_pattern,
-        target_mm2=design.vent_area_mm2,
-        blocked_edges=[],
-        # The slide's entry wall comes down to the groove floor, a clearance
-        # below the lid, so the inlets stop that much lower.
-        top_z_mm=cavity_top
-        - VENT_RIM_MM
-        - (design.slide_clearance_mm if design.lid_attachment == "slide" else 0.0),
-        corner_keepout_mm=keepout_mm,
-        edges=("negative_x", "positive_x"),
-    )
-    inlet_mm2 = sum(fill.area_mm2 for fill in inlets)
-    # Louvers are for walls, so the lid takes slots.
-    kind = "slots" if design.vent_pattern == "louvers" else design.vent_pattern
-    lid, outlet = add_lid_outlets(
-        lid,
-        cavity,
-        lid_mm=design.lid_mm,
-        kind=kind,
-        target_mm2=max(design.vent_area_mm2, inlet_mm2),
-    )
-
-    return (
-        base,
-        lid,
-        VentReport(
-            pattern=design.vent_pattern,
-            target_mm2=design.vent_area_mm2,
-            inlet_mm2=inlet_mm2,
-            outlet_mm2=outlet.area_mm2,
-            inlet_cells=sum(len(fill.centers) for fill in inlets),
-            outlet_cells=len(outlet.centers),
-            inlet=inlets[0].spec.describe(),
-            outlet=outlet.spec.describe(),
-        ),
-    )
-
-
-def _add_mount(
-    base: cq.Workplane,
-    *,
-    design: GroupDesign,
-    fastener: FastenerSpec,
-    outer: tuple[float, float, float],
-    height_mm: float,
-) -> tuple[cq.Workplane, MountPads | FrontPads | None, MountPlate | None]:
-    """The base with the pads for the design's mount, the pads, and the
-    mount's plate or ears; unchanged and empty when the design has none."""
-
-    if design.mount is None:
-        return base, None, None
-
-    if is_rack(design.mount):
-        front = front_pads(
-            base,
-            outer_size_mm=outer,
-            enclosure_height_mm=height_mm,
-            wall_mm=design.wall_mm,
-            fastener=fastener,
-        )
-        base = add_front_pads(base, front)
-        ears = build_rack_ears(
-            front,
-            enclosure_height_mm=height_mm,
-            fastener=fastener,
-            plate_mm=design.mount_plate_mm,
-        )
-        require_mount_clear(base, ears)
-
-        return base, front, ears
-
-    pads = mount_pads(
-        x_span_mm=(0.0, outer[0]),
-        y_span_mm=(0.0, outer[1]),
-        floor_underside_z_mm=0.0,
-        floor_mm=design.floor_mm,
-        wall_mm=design.wall_mm,
-        fastener=fastener,
-    )
-    base = add_mount_pads(base, pads)
-    plate = build_mount(
-        design.mount,
-        pads,
-        fastener=fastener,
-        plate_mm=design.mount_plate_mm,
-        stack_profile=(
-            load_profile(Path(design.stack_profile)) if design.stack_profile else None
-        ),
-    )
-    require_mount_clear(base, plate)
-
-    return base, pads, plate
-
-
-def _cut_fans(
-    base: cq.Workplane,
-    lid: cq.Workplane,
-    *,
-    specs: tuple[Bay, ...],
-    layouts: tuple[BayLayout, ...],
-    design: GroupDesign,
-    outer: tuple[float, float, float],
-    inner_size: tuple[float, float],
-    cavity_top: float,
-    hardware: dict[str, cq.Shape],
-) -> tuple[cq.Workplane, dict[str, cq.Shape], list[tuple[FanPlan, VentFill]]]:
-    """Each fan bay's fan: its frame flat against the lid's inside over the bay's
-    middle, and the guarded opening and four screw holes in the lid. The frames
-    go with the lid, so the hinge and the slide carry them."""
-
-    cavity = Cavity(
-        center_x_mm=outer[0] / 2,
-        center_y_mm=outer[1] / 2,
-        width_mm=inner_size[0],
-        depth_mm=inner_size[1],
-        floor_z_mm=design.floor_mm,
-        top_z_mm=cavity_top,
-        wall_mm=design.wall_mm,
-    )
-    bodies: dict[str, cq.Shape] = {}
-    cuts: list[tuple[FanPlan, VentFill]] = []
-
-    for bay, layout in zip(specs, layouts, strict=True):
-        if bay.kind != "fan":
-            continue
-
-        fan = get_fan(str(bay.fan))
-        label = f"bay {layout.index} (fan)"
-
-        try:
-            plan = plan_fan(
-                base,
-                cavity,
-                fan=fan,
-                position="lid",
-                direction=bay.fan_direction,
-                lid_mm=design.lid_mm,
-                offset_mm=(
-                    design.wall_mm + layout.center_x_mm - cavity.center_x_mm,
-                    layout.center_y_mm - cavity.center_y_mm,
-                ),
-                openings=[],
-                wall_top_z_mm=cavity_top,
-                hardware={**hardware, **bodies},
-                display_bounds=None,
-            )
-            lid, guard = cut_fan_bay(
-                lid,
-                plan,
-                plate_mm=design.lid_mm,
-                screw=get_fastener(fan.screw),
-                hole_compensation_mm=0.0,
-            )
-        except ValueError as error:
-            raise ValueError(f"{label}: {error}") from error
-
-        bodies[f"bay-{layout.index}"] = plan.body
-        cuts.append((plan, guard))
-
-    return lid, bodies, cuts
-
-
-def _add_cradle(
-    base: cq.Workplane,
-    layout: BayLayout,
-    module: BayModule,
-    design: GroupDesign,
-    center_x: float,
-) -> cq.Workplane:
-    """A snap-in cradle for a board with no mounting holes."""
-
-    try:
-        return add_board_cradle(
-            base,
-            parameters=BoardCradleParameters(
-                center_x_mm=center_x,
-                center_y_mm=layout.center_y_mm,
-                board_width_mm=module.width_mm,
-                board_depth_mm=module.depth_mm,
-                board_bottom_z_mm=layout.board_bottom_z_mm,
-                board_thickness_mm=module.thickness_mm,
-                base_z_mm=design.floor_mm - FLOOR_EMBED_MM,
-                connector_edge=module.connector_wall,  # type: ignore[arg-type]
-                outline_points_mm=module.outline,
-            ),
-        )
-    except ValueError as error:
-        raise ValueError(f"bay {layout.index} (board): {error}") from error
-
-
-def _module(bay: Bay, pi: RaspberryPi5Spec, index: int) -> BayModule | None:
-    """What a bay holds: a Pi, a board from a board file, or nothing."""
-
-    if bay.kind in ("open", "fan"):
-        return None
-
-    if bay.kind != "board" or bay.board is None:
-        return pi_module(pi)
-
-    try:
-        return board_module(bay.board, rotate=bay.rotate, screw=bay.screw)
-    except ValueError as error:
-        raise ValueError(f"bay {index} (board): {error}") from error
-
-
-def _part_collisions(
-    base: cq.Workplane,
-    lid: cq.Workplane,
-    parts: dict[str, dict[str, cq.Shape]],
-) -> tuple[str, ...]:
-    """Each Pi part that runs into the base or the lid. A bay's parts are
-    tried together first, and one by one only when they meet something."""
-
-    collisions: list[str] = []
-
-    for name, solid in (("base", single_shape(base)), ("lid", single_shape(lid))):
-        for bay, shapes in parts.items():
-            if not shapes:
-                continue
-
-            together = cq.Compound.makeCompound(list(shapes.values()))
-
-            if intersection_volume(solid, together) <= _INTERFERENCE_TOLERANCE_MM3:
-                continue
-
-            collisions.extend(
-                f"{bay} {part} meets the {name}"
-                for part, shape in shapes.items()
-                if intersection_volume(solid, shape) > _INTERFERENCE_TOLERANCE_MM3
-            )
-
-    return tuple(collisions)
-
-
-def _dividers(
-    layouts: tuple[BayLayout, ...],
-    *,
-    design: GroupDesign,
-    pi: RaspberryPi5Spec,
-    inner_height: float,
-    inner_depth: float,
-) -> list[tuple[Divider, DividerPlacement]]:
-    """Each bay's divider and where it stands, refused if it does not fit.
-
-    A divider stands just clear of its own bay's header edge, so its notch
-    is centred on that bay's header and rises from that bay's board.
-    """
-
-    placed: list[tuple[Divider, DividerPlacement]] = []
-
-    for layout in layouts:
-        if layout.divider is None:
-            continue
-
-        notch_y = layout.center_y_mm + (
-            pi.header_center_y_mm if layout.holds_pi else 0.0
-        )
-        notch_bottom = (
-            layout.board_top_z_mm if layout.holds_board else design.floor_mm + 2.0
-        )
-        placement = DividerPlacement(
-            x_start_mm=design.wall_mm + layout.divider_start_mm,
-            thickness_mm=design.divider_mm,
-            front_y_mm=design.wall_mm,
-            back_y_mm=design.wall_mm + inner_depth,
-            floor_top_z_mm=design.floor_mm,
-            inner_height_mm=inner_height,
-            notch_center_y_mm=notch_y,
-            notch_bottom_z_mm=notch_bottom,
-            notch_width_mm=design.divider_notch_width_mm,
-            notch_height_mm=design.divider_notch_height_mm,
-        )
-        require_divider_fits(
-            layout.divider, placement, f"bay {layout.index} ({layout.kind})"
-        )
-        placed.append((layout.divider, placement))
-
-    return placed
-
-
-def _shell(
-    outer: tuple[float, float, float], wall: float, floor: float
-) -> cq.Workplane:
-    """Floor and walls, open at the top."""
-
-    body = cq.Workplane("XY").box(*outer, centered=False)
-    cavity = (
-        cq.Workplane("XY")
-        .box(
-            outer[0] - 2 * wall,
-            outer[1] - 2 * wall,
-            outer[2] - floor + 1.0,
-            centered=False,
-        )
-        .translate((wall, wall, floor))
-    )
-
-    return body.cut(cavity)
-
-
-def _corner_fills(
-    positions: tuple[tuple[float, float], ...],
-    outer: tuple[float, float, float],
-    wall: float,
-    floor: float,
-    inner_height: float,
-) -> cq.Workplane:
-    """Fill the cavity corner behind each end boss, where a round boss
-    meeting two walls would leave a narrow void the full cavity height."""
-
-    fills = cq.Workplane("XY")
-    left, right = wall, outer[0] - wall
-    front, back = wall, outer[1] - wall
-    middle_x, middle_y = outer[0] / 2, outer[1] / 2
-
-    for x, y in positions:
-        if x not in (min(p[0] for p in positions), max(p[0] for p in positions)):
-            continue
-
-        corner_x = left if x < middle_x else right
-        corner_y = front if y < middle_y else back
-        fills = fills.add(
-            make_box(
-                (min(x, corner_x), max(x, corner_x)),
-                (min(y, corner_y), max(y, corner_y)),
-                (floor - FLOOR_EMBED_MM, floor + inner_height),
-            )
-        )
-
-    return fills.combine()
-
-
-def _add_join_features(
-    base: cq.Workplane,
-    *,
-    positions: tuple[tuple[float, float], ...],
-    fastener: FastenerSpec,
-    design: GroupDesign,
-    outer_width: float,
-    radius: float,
-) -> cq.Workplane:
-    """Insert bosses in the left wall, clearance holes in the right.
-
-    A second unit continues the row: its left wall meets this unit's right
-    wall, and a screw passes through the hole in one wall and the other into
-    the insert. Each insert is pressed in from the left wall's outer face.
-    """
-
-    wall = design.wall_mm
-    insert_diameter = fastener.heat_set_insert_diameter_mm or 0.0
-    insert_depth = fastener.heat_set_insert_depth_mm or 0.0
-
-    if wall + _JOIN_BOSS_REACH_MM <= insert_depth:
-        raise ValueError("wall_mm leaves no room for the join insert")
-
-    for y, z in positions:
-        block = make_box(
-            (wall - 0.5, wall + _JOIN_BOSS_REACH_MM),
-            (y - radius, y + radius),
-            (design.floor_mm - FLOOR_EMBED_MM, z),
-        )
-        cylinder = (
-            cq.Workplane("YZ")
-            .center(y, z)
-            .circle(radius)
-            .extrude(wall + _JOIN_BOSS_REACH_MM)
-        )
-        base = base.union(cylinder).union(block)
-        pilot = (
-            cq.Workplane("YZ")
-            .center(y, z)
-            .circle(fastener.tap_hole_mm / 2)
-            .extrude(wall + _JOIN_BOSS_REACH_MM)
-        )
-        pocket = (
-            cq.Workplane("YZ")
-            .center(y, z)
-            .circle(insert_diameter / 2)
-            .extrude(insert_depth)
-        )
-        base = base.cut(pilot).cut(pocket)
-        clearance = (
-            cq.Workplane("YZ")
-            .workplane(offset=outer_width - wall - 0.5)
-            .center(y, z)
-            .circle(fastener.clearance_hole_mm / 2)
-            .extrude(wall + 1.0)
-        )
-        base = base.cut(clearance)
-
-    return base
-
-
-def _vent_centres(
-    layouts: tuple[BayLayout, ...],
-    modules: tuple[BayModule | None, ...],
-    pi: RaspberryPi5Spec,
-    wall: float,
-) -> list[tuple[float, float]]:
-    """Where the lid's slots go: over each Pi's fan, and over each part of a board
-    that draws air from above."""
-
-    centres: list[tuple[float, float]] = []
-
-    for layout, module in zip(layouts, modules, strict=True):
-        if layout.holds_pi:
-            centres.append(
-                (
-                    wall + layout.center_x_mm + pi.fan_center_x_mm,
-                    layout.center_y_mm + pi.fan_center_y_mm,
-                )
-            )
-        elif module is not None:
-            centres.extend(
-                (wall + layout.center_x_mm + x, layout.center_y_mm + y)
-                for x, y in module.vents
-            )
-
-    return centres
-
-
-def _lid(
-    outer: tuple[float, float, float],
-    *,
-    wall: float,
-    design: GroupDesign,
-    cavity_top: float,
-    fastener: FastenerSpec,
-    boss_positions: tuple[tuple[float, float], ...],
-    layouts: tuple[BayLayout, ...],
-    modules: tuple[BayModule | None, ...],
-    pi: RaspberryPi5Spec,
-) -> cq.Workplane:
-    """A plate over the walls, a clearance hole over each boss, and vent
-    slots over each Pi's SoC and cooler."""
-
-    lid = (
-        cq.Workplane("XY")
-        .box(outer[0], outer[1], design.lid_mm, centered=False)
-        .translate((0, 0, cavity_top))
-    )
-
-    if boss_positions:
-        holes = (
-            cq.Workplane("XY")
-            .pushPoints(list(boss_positions))
-            .circle(fastener.clearance_hole_mm / 2)
-            .extrude(design.lid_mm + 2.0)
-            .translate((0, 0, cavity_top - 1.0))
-        )
-        lid = lid.cut(holes)
-
-    if not design.vents:
-        return lid
-
-    centres = _vent_centres(layouts, modules, pi, wall)
-
-    for fan_x, fan_y in centres:
-        for index in range(_VENT_SLOTS):
-            offset = (index - (_VENT_SLOTS - 1) / 2) * _VENT_PITCH_MM
-            lid = lid.cut(
-                make_box(
-                    (
-                        fan_x - _VENT_LENGTH_MM / 2,
-                        fan_x + _VENT_LENGTH_MM / 2,
-                    ),
-                    (
-                        fan_y + offset - _VENT_WIDTH_MM / 2,
-                        fan_y + offset + _VENT_WIDTH_MM / 2,
-                    ),
-                    (cavity_top - 1.0, cavity_top + design.lid_mm + 1.0),
-                )
-            )
-
-    return lid
-
-
 def print_oriented_parts(group: GroupEnclosure) -> dict[str, cq.Shape]:
     """Each part as it goes on the bed: the base on its floor, the lid on its
     outer face, so the face you see sits against the plate."""
@@ -1104,33 +468,3 @@ def print_oriented_parts(group: GroupEnclosure) -> dict[str, cq.Shape]:
         "base": single_shape(group.base),
         "lid": single_shape(group.lid).rotate((0, 0, 0), (1, 0, 0), 180),
     }
-
-
-def _checks(
-    base: cq.Workplane, lid: cq.Workplane, hardware: dict[str, cq.Shape]
-) -> dict[str, bool]:
-    base_shape, lid_shape = single_shape(base), single_shape(lid)
-
-    def clear(first: cq.Shape, second: cq.Shape) -> bool:
-        return intersection_volume(first, second) <= _INTERFERENCE_TOLERANCE_MM3
-
-    return {
-        "base_and_lid_clear": clear(base_shape, lid_shape),
-        "hardware_clear_of_base": all(
-            clear(base_shape, shape) for shape in hardware.values()
-        ),
-        "hardware_clear_of_lid": all(
-            clear(lid_shape, shape) for shape in hardware.values()
-        ),
-        "one_solid_per_part": len(base.solids().vals()) == 1
-        and len(lid.solids().vals()) == 1,
-    }
-
-
-def _longest_screw(usable_mm: float) -> int:
-    fitting = [length for length in _SCREW_LENGTHS_MM if length <= usable_mm]
-
-    if not fitting:
-        raise ValueError("No standard screw is short enough")
-
-    return fitting[-1]
