@@ -17,6 +17,7 @@ from zcad_core.features.fan_bay import FanReport
 from zcad_core.features.lid_hinge import HingeReport
 from zcad_core.features.lid_slide import SlideReport, slide_clearance_error
 from zcad_core.features.mount_rack import RACK, FrontPads
+from zcad_core.features.mount_stack import StackTop
 from zcad_core.features.mounts import MOUNTS, MountPads, MountPlate
 from zcad_core.features.vent_patterns import PATTERNS, VentReport
 
@@ -106,8 +107,10 @@ class GroupDesign:
     # rack ears that bolt to pads on the front wall; none by default.
     mount: str | None = None
     mount_plate_mm: float = 4.0
-    # The stack profile file a ``stack`` mount is built to.
+    # The stack profile file a ``stack`` mount or a stack top is built to.
     stack_profile: str | None = None
+    # A baseplate over a screwed lid, held by the lid's own screws, so things stack on the row.
+    stack_top: bool = False
     # A vent pattern sized to a free area, in mm2: inlets low in the two side
     # walls, which carry no openings, and outlets in the lid at least as
     # large. ``vents`` is the separate set of lid slots over each Pi's fan.
@@ -171,10 +174,12 @@ class GroupDesign:
         if self.mount is not None and self.mount not in GROUP_MOUNTS:
             raise ValueError(f"mount must be one of {GROUP_MOUNTS}")
 
-        if (self.mount == "stack") != (self.stack_profile is not None):
+        if (self.mount == "stack" or self.stack_top) != (
+            self.stack_profile is not None
+        ):
             raise ValueError(
-                "mount 'stack' and stack_profile go together: a stack mount needs "
-                "the profile it is built to, and a profile needs the mount"
+                "mount 'stack', a stack top and stack_profile go together: a stack mount "
+                "or a stack top needs the profile it is built to, and a profile needs one"
             )
 
         for name in (
@@ -340,6 +345,8 @@ class GroupEnclosure:
     # design asks for a mount.
     mount_pads: MountPads | FrontPads | None = None
     mount: MountPlate | None = None
+    # The baseplate over the lid, when the design asks for a stack top.
+    stack_top: StackTop | None = None
     # The vent pattern, when the design asks for one.
     vents: VentReport | None = None
     # The hinge and its catch, or the slide, when the design asks for one.

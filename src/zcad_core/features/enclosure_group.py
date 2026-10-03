@@ -86,6 +86,7 @@ from zcad_core.features.mount_rack import (
     front_pads,
     is_rack,
 )
+from zcad_core.features.mount_stack import build_stack_top
 from zcad_core.features.mounts import (
     MountPads,
     MountPlate,
@@ -400,6 +401,24 @@ def build_group_enclosure(
         outer=outer,
         height_mm=cavity_top + design.lid_mm,
     )
+    stack_top = None
+
+    if design.stack_top and design.stack_profile:
+        _require_stack_top_possible(
+            design,
+            slots=len(_vent_centres(layouts, modules, pi, wall)) if design.vents else 0,
+            fans=len(fan_cuts),
+        )
+        stack_top = build_stack_top(
+            boss_positions,
+            centre=(outer[0] / 2, outer[1] / 2),
+            lid_size_mm=(outer[0], outer[1]),
+            lid_top_z_mm=cavity_top + design.lid_mm,
+            lid_mm=design.lid_mm,
+            fastener=fastener,
+            profile=load_profile(Path(design.stack_profile)),
+            compensation=0.0,
+        )
 
     checks = _checks(base, lid, hardware)
     collisions = _part_collisions(base, lid, parts)
@@ -426,12 +445,43 @@ def build_group_enclosure(
         part_collisions=collisions,
         mount_pads=pads,
         mount=mount,
+        stack_top=stack_top,
         vents=vents,
         hinge=hinge,
         slide=slide,
         fans=fans,
         lid_carried=tuple(fan_bodies),
     )
+
+
+def _require_stack_top_possible(design: GroupDesign, *, slots: int, fans: int) -> None:
+    """Refuse a stack top on a lid that does not stay shut with its own screws or has openings:
+    the plate would fix a hinged or sliding lid or cover a slot, an outlet or a fan."""
+
+    reasons: list[str] = []
+
+    if design.lid_attachment != "screws":
+        reasons.append(
+            f"the lid is '{design.lid_attachment}', and a stack top is held by a screwed "
+            "lid's own screws, so the lid must be 'screws'"
+        )
+
+    if slots:
+        reasons.append(
+            "the lid has slots over each Pi's fan or a board part that draws air: build "
+            "with --no-vents"
+        )
+
+    if design.vent_area_mm2:
+        reasons.append("the lid has outlets (vent_area_mm2)")
+
+    if fans:
+        reasons.append("a fan is mounted in the lid")
+
+    if reasons:
+        raise ValueError(
+            "A stack top cannot go on this row:\n- " + "\n- ".join(reasons)
+        )
 
 
 def _attach_lid(

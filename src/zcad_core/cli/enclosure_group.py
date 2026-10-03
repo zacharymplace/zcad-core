@@ -58,7 +58,10 @@ from zcad_core.features.enclosure_thermal import (
 from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.lid_hinge import swung_lid
 from zcad_core.features.lid_slide import slid_lid
-from zcad_core.features.mount_stack import require_plate_fits_bed
+from zcad_core.features.mount_stack import (
+    require_plate_fits_bed,
+    require_top_fits_bed,
+)
 from zcad_core.features.mounts import MountPlate, flexure_payload
 from zcad_core.features.vent_patterns import PATTERNS
 from zcad_core.geometry.cadquery_support import workplane_shape
@@ -345,6 +348,7 @@ def _require_fits_bed(group: GroupEnclosure, profile: dict[str, Any]) -> None:
 
     _require_ears_fit_bed(group, volume)
     require_plate_fits_bed(group.mount, volume)
+    require_top_fits_bed(group.stack_top, volume)
 
 
 def _require_ears_fit_bed(group: GroupEnclosure, volume: dict[str, Any]) -> None:
@@ -469,7 +473,29 @@ def _parts(group: GroupEnclosure) -> dict[str, cq.Workplane]:
     if group.mount is not None:
         parts.update(group.mount.parts)
 
+    if group.stack_top is not None:
+        parts["stack_top"] = group.stack_top.plate
+
     return parts
+
+
+def _stack_top_payload(group: GroupEnclosure) -> dict[str, object] | None:
+    top = group.stack_top
+
+    if top is None:
+        return None
+
+    return {
+        "cells": list(top.cells),
+        "size_mm": [round(top.size_mm[0], 3), round(top.size_mm[1], 3)],
+        "thickness_mm": round(top.thickness_mm, 3),
+        "floor_mm": round(top.floor_mm, 3),
+        "screws": f"{group.fastener.identifier} x {top.recommended_screw_mm} mm, "
+        f"{len(group.lid_boss_positions)} through the plate and the lid in place of the "
+        "lid's own, in a head recess",
+        "screw_reach_mm": round(top.screw_reach_mm, 3),
+        "stack": top.stack,
+    }
 
 
 def _group_warnings(group: GroupEnclosure) -> list[str]:
@@ -708,6 +734,7 @@ def _group_build(args: argparse.Namespace) -> int:
         mount=args.mount,
         mount_plate_mm=args.mount_plate_mm,
         stack_profile=str(args.stack_profile) if args.stack_profile else None,
+        stack_top=getattr(args, "stack_top", False),
         vent_pattern=args.vent_pattern,
         vent_area_mm2=args.vent_area_mm2,
         lid_attachment=args.lid,
@@ -767,6 +794,7 @@ def _group_build(args: argparse.Namespace) -> int:
             "fans": [fan.to_dict() for fan in group.fans],
             "thermal": thermal.to_dict(),
             "vents": group.vents.to_dict() if group.vents else None,
+            "stack_top": _stack_top_payload(group),
             "joint": {
                 "face": design.joint_face,
                 "bolts_y_z_mm": [list(p) for p in group.join_positions],
@@ -913,7 +941,13 @@ def register(
         "--stack-profile",
         type=Path,
         default=None,
-        help="the stack profile file a --mount stack plate is built to",
+        help="the stack profile file a --mount stack plate or a --stack-top is built to",
+    )
+    build.add_argument(
+        "--stack-top",
+        action="store_true",
+        help="add a baseplate over a screwed lid, held by the lid's own screws, so things "
+        "stack on the row; needs --stack-profile and --no-vents",
     )
     build.add_argument(
         "--lid",

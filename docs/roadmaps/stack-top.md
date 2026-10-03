@@ -71,7 +71,7 @@ at least that and a plate is 8.85 mm tall with the example profile (a floor of 4
 
 1. **The top plate on a single-board enclosure (built).** `--stack-top` with `--stack-profile`, the cells search, the recesses, the screw length, the refusals, `check-stack` reading the
    record's `stack_top` entry as a baseplate, and the build record.
-2. **The Pi 5 group.** The same for a group enclosure's lid, which is larger and has its own screws and outlets.
+2. **The Pi 5 group (built).** The same for a group enclosure's lid, which is larger and has its own screws and outlets.
 3. **Trials.** The record names the plate and the longer screws; a trial reads whether the plate sits flat, whether the screws reach the inserts, and a stack's wobble and count, as the
    stack plate's does. The engine states no limit.
 
@@ -107,3 +107,17 @@ See *A stack top: things stacked on the box* in [Stackable items](../guides/stac
 - **`check-stack` reads `RECORD:top`.** The enclosure's record carries `stack_top` (profile by hash, cells, floor, rim, screws), and `check-stack` takes the top as a baseplate of those cells and floor, as the
   *lower* item. A record with none says how to build one.
 - **Not built yet:** the Pi 5 group, and the trial readings, as phases 2 and 3. Holding by magnets, bolts or latches on a top is not asked for in this phase.
+
+### What phase 2 changed
+
+See *A stack top: things stacked on the box* in [Stackable items](../guides/stackable-items.md).
+
+- **The same plate, the group's numbers.** `enclosure-group build --stack-top` calls `build_stack_top` with the group's lid screws (`lid_boss_positions`), its outer size and its lid, which is a plain box from the
+  origin to the row's outer size, 3 mm thick and not 2. The screw reach is a millimetre of floor, the 3 mm lid and the insert's 5 mm, 9 mm, so an M3 is 8 mm.
+- **Vents are the usual blocker.** `GroupDesign.vents` is on by default and cuts slots in the lid over each Pi's fan, so a default Pi 5 row is refused with "build with --no-vents". That is the design's
+  refusal of a lid with openings, and the build says how to lift it; it does not say whether the Pi runs cool with its fan slots closed, which the thermal estimate and a trial answer.
+- **The refusals are listed together** by `_require_stack_top_possible` in the group builder: a hinged or sliding lid, lid slots, outlets, a fan in the lid. The check runs after the lid is cut, because the fans
+  and the slots are known only then, and before the plate is built.
+- **`stack_top` joins `GroupDesign` and `GroupEnclosure`**, and the group's build record carries `stack_top`, so `check-stack RECORD:top` reads it as it does an enclosure's. The record's `design` holds `stack_top`.
+- **A row too wide for the bed is refused with its cells,** by the same bed check as the plate. The two-bay Pi 5 row, 176 mm wide, is refused by the row's own bed check first.
+- **Not built yet:** the trials, phase 3.
