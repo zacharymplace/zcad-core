@@ -173,8 +173,10 @@ right through its thickness, joined where the pieces are within 4 mm. The plate 
 - **A vent cell has no pocket.** A pocket cannot sit over a window, so each cell a window touches is a **vent cell**: solid, with the window through it and no pocket for a foot. The record names them
   (`vent_cells`, `vent_windows_mm`) and the cells that are left (`cells_usable`). A bin that would stand over one is refused by `check-stack`, which names the vent cells.
 - **A lid screw cannot be in a vent cell,** since its head's recess is cut down into a pocket floor and a vent cell has none. The cells are searched as before, up to two more each way, for a plate whose screws are
-  all in cells with no window, and refused if none is. **A small box often fails this:** a Pico 2 box with an outlet has a screw in every cell that a window could take, so the build refuses and says so. The
-  one-bay Pi 5 row has screws at the ends and its fan slots in the middle, and gets a window over two of nine cells.
+  all in cells with no window, and **with windows the plate may be shifted off the lid's centre**, by whole millimetres, as far as it still covers the lid, least first. A window off the middle of the lid is met by a
+  shift (a window 20 mm left of centre and screws 34 mm out take a plate shifted 5 mm); `offset_mm` in the record says how far. It is refused if no cells and no shift put every screw in a cell with no window.
+  **A small box often fails this:** a Pico 2 box with a 300 mm2 outlet has an outlet that nearly fills its lid, 20 x 50 mm, and every cell a window could take has a screw in it, so the build refuses and says it tried
+  shifting. A smaller outlet needs no shift there. The one-bay Pi 5 row has screws at the ends and its fan slots in the middle, and gets a window over two of nine cells.
 - **Several windows:** the lid's openings may make up to four windows, and more is refused as too scattered for a plate to leave open. A lid with a fan on it is still refused.
 - **The engine says nothing about air.** The window leaves the outlet open as geometry. It does not say the box runs cool under a top, and the thermal estimate does not model one: a trial's temperature is where
   that shows. A top with windows asks one more check, `stack_top_vents_open`.

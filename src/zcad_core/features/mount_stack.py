@@ -78,6 +78,9 @@ WINDOW_MARGIN_MM = 2.0
 OPENING_MERGE_MM = 4.0
 MAXIMUM_WINDOWS = 4
 Rect = tuple[float, float, float, float]
+# With windows, the plate may be shifted off the lid's centre, by whole millimetres, as far as it
+# still covers the lid, so a window falls on a cell the screws are not in.
+OFFSET_STEP_MM = 1.0
 
 
 def plain_lid(
@@ -180,6 +183,34 @@ def vent_cells(
                 touched.add(index)
 
     return frozenset(touched)
+
+
+def _offsets(
+    cells: tuple[int, int],
+    lid_size_mm: tuple[float, float],
+    profile: StackProfile,
+    shifted: bool,
+) -> list[tuple[float, float]]:
+    """The shifts of a plate of ``cells`` off the lid's centre to try, the least first: none, and,
+    if ``shifted``, every whole millimetre each way that leaves the lid covered."""
+
+    shifts = [(0.0, 0.0)]
+
+    if not shifted:
+        return shifts
+
+    slack_x = (cells[0] * profile.pitch_mm + 2 * TOP_RIM_MM - lid_size_mm[0]) / 2
+    slack_y = (cells[1] * profile.pitch_mm + 2 * TOP_RIM_MM - lid_size_mm[1]) / 2
+    reach_x = int(max(slack_x, 0.0) // OFFSET_STEP_MM)
+    reach_y = int(max(slack_y, 0.0) // OFFSET_STEP_MM)
+    more = [
+        (i * OFFSET_STEP_MM, j * OFFSET_STEP_MM)
+        for i in range(-reach_x, reach_x + 1)
+        for j in range(-reach_y, reach_y + 1)
+        if (i, j) != (0, 0)
+    ]
+
+    return shifts + sorted(more, key=lambda s: (math.hypot(*s), s))
 
 
 def _foot_cell(
@@ -518,6 +549,56 @@ def magnet_points(
     return kept, skipped
 
 
+def _place(
+    positions: Sequence[tuple[float, float]],
+    centre: tuple[float, float],
+    lid_size_mm: tuple[float, float],
+    windows: Sequence[Rect],
+    least: tuple[int, int],
+    profile: StackProfile,
+    radius: float,
+    fastener: FastenerSpec,
+) -> tuple[
+    tuple[int, int],
+    tuple[float, float],
+    list[tuple[float, float]],
+    frozenset[int],
+]:
+    """The least plate that works: its cells, where its middle is, the lid's screws from there,
+    and its vent cells. Every screw must be in a cell with no window; with windows the plate may be
+    shifted off the lid's centre to get there."""
+
+    for cells in _cell_options(least):
+        for shift in _offsets(cells, lid_size_mm, profile, bool(windows)):
+            origin = (centre[0] + shift[0], centre[1] + shift[1])
+            relative = [(x - origin[0], y - origin[1]) for x, y in positions]
+            vents = vent_cells(
+                [
+                    (x0 - origin[0], y0 - origin[1], x1 - origin[0], y1 - origin[1])
+                    for x0, y0, x1, y1 in windows
+                ],
+                cells,
+                profile,
+            )
+            homes = [_foot_cell(point, cells, profile, radius) for point in relative]
+
+            if len(vents) < cells[0] * cells[1] and all(
+                home is not None and home not in vents for home in homes
+            ):
+                return cells, origin, relative, vents
+
+    raise ValueError(
+        f"No stack top of {least[0]} to {least[0] + MAXIMUM_EXTRA_CELLS} by "
+        f"{least[1]} to {least[1] + MAXIMUM_EXTRA_CELLS} cells puts every lid screw "
+        f"inside a pocket's floor with a {fastener.identifier} head's recess"
+        + (", in a cell with no window, " if windows else "")
+        + ("even with the plate shifted off the lid's centre: " if windows else ": ")
+        + "a screw would land on a ridge"
+        + (" or a window" if windows else "")
+        + ". Change the wall, the fastener or the profile"
+    )
+
+
 def build_stack_top(
     positions: Sequence[tuple[float, float]],
     *,
@@ -558,8 +639,6 @@ def build_stack_top(
         math.ceil(lid_size_mm[0] / profile.pitch_mm),
         math.ceil(lid_size_mm[1] / profile.pitch_mm),
     )
-    relative = [(x - centre[0], y - centre[1]) for x, y in positions]
-
     if len(openings) > MAXIMUM_WINDOWS:
         raise ValueError(
             f"The lid's openings make {len(openings)} separate windows, and a stack top takes "
@@ -575,31 +654,9 @@ def build_stack_top(
         )
         for x0, y0, x1, y1 in openings
     ]
-    relative_windows = [
-        (x0 - centre[0], y0 - centre[1], x1 - centre[0], y1 - centre[1])
-        for x0, y0, x1, y1 in windows
-    ]
-    vents: frozenset[int] = frozenset()
-
-    for cells in _cell_options(least):
-        vents = vent_cells(relative_windows, cells, profile)
-        total = cells[0] * cells[1]
-        homes = [_foot_cell(point, cells, profile, radius) for point in relative]
-
-        if len(vents) < total and all(
-            home is not None and home not in vents for home in homes
-        ):
-            break
-    else:
-        raise ValueError(
-            f"No stack top of {least[0]} to {least[0] + MAXIMUM_EXTRA_CELLS} by "
-            f"{least[1]} to {least[1] + MAXIMUM_EXTRA_CELLS} cells puts every lid screw "
-            f"inside a pocket's floor with a {fastener.identifier} head's recess"
-            + (", in a cell with no window" if windows else "")
-            + ": a screw would land on a ridge"
-            + (" or a window" if windows else "")
-            + ". Change the wall, the fastener or the profile"
-        )
+    cells, origin, relative, vents = _place(
+        positions, centre, lid_size_mm, windows, least, profile, radius, fastener
+    )
 
     plate, _ = baseplate_solid(profile, cells, floor, TOP_RIM_MM, vents)
     kept: list[tuple[float, float]] = []
@@ -654,7 +711,7 @@ def build_stack_top(
             floor,
         )
 
-    plate = plate.translate((centre[0], centre[1], lid_top_z_mm))
+    plate = plate.translate((origin[0], origin[1], lid_top_z_mm))
     height = plate.val().BoundingBox().zlen  # type: ignore[union-attr]
 
     for x0, y0, x1, y1 in windows:
@@ -705,6 +762,10 @@ def build_stack_top(
         "screw_reach_mm": round(reach, 3),
         "recommended_screw_mm": screw,
         "lid_top_z_mm": round(lid_top_z_mm, 3),
+        "offset_mm": [
+            round(origin[0] - centre[0], 3),
+            round(origin[1] - centre[1], 3),
+        ],
         "vent_cells": sorted(vents),
         "vent_windows_mm": [[round(v, 3) for v in window] for window in windows],
         "cells_usable": cells[0] * cells[1] - len(vents),
