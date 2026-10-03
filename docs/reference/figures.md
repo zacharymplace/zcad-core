@@ -856,6 +856,10 @@ No basis is written down for these. Moving one out of this list means finding wh
 
 **`hardware/electronics/board_file.py`**
 
+- `_rectangle_inside(margin)` = `0.5`
+
+**`hardware/electronics/board_file_model.py`**
+
 - `BOARD_SIZE_RANGE_MM` = `(5.0, 400.0)`
 - `BOARD_SIZE_WARNING_MM` = `150.0`
 - `CRADLE_ENVELOPE_INSET_MM` = `1.0`
@@ -867,7 +871,6 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `STANDOFF_WALL_MM` = `3.0`
 - `THICKNESS_RANGE_MM` = `(0.2, 6.0)`
 - `TYPICAL_THICKNESS_RANGE_MM` = `(0.4, 3.2)`
-- `_rectangle_inside(margin)` = `0.5`
 
 **`hardware/electronics/board_import.py`**
 
