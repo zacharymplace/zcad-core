@@ -231,6 +231,7 @@ def item_from_record(entry: dict[str, Any]) -> Item:
             if entry.get("detent_engagement_mm") is None
             else float(entry["detent_engagement_mm"])
         ),
+        stop=bool(entry.get("stop", False)),
     )
 
 

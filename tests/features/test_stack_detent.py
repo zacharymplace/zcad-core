@@ -7,6 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import cadquery as cq
 import pytest
 
 from zcad_core.features.stack import (
@@ -45,6 +46,13 @@ def write_stack(directory: Path, items: list[dict[str, Any]]) -> Path:
     path.write_text(json.dumps(data))
 
     return path
+
+
+def inside_solid(model: cq.Workplane, point: tuple[float, float, float]) -> bool:
+    return any(
+        solid.isInside(cq.Vector(*point))
+        for solid in model.val().Solids()  # type: ignore[union-attr]
+    )
 
 
 def chest(**changes: Any) -> dict[str, Any]:
@@ -274,3 +282,160 @@ def test_a_bump_pulled_out_of_its_dimple_really_strikes_the_wall(
     # few millimetres and not pushed in, it is in the wall.
     assert overlap_mm3(bump, plain) > 0.05
     assert overlap_mm3(bump.translate((0.0, -5.0, 0.0)), plain) > 0.05
+
+
+# --- the stop: a vertical face, a window, a squeeze -------------------------------------------
+
+
+def stopping(**changes: Any) -> dict[str, Any]:
+    return tray(stop={}, **changes)
+
+
+@pytest.fixture(scope="module")
+def stopped(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    directory = tmp_path_factory.mktemp("stopped")
+    path = write_stack(directory, [chest(stop={}), stopping()])
+
+    return build_stack(load_stack(path), PRINTER)
+
+
+def test_a_stop_lets_the_drawer_out_about_half_its_length(tmp_path: Path) -> None:
+    path = write_stack(tmp_path, [chest(stop={}), stopping()])
+    spec = load_stack(path)
+    profile = load_profile(spec.profile_path)
+    siblings = {item.name: item for item in spec.items}
+    plan = detent_plan_for(spec.items[1], profile, PRINTER, siblings)
+
+    assert plan is not None and plan.stop
+    assert plan.stop_travel_mm == pytest.approx(21.5, abs=0.1)
+    assert plan.stop_travel_mm / plan.drawer_length_mm == pytest.approx(0.54, abs=0.01)
+    assert plan.window_length_mm == pytest.approx(5.6)
+    assert plan.window_height_mm == pytest.approx(4.2)
+
+
+def test_a_frame_and_drawer_with_a_stop_build_and_every_check_passes(
+    stopped: Any,
+) -> None:
+    assert stopped.passed, [n for n, ok in stopped.checks.items() if not ok]
+
+    for check in (
+        "chest.stop_windows_open",
+        "chest.detent_dimples_open",
+        "tray.stop_holds",
+        "tray.stop_releases",
+        "tray.detent_clicks_in",
+        "tray.detent_passes",
+        "tray.slides_in_chest",
+    ):
+        assert stopped.checks[check]
+
+
+def test_the_build_says_how_a_stopped_drawer_comes_out(stopped: Any) -> None:
+    drawer = stopped.summary["items"]["tray"]
+
+    assert drawer["held_by"].startswith("a stop: it comes out only when both bumps")
+    assert drawer["detent"]["stop"]["travel_share"] == pytest.approx(0.54, abs=0.01)
+    assert "squeezing" in drawer["detent"]["stop"]["released_by"]
+    assert "stop" in stopped.summary["items"]["chest"]["detent"]
+    assert "force" not in json.dumps(drawer["detent"])
+
+
+def test_a_stops_bump_has_a_vertical_front_and_a_plain_detents_a_ramp(
+    tmp_path: Path,
+) -> None:
+    def bump_for(directory: Path, items: list[dict[str, Any]]) -> Any:
+        directory.mkdir()
+        spec = load_stack(write_stack(directory, items))
+        profile = load_profile(spec.profile_path)
+        siblings = {item.name: item for item in spec.items}
+        plan = detent_plan_for(spec.items[1], profile, PRINTER, siblings)
+
+        assert plan is not None
+
+        return plan, bump_solid(plan, 1)
+
+    with_stop, vertical = bump_for(tmp_path / "stop", [chest(stop={}), stopping()])
+    plain, ramped = bump_for(tmp_path / "plain", [chest(), tray()])
+    # A point in the corner a vertical front keeps and a 45 degree ramp cuts away.
+    corner = (
+        with_stop.drawer_half_mm + with_stop.protrusion_mm - 0.05,
+        with_stop.y_bump_mm - with_stop.base_mm / 2 + 0.1,
+        with_stop.z_bump_mm,
+    )
+
+    assert inside_solid(vertical, corner)
+    assert not inside_solid(ramped, corner)
+    assert plain.y_bump_mm == pytest.approx(with_stop.y_bump_mm)
+
+
+def test_a_bump_pulled_past_the_stop_strikes_the_windows_front_wall(
+    tmp_path: Path,
+) -> None:
+    path = write_stack(tmp_path, [chest(stop={}), stopping()])
+    spec = load_stack(path)
+    profile = load_profile(spec.profile_path)
+    siblings = {item.name: item for item in spec.items}
+    plan = detent_plan_for(spec.items[1], profile, PRINTER, siblings)
+    frame, _, _ = build_item(spec.items[0], profile, PRINTER, siblings)
+
+    assert plan is not None
+    bump = bump_solid(plan, 1)
+
+    assert overlap_mm3(bump.translate((0.0, -plan.stop_travel_mm, 0.0)), frame) < 1e-3
+    assert (
+        overlap_mm3(bump.translate((0.0, -plan.stop_travel_mm - 1.0, 0.0)), frame)
+        > 0.01
+    )
+
+
+def test_a_detent_without_a_stop_still_comes_out_of_a_frame_with_windows(
+    tmp_path: Path,
+) -> None:
+    path = write_stack(tmp_path, [chest(stop={}), tray()])
+    stack = build_stack(load_stack(path), PRINTER)
+
+    assert stack.passed
+    assert stack.summary["items"]["tray"]["held_by"].startswith("a detent")
+
+
+@pytest.mark.parametrize(
+    ("items", "message"),
+    [
+        (
+            [chest(), stopping()],
+            "its stop needs windows, and chest has no stop",
+        ),
+        (
+            [chest(stop={}), tray(detent=None, stop={})],
+            "stop needs items[1].detent",
+        ),
+        (
+            [chest(stop={"engagement_mm": 0.3}), tray()],
+            "stop must be an empty object",
+        ),
+    ],
+)
+def test_a_stop_the_file_cannot_carry_is_refused(
+    tmp_path: Path, items: list[dict[str, Any]], message: str
+) -> None:
+    for entry in items:
+        if entry.get("detent") is None:
+            entry.pop("detent", None)
+
+    path = write_stack(tmp_path, items)
+    data = json.loads(path.read_text())
+    report = check_stack_data(data)
+    errors = [*report.errors]
+
+    if report.valid:
+        errors = list(check_stack_file(path, PRINTER).errors)
+
+    assert any(message in e for e in errors), errors
+
+
+def test_a_stop_item_survives_a_record(tmp_path: Path) -> None:
+    path = write_stack(tmp_path, [chest(stop={}), stopping()])
+
+    for item in load_stack(path).items:
+        assert item.stop
+        assert item_from_record(item_record(item)) == item

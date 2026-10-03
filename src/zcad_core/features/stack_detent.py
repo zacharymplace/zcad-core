@@ -1,10 +1,18 @@
-"""A drawer that clicks shut: a bump on a tongue in each side wall, a dimple in the frame's.
+"""A drawer that clicks shut, and can stop: a bump on a tongue in each side wall, a dimple in the frame's.
 
 A drawer slides along the ledges of a frame and is held by nothing. A **detent** gives it a
 closed position: near the back of each side wall of the drawer a **tongue** is cut free of the
 wall, with a **bump** on its outer face, and the frame's side wall has a **dimple** where the
 bump sits when the drawer is shut. Pushed shut, the drawer clicks into the dimple; pulled, it
 clicks out. It does not stop the drawer leaving the frame: a pulled drawer comes out.
+
+A **stop** keeps the drawer in the frame when it is pulled out. The bump's front face is
+vertical, and the frame has a **window** through each side wall where the bump sits when the
+drawer is pulled out the stop's travel; the window's front edge is a vertical wall, so the bump
+catches on it and the drawer stops. Squeezing both bumps in through the windows, with a pin or a
+fingernail, lets the drawer out. Pushed in, the bump's rear face is still a 45 degree ramp, so
+the drawer goes back past the window and into its dimple, which has a ramped front wall so the
+vertical face still clicks out of it.
 
 The tongue is a strip of the drawer's side wall along its length, cut free by a slit under it and
 a slit at its free end, fixed at the back, with its top the rim of the drawer. It bends outward
@@ -49,8 +57,10 @@ __all__ = [
     "bump_solid",
     "cut_dimples",
     "cut_tongues",
+    "cut_windows",
     "detent_points",
     "plan_detent",
+    "stop_points",
 ]
 
 # A bump is this long along the wall's height, and its tongue reaches this far down from the
@@ -63,6 +73,15 @@ BUMP_FROM_BACK_MM = 14.0
 BACK_MARGIN_MM = 2.0
 # The bump's centre sits this far below the drawer's rim.
 BUMP_BELOW_RIM_MM = 2.0
+# A stop's window is no nearer the frame's front edge than this, and is as long as the bump's
+# base and this much more, so a pin reaches the bump. Its height is the bump's and this much
+# more each way.
+STOP_FRONT_MARGIN_MM = 3.0
+WINDOW_EXTRA_LENGTH_MM = 4.0
+WINDOW_EXTRA_HEIGHT_MM = 0.6
+# The share of a drawer's length a stop lets it out: the least that is a stop, the most that
+# leaves the drawer held.
+STOP_TRAVEL_SHARE = (0.2, 2 / 3)
 _EPSILON = 1e-6
 
 
@@ -90,6 +109,15 @@ class DetentPlan:
     drawer_wall_mm: float
     slots: int
     pitch_mm: float
+    # A stop: where the window's front wall is, how far the drawer comes out to it, and the
+    # window's size.
+    stop: bool = False
+    frame_wall_mm: float = 0.0
+    drawer_length_mm: float = 0.0
+    y_window_mm: float = 0.0
+    stop_travel_mm: float = 0.0
+    window_length_mm: float = 0.0
+    window_height_mm: float = 0.0
 
     @property
     def dimple_depth_mm(self) -> float:
@@ -98,7 +126,7 @@ class DetentPlan:
         return self.engagement_mm + self.clearance_mm
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "engagement_mm": self.engagement_mm,
             "protrusion_mm": round(self.protrusion_mm, 3),
             "dimple_depth_mm": round(self.dimple_depth_mm, 3),
@@ -114,6 +142,17 @@ class DetentPlan:
             ),
         }
 
+        if self.stop:
+            payload["stop"] = {
+                "travel_mm": round(self.stop_travel_mm, 3),
+                "travel_share": round(self.stop_travel_mm / self.drawer_length_mm, 3),
+                "window_length_mm": round(self.window_length_mm, 3),
+                "window_height_mm": round(self.window_height_mm, 3),
+                "released_by": "squeezing both bumps in through the windows",
+            }
+
+        return payload
+
 
 def plan_detent(
     plan: FramePlan,
@@ -121,6 +160,7 @@ def plan_detent(
     engagement_mm: float,
     least_wall_mm: float,
     clearance_mm: float,
+    stop: bool = False,
 ) -> tuple[DetentPlan | None, list[str]]:
     """The detent's sizes, or why the frame and the drawer cannot carry it. ``plan`` is the
     frame's plan with the drawer's own wall and floor, ``clearance_mm`` the printer's sliding
@@ -173,6 +213,30 @@ def plan_detent(
             "and margin need"
         )
 
+    front = -plan.outer_depth / 2
+    y_window = front + STOP_FRONT_MARGIN_MM
+    travel = (y_bump - base / 2) - clearance_mm - y_window
+    window_height = BUMP_Z_MM + 2 * WINDOW_EXTRA_HEIGHT_MM
+
+    if stop:
+        share = travel / plan.drawer_length
+        low, high = STOP_TRAVEL_SHARE
+
+        if not low <= share <= high:
+            errors.append(
+                f"a stop would let the drawer out {travel:.1f} mm, {share:.0%} of its "
+                f"length, outside {low:.0%} to {high:.0%}"
+            )
+
+        web = plan.pitch - window_height
+
+        if plan.slots > 1 and web < least_wall - _EPSILON:
+            errors.append(
+                f"windows {window_height:g} mm tall in slots {plan.pitch:.1f} mm apart leave "
+                f"{web:.1f} mm of wall between them, under the printer's {least_wall:g} mm "
+                "minimum: use fewer drawers or a taller frame"
+            )
+
     if errors:
         return None, errors
 
@@ -204,6 +268,13 @@ def plan_detent(
             drawer_wall_mm=thickness,
             slots=plan.slots,
             pitch_mm=plan.pitch,
+            stop=stop,
+            frame_wall_mm=frame_wall_mm,
+            drawer_length_mm=plan.drawer_length,
+            y_window_mm=y_window,
+            stop_travel_mm=travel if stop else 0.0,
+            window_length_mm=base + WINDOW_EXTRA_LENGTH_MM if stop else 0.0,
+            window_height_mm=window_height if stop else 0.0,
         ),
         [],
     )
@@ -224,16 +295,24 @@ def _outline(
 
 def bump_solid(plan: DetentPlan, side: int) -> cq.Workplane:
     """A bump on the drawer's outer face on ``side`` (+1 or -1), buried 0.3 mm in the
-    tongue so it fuses with it, with a 45 degree ramp each way along the wall."""
+    tongue so it fuses with it. It has a 45 degree ramp each way along the wall, or, for a
+    stop, a vertical face on the front, the side the drawer is pulled toward."""
 
     face = plan.drawer_half_mm
     p = plan.protrusion_mm
     half = plan.base_mm / 2
     y = plan.y_bump_mm
+    front = (
+        [(face - 0.3, y - half), (face + p, y - half)]
+        if plan.stop
+        else [
+            (face - 0.3, y - half),
+            (face, y - half),
+            (face + p, y - half + p),
+        ]
+    )
     section = [
-        (face - 0.3, y - half),
-        (face, y - half),
-        (face + p, y - half + p),
+        *front,
         (face + p, y + half - p),
         (face, y + half),
         (face - 0.3, y + half),
@@ -254,12 +333,25 @@ def _dimple_solid(plan: DetentPlan, side: int, slot: int) -> cq.Workplane:
     spread = s * math.sqrt(2)
     start = plan.frame_half_mm - 0.01
     reach = face + p + s
-    section = [
-        (start, y - half + (start - face) - spread),
-        (reach, y - half + p + s - spread),
+    rear = [
         (reach, y + half - p - s + spread),
         (start, y + half - (start - face) + spread),
     ]
+
+    if plan.stop:
+        # The bump's front is vertical, so the dimple's front wall is a ramp that starts the
+        # clearance ahead of the face and climbs at 45 degrees to the wall's face: the bump's
+        # corner rides up it and out.
+        front_face = y - half
+        tip = front_face - s
+        front = [(start, tip - (reach - start)), (reach, tip)]
+    else:
+        front = [
+            (start, y - half + (start - face) - spread),
+            (reach, y - half + p + s - spread),
+        ]
+
+    section = [*front, *rear]
 
     return _outline(
         section,
@@ -327,6 +419,44 @@ def cut_dimples(frame: cq.Workplane, plan: DetentPlan) -> cq.Workplane:
             frame = frame.cut(_dimple_solid(plan, side, slot))
 
     return frame
+
+
+def cut_windows(frame: cq.Workplane, plan: DetentPlan) -> cq.Workplane:
+    """A window through each side wall of the frame at every slot, where the bump sits when
+    the drawer is pulled out the stop's travel. Its front edge is a vertical wall."""
+
+    near = plan.frame_half_mm - 0.01
+    far = plan.frame_half_mm + plan.frame_wall_mm + 0.5
+    front = plan.y_window_mm
+    back = front + plan.window_length_mm
+
+    for slot in range(plan.slots):
+        for side in (1, -1):
+            frame = frame.cut(
+                _outline(
+                    [(near, front), (far, front), (far, back), (near, back)],
+                    side,
+                    plan.z_bump_mm - plan.window_height_mm / 2 + slot * plan.pitch_mm,
+                    plan.window_height_mm,
+                )
+            )
+
+    return frame
+
+
+def stop_points(
+    plan: DetentPlan, side: int, slot: int = 0
+) -> dict[str, tuple[float, float, float]]:
+    """Points to test the frame at: in a window (void) and in the wall just ahead of its
+    front edge (solid)."""
+
+    wall_mid = side * (plan.frame_half_mm + plan.frame_wall_mm / 2)
+    z = plan.z_bump_mm + slot * plan.pitch_mm
+
+    return {
+        "window": (wall_mid, plan.y_window_mm + plan.window_length_mm / 2, z),
+        "front_wall": (wall_mid, plan.y_window_mm - 0.5, z),
+    }
 
 
 def detent_points(
