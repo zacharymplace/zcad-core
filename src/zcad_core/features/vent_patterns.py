@@ -750,15 +750,15 @@ def _with(
     if extra is None:
         return None
 
-    solid = cast(cq.Solid, extra)
+    inside = _inside_any([cast(cq.Solid, extra)])
 
-    return lambda point: test(point) or bool(solid.isInside(point))
+    return lambda point: test(point) or inside(point)
 
 
 def solid_tester(model: cq.Workplane) -> Callable[[cq.Vector], bool]:
     """A point-in-material test against a model's solids."""
 
-    shape = cq.Compound.makeCompound(
+    return _inside_any(
         [
             solid
             for item in model.vals()
@@ -767,4 +767,43 @@ def solid_tester(model: cq.Workplane) -> Callable[[cq.Vector], bool]:
         ]
     )
 
-    return lambda point: bool(shape.isInside(point))
+
+# A point this far outside a solid's bounding box is outside the solid; the margin
+# is far wider than the classifier's own tolerance, so a point on a face still
+# goes to the classifier.
+_BOX_MARGIN_MM = 1e-3
+
+
+def _inside_any(solids: Sequence[cq.Solid]) -> Callable[[cq.Vector], bool]:
+    """A point-in-material test against solids, asking each solid's classifier
+    only when the point is inside its bounding box: the classifier costs about a
+    millisecond and most points are nowhere near most solids."""
+
+    boxes = []
+
+    for solid in solids:
+        box = solid.BoundingBox()
+        boxes.append(
+            (
+                solid,
+                box.xmin - _BOX_MARGIN_MM,
+                box.xmax + _BOX_MARGIN_MM,
+                box.ymin - _BOX_MARGIN_MM,
+                box.ymax + _BOX_MARGIN_MM,
+                box.zmin - _BOX_MARGIN_MM,
+                box.zmax + _BOX_MARGIN_MM,
+            )
+        )
+
+    def inside(point: cq.Vector) -> bool:
+        x, y, z = point.x, point.y, point.z
+
+        return any(
+            x0 <= x <= x1
+            and y0 <= y <= y1
+            and z0 <= z <= z1
+            and bool(solid.isInside(point))
+            for solid, x0, x1, y0, y1, z0, z1 in boxes
+        )
+
+    return inside
