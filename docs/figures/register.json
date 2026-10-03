@@ -1,22 +1,188 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "statuses": {
     "sourced": "From a named standard, datasheet or format (the source is as the code cites it; not re-checked)",
+    "estimated": "Read off a drawing's scale or a stated rough estimate: the source does not state it outright",
     "design_default": "The engine's own choice, which the code says is a default, a design value or a guess",
     "example": "An illustrative figure, not claimed right for any real part",
     "unstated": "No basis is stated in the code"
   },
   "figures": {
+    "assemblies/assembly.py:DeviceAssembly.analyze_interference(collision_volume_tolerance_mm3)": {
+      "status": "unstated"
+    },
+    "assemblies/board_display.py:lowest_display_height_mm(limit_mm)": {
+      "status": "unstated"
+    },
+    "assemblies/board_display.py:lowest_display_height_mm(step_mm)": {
+      "status": "unstated"
+    },
+    "assemblies/enclosure.py:derive_enclosure_specification(connector_cutout_clearance_mm)": {
+      "status": "unstated"
+    },
+    "assemblies/enclosure.py:derive_enclosure_specification(internal_clearance_mm)": {
+      "status": "unstated"
+    },
+    "assemblies/interference.py:analyze_component_interference(collision_volume_tolerance_mm3)": {
+      "status": "unstated"
+    },
+    "assemblies/models.py:AssemblyPart.quantity": {
+      "status": "unstated"
+    },
     "cli/enclosure.py:DEFAULT_DISPLAY_HEIGHT_MM": {
       "status": "unstated"
     },
     "cli/enclosure_group.py:_REVIEW_LID_LIFT_MM": {
       "status": "unstated"
     },
+    "features/board_cradle.py:BoardCradleParameters.clearance_mm": {
+      "status": "unstated"
+    },
+    "features/board_cradle.py:BoardCradleParameters.clip_gap_mm": {
+      "status": "unstated"
+    },
+    "features/board_cradle.py:BoardCradleParameters.clip_lip_height_mm": {
+      "status": "unstated"
+    },
+    "features/board_cradle.py:BoardCradleParameters.clip_overhang_mm": {
+      "status": "unstated"
+    },
+    "features/board_cradle.py:BoardCradleParameters.clip_slot_mm": {
+      "status": "unstated"
+    },
+    "features/board_cradle.py:BoardCradleParameters.clip_width_mm": {
+      "status": "unstated"
+    },
+    "features/board_cradle.py:BoardCradleParameters.ledge_mm": {
+      "status": "unstated"
+    },
+    "features/board_cradle.py:BoardCradleParameters.stop_band_mm": {
+      "status": "unstated"
+    },
+    "features/board_cradle.py:BoardCradleParameters.wall_mm": {
+      "status": "unstated"
+    },
     "features/board_promotion.py:MINIMUM_TRIALS": {
       "status": "unstated"
     },
+    "features/connector_cutouts.py:ConnectorCutoutParameters.cutter_depth_mm": {
+      "status": "unstated"
+    },
+    "features/connector_cutouts.py:ConnectorCutoutParameters.cutter_overtravel_mm": {
+      "status": "unstated"
+    },
+    "features/connector_cutouts.py:ConnectorCutoutParameters.from_component(cutter_depth_mm)": {
+      "status": "unstated"
+    },
+    "features/connector_cutouts.py:ConnectorCutoutParameters.from_component(cutter_overtravel_mm)": {
+      "status": "unstated"
+    },
+    "features/connector_cutouts.py:ConnectorCutoutParameters.from_component(height_clearance_mm)": {
+      "status": "unstated"
+    },
+    "features/connector_cutouts.py:ConnectorCutoutParameters.from_component(width_clearance_mm)": {
+      "status": "unstated"
+    },
+    "features/connector_cutouts.py:ConnectorCutoutParameters.from_connector(cutter_depth_mm)": {
+      "status": "unstated"
+    },
+    "features/connector_cutouts.py:ConnectorCutoutParameters.from_connector(cutter_overtravel_mm)": {
+      "status": "unstated"
+    },
+    "features/connector_cutouts.py:ConnectorCutoutParameters.from_connector(height_clearance_mm)": {
+      "status": "unstated"
+    },
+    "features/connector_cutouts.py:ConnectorCutoutParameters.from_connector(width_clearance_mm)": {
+      "status": "unstated"
+    },
+    "features/connector_cutouts.py:ConnectorCutoutParameters.height_clearance_mm": {
+      "status": "unstated"
+    },
+    "features/connector_cutouts.py:ConnectorCutoutParameters.width_clearance_mm": {
+      "status": "unstated"
+    },
     "features/connector_cutouts.py:MINIMUM_OPENING_WEB_MM": {
+      "status": "unstated"
+    },
+    "features/display_cutouts.py:DisplayBezelParameters.bezel_height_mm": {
+      "status": "unstated"
+    },
+    "features/display_cutouts.py:DisplayBezelParameters.bezel_wall_mm": {
+      "status": "unstated"
+    },
+    "features/display_cutouts.py:DisplayBezelParameters.corner_radius_mm": {
+      "status": "unstated"
+    },
+    "features/display_cutouts.py:DisplayBezelParameters.from_window(bezel_height_mm)": {
+      "status": "unstated"
+    },
+    "features/display_cutouts.py:DisplayBezelParameters.from_window(bezel_wall_mm)": {
+      "status": "unstated"
+    },
+    "features/display_cutouts.py:DisplayWindowParameters.corner_radius_mm": {
+      "status": "unstated"
+    },
+    "features/display_cutouts.py:DisplayWindowParameters.cutter_overtravel_mm": {
+      "status": "unstated"
+    },
+    "features/display_cutouts.py:DisplayWindowParameters.from_display(corner_radius_mm)": {
+      "status": "unstated"
+    },
+    "features/display_cutouts.py:DisplayWindowParameters.from_display(cutter_overtravel_mm)": {
+      "status": "unstated"
+    },
+    "features/display_retainer.py:DisplayRetainerParameters.clearance_mm": {
+      "status": "unstated"
+    },
+    "features/display_retainer.py:DisplayRetainerParameters.clip_gap_mm": {
+      "status": "unstated"
+    },
+    "features/display_retainer.py:DisplayRetainerParameters.clip_lip_height_mm": {
+      "status": "unstated"
+    },
+    "features/display_retainer.py:DisplayRetainerParameters.clip_reach_mm": {
+      "status": "unstated"
+    },
+    "features/display_retainer.py:DisplayRetainerParameters.clip_width_mm": {
+      "status": "unstated"
+    },
+    "features/display_retainer.py:DisplayRetainerParameters.corner_leg_mm": {
+      "status": "unstated"
+    },
+    "features/display_retainer.py:DisplayRetainerParameters.pad_mm": {
+      "status": "unstated"
+    },
+    "features/display_retainer.py:DisplayRetainerParameters.wall_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:EnclosureDesign.boss_radial_wall_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:EnclosureDesign.bottom_clearance_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:EnclosureDesign.cable_plug_height_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:EnclosureDesign.cable_plug_width_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:EnclosureDesign.floor_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:EnclosureDesign.lid_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:EnclosureDesign.mount_plate_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:EnclosureDesign.slide_clearance_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:EnclosureDesign.top_clearance_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:EnclosureDesign.wall_mm": {
       "status": "unstated"
     },
     "features/enclosure.py:HOLE_COMPENSATION_RANGE_MM": {
@@ -176,6 +342,69 @@
     "features/enclosure_group_model.py:FLOOR_EMBED_MM": {
       "status": "unstated"
     },
+    "features/enclosure_group_model.py:GroupDesign.back_clearance_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.board_gap_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.board_reach_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.boss_radial_wall_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.divider_clearance_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.divider_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.divider_notch_height_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.divider_notch_width_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.end_margin_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.floor_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.front_clearance_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.headroom_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.lid_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.mount_plate_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.open_bay_width_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.plug_margin_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.service_gap_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.slide_clearance_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.slot_pad_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.standoff_height_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:GroupDesign.wall_mm": {
+      "status": "unstated"
+    },
     "features/enclosure_group_model.py:OPENING_RIM_MM": {
       "status": "unstated"
     },
@@ -278,6 +507,9 @@
       "source": "Standard metric screw lengths, as stated in features/enclosure_review.py; no standard number is cited"
     },
     "features/enclosure_review.py:_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/enclosure_review.py:export_enclosure_review(exploded_gap_mm)": {
       "status": "unstated"
     },
     "features/enclosure_revision.py:NOISE_MM": {
@@ -384,6 +616,9 @@
       "status": "unstated"
     },
     "features/guide_file.py:WALL_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/guide_file.py:nest_outline(clearance_mm)": {
       "status": "unstated"
     },
     "features/guide_import.py:CHUCK_FACTOR": {
@@ -529,6 +764,9 @@
     "features/housing_wear.py:_TOLERANCE_MM3": {
       "status": "unstated"
     },
+    "features/insert_bosses.py:InsertBossParameters.from_fastener(radial_wall_mm)": {
+      "status": "unstated"
+    },
     "features/jig_file.py:BELOW_FACE_RANGE_MM": {
       "status": "unstated"
     },
@@ -601,6 +839,12 @@
     "features/lid_hinge.py:HINGE_WEB_DEPTH_MM": {
       "status": "unstated"
     },
+    "features/lid_hinge.py:HingeReport.axis_direction": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:HingeReport.swing_sign": {
+      "status": "unstated"
+    },
     "features/lid_hinge.py:SWING_DEGREES": {
       "status": "unstated"
     },
@@ -659,6 +903,9 @@
       "status": "unstated"
     },
     "features/lid_slide.py:RETAINING_STRIP_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:SlideReport.direction": {
       "status": "unstated"
     },
     "features/lid_slide.py:TONGUE_MM": {
@@ -762,6 +1009,9 @@
       "status": "design_default",
       "note": "The engine's own choice, and a baseplate's default"
     },
+    "features/mount_stack.py:TopHolding.clearance_mm": {
+      "status": "unstated"
+    },
     "features/mount_stack.py:WINDOW_MARGIN_MM": {
       "status": "unstated"
     },
@@ -862,6 +1112,9 @@
       "status": "unstated"
     },
     "features/mounts.py:_SCREW_LENGTHS_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:build_mount(plate_mm)": {
       "status": "unstated"
     },
     "features/nest_core.py:RELEASE_STEP_MM": {
@@ -1029,6 +1282,18 @@
     "features/pcb_fixture_trial.py:MINIMUM_TRIALS_TO_VERIFY": {
       "status": "unstated"
     },
+    "features/pcb_mounts.py:BoardHolePattern.standoff(radial_wall_mm)": {
+      "status": "unstated"
+    },
+    "features/pcb_mounts.py:PcbStandoffParameters.from_board(radial_wall_mm)": {
+      "status": "unstated"
+    },
+    "features/pcb_mounts.py:add_board_standoffs(radial_wall_mm)": {
+      "status": "unstated"
+    },
+    "features/slots.py:cut_through_slot(angle)": {
+      "status": "unstated"
+    },
     "features/stack.py:TOLERANCE_MM3": {
       "status": "unstated"
     },
@@ -1102,6 +1367,9 @@
       "status": "unstated"
     },
     "features/stack_file.py:DEFAULT_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/stack_file.py:Item.units": {
       "status": "unstated"
     },
     "features/stack_file.py:MAXIMUM_CELLS": {
@@ -1246,6 +1514,18 @@
     "features/vent_patterns.py:_LOUVER_WALL_MM": {
       "status": "unstated"
     },
+    "geometry/edge_outline.py:EdgeOutlineAnalyzer.__init__(engagement_depth_mm)": {
+      "status": "unstated"
+    },
+    "geometry/edge_outline.py:EdgeOutlineAnalyzer.__init__(required_material_ratio)": {
+      "status": "unstated"
+    },
+    "geometry/edge_outline.py:EdgeOutlineAnalyzer.__init__(sample_resolution_mm)": {
+      "status": "unstated"
+    },
+    "geometry/edge_outline.py:EdgeOutlineAnalyzer.__init__(z_margin_mm)": {
+      "status": "unstated"
+    },
     "geometry/edge_outline.py:_EPSILON": {
       "status": "unstated"
     },
@@ -1266,6 +1546,63 @@
     },
     "hardware/bushings.py:_TABLE": {
       "status": "unstated"
+    },
+    "hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.board_length_mm": {
+      "status": "sourced",
+      "source": "Adafruit 4884 Feather RP2040 STEP, measured from the vendor model, as cited in hardware/electronics/adafruit.py"
+    },
+    "hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.board_thickness_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.board_width_mm": {
+      "status": "sourced",
+      "source": "Adafruit 4884 Feather RP2040 STEP, measured from the vendor model, as cited in hardware/electronics/adafruit.py"
+    },
+    "hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.mounting_hole_diameter_mm": {
+      "status": "sourced",
+      "source": "Adafruit 4884 Feather RP2040 STEP, measured from the vendor model, as cited in hardware/electronics/adafruit.py"
+    },
+    "hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.mounting_hole_spacing_x_mm": {
+      "status": "sourced",
+      "source": "Adafruit 4884 Feather RP2040 STEP, measured from the vendor model, as cited in hardware/electronics/adafruit.py"
+    },
+    "hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.mounting_hole_spacing_y_mm": {
+      "status": "sourced",
+      "source": "Adafruit 4884 Feather RP2040 STEP, measured from the vendor model, as cited in hardware/electronics/adafruit.py"
+    },
+    "hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.recommended_clearance_mm": {
+      "status": "design_default",
+      "note": "The spec's own recommendation (the engine's choice); no basis is written down"
+    },
+    "hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.recommended_standoff_height_mm": {
+      "status": "design_default",
+      "note": "The spec's own recommendation (the engine's choice); no basis is written down"
+    },
+    "hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.board_length_mm": {
+      "status": "sourced",
+      "source": "Arduino UNO R4 WiFi STEP (PCB outline), as cited in hardware/electronics/arduino.py; the code marks its geometry provisional"
+    },
+    "hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.board_thickness_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.board_width_mm": {
+      "status": "sourced",
+      "source": "Arduino UNO R4 WiFi STEP (PCB outline), as cited in hardware/electronics/arduino.py; the code marks its geometry provisional"
+    },
+    "hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.mounting_hole_diameter_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.mounting_hole_positions_mm": {
+      "status": "sourced",
+      "source": "The UNO form-factor drawing, as cited in hardware/electronics/arduino.py (the STEP model has no mounting holes); the code marks its geometry provisional"
+    },
+    "hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.recommended_clearance_mm": {
+      "status": "design_default",
+      "note": "The spec's own recommendation (the engine's choice); no basis is written down"
+    },
+    "hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.recommended_standoff_height_mm": {
+      "status": "design_default",
+      "note": "The spec's own recommendation (the engine's choice); no basis is written down"
     },
     "hardware/electronics/board_file.py:BOARD_SIZE_RANGE_MM": {
       "status": "unstated"
@@ -1298,6 +1635,9 @@
       "status": "unstated"
     },
     "hardware/electronics/board_file.py:TYPICAL_THICKNESS_RANGE_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file.py:_rectangle_inside(margin)": {
       "status": "unstated"
     },
     "hardware/electronics/board_import.py:HEIGHT_TIERS_MM": {
@@ -1342,6 +1682,14 @@
     "hardware/electronics/board_test_points.py:PAD_DIAMETER_RANGE_MM": {
       "status": "unstated"
     },
+    "hardware/electronics/displays.py:DisplaySpec.recommended_module_clearance_mm": {
+      "status": "design_default",
+      "note": "The spec's own recommendation (the engine's choice); no basis is written down"
+    },
+    "hardware/electronics/displays.py:DisplaySpec.recommended_window_clearance_mm": {
+      "status": "design_default",
+      "note": "The spec's own recommendation (the engine's choice); no basis is written down"
+    },
     "hardware/electronics/kicad_import.py:CHORD_MM": {
       "status": "unstated"
     },
@@ -1366,6 +1714,150 @@
     "hardware/electronics/kicad_import.py:SIZE_GROUP_MM": {
       "status": "unstated"
     },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.board_length_mm": {
+      "status": "sourced",
+      "source": "Raspberry Pi mechanical drawing RP-008347, as cited in hardware/electronics/raspberry_pi.py; the drawing calls itself approximate"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.board_thickness_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.board_width_mm": {
+      "status": "sourced",
+      "source": "Raspberry Pi mechanical drawing RP-008347, as cited in hardware/electronics/raspberry_pi.py; the drawing calls itself approximate"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.cooler_bottom_above_board_mm": {
+      "status": "estimated",
+      "source": "Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.cooler_center_x_mm": {
+      "status": "estimated",
+      "source": "Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.cooler_center_y_mm": {
+      "status": "estimated",
+      "source": "Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.cooler_height_mm": {
+      "status": "estimated",
+      "source": "Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.cooler_length_mm": {
+      "status": "estimated",
+      "source": "Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.cooler_width_mm": {
+      "status": "estimated",
+      "source": "Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.fan_center_x_mm": {
+      "status": "estimated",
+      "source": "Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.fan_center_y_mm": {
+      "status": "estimated",
+      "source": "Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.fan_size_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.header_center_y_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.header_height_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.header_length_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.header_width_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.mounting_hole_diameter_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.mounting_hole_positions_mm": {
+      "status": "sourced",
+      "source": "Raspberry Pi's STEP model, as the comment in hardware/electronics/raspberry_pi.py states"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.mounting_hole_spacing_x_mm": {
+      "status": "sourced",
+      "source": "Raspberry Pi mechanical drawing RP-008347, as cited in hardware/electronics/raspberry_pi.py; the drawing calls itself approximate"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.mounting_hole_spacing_y_mm": {
+      "status": "sourced",
+      "source": "Raspberry Pi mechanical drawing RP-008347, as cited in hardware/electronics/raspberry_pi.py; the drawing calls itself approximate"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.recommended_standoff_height_mm": {
+      "status": "design_default",
+      "note": "The spec's own recommendation (the engine's choice); no basis is written down"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.sd_card_depth_below_board_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.sd_card_overhang_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.sd_card_width_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.board_length_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.board_thickness_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.board_width_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.mounting_hole_diameter_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.mounting_hole_spacing_x_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.mounting_hole_spacing_y_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.recommended_clearance_mm": {
+      "status": "design_default",
+      "note": "The spec's own recommendation (the engine's choice); no basis is written down"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.recommended_standoff_height_mm": {
+      "status": "design_default",
+      "note": "The spec's own recommendation (the engine's choice); no basis is written down"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.usb_connector_height_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.usb_connector_width_mm": {
+      "status": "unstated"
+    },
+    "hardware/electronics/seeed.py:SeeedXiaoEsp32S3Spec.board_length_mm": {
+      "status": "sourced",
+      "source": "Seeed Studio XIAO ESP32-S3 DXF v1.1 outline, as cited in hardware/electronics/seeed.py; the code marks its geometry provisional"
+    },
+    "hardware/electronics/seeed.py:SeeedXiaoEsp32S3Spec.board_thickness_mm": {
+      "status": "sourced",
+      "source": "Measured from the vendor STEP, as cited in hardware/electronics/seeed.py; the code marks its geometry provisional"
+    },
+    "hardware/electronics/seeed.py:SeeedXiaoEsp32S3Spec.board_width_mm": {
+      "status": "sourced",
+      "source": "Seeed Studio XIAO ESP32-S3 DXF v1.1 outline, as cited in hardware/electronics/seeed.py; the code marks its geometry provisional"
+    },
+    "hardware/electronics/seeed.py:SeeedXiaoEsp32S3Spec.recommended_clearance_mm": {
+      "status": "design_default",
+      "note": "The spec's own recommendation (the engine's choice); no basis is written down"
+    },
+    "hardware/electronics/seeed.py:SeeedXiaoEsp32S3Spec.recommended_standoff_height_mm": {
+      "status": "design_default",
+      "note": "The spec's own recommendation (the engine's choice); no basis is written down"
+    },
+    "hardware/magnets.py:MagnetSpec.depth_pocket_oversize_mm": {
+      "status": "unstated"
+    },
+    "hardware/magnets.py:MagnetSpec.radial_pocket_oversize_mm": {
+      "status": "unstated"
+    },
     "hardware/pogo.py:_IN": {
       "status": "unstated"
     },
@@ -1386,6 +1878,46 @@
     },
     "hardware/wearables/capture.py:SPREAD_WARNING_MM": {
       "status": "unstated"
+    },
+    "hardware/wearables/dexcom.py:DexcomG7Spec.adhesive_patch_diameter_mm": {
+      "status": "estimated",
+      "source": "A rough visual estimate with no manufacturer source, as hardware/wearables/dexcom.py states"
+    },
+    "hardware/wearables/dexcom.py:DexcomG7Spec.body_length_mm": {
+      "status": "sourced",
+      "source": "Dexcom G7 Technical Specifications Sheet (LBL-1002469 Rev001, Jan 2023), as cited in hardware/wearables/dexcom.py: a published sheet, not a caliper capture"
+    },
+    "hardware/wearables/dexcom.py:DexcomG7Spec.body_thickness_mm": {
+      "status": "sourced",
+      "source": "Dexcom G7 Technical Specifications Sheet (LBL-1002469 Rev001, Jan 2023), as cited in hardware/wearables/dexcom.py: a published sheet, not a caliper capture"
+    },
+    "hardware/wearables/dexcom.py:DexcomG7Spec.body_width_mm": {
+      "status": "sourced",
+      "source": "Dexcom G7 Technical Specifications Sheet (LBL-1002469 Rev001, Jan 2023), as cited in hardware/wearables/dexcom.py: a published sheet, not a caliper capture"
+    },
+    "hardware/wearables/dexcom.py:DexcomG7Spec.recommended_shell_clearance_mm": {
+      "status": "design_default",
+      "note": "The spec's own recommendation (the engine's choice); no basis is written down"
+    },
+    "hardware/wearables/dexcom.py:DexcomG7Spec.wire_length_mm": {
+      "status": "sourced",
+      "source": "Dexcom G7 Technical Specifications Sheet (LBL-1002469 Rev001, Jan 2023), as cited in hardware/wearables/dexcom.py: a published sheet, not a caliper capture"
+    },
+    "hardware/wearables/tandem.py:TandemMobiSpec.body_length_mm": {
+      "status": "sourced",
+      "source": "The peer-reviewed Mobi overview PMC13089864, as cited in hardware/wearables/tandem.py; not a caliper capture, and the code notes another source differs on width by about 12 mm"
+    },
+    "hardware/wearables/tandem.py:TandemMobiSpec.body_thickness_mm": {
+      "status": "sourced",
+      "source": "The peer-reviewed Mobi overview PMC13089864, as cited in hardware/wearables/tandem.py; not a caliper capture, and the code notes another source differs on width by about 12 mm"
+    },
+    "hardware/wearables/tandem.py:TandemMobiSpec.body_width_mm": {
+      "status": "sourced",
+      "source": "The peer-reviewed Mobi overview PMC13089864, as cited in hardware/wearables/tandem.py; not a caliper capture, and the code notes another source differs on width by about 12 mm"
+    },
+    "hardware/wearables/tandem.py:TandemMobiSpec.recommended_clip_clearance_mm": {
+      "status": "design_default",
+      "note": "The spec's own recommendation (the engine's choice); no basis is written down"
     },
     "printing/bambu.py:SLICE_TIMEOUT_SECONDS": {
       "status": "design_default",
@@ -1409,6 +1941,27 @@
     "retention/artifact_revision.py:_DEFAULT_VERTICAL_MARGIN_MM": {
       "status": "unstated"
     },
+    "retention/capture_interference.py:GeometryInterferenceResult.tolerance_mm3": {
+      "status": "unstated"
+    },
+    "retention/capture_interference.py:measure_capture_interference(tolerance_mm3)": {
+      "status": "unstated"
+    },
+    "retention/corner_capture.py:CornerCapturePolicy.arm_width_mm": {
+      "status": "unstated"
+    },
+    "retention/corner_capture.py:CornerCapturePolicy.board_clearance_mm": {
+      "status": "unstated"
+    },
+    "retention/corner_capture.py:CornerCapturePolicy.engagement_depth_mm": {
+      "status": "unstated"
+    },
+    "retention/corner_capture.py:CornerCapturePolicy.minimum_wall_mm": {
+      "status": "unstated"
+    },
+    "retention/corner_capture.py:CornerCapturePolicy.vertical_overlap_mm": {
+      "status": "unstated"
+    },
     "retention/design_review.py:_CAPTURE_SEARCH_MM": {
       "status": "unstated"
     },
@@ -1421,7 +1974,34 @@
     "retention/design_review.py:_SEATING_EPSILON_MM": {
       "status": "unstated"
     },
+    "retention/design_review.py:export_design_review_package(minimum_component_gap_mm)": {
+      "status": "unstated"
+    },
+    "retention/design_review.py:export_design_review_package(seating_contact_mm)": {
+      "status": "unstated"
+    },
+    "retention/design_review.py:export_design_review_package(tolerance_mm3)": {
+      "status": "unstated"
+    },
+    "retention/edge_capture.py:EdgeCapturePolicy.arm_width_mm": {
+      "status": "unstated"
+    },
+    "retention/edge_capture.py:EdgeCapturePolicy.board_clearance_mm": {
+      "status": "unstated"
+    },
+    "retention/edge_capture.py:EdgeCapturePolicy.engagement_depth_mm": {
+      "status": "unstated"
+    },
+    "retention/edge_capture.py:EdgeCapturePolicy.minimum_wall_mm": {
+      "status": "unstated"
+    },
+    "retention/edge_capture.py:EdgeCapturePolicy.vertical_overlap_mm": {
+      "status": "unstated"
+    },
     "retention/edge_capture.py:_MINIMUM_LOCATION_SEPARATION_MM": {
+      "status": "unstated"
+    },
+    "retention/edge_installation_path.py:analyze_edge_installation_paths(tolerance_mm3)": {
       "status": "unstated"
     },
     "retention/export_checks.py:_MAX_PROBES_PER_AXIS": {
@@ -1442,7 +2022,28 @@
     "retention/export_validation.py:_BOARD_MATCH_TOLERANCE_MM": {
       "status": "unstated"
     },
+    "retention/installation_path.py:InstallationPathPlan.samples_per_segment": {
+      "status": "unstated"
+    },
     "retention/installation_path.py:_SPLIT_EPSILON_MM": {
+      "status": "unstated"
+    },
+    "retention/installation_path.py:analyze_installation_paths(tolerance_mm3)": {
+      "status": "unstated"
+    },
+    "retention/manufacturing.py:ManufacturingPolicy.maximum_unsupported_overhang_mm": {
+      "status": "unstated"
+    },
+    "retention/manufacturing.py:ManufacturingPolicy.minimum_board_clearance_mm": {
+      "status": "unstated"
+    },
+    "retention/manufacturing.py:ManufacturingPolicy.minimum_capture_spacing_mm": {
+      "status": "unstated"
+    },
+    "retention/manufacturing.py:ManufacturingPolicy.minimum_vertical_overlap_mm": {
+      "status": "unstated"
+    },
+    "retention/manufacturing.py:ManufacturingPolicy.minimum_wall_mm": {
       "status": "unstated"
     },
     "retention/measurement_feedback.py:MAXIMUM_STEP_MM": {
@@ -1451,7 +2052,61 @@
     "retention/measurement_feedback.py:NOISE_MM": {
       "status": "unstated"
     },
+    "retention/production_board.py:ProductionBoardCornerAdapter.__init__(corner_keepout_mm)": {
+      "status": "unstated"
+    },
+    "retention/production_board.py:ProductionBoardCornerAdapter.__init__(vertical_margin_mm)": {
+      "status": "unstated"
+    },
+    "retention/production_edge_board.py:ProductionBoardEdgeAdapter.__init__(engagement_depth_mm)": {
+      "status": "unstated"
+    },
+    "retention/production_edge_board.py:ProductionBoardEdgeAdapter.__init__(minimum_anchor_separation_mm)": {
+      "status": "unstated"
+    },
+    "retention/production_edge_board.py:ProductionBoardEdgeAdapter.__init__(required_material_ratio)": {
+      "status": "unstated"
+    },
+    "retention/production_edge_board.py:ProductionBoardEdgeAdapter.__init__(sample_resolution_mm)": {
+      "status": "unstated"
+    },
+    "retention/production_edge_board.py:ProductionBoardEdgeAdapter.__init__(vertical_margin_mm)": {
+      "status": "unstated"
+    },
+    "retention/production_edge_execution.py:ProductionEdgeExecutionRequest.engagement_depth_mm": {
+      "status": "unstated"
+    },
+    "retention/production_edge_execution.py:ProductionEdgeExecutionRequest.minimum_anchor_separation_mm": {
+      "status": "unstated"
+    },
+    "retention/production_edge_execution.py:ProductionEdgeExecutionRequest.vertical_margin_mm": {
+      "status": "unstated"
+    },
     "retention/production_edge_execution.py:_INTERFERENCE_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "retention/production_execution.py:ProductionCornerExecutionRequest.corner_keepout_mm": {
+      "status": "unstated"
+    },
+    "retention/production_execution.py:ProductionCornerExecutionRequest.vertical_margin_mm": {
+      "status": "unstated"
+    },
+    "retention/snap_shell.py:SnapShellPolicy.clearance_mm": {
+      "status": "unstated"
+    },
+    "retention/snap_shell.py:SnapShellPolicy.clip_height_mm": {
+      "status": "unstated"
+    },
+    "retention/snap_shell.py:SnapShellPolicy.clip_width_mm": {
+      "status": "unstated"
+    },
+    "retention/snap_shell.py:SnapShellPolicy.compliant_span_mm": {
+      "status": "unstated"
+    },
+    "retention/snap_shell.py:SnapShellPolicy.overhang_mm": {
+      "status": "unstated"
+    },
+    "retention/snap_shell.py:SnapShellPolicy.wall_mm": {
       "status": "unstated"
     },
     "retention/snap_shell.py:_MINIMUM_LOCATION_SEPARATION_MM": {
@@ -1464,6 +2119,24 @@
       "status": "unstated"
     },
     "retention/snap_shell_candidate.py:_SLIDE_STEP_MM": {
+      "status": "unstated"
+    },
+    "retention/validation_fixture.py:ValidationFixturePolicy.base_thickness_mm": {
+      "status": "unstated"
+    },
+    "retention/validation_fixture.py:ValidationFixturePolicy.connector_overhang_mm": {
+      "status": "unstated"
+    },
+    "retention/validation_fixture.py:ValidationFixturePolicy.connector_relief_clearance_mm": {
+      "status": "unstated"
+    },
+    "retention/validation_fixture.py:ValidationFixturePolicy.perimeter_margin_mm": {
+      "status": "unstated"
+    },
+    "retention/validation_fixture.py:ValidationFixturePolicy.underside_clearance_mm": {
+      "status": "unstated"
+    },
+    "retention/validation_fixture.py:ValidationFixturePolicy.underside_seating_mm": {
       "status": "unstated"
     }
   }

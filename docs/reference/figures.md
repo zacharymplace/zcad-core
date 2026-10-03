@@ -2,22 +2,23 @@
 
 # Figures taken on trust
 
-The engine states no strength, holding force or load claim, and a figure it did not measure or read must not look like one it did. This page lists every module-level numeric constant in the engine and where its value is said to come from, and the catalogued hardware figures that are not verified.
+The engine states no strength, holding force or load claim, and a figure it did not measure or read must not look like one it did. This page lists every numeric constant, dataclass field default and function parameter default in the engine, and where its value is said to come from, and the catalogued hardware figures that are not verified.
 
-**Scope.** Module-level numeric constants only. A default inside a function or a dataclass, and a number in a data file, are not covered. A status is only as good as what the code says: a `sourced` figure is as the code cites it and has not been re-checked against the standard. An `unstated` figure is not wrong; it has no basis written down. Adding a constant without recording it fails the test suite.
+**Scope.** Module-level numeric constants, and the non-zero numeric defaults of dataclass fields and function parameters. A default of zero (no offset, none) is not a figure and is not listed. Not covered: a number inside a function body, a default given by `field(...)` or a factory, a keyword argument at a call (so a module-level instance such as a display's is not listed), and a number in a data file. A status is only as good as what the code says: a `sourced` figure is as the code cites it and has not been re-checked against the standard. An `unstated` figure is not wrong; it has no basis written down. Adding a figure without recording it fails the test suite.
 
-## The 479 constants
+## The 688 figures
 
 | Status | Count | Meaning |
 | --- | ---: | --- |
-| `sourced` | 8 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
-| `design_default` | 11 | The engine's own choice, which the code says is a default, a design value or a guess |
+| `sourced` | 31 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
+| `estimated` | 9 | Read off a drawing's scale or a stated rough estimate: the source does not state it outright |
+| `design_default` | 24 | The engine's own choice, which the code says is a default, a design value or a guess |
 | `example` | 3 | An illustrative figure, not claimed right for any real part |
-| `unstated` | 457 | No basis is stated in the code |
+| `unstated` | 621 | No basis is stated in the code |
 
 ## Sourced
 
-| Constant | Value | Basis |
+| Figure | Value | Basis |
 | --- | --- | --- |
 | `features/enclosure_group_viewer.py:_MAX_VERTICES` | `65535` | The 16-bit vertex index of the mesh the viewer writes, as stated in features/enclosure_group_viewer.py |
 | `features/enclosure_review.py:_SCREW_LENGTHS_MM` | `(4, 5, 6, 8, 10, 12, 16, 20, 25, 30)` | Standard metric screw lengths, as stated in features/enclosure_review.py; no standard number is cited |
@@ -27,10 +28,47 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | `features/mount_rack.py:RACK_UNIT_MM` | `44.45` | EIA-310 19 inch rack, as cited in features/mount_rack.py |
 | `features/mounts.py:DIN_FLANGE_WIDTH_MM` | `4.0` | DIN rail TS35, as cited in features/mounts.py |
 | `features/mounts.py:DIN_RAIL_WIDTH_MM` | `35.0` | DIN rail TS35, as cited in features/mounts.py |
+| `hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.board_length_mm` | `50.8` | Adafruit 4884 Feather RP2040 STEP, measured from the vendor model, as cited in hardware/electronics/adafruit.py |
+| `hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.board_width_mm` | `22.86` | Adafruit 4884 Feather RP2040 STEP, measured from the vendor model, as cited in hardware/electronics/adafruit.py |
+| `hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.mounting_hole_diameter_mm` | `2.5` | Adafruit 4884 Feather RP2040 STEP, measured from the vendor model, as cited in hardware/electronics/adafruit.py |
+| `hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.mounting_hole_spacing_x_mm` | `17.78` | Adafruit 4884 Feather RP2040 STEP, measured from the vendor model, as cited in hardware/electronics/adafruit.py |
+| `hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.mounting_hole_spacing_y_mm` | `45.72` | Adafruit 4884 Feather RP2040 STEP, measured from the vendor model, as cited in hardware/electronics/adafruit.py |
+| `hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.board_length_mm` | `53.34` | Arduino UNO R4 WiFi STEP (PCB outline), as cited in hardware/electronics/arduino.py; the code marks its geometry provisional |
+| `hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.board_width_mm` | `68.58` | Arduino UNO R4 WiFi STEP (PCB outline), as cited in hardware/electronics/arduino.py; the code marks its geometry provisional |
+| `hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.mounting_hole_positions_mm` | `((-20.32, -24.13), (-19.05, 24.13), (31.75, -19.05), (31.75, 8.89))` | The UNO form-factor drawing, as cited in hardware/electronics/arduino.py (the STEP model has no mounting holes); the code marks its geometry provisional |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.board_length_mm` | `85.0` | Raspberry Pi mechanical drawing RP-008347, as cited in hardware/electronics/raspberry_pi.py; the drawing calls itself approximate |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.board_width_mm` | `56.0` | Raspberry Pi mechanical drawing RP-008347, as cited in hardware/electronics/raspberry_pi.py; the drawing calls itself approximate |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.mounting_hole_positions_mm` | `((-24.5, -39.0), (24.5, -39.0), (-24.5, 19.0), (24.5, 19.0))` | Raspberry Pi's STEP model, as the comment in hardware/electronics/raspberry_pi.py states |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.mounting_hole_spacing_x_mm` | `49.0` | Raspberry Pi mechanical drawing RP-008347, as cited in hardware/electronics/raspberry_pi.py; the drawing calls itself approximate |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.mounting_hole_spacing_y_mm` | `58.0` | Raspberry Pi mechanical drawing RP-008347, as cited in hardware/electronics/raspberry_pi.py; the drawing calls itself approximate |
+| `hardware/electronics/seeed.py:SeeedXiaoEsp32S3Spec.board_length_mm` | `21.0` | Seeed Studio XIAO ESP32-S3 DXF v1.1 outline, as cited in hardware/electronics/seeed.py; the code marks its geometry provisional |
+| `hardware/electronics/seeed.py:SeeedXiaoEsp32S3Spec.board_thickness_mm` | `1.25` | Measured from the vendor STEP, as cited in hardware/electronics/seeed.py; the code marks its geometry provisional |
+| `hardware/electronics/seeed.py:SeeedXiaoEsp32S3Spec.board_width_mm` | `17.8` | Seeed Studio XIAO ESP32-S3 DXF v1.1 outline, as cited in hardware/electronics/seeed.py; the code marks its geometry provisional |
+| `hardware/wearables/dexcom.py:DexcomG7Spec.body_length_mm` | `27.4` | Dexcom G7 Technical Specifications Sheet (LBL-1002469 Rev001, Jan 2023), as cited in hardware/wearables/dexcom.py: a published sheet, not a caliper capture |
+| `hardware/wearables/dexcom.py:DexcomG7Spec.body_thickness_mm` | `4.7` | Dexcom G7 Technical Specifications Sheet (LBL-1002469 Rev001, Jan 2023), as cited in hardware/wearables/dexcom.py: a published sheet, not a caliper capture |
+| `hardware/wearables/dexcom.py:DexcomG7Spec.body_width_mm` | `24.1` | Dexcom G7 Technical Specifications Sheet (LBL-1002469 Rev001, Jan 2023), as cited in hardware/wearables/dexcom.py: a published sheet, not a caliper capture |
+| `hardware/wearables/dexcom.py:DexcomG7Spec.wire_length_mm` | `5.7` | Dexcom G7 Technical Specifications Sheet (LBL-1002469 Rev001, Jan 2023), as cited in hardware/wearables/dexcom.py: a published sheet, not a caliper capture |
+| `hardware/wearables/tandem.py:TandemMobiSpec.body_length_mm` | `51.3` | The peer-reviewed Mobi overview PMC13089864, as cited in hardware/wearables/tandem.py; not a caliper capture, and the code notes another source differs on width by about 12 mm |
+| `hardware/wearables/tandem.py:TandemMobiSpec.body_thickness_mm` | `14.2` | The peer-reviewed Mobi overview PMC13089864, as cited in hardware/wearables/tandem.py; not a caliper capture, and the code notes another source differs on width by about 12 mm |
+| `hardware/wearables/tandem.py:TandemMobiSpec.body_width_mm` | `37.3` | The peer-reviewed Mobi overview PMC13089864, as cited in hardware/wearables/tandem.py; not a caliper capture, and the code notes another source differs on width by about 12 mm |
+
+## Estimated
+
+| Figure | Value | Basis |
+| --- | --- | --- |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.cooler_bottom_above_board_mm` | `3.5` | Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.cooler_center_x_mm` | `1.25` | Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.cooler_center_y_mm` | `-10.0` | Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.cooler_height_mm` | `12.5` | Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.cooler_length_mm` | `63.5` | Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.cooler_width_mm` | `42.5` | Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.fan_center_x_mm` | `-4.6` | Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.fan_center_y_mm` | `0.1` | Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there |
+| `hardware/wearables/dexcom.py:DexcomG7Spec.adhesive_patch_diameter_mm` | `42.0` | A rough visual estimate with no manufacturer source, as hardware/wearables/dexcom.py states |
 
 ## Design default
 
-| Constant | Value | Basis |
+| Figure | Value | Basis |
 | --- | --- | --- |
 | `features/enclosure.py:_OPENING_CLEARANCE_MM` | `0.6` | The builder's default fit, before hole compensation widens it |
 | `features/enclosure_thermal.py:DEFAULT_SERVICE_LIMIT_C` | `60.0` | A design value for PETG's continuous air temperature, well under the 70 to 80 C at which it softens; a material profile's max_service_c overrides it |
@@ -42,11 +80,24 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | `features/mount_stack.py:TOP_RIM_MM` | `1.2` | The engine's own choice, and a baseplate's default |
 | `features/mounts.py:FLEXURE_STRAIN_LIMIT` | `0.015` | A design strain limit for a printed PETG tongue, well under the material's yield; provisional until a print trial measures it |
 | `features/stack_profile.py:MAXIMUM_LEAN` | `1.0` | 45 degrees, the printer's limit without support, as the code states |
+| `hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.recommended_clearance_mm` | `0.5` | The spec's own recommendation (the engine's choice); no basis is written down |
+| `hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.recommended_standoff_height_mm` | `3.0` | The spec's own recommendation (the engine's choice); no basis is written down |
+| `hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.recommended_clearance_mm` | `0.5` | The spec's own recommendation (the engine's choice); no basis is written down |
+| `hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.recommended_standoff_height_mm` | `3.0` | The spec's own recommendation (the engine's choice); no basis is written down |
+| `hardware/electronics/displays.py:DisplaySpec.recommended_module_clearance_mm` | `0.5` | The spec's own recommendation (the engine's choice); no basis is written down |
+| `hardware/electronics/displays.py:DisplaySpec.recommended_window_clearance_mm` | `0.4` | The spec's own recommendation (the engine's choice); no basis is written down |
+| `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.recommended_standoff_height_mm` | `4.0` | The spec's own recommendation (the engine's choice); no basis is written down |
+| `hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.recommended_clearance_mm` | `0.5` | The spec's own recommendation (the engine's choice); no basis is written down |
+| `hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.recommended_standoff_height_mm` | `3.0` | The spec's own recommendation (the engine's choice); no basis is written down |
+| `hardware/electronics/seeed.py:SeeedXiaoEsp32S3Spec.recommended_clearance_mm` | `0.5` | The spec's own recommendation (the engine's choice); no basis is written down |
+| `hardware/electronics/seeed.py:SeeedXiaoEsp32S3Spec.recommended_standoff_height_mm` | `3.0` | The spec's own recommendation (the engine's choice); no basis is written down |
+| `hardware/wearables/dexcom.py:DexcomG7Spec.recommended_shell_clearance_mm` | `0.5` | The spec's own recommendation (the engine's choice); no basis is written down |
+| `hardware/wearables/tandem.py:TandemMobiSpec.recommended_clip_clearance_mm` | `0.5` | The spec's own recommendation (the engine's choice); no basis is written down |
 | `printing/bambu.py:SLICE_TIMEOUT_SECONDS` | `900.0` | A limit chosen so a stalled slice fails instead of hanging: a plate slices in seconds to a few minutes |
 
 ## Example
 
-| Constant | Value | Basis |
+| Figure | Value | Basis |
 | --- | --- | --- |
 | `features/stack_profile.py:_EXAMPLE_FOOT` | `[[2.95, 0.0], [2.15, 0.8], [2.15, 2.6], [0.0, 4.75]]` | The Gridfinity Rebuilt OpenSCAD library (src/core/standard.scad, commit 910e22d), as cited in features/stack_profile.py; an example to check and cite |
 | `features/stack_profile.py:_EXAMPLE_HOLDING_POINTS` | `[[13.0, 13.0], [13.0, -13.0], [-13.0, 13.0], [-13.0, -13.0]]` | The Gridfinity Rebuilt OpenSCAD library (src/core/standard.scad, commit 910e22d), as cited in features/stack_profile.py; an example to check and cite |
@@ -82,10 +133,32 @@ Each fan, bushing and pogo pin records where its figures came from, whether the 
 | `MILLMAX-0906-0-15-20-76-14-11-0` | pogo pin | yes | barrel_diameter_mm, force_at_travel_mm |
 | `MILLMAX-0906-1-15-20-75-14-11-0` | pogo pin | yes | barrel_diameter_mm, force_at_travel_mm |
 
-## Unstated (457)
+## Unstated (621)
 
 No basis is written down for these. Moving one out of this list means finding where its value came from, or saying it is the engine's own choice, in `docs/figures/register.json`.
 
+
+**`assemblies/assembly.py`**
+
+- `DeviceAssembly.analyze_interference(collision_volume_tolerance_mm3)` = `1e-06`
+
+**`assemblies/board_display.py`**
+
+- `lowest_display_height_mm(limit_mm)` = `60.0`
+- `lowest_display_height_mm(step_mm)` = `0.5`
+
+**`assemblies/enclosure.py`**
+
+- `derive_enclosure_specification(connector_cutout_clearance_mm)` = `0.5`
+- `derive_enclosure_specification(internal_clearance_mm)` = `2.0`
+
+**`assemblies/interference.py`**
+
+- `analyze_component_interference(collision_volume_tolerance_mm3)` = `1e-06`
+
+**`assemblies/models.py`**
+
+- `AssemblyPart.quantity` = `1`
 
 **`cli/enclosure.py`**
 
@@ -95,16 +168,73 @@ No basis is written down for these. Moving one out of this list means finding wh
 
 - `_REVIEW_LID_LIFT_MM` = `25.0`
 
+**`features/board_cradle.py`**
+
+- `BoardCradleParameters.clearance_mm` = `0.3`
+- `BoardCradleParameters.clip_gap_mm` = `0.1`
+- `BoardCradleParameters.clip_lip_height_mm` = `1.0`
+- `BoardCradleParameters.clip_overhang_mm` = `0.8`
+- `BoardCradleParameters.clip_slot_mm` = `1.0`
+- `BoardCradleParameters.clip_width_mm` = `6.0`
+- `BoardCradleParameters.ledge_mm` = `1.0`
+- `BoardCradleParameters.stop_band_mm` = `3.0`
+- `BoardCradleParameters.wall_mm` = `1.2`
+
 **`features/board_promotion.py`**
 
 - `MINIMUM_TRIALS` = `2`
 
 **`features/connector_cutouts.py`**
 
+- `ConnectorCutoutParameters.cutter_depth_mm` = `10.0`
+- `ConnectorCutoutParameters.cutter_overtravel_mm` = `1.0`
+- `ConnectorCutoutParameters.from_component(cutter_depth_mm)` = `10.0`
+- `ConnectorCutoutParameters.from_component(cutter_overtravel_mm)` = `1.0`
+- `ConnectorCutoutParameters.from_component(height_clearance_mm)` = `0.6`
+- `ConnectorCutoutParameters.from_component(width_clearance_mm)` = `0.6`
+- `ConnectorCutoutParameters.from_connector(cutter_depth_mm)` = `10.0`
+- `ConnectorCutoutParameters.from_connector(cutter_overtravel_mm)` = `1.0`
+- `ConnectorCutoutParameters.from_connector(height_clearance_mm)` = `0.6`
+- `ConnectorCutoutParameters.from_connector(width_clearance_mm)` = `0.6`
+- `ConnectorCutoutParameters.height_clearance_mm` = `0.6`
+- `ConnectorCutoutParameters.width_clearance_mm` = `0.6`
 - `MINIMUM_OPENING_WEB_MM` = `2.0`
+
+**`features/display_cutouts.py`**
+
+- `DisplayBezelParameters.bezel_height_mm` = `0.8`
+- `DisplayBezelParameters.bezel_wall_mm` = `1.5`
+- `DisplayBezelParameters.corner_radius_mm` = `1.0`
+- `DisplayBezelParameters.from_window(bezel_height_mm)` = `0.8`
+- `DisplayBezelParameters.from_window(bezel_wall_mm)` = `1.5`
+- `DisplayWindowParameters.corner_radius_mm` = `1.0`
+- `DisplayWindowParameters.cutter_overtravel_mm` = `0.5`
+- `DisplayWindowParameters.from_display(corner_radius_mm)` = `1.0`
+- `DisplayWindowParameters.from_display(cutter_overtravel_mm)` = `0.5`
+
+**`features/display_retainer.py`**
+
+- `DisplayRetainerParameters.clearance_mm` = `0.3`
+- `DisplayRetainerParameters.clip_gap_mm` = `0.1`
+- `DisplayRetainerParameters.clip_lip_height_mm` = `1.0`
+- `DisplayRetainerParameters.clip_reach_mm` = `1.0`
+- `DisplayRetainerParameters.clip_width_mm` = `6.0`
+- `DisplayRetainerParameters.corner_leg_mm` = `3.0`
+- `DisplayRetainerParameters.pad_mm` = `2.5`
+- `DisplayRetainerParameters.wall_mm` = `1.2`
 
 **`features/enclosure.py`**
 
+- `EnclosureDesign.boss_radial_wall_mm` = `1.8`
+- `EnclosureDesign.bottom_clearance_mm` = `2.0`
+- `EnclosureDesign.cable_plug_height_mm` = `7.5`
+- `EnclosureDesign.cable_plug_width_mm` = `12.5`
+- `EnclosureDesign.floor_mm` = `2.0`
+- `EnclosureDesign.lid_mm` = `2.0`
+- `EnclosureDesign.mount_plate_mm` = `4.0`
+- `EnclosureDesign.slide_clearance_mm` = `0.2`
+- `EnclosureDesign.top_clearance_mm` = `2.0`
+- `EnclosureDesign.wall_mm` = `2.0`
 - `HOLE_COMPENSATION_RANGE_MM` = `(-0.2, 1.0)`
 - `_BOSS_WALL_OVERLAP_MM` = `0.5`
 - `_COUNTERSINK_HEAD_ALLOWANCE_MM` = `0.0`
@@ -174,6 +304,27 @@ No basis is written down for these. Moving one out of this list means finding wh
 **`features/enclosure_group_model.py`**
 
 - `FLOOR_EMBED_MM` = `0.5`
+- `GroupDesign.back_clearance_mm` = `3.0`
+- `GroupDesign.board_gap_mm` = `12.0`
+- `GroupDesign.board_reach_mm` = `4.0`
+- `GroupDesign.boss_radial_wall_mm` = `1.8`
+- `GroupDesign.divider_clearance_mm` = `0.75`
+- `GroupDesign.divider_mm` = `2.0`
+- `GroupDesign.divider_notch_height_mm` = `10.0`
+- `GroupDesign.divider_notch_width_mm` = `20.0`
+- `GroupDesign.end_margin_mm` = `9.0`
+- `GroupDesign.floor_mm` = `2.0`
+- `GroupDesign.front_clearance_mm` = `4.0`
+- `GroupDesign.headroom_mm` = `18.0`
+- `GroupDesign.lid_mm` = `3.0`
+- `GroupDesign.mount_plate_mm` = `4.0`
+- `GroupDesign.open_bay_width_mm` = `40.0`
+- `GroupDesign.plug_margin_mm` = `1.5`
+- `GroupDesign.service_gap_mm` = `25.0`
+- `GroupDesign.slide_clearance_mm` = `0.2`
+- `GroupDesign.slot_pad_mm` = `0.25`
+- `GroupDesign.standoff_height_mm` = `4.0`
+- `GroupDesign.wall_mm` = `2.0`
 - `OPENING_RIM_MM` = `1.0`
 
 **`features/enclosure_group_modules.py`**
@@ -221,6 +372,7 @@ No basis is written down for these. Moving one out of this list means finding wh
 
 - `_CONTACT_MM` = `0.05`
 - `_TOLERANCE_MM3` = `1e-06`
+- `export_enclosure_review(exploded_gap_mm)` = `15.0`
 
 **`features/enclosure_revision.py`**
 
@@ -269,6 +421,7 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `PLATE_RANGE_MM` = `(1.2, 40.0)`
 - `SHALLOW_NEST_MM` = `3.0`
 - `WALL_RANGE_MM` = `(0.8, 20.0)`
+- `nest_outline(clearance_mm)` = `0.2`
 
 **`features/guide_import.py`**
 
@@ -336,6 +489,10 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `WEB_MM` = `1.0`
 - `_TOLERANCE_MM3` = `1e-06`
 
+**`features/insert_bosses.py`**
+
+- `InsertBossParameters.from_fastener(radial_wall_mm)` = `1.8`
+
 **`features/jig_file.py`**
 
 - `BELOW_FACE_RANGE_MM` = `(0.0, 20.0)`
@@ -368,6 +525,8 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `CATCH_TONGUE_MM` = `1.2`
 - `CATCH_WIDTH_MM` = `16.0`
 - `HINGE_WEB_DEPTH_MM` = `2.5`
+- `HingeReport.axis_direction` = `(1.0, 0.0, 0.0)`
+- `HingeReport.swing_sign` = `1.0`
 - `SWING_DEGREES` = `100.0`
 - `SWING_STEP_DEGREES` = `10.0`
 - `_AXIS_CLEARANCE_MM` = `0.4`
@@ -391,6 +550,7 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `DEFAULT_CLEARANCE_MM` = `0.2`
 - `GROOVE_DEPTH_MM` = `1.6`
 - `RETAINING_STRIP_MM` = `1.2`
+- `SlideReport.direction` = `(1.0, 0.0, 0.0)`
 - `TONGUE_MM` = `1.6`
 - `TRAVEL_STEP_MM` = `5.0`
 - `_BUMP_ENGAGEMENT_MM` = `0.5`
@@ -424,6 +584,7 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `RECESS_EXTRA_MM` = `0.5`
 - `RECESS_OVER_MM` = `0.6`
 - `RECESS_WALL_MM` = `1.0`
+- `TopHolding.clearance_mm` = `0.2`
 - `WINDOW_MARGIN_MM` = `2.0`
 
 **`features/mounts.py`**
@@ -457,6 +618,7 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `_INTERFERENCE_TOLERANCE_MM3` = `1e-06`
 - `_PLATE_MARGIN_MM` = `2.0`
 - `_SCREW_LENGTHS_MM` = `(4, 5, 6, 8, 10, 12, 16, 20)`
+- `build_mount(plate_mm)` = `4.0`
 
 **`features/nest_core.py`**
 
@@ -537,6 +699,16 @@ No basis is written down for these. Moving one out of this list means finding wh
 
 - `MINIMUM_TRIALS_TO_VERIFY` = `2`
 
+**`features/pcb_mounts.py`**
+
+- `BoardHolePattern.standoff(radial_wall_mm)` = `1.5`
+- `PcbStandoffParameters.from_board(radial_wall_mm)` = `1.5`
+- `add_board_standoffs(radial_wall_mm)` = `1.5`
+
+**`features/slots.py`**
+
+- `cut_through_slot(angle)` = `90.0`
+
 **`features/stack.py`**
 
 - `TOLERANCE_MM3` = `0.001`
@@ -573,6 +745,7 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `DEFAULT_SCOOP_MM` = `10.0`
 - `DEFAULT_TAB_MM` = `12.0`
 - `DEFAULT_WALL_MM` = `1.2`
+- `Item.units` = `1`
 - `MAXIMUM_CELLS` = `20`
 - `MAXIMUM_DRAWERS` = `8`
 - `MAXIMUM_UNITS` = `30`
@@ -633,6 +806,10 @@ No basis is written down for these. Moving one out of this list means finding wh
 
 **`geometry/edge_outline.py`**
 
+- `EdgeOutlineAnalyzer.__init__(engagement_depth_mm)` = `2.5`
+- `EdgeOutlineAnalyzer.__init__(required_material_ratio)` = `0.995`
+- `EdgeOutlineAnalyzer.__init__(sample_resolution_mm)` = `0.25`
+- `EdgeOutlineAnalyzer.__init__(z_margin_mm)` = `0.01`
 - `_EPSILON` = `1e-09`
 
 **`geometry/intersection.py`**
@@ -650,6 +827,15 @@ No basis is written down for these. Moving one out of this list means finding wh
 
 - `_TABLE` = `((2.0, 5.0, (6.0, 9.0)), (3.0, 6.0, (8.0, 12.0)), (4.0, 7.0, (8.0, 12.0, 16.0)), (5.0, 8.0, (8.0, 12.0, 16.0)), (6.0, 10.0, (10.0, 16.0, 20.0)), (7.0, 12.0, (10.0, 16.0)), (8.0, 12.0, (10.0, 16.0, 20.0)))`
 
+**`hardware/electronics/adafruit.py`**
+
+- `AdafruitFeatherRp2040Spec.board_thickness_mm` = `1.57`
+
+**`hardware/electronics/arduino.py`**
+
+- `ArduinoUnoR4WifiSpec.board_thickness_mm` = `1.61`
+- `ArduinoUnoR4WifiSpec.mounting_hole_diameter_mm` = `3.2`
+
 **`hardware/electronics/board_file.py`**
 
 - `BOARD_SIZE_RANGE_MM` = `(5.0, 400.0)`
@@ -663,6 +849,7 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `STANDOFF_WALL_MM` = `3.0`
 - `THICKNESS_RANGE_MM` = `(0.2, 6.0)`
 - `TYPICAL_THICKNESS_RANGE_MM` = `(0.4, 3.2)`
+- `_rectangle_inside(margin)` = `0.5`
 
 **`hardware/electronics/board_import.py`**
 
@@ -698,6 +885,32 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `SIMPLIFY_MM` = `0.02`
 - `SIZE_GROUP_MM` = `0.1`
 
+**`hardware/electronics/raspberry_pi.py`**
+
+- `RaspberryPi5Spec.board_thickness_mm` = `1.4`
+- `RaspberryPi5Spec.fan_size_mm` = `30.0`
+- `RaspberryPi5Spec.header_center_y_mm` = `-10.0`
+- `RaspberryPi5Spec.header_height_mm` = `8.5`
+- `RaspberryPi5Spec.header_length_mm` = `51.0`
+- `RaspberryPi5Spec.header_width_mm` = `5.1`
+- `RaspberryPi5Spec.mounting_hole_diameter_mm` = `2.7`
+- `RaspberryPi5Spec.sd_card_depth_below_board_mm` = `1.6`
+- `RaspberryPi5Spec.sd_card_overhang_mm` = `2.5`
+- `RaspberryPi5Spec.sd_card_width_mm` = `12.0`
+- `RaspberryPiPico2Spec.board_length_mm` = `51.0`
+- `RaspberryPiPico2Spec.board_thickness_mm` = `1.0`
+- `RaspberryPiPico2Spec.board_width_mm` = `21.0`
+- `RaspberryPiPico2Spec.mounting_hole_diameter_mm` = `2.1`
+- `RaspberryPiPico2Spec.mounting_hole_spacing_x_mm` = `11.4`
+- `RaspberryPiPico2Spec.mounting_hole_spacing_y_mm` = `47.0`
+- `RaspberryPiPico2Spec.usb_connector_height_mm` = `3.2`
+- `RaspberryPiPico2Spec.usb_connector_width_mm` = `8.9`
+
+**`hardware/magnets.py`**
+
+- `MagnetSpec.depth_pocket_oversize_mm` = `0.1`
+- `MagnetSpec.radial_pocket_oversize_mm` = `0.15`
+
 **`hardware/pogo.py`**
 
 - `_IN` = `25.4`
@@ -732,16 +945,41 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `_DEFAULT_CORNER_KEEPOUT_MM` = `4.0`
 - `_DEFAULT_VERTICAL_MARGIN_MM` = `0.1`
 
+**`retention/capture_interference.py`**
+
+- `GeometryInterferenceResult.tolerance_mm3` = `1e-06`
+- `measure_capture_interference(tolerance_mm3)` = `1e-06`
+
+**`retention/corner_capture.py`**
+
+- `CornerCapturePolicy.arm_width_mm` = `3.0`
+- `CornerCapturePolicy.board_clearance_mm` = `0.25`
+- `CornerCapturePolicy.engagement_depth_mm` = `2.0`
+- `CornerCapturePolicy.minimum_wall_mm` = `1.2`
+- `CornerCapturePolicy.vertical_overlap_mm` = `0.6`
+
 **`retention/design_review.py`**
 
 - `_CAPTURE_SEARCH_MM` = `3.0`
 - `_CLOSEST_LISTED` = `5`
 - `_OVERHANG_MM` = `0.2`
 - `_SEATING_EPSILON_MM` = `0.001`
+- `export_design_review_package(minimum_component_gap_mm)` = `0.1`
+- `export_design_review_package(seating_contact_mm)` = `0.05`
+- `export_design_review_package(tolerance_mm3)` = `1e-06`
 
 **`retention/edge_capture.py`**
 
+- `EdgeCapturePolicy.arm_width_mm` = `5.0`
+- `EdgeCapturePolicy.board_clearance_mm` = `0.25`
+- `EdgeCapturePolicy.engagement_depth_mm` = `2.5`
+- `EdgeCapturePolicy.minimum_wall_mm` = `1.2`
+- `EdgeCapturePolicy.vertical_overlap_mm` = `0.6`
 - `_MINIMUM_LOCATION_SEPARATION_MM` = `1e-06`
+
+**`retention/edge_installation_path.py`**
+
+- `analyze_edge_installation_paths(tolerance_mm3)` = `1e-06`
 
 **`retention/export_checks.py`**
 
@@ -757,19 +995,56 @@ No basis is written down for these. Moving one out of this list means finding wh
 
 **`retention/installation_path.py`**
 
+- `InstallationPathPlan.samples_per_segment` = `20`
 - `_SPLIT_EPSILON_MM` = `0.001`
+- `analyze_installation_paths(tolerance_mm3)` = `1e-06`
+
+**`retention/manufacturing.py`**
+
+- `ManufacturingPolicy.maximum_unsupported_overhang_mm` = `3.0`
+- `ManufacturingPolicy.minimum_board_clearance_mm` = `0.2`
+- `ManufacturingPolicy.minimum_capture_spacing_mm` = `10.0`
+- `ManufacturingPolicy.minimum_vertical_overlap_mm` = `0.4`
+- `ManufacturingPolicy.minimum_wall_mm` = `1.2`
 
 **`retention/measurement_feedback.py`**
 
 - `MAXIMUM_STEP_MM` = `0.5`
 - `NOISE_MM` = `0.03`
 
+**`retention/production_board.py`**
+
+- `ProductionBoardCornerAdapter.__init__(corner_keepout_mm)` = `4.0`
+- `ProductionBoardCornerAdapter.__init__(vertical_margin_mm)` = `0.1`
+
+**`retention/production_edge_board.py`**
+
+- `ProductionBoardEdgeAdapter.__init__(engagement_depth_mm)` = `2.5`
+- `ProductionBoardEdgeAdapter.__init__(minimum_anchor_separation_mm)` = `10.0`
+- `ProductionBoardEdgeAdapter.__init__(required_material_ratio)` = `0.995`
+- `ProductionBoardEdgeAdapter.__init__(sample_resolution_mm)` = `0.25`
+- `ProductionBoardEdgeAdapter.__init__(vertical_margin_mm)` = `0.1`
+
 **`retention/production_edge_execution.py`**
 
+- `ProductionEdgeExecutionRequest.engagement_depth_mm` = `2.5`
+- `ProductionEdgeExecutionRequest.minimum_anchor_separation_mm` = `10.0`
+- `ProductionEdgeExecutionRequest.vertical_margin_mm` = `0.1`
 - `_INTERFERENCE_TOLERANCE_MM3` = `1e-06`
+
+**`retention/production_execution.py`**
+
+- `ProductionCornerExecutionRequest.corner_keepout_mm` = `4.0`
+- `ProductionCornerExecutionRequest.vertical_margin_mm` = `0.1`
 
 **`retention/snap_shell.py`**
 
+- `SnapShellPolicy.clearance_mm` = `0.15`
+- `SnapShellPolicy.clip_height_mm` = `1.5`
+- `SnapShellPolicy.clip_width_mm` = `3.0`
+- `SnapShellPolicy.compliant_span_mm` = `2.0`
+- `SnapShellPolicy.overhang_mm` = `0.6`
+- `SnapShellPolicy.wall_mm` = `1.0`
 - `_MINIMUM_LOCATION_SEPARATION_MM` = `1e-06`
 
 **`retention/snap_shell_candidate.py`**
@@ -777,3 +1052,12 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `CORNER_KEEPOUT_MM` = `2.0`
 - `FEATURE_MARGIN_MM` = `1.0`
 - `_SLIDE_STEP_MM` = `0.5`
+
+**`retention/validation_fixture.py`**
+
+- `ValidationFixturePolicy.base_thickness_mm` = `2.0`
+- `ValidationFixturePolicy.connector_overhang_mm` = `0.2`
+- `ValidationFixturePolicy.connector_relief_clearance_mm` = `0.5`
+- `ValidationFixturePolicy.perimeter_margin_mm` = `2.0`
+- `ValidationFixturePolicy.underside_clearance_mm` = `0.5`
+- `ValidationFixturePolicy.underside_seating_mm` = `0.05`
