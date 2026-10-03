@@ -200,7 +200,8 @@ existing build changes unless a design asks for the new thing.
   spacer, built to a record, since a spacer's height is the one thing a board changes.
 - **Where a latch's keeper goes on a bin.** The lip is on the outside, where a latch would
   catch. The proposal is a keeper recess in the lip, refused where a divider or a label tab
-  meets it.
+  meets it. [Stackable latches](stackable-latches.md) settles it: a hook on the upper foot's
+  side catches in a recess in the lower lip's inside face.
 
 ### What phase 1 changed
 
