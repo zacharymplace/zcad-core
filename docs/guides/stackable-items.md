@@ -258,6 +258,16 @@ Measurements are each item's width, depth and height as built.
 - **A count of stackings,** and whether anything wore or cracked. Wear needs the count.
 - **Other makers' parts:** a baseplate or bin of another maker you tried it on, and whether it sat.
 
+**Latches and detents** add a file, `latch.json`, when an item has them, and checks for each: `latch_clicks` for an item with hooks (a bin, frame or cap), `keepers_clean` for one with
+keepers (a baseplate, bin or frame), `detent_clicks` for a drawer's bumps and `dimples_clean` for a frame's dimples. The build record's sizes to measure grow too: each hook's
+and bump's stand-out, and each keeper's and dimple's depth, from the solids as built. `latch.json` has an entry for each item that carries hooks and each drawer with a detent,
+with the designed figures beside the blanks:
+
+- **A hooked item:** whether it **clicked on** and **clicked off**, the **separation force** by spring scale pulling it off, and a **count of snaps** with whether anything wore.
+- **A drawer:** whether it **clicked shut** and **clicked open**, the **pull force** to take it out of its dimples, and the same count.
+
+**The engine states no limit for any reading, and states no holding force.** It records the force and the count and sets each beside what was designed.
+
 **The engine states no limit for any reading, and claims no compatibility from one.** A trial that records a part sitting on another maker's
 baseplate is a reading, nothing more. A completed trial checks the printed parts still match the record by hash, is never overwritten, and a
 passing one cannot have a failed check.

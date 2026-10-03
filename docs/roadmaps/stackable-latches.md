@@ -138,7 +138,7 @@ drawer whose side clearance (0.2 mm on the A1 mini) plus the bump is too small t
    and length, the hook, the keepers, the placement checks, the built-solid checks, in `stack_latch.py`; `check-stack` learns the sides.
 2. **The snapping cap (built).** The cap's tongue and hook, and the keeper's agreement with a bin or a frame.
 3. **The drawer's closed detent (built).** The drawer's side tongues, the frame's dimples, and the checks.
-4. **Latch trials.** The stack build record carries the latch figures; stack trials gain a latch reading: whether it clicked on and
+4. **Latch trials (built).** The stack build record carries the latch figures; stack trials gain a latch reading: whether it clicked on and
    off, the **separation force** by spring scale, and a **count of snaps** with whether anything wore. The engine states no limit for any.
 
 Each phase is one PR, and no existing build changes unless an item asks for a latch.
@@ -205,3 +205,18 @@ See *A drawer that clicks shut* in [Stackable items](../guides/stackable-items.m
 - **The slides check frees the bumps once they leave the dimple.** The drawer pulled out by half and nine tenths of its length would press the wall by the engagement, so those positions use
   the drawer without bumps; shut, the drawer with its bumps must clear the frame's dimples.
 - **Not built yet:** the trial readings, phase 4.
+
+### What phase 4 changed
+
+See *The build record and stacking trials* in [Stackable items](../guides/stackable-items.md). All four phases are built.
+
+- **The record already carried the latch figures.** Each item's settings (`latch_sides`, `latch_engagement_mm`, `detent`) are in its record entry and its summary holds the sizes, so phase 4 adds
+  to the record only what a trial reads: checks for each snap and the sizes to measure. Both schema versions are 1.1.0.
+- **Four checks.** `latch_clicks` for an item with hooks, `keepers_clean` for one with keepers, `detent_clicks` for a drawer and `dimples_clean` for a frame. A baseplate has keepers and nothing to
+  click, so it is asked only that they are clean; a cap has hooks and no lip, so it is asked only that it clicks.
+- **The readings are in their own file.** `latch.json`, beside `stacking.json` rather than inside it, because `stacking.json`'s separation force and count are for a stack sitting on its lip and
+  a latch's are for hooks in keepers, and a drawer has no stacking entry. An entry is written for each item that carries hooks and each drawer with a detent, with the designed figures set in it.
+  A stack with none writes no file.
+- **The force is the same reading under another name.** `separation_force_n` for hooks and `pull_force_n` for a drawer are the highest force a spring scale reads. The engine compares neither
+  with a figure: there is none sourced, and the roadmap's engagement figure is waiting on exactly these readings.
+- **Not covered:** a rig for the force, a count to wear-out, and a drawer stop that keeps the drawer in, which stays a design of its own.
