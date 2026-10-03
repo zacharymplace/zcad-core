@@ -126,14 +126,17 @@ def _stack_check(args: argparse.Namespace) -> int:
 
 def _trial_start(args: argparse.Namespace) -> int:
     trial = start_stack_trial(args.build_record)
-    emit(
-        {
-            "trial": str(trial),
-            "observations": str(trial / "observations.json"),
-            "measurements": str(trial / "measurements.json"),
-            "stacking": str(trial / "stacking.json"),
-        }
-    )
+    files = {
+        "trial": str(trial),
+        "observations": str(trial / "observations.json"),
+        "measurements": str(trial / "measurements.json"),
+        "stacking": str(trial / "stacking.json"),
+    }
+
+    if (trial / "latch.json").is_file():
+        files["latch"] = str(trial / "latch.json")
+
+    emit(files)
 
     return 0
 

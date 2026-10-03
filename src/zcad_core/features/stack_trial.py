@@ -13,6 +13,12 @@ it measures. A trial then records one print of exactly those parts, in the style
 3. :func:`complete_stack_trial` validates them and writes ``stack-trial.json``. A completed
    trial is never overwritten.
 
+``latch.json`` holds the readings of the latches and detents an item has, if it has any: whether
+a hooked item **clicked on** and **off**, the **force** a spring scale reads separating it, and a
+**count of snaps** with whether anything wore; for a drawer with a detent, whether it clicked shut
+and open, the **force** to pull it out of its dimples, and the same count. The engine states no
+limit for any, and no holding force.
+
 ``stacking.json`` holds four kinds of reading for each item: a **wobble**, the gap a feeler
 gauge finds when the item is pressed down at one side; the **force** a spring scale reads
 separating it from what it sits on; a **count of stackings** with whether anything wore; and
@@ -44,12 +50,13 @@ from zcad_core.features.stack import Stack
 from zcad_core.features.stack_file import Item
 from zcad_core.geometry.cadquery_support import workplane_shape
 
-STACK_BUILD_SCHEMA_VERSION = "1.0.0"
-STACK_TRIAL_SCHEMA_VERSION = "1.0.0"
+STACK_BUILD_SCHEMA_VERSION = "1.1.0"
+STACK_TRIAL_SCHEMA_VERSION = "1.1.0"
 RECORD_KIND = "stack-build"
 BUILD_RECORD = "stack-build.json"
 TRIAL_RECORD = "stack-trial.json"
 STACKING = "stacking.json"
+LATCH = "latch.json"
 
 NO_LIMIT = (
     "The engine states no limit for any reading here, and no figure to compare one with: "
@@ -79,7 +86,39 @@ _GUIDANCE = {
     "sits_on_its_bin": "The cap sits in the bin's lip, flat, with no rocking",
     "drawers_slide": "Each drawer goes in and out of every slot without binding or scraping",
     "slides_free": "The drawer slides along its ledges the whole way without binding",
+    "latch_clicks": (
+        "It presses onto what it sits on and the hooks click into the keepers, and it lifts "
+        "off to a pull and the hooks let go, with nothing cracking or whitening"
+    ),
+    "keepers_clean": (
+        "Every keeper is clean and open, a hook goes into it without forcing, and the "
+        "wall behind it is sound"
+    ),
+    "detent_clicks": (
+        "The drawer clicks into its dimples pushed shut and clicks out pulled, on both "
+        "sides, with the tongues springing back and nothing cracking"
+    ),
+    "dimples_clean": "Every dimple in the frame's side walls is clean, open and sound",
 }
+
+
+def _snap_checks(item: Item) -> list[str]:
+    """What a trial asks of an item's latch or detent: hooks click, keepers are clean, a
+    drawer's bumps click, a frame's dimples are clean."""
+
+    checks: list[str] = []
+
+    if item.latch_sides:
+        if item.kind in ("bin", "frame", "cap"):
+            checks.append("latch_clicks")
+
+        if item.kind in ("baseplate", "bin", "frame"):
+            checks.append("keepers_clean")
+
+    if item.detent:
+        checks.append("detent_clicks" if item.kind == "drawer" else "dimples_clean")
+
+    return checks
 
 
 def _item_checks(item: Item) -> list[str]:
@@ -103,6 +142,8 @@ def _item_checks(item: Item) -> list[str]:
         checks.append("magnets_seat")
     elif item.holding == "bolt":
         checks.append("screw_reaches_insert")
+
+    checks += _snap_checks(item)
 
     return [f"{item.name}.{check}" for check in checks]
 
@@ -138,6 +179,16 @@ def nominal_measurements(stack: Stack) -> dict[str, float]:
         nominals[f"{key}_width_mm"] = round(box.xlen, 3)
         nominals[f"{key}_depth_mm"] = round(box.ylen, 3)
         nominals[f"{key}_height_mm"] = round(box.zlen, 3)
+        summary = stack.summary["items"].get(name, {})
+        latch, detent = summary.get("latch"), summary.get("detent")
+
+        if latch is not None:
+            nominals[f"{key}_hook_stand_out_mm"] = latch["protrusion_mm"]
+            nominals[f"{key}_keeper_depth_mm"] = latch["keeper_depth_mm"]
+
+        if detent is not None:
+            nominals[f"{key}_bump_stand_out_mm"] = detent["protrusion_mm"]
+            nominals[f"{key}_dimple_depth_mm"] = detent["dimple_depth_mm"]
 
     return nominals
 
@@ -274,6 +325,76 @@ def _stacking_template(build: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _snap_items(build: dict[str, Any]) -> dict[str, str]:
+    """The items whose snaps a trial reads: ``hook`` for one that carries hooks and ``drawer``
+    for a drawer with a detent. A frame's dimples and a baseplate's keepers are read through
+    what clicks into them."""
+
+    snaps: dict[str, str] = {}
+
+    for name, entry in build["items"].items():
+        item = entry["item"]
+
+        if item["kind"] == "drawer" and item.get("detent"):
+            snaps[name] = "drawer"
+        elif item["kind"] in ("bin", "frame", "cap") and item.get("latch_sides"):
+            snaps[name] = "hook"
+
+    return snaps
+
+
+def _latch_template(build: dict[str, Any]) -> dict[str, Any] | None:
+    """The latch readings: yes-or-no for each click, a spring scale and a count. Leave a
+    reading blank when it was not taken."""
+
+    snaps = _snap_items(build)
+
+    if not snaps:
+        return None
+
+    items: dict[str, Any] = {}
+
+    for name, kind in snaps.items():
+        summary = build["items"][name]["summary"]
+
+        if kind == "drawer":
+            items[name] = {
+                "designed": summary["detent"],
+                "guidance": (
+                    "clicked_shut and clicked_open: whether the drawer clicked into its dimples "
+                    "and out of them; pull_force_n: the highest force a spring scale reads "
+                    "pulling it out of the dimples; snaps_counted: how many times it was "
+                    "clicked shut and pulled, and anything_wore whether a tongue or a dimple "
+                    "wore, cracked or went slack"
+                ),
+                "clicked_shut": None,
+                "clicked_open": None,
+                "pull_force_n": None,
+                "snaps_counted": None,
+                "anything_wore": None,
+                "notes": "",
+            }
+        else:
+            items[name] = {
+                "designed": summary["latch"],
+                "guidance": (
+                    "clicked_on and clicked_off: whether the hooks clicked into the keepers "
+                    "and let go; separation_force_n: the highest force a spring scale reads "
+                    "pulling it off; snaps_counted: how many times it was snapped on and "
+                    "pulled off, and anything_wore whether a tongue, a hook or a keeper "
+                    "wore, cracked or went slack"
+                ),
+                "clicked_on": None,
+                "clicked_off": None,
+                "separation_force_n": None,
+                "snaps_counted": None,
+                "anything_wore": None,
+                "notes": "",
+            }
+
+    return {"not_a_limit": NO_LIMIT, "items": items}
+
+
 def start_stack_trial(build_record_path: Path) -> Path:
     """Write the next trial's observation, measurement and stacking templates."""
 
@@ -303,6 +424,10 @@ def start_stack_trial(build_record_path: Path) -> Path:
     (trial / STACKING).write_text(
         json.dumps(_stacking_template(build), indent=2) + "\n", encoding="utf-8"
     )
+    latch = _latch_template(build)
+
+    if latch is not None:
+        (trial / LATCH).write_text(json.dumps(latch, indent=2) + "\n", encoding="utf-8")
 
     return trial
 
@@ -407,6 +532,83 @@ def _stacking_readings(trial: Path, build: dict[str, Any]) -> dict[str, Any] | N
     return {"items": readings, "other_makers": others, "not_a_limit": NO_LIMIT}
 
 
+def _yes_no(entry: dict[str, Any], name: str, where: str) -> bool | None:
+    value = entry.get(name)
+
+    if value is not None and not isinstance(value, bool):
+        raise TypeError(f"{where}: {name} must be true or false")
+
+    return value
+
+
+def _snap_reading(name: str, kind: str, entry: dict[str, Any]) -> dict[str, Any] | None:
+    """One item's latch readings, validated; ``None`` when none was taken."""
+
+    where = f"latch.json items.{name}"
+    first, second, force_name = (
+        ("clicked_shut", "clicked_open", "pull_force_n")
+        if kind == "drawer"
+        else ("clicked_on", "clicked_off", "separation_force_n")
+    )
+    clicked = (_yes_no(entry, first, where), _yes_no(entry, second, where))
+    force = _positive(entry, force_name, where)
+    count, wore = entry.get("snaps_counted"), entry.get("anything_wore")
+
+    if count is None:
+        if wore is not None:
+            raise ValueError(f"{where}: anything_wore needs snaps_counted")
+    elif isinstance(count, bool) or not isinstance(count, int) or count < 1:
+        raise ValueError(f"{where}: snaps_counted must be a whole number from 1")
+    elif not isinstance(wore, bool):
+        raise TypeError(f"{where}: anything_wore must be true or false")
+
+    if clicked == (None, None) and force is None and count is None:
+        return None
+
+    return {
+        "item": name,
+        first: clicked[0],
+        second: clicked[1],
+        force_name: force,
+        "snaps_counted": count,
+        "anything_wore": wore,
+        "notes": entry.get("notes", ""),
+    }
+
+
+def _latch_readings(trial: Path, build: dict[str, Any]) -> dict[str, Any] | None:
+    """The trial's latch readings, validated and set beside what was designed; ``None``
+    when none was taken."""
+
+    path = trial / LATCH
+    payload = _read(path) if path.is_file() else {}
+    entries = payload.get("items", {})
+    snaps = _snap_items(build)
+    unknown = sorted(set(entries) - set(snaps))
+
+    if unknown:
+        raise ValueError(
+            f"latch.json items: no latch or detent to read in this stack: {unknown}"
+        )
+
+    readings = []
+
+    for name in sorted(entries):
+        reading = _snap_reading(name, snaps[name], entries[name])
+
+        if reading is not None:
+            summary = build["items"][name]["summary"]
+            reading["designed"] = summary[
+                "detent" if snaps[name] == "drawer" else "latch"
+            ]
+            readings.append(reading)
+
+    if not readings:
+        return None
+
+    return {"items": readings, "not_a_limit": NO_LIMIT}
+
+
 def complete_stack_trial(
     trial: Path,
     *,
@@ -440,12 +642,14 @@ def complete_stack_trial(
     observations = _observations(trial, build["checks"])
     measurements = _measurements(trial)
     stacking = _stacking_readings(trial, build)
+    latch = _latch_readings(trial, build)
     failed = [entry["check"] for entry in observations if not entry["passed"]]
 
     if (
         disposition is not EnclosureTrialDisposition.FAIL
         and not measurements
         and stacking is None
+        and latch is None
     ):
         raise ValueError(
             f"A {disposition.value} trial needs at least one measurement or stacking reading"
@@ -478,6 +682,7 @@ def complete_stack_trial(
             for m in measurements
         ],
         "stacking": stacking,
+        "latch": latch,
         "notes": notes,
         "not_claimed": build.get("not_claimed", []),
         "completed_at_utc": datetime.now(UTC).isoformat(),

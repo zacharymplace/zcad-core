@@ -335,8 +335,8 @@ See *The build record and stacking trials* in [Stackable items](../guides/stacka
   hyphens and dots, so `Tub-1` is measured as `tub_1_width_mm`, kept apart from another item that comes to the same.
 - **A layer has no build record yet.** `stack layer build` still writes only its parts; the layer record follows (below).
 
-All six phases are built. The latch has its own [design](stackable-latches.md), and its first phase (bins, frames and baseplates) is built. What remains open
-is a snapping cap and a stop for a drawer, which follow that design; and the enclosure lid's lip, `--stack-top`.
+All six phases are built. The latch has its own [design](stackable-latches.md), and all four of its phases are built: bins, frames, baseplates and caps that snap, a drawer
+that clicks shut, and their trials. What remains open is a stop that keeps a drawer in, which needs a design of its own; and the enclosure lid's lip, `--stack-top`.
 
 ### The layer record
 
