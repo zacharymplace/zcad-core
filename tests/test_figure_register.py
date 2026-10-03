@@ -42,11 +42,11 @@ def test_the_page_is_the_register_as_it_stands() -> None:
     )
 
 
-def test_a_figure_is_sourced_only_with_a_source_and_every_sourced_one_has_one() -> None:
+def test_a_figure_that_claims_a_source_says_what_it_is() -> None:
     register = figures.load(REGISTER)
 
     for key, entry in register.items():
-        if entry["status"] in ("sourced", "example"):
+        if entry["status"] in figures.NEEDS_SOURCE:
             assert entry.get("source", "").strip(), key
 
 
@@ -66,6 +66,90 @@ def test_the_scan_finds_numeric_constants_and_their_comments(tmp_path: Path) -> 
     assert found["SUM_MM"].comment == ""
 
 
+DEFAULTS = """
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class Spec:
+    # A wall, for a reason.
+    wall_mm: float = 1.2
+    origin_mm: float = 0.0
+    offset: tuple[float, float] = (0.0, 0.0)
+    axis: tuple[float, float, float] = (1.0, 0.0, 0.0)
+    flag: bool = True
+    name: str = "x"
+    parts: tuple[float, ...] = field(default_factory=tuple)
+    unset: float | None = None
+
+
+class Plain:
+    clearance_mm: float = 0.3
+
+
+def build(depth_mm=2.5, *, margin_mm=0.4, none=None, text="x", zero=0.0, flag=True):
+    def inner(step_mm=0.5):
+        return step_mm
+
+    return inner
+
+
+class Maker:
+    def make(self, size_mm=10.0, *, gap_mm=0.25):
+        return size_mm
+"""
+
+
+def test_the_scan_finds_the_non_zero_defaults_of_dataclasses_and_parameters(
+    tmp_path: Path,
+) -> None:
+    found = {figure.key: figure for figure in figures.scan(package(tmp_path, DEFAULTS))}
+
+    assert sorted(found) == [
+        "module.py:Maker.make(gap_mm)",
+        "module.py:Maker.make(size_mm)",
+        "module.py:Spec.axis",
+        "module.py:Spec.wall_mm",
+        "module.py:build(depth_mm)",
+        "module.py:build(margin_mm)",
+        "module.py:build.inner(step_mm)",
+    ]
+    assert found["module.py:Spec.wall_mm"].comment == "A wall, for a reason."
+    assert found["module.py:Spec.wall_mm"].value == "1.2"
+    assert found["module.py:build(margin_mm)"].value == "0.4"
+
+
+def test_a_zero_default_a_flag_a_string_and_a_plain_class_are_not_figures(
+    tmp_path: Path,
+) -> None:
+    names = {figure.name for figure in figures.scan(package(tmp_path, DEFAULTS))}
+
+    for absent in (
+        "Spec.origin_mm",
+        "Spec.offset",
+        "Spec.flag",
+        "Spec.name",
+        "Spec.parts",
+        "Spec.unset",
+        "Plain.clearance_mm",
+        "build(zero)",
+        "build(flag)",
+        "build(none)",
+        "build(text)",
+    ):
+        assert absent not in names
+
+
+def test_the_real_register_covers_defaults_as_well_as_constants() -> None:
+    keys = {figure.key for figure in figures.scan()}
+
+    assert any(":" in key and "(" in key for key in keys), "parameter defaults"
+    assert any(key.endswith("RaspberryPi5Spec.board_width_mm") for key in keys), (
+        "dataclass field defaults"
+    )
+    assert any(key.endswith(":DEFAULT_ENGAGEMENT_MM") for key in keys), "constants"
+
+
 def test_a_new_constant_a_gone_one_and_a_bare_claim_are_each_named(
     tmp_path: Path,
 ) -> None:
@@ -75,14 +159,16 @@ def test_a_new_constant_a_gone_one_and_a_bare_claim_are_each_named(
         "module.py:GONE_MM": {"status": "unstated"},
         "module.py:ODD_MM": {"status": "made_up"},
         "module.py:EXAMPLE_MM": {"status": "example"},
+        "module.py:GUESS_MM": {"status": "estimated"},
     }
     issues = "\n".join(figures.problems(register, found))
 
     assert "module.py:NEW_MM is not in the register" in issues
-    assert "module.py:GONE_MM is in the register but no such constant" in issues
-    assert "module.py:KEPT_MM is sourced but gives no source" in issues
+    assert "module.py:GONE_MM is in the register but no such figure" in issues
+    assert "module.py:KEPT_MM is sourced but says nothing of where" in issues
     assert "module.py:ODD_MM has status 'made_up'" in issues
-    assert "module.py:EXAMPLE_MM is an example but says nothing" in issues
+    assert "module.py:EXAMPLE_MM is example but says nothing of where" in issues
+    assert "module.py:GUESS_MM is estimated but says nothing of where" in issues
 
 
 def test_updating_adds_new_constants_as_unstated_and_keeps_what_is_known(
