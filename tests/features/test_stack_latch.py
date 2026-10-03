@@ -457,3 +457,122 @@ def test_without_a_keeper_a_hook_really_strikes_the_baseplate(tmp_path: Path) ->
 
     # Two hooks, each 6 mm wide, standing 0.4 mm into the pocket's wall.
     assert overlap_mm3(box.translate((0, 0, floor)), plate) > 1.0
+
+
+# --- phase 2: a cap that snaps on --------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def snapped(tmp_path_factory: pytest.TempPathFactory) -> Any:
+    directory = tmp_path_factory.mktemp("snapped")
+    items: list[dict[str, Any]] = [
+        {"kind": "cap", "name": "lid", "cells": [2, 1], "latch": SIDES},
+        {"kind": "bin", "name": "tray", "cells": [2, 1], "units": 2, "latch": SIDES},
+    ]
+
+    return build_stack(load_stack(write_stack(directory, items)), PRINTER)
+
+
+def test_a_latched_cap_builds_and_every_check_passes(snapped: Any) -> None:
+    assert snapped.passed, [name for name, ok in snapped.checks.items() if not ok]
+
+    for check in (
+        "latch_tongues_freed",
+        "latch_keepers_open",
+        "latch_hook_engages",
+        "latch_hook_passes",
+        "sits_on_a_bin",
+    ):
+        assert snapped.checks[f"lid.{check}"]
+
+
+def test_a_cap_reports_its_latch_and_stays_flat_on_top(snapped: Any) -> None:
+    summary = snapped.summary["items"]["lid"]
+
+    assert summary["latch"]["sides"] == ["front", "back"]
+    assert (
+        summary["latch"]["strain_percent"] <= summary["latch"]["strain_limit_percent"]
+    )
+    # The cap's overall height is the foot and its thickness, hooks or none.
+    assert summary["overall_height_mm"] == pytest.approx(4.75 + 1.2)
+
+
+def test_a_latched_cap_snaps_onto_a_bin_with_keepers(tmp_path: Path) -> None:
+    path = write_stack(
+        tmp_path,
+        [
+            {"kind": "cap", "name": "lid", "cells": [1, 1], "latch": SIDES},
+            {
+                "kind": "bin",
+                "name": "tray",
+                "cells": [1, 1],
+                "units": 2,
+                "latch": SIDES,
+            },
+            {
+                "kind": "frame",
+                "name": "chest",
+                "cells": [1, 1],
+                "units": 3,
+                "drawers": 1,
+                "latch": SIDES,
+            },
+        ],
+    )
+
+    assert check_stackable(path, "lid", path, "tray", PRINTER).stacks
+    assert check_stackable(path, "lid", path, "chest", PRINTER).stacks
+
+
+def test_a_latched_cap_is_refused_on_a_bin_without_keepers(tmp_path: Path) -> None:
+    path = write_stack(
+        tmp_path,
+        [
+            {"kind": "cap", "name": "lid", "cells": [1, 1], "latch": SIDES},
+            {"kind": "bin", "name": "plain", "cells": [1, 1], "units": 2},
+            {
+                "kind": "bin",
+                "name": "left",
+                "cells": [1, 1],
+                "units": 2,
+                "latch": {"sides": ["left"]},
+            },
+        ],
+    )
+    on_plain = check_stackable(path, "lid", path, "plain", PRINTER)
+    on_left = check_stackable(path, "lid", path, "left", PRINTER)
+
+    assert not on_plain.stacks and "no keeper there" in on_plain.errors[0]
+    assert not on_left.stacks and "front, back side" in on_left.errors[0]
+
+
+def test_a_plain_cap_still_sits_on_a_bin_with_keepers_and_a_warning(
+    tmp_path: Path,
+) -> None:
+    path = write_stack(
+        tmp_path,
+        [
+            {"kind": "cap", "name": "lid", "cells": [1, 1]},
+            {
+                "kind": "bin",
+                "name": "tray",
+                "cells": [1, 1],
+                "units": 2,
+                "latch": SIDES,
+            },
+        ],
+    )
+    report = check_stackable(path, "lid", path, "tray", PRINTER)
+
+    assert report.stacks and "has no hooks" in report.warnings[0]
+
+
+def test_a_drawer_cannot_take_a_latch(tmp_path: Path) -> None:
+    data = stack_template()
+    data["items"] = [
+        {"kind": "frame", "name": "f", "cells": [1, 1], "units": 3, "drawers": 1},
+        {"kind": "drawer", "name": "d", "frame": "f", "latch": {}},
+    ]
+    report = check_stack_data(data)
+
+    assert any("items[1] has unknown fields: latch" in e for e in report.errors)

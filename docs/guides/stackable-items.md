@@ -4,8 +4,8 @@ A **stack profile** says how an item's top and bottom faces meet another's. Bins
 baseplates built on one profile sit on each other, and a bin stacks on a bin like it. This
 release builds bins, baseplates, caps, and drawer frames with their drawers, holds them with magnets
 or bolts, puts the enclosures on the grid, stacks plates and spacers over boards, checks whether
-two items stack, and keeps a record and trials of a print. Bins, frames and baseplates can also snap together with
-printed latches; caps and drawers come next (see the [stackable items design](../roadmaps/stackable-items.md) and the
+two items stack, and keeps a record and trials of a print. Bins, frames, baseplates and caps can also snap together with
+printed latches; a drawer's detent comes next (see the [stackable items design](../roadmaps/stackable-items.md) and the
 [latch design](../roadmaps/stackable-latches.md)).
 
 ```bash
@@ -92,7 +92,7 @@ A **tray** is a bin that is not very tall, and a bin does not need another kind 
 inside. What a tray adds is a lid, and a drawer is what a frame adds.
 
 - **A cap** is a flat lid on the profile's foot. It sits in the lip of a bin or a frame of the same cells, the way a
-  bin does, and nothing stacks on it. It is held by the lip alone: a cap does not snap yet.
+  bin does, and nothing stacks on it. It is held by the lip alone unless it has a latch (see *Latches*): then it snaps into keepers cut in the lip below.
 - **A frame** is a bin with its front wall taken out, a roof, and a pair of ledges up the inside of its side walls
   for each of its `drawers`. It has the foot and the lip, so it stands on a baseplate and takes a bin or a cap on top.
   It can hold by magnet or bolt in its foot, like a bin.
@@ -286,13 +286,14 @@ force**, and a stack that must not come apart is bolted.
 {"kind": "baseplate", "name": "plate", "cells": [2, 1], "latch": {"sides": ["front", "back"]}}
 ```
 
-`latch` takes `sides` from `front` (-Y), `back` (+Y), `left` (-X) and `right` (+X), defaulting to front and back, and an optional `engagement_mm`. It is
+`latch` goes on a bin, a frame, a baseplate or a cap, and takes `sides` from `front` (-Y), `back` (+Y), `left` (-X) and `right` (+X), defaulting to front and back, and an optional `engagement_mm`. It is
 a field of its own, so an item can hold by magnets and latch too.
 
 | Item | What `latch` builds |
 | --- | --- |
 | `bin`, `frame` | On each cell's foot along each named side, a hook on a tongue, and in its own lip a keeper at the same place, so it takes the item above and holds to the one below. |
 | `baseplate` | A keeper in the pocket wall of every cell on each named side. |
+| `cap` | A tongue and hook on each cell's foot along each named side, and no keeper, because nothing stacks on a cap. A cap snaps into the keepers of the bin or frame below. |
 
 **A hook that meets no keeper strikes the lip or the pocket wall.** A latched bin or frame stacks only on an item with keepers on the same sides and the same
 engagement, and `check-stack` says which side is missing. An item with keepers and nothing hooked to them only warns.

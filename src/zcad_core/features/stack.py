@@ -338,15 +338,22 @@ def _frame(
 
 
 def _cap(
-    item: Item, profile: StackProfile
+    item: Item, profile: StackProfile, plan: LatchPlan | None = None
 ) -> tuple[cq.Workplane, float, dict[str, Any]]:
     model, height = cap_solid(profile, item.cells, item.floor_mm)
+
+    if plan is not None:
+        model = add_latch_feet(
+            model, plan, cell_centres(item.cells, profile.pitch_mm), item.latch_sides
+        )
+
     summary: dict[str, Any] = {
         "kind": item.kind,
         "cells": list(item.cells),
         "thickness_mm": item.floor_mm,
         "overall_height_mm": round(height, 3),
         "holding": "lip",
+        **_latch_summary(item, plan),
     }
 
     return model, height, summary
@@ -397,7 +404,7 @@ def build_item(
         return _baseplate(item, profile, plan)
 
     if item.kind in ("cap", "plate"):
-        return _cap(item, profile)
+        return _cap(item, profile, plan)
 
     if item.kind == "frame":
         return _frame(item, profile, slide_clearance(printer), plan)
@@ -427,19 +434,23 @@ def _drawer_slides(drawer: cq.Workplane, frame: cq.Workplane, plan: FramePlan) -
 def latch_checks(
     item: Item,
     profile: StackProfile,
-    printer: Mapping[str, Any],
     plan: LatchPlan,
-    model: cq.Workplane,
+    feet: cq.Workplane,
+    lower: cq.Workplane,
+    plain: cq.Workplane,
     height: float,
 ) -> dict[str, bool]:
-    """A latch laid out as real solids: the tongues are freed and the keepers are open, a hook
-    seated in the lip below overlaps what a plain lip would be, so it does engage, and a hook
-    deflected by its tongue's travel passes the plain lip all the way down."""
+    """A latch laid out as real solids. ``feet`` is the item with its tongues, ``lower`` the item
+    it sits on with its keepers, ``plain`` that item without them, and ``height`` where the
+    lower's lip begins. The tongues are freed and the keepers are open; a hook seated in the
+    lip overlaps what a plain lip would be, so it does engage; and a hook deflected by its
+    tongue's travel passes the plain lip all the way down."""
 
     centres = cell_centres(item.cells, profile.pitch_mm)
-    solids = workplane_shape(model).Solids()
+    foot_solids = workplane_shape(feet).Solids()
+    lower_solids = workplane_shape(lower).Solids()
 
-    def solid_at(point: tuple[float, float, float]) -> bool:
+    def solid_in(solids: list[Any], point: tuple[float, float, float]) -> bool:
         return any(solid.isInside(cq.Vector(*point)) for solid in solids)
 
     freed = True
@@ -447,16 +458,19 @@ def latch_checks(
 
     for side in item.latch_sides:
         for centre in cells_on_side(side, centres):
-            feet = foot_points(plan, centre, side)
+            skin = foot_points(plan, centre, side)
             keepers = keeper_points(plan, centre, side, height)
-            freed = freed and solid_at(feet["skin"]) and not solid_at(feet["relief"])
+            freed = (
+                freed
+                and solid_in(foot_solids, skin["skin"])
+                and not solid_in(foot_solids, skin["relief"])
+            )
             opened = (
                 opened
-                and not solid_at(keepers["keeper_mouth"])
-                and solid_at(keepers["keeper_backing"])
+                and not solid_in(lower_solids, keepers["keeper_mouth"])
+                and solid_in(lower_solids, keepers["keeper_backing"])
             )
 
-    plain, _, _ = build_item(replace(item, latch_sides=()), profile, printer)
     engaged = True
     passes = True
     lip = profile.lip_height_mm
@@ -523,8 +537,26 @@ def build_stack(spec: StackSpec, printer: Mapping[str, Any]) -> Stack:
 
         if item.kind == "cap":
             lid_bin, bin_top = bin_solid(profile, item.cells, 1, 1.2, 1.2)
+            cap_latch = latch_plan_for(item, profile, printer)
+            keyed_bin = lid_bin
+
+            if cap_latch is not None:
+                keyed_bin = cut_lip_keepers(
+                    lid_bin,
+                    cap_latch,
+                    cell_centres(item.cells, profile.pitch_mm),
+                    item.latch_sides,
+                    bin_top,
+                )
+                checks.update(
+                    latch_checks(
+                        item, profile, cap_latch, model, keyed_bin, lid_bin, bin_top
+                    )
+                )
+
             checks[f"{item.name}.sits_on_a_bin"] = (
-                overlap_mm3(model.translate((0, 0, bin_top)), lid_bin) <= TOLERANCE_MM3
+                overlap_mm3(model.translate((0, 0, bin_top)), keyed_bin)
+                <= TOLERANCE_MM3
             )
 
         if item.kind == "drawer":
@@ -551,8 +583,11 @@ def build_stack(spec: StackSpec, printer: Mapping[str, Any]) -> Stack:
                     item.latch_sides,
                     floor,
                 )
+                plain, _, _ = build_item(
+                    replace(item, latch_sides=()), profile, printer
+                )
                 checks.update(
-                    latch_checks(item, profile, printer, latch, model, height)
+                    latch_checks(item, profile, latch, model, model, plain, height)
                 )
 
             checks[f"{item.name}.sits_on_baseplate"] = (
