@@ -1,0 +1,1470 @@
+{
+  "schema_version": "1.0.0",
+  "statuses": {
+    "sourced": "From a named standard, datasheet or format (the source is as the code cites it; not re-checked)",
+    "design_default": "The engine's own choice, which the code says is a default, a design value or a guess",
+    "example": "An illustrative figure, not claimed right for any real part",
+    "unstated": "No basis is stated in the code"
+  },
+  "figures": {
+    "cli/enclosure.py:DEFAULT_DISPLAY_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "cli/enclosure_group.py:_REVIEW_LID_LIFT_MM": {
+      "status": "unstated"
+    },
+    "features/board_promotion.py:MINIMUM_TRIALS": {
+      "status": "unstated"
+    },
+    "features/connector_cutouts.py:MINIMUM_OPENING_WEB_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:HOLE_COMPENSATION_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_BOSS_WALL_OVERLAP_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_COUNTERSINK_HEAD_ALLOWANCE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_CRADLE_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_DISPLAY_POST_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_FLOOR_EMBED_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_HINGE_SIDE_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_INTERFERENCE_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_LID_VENT_PITCH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_LID_VENT_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_MINIMUM_SIDE_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_OPENING_CLEARANCE_MM": {
+      "status": "design_default",
+      "note": "The builder's default fit, before hole compensation widens it"
+    },
+    "features/enclosure.py:_OPENING_OVERCUT_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_PLUG_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_RETAINER_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_SUPPORT_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure.py:_UNDER_BOARD_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group.py:_INTERFERENCE_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/enclosure_group.py:_JOIN_BOSS_REACH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group.py:_SCREW_LENGTHS_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group.py:_SLIDE_DIVIDER_DROP_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group.py:_VENT_LENGTH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group.py:_VENT_PITCH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group.py:_VENT_SLOTS": {
+      "status": "unstated"
+    },
+    "features/enclosure_group.py:_VENT_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_dividers.py:RIM_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_dividers.py:_EMBED_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_dividers.py:_TIE_DEPTH_FRACTION": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_dividers.py:_TIE_PAIR_SPAN_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_dividers.py:_TIE_ROW_BOTTOMS_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_dividers.py:_TIE_SLOT_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_dividers.py:_TIE_SLOT_LENGTH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_dividers.py:_VENT_END_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_dividers.py:_VENT_KEEPOUT_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_dividers.py:_VENT_PITCH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_dividers.py:_VENT_SLOT_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_dividers.py:_VENT_TOP_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_dividers.py:_VENT_ZONE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_envelope.py:PART_TOLERANCE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_join.py:FRACTION_JOINT_ABOVE_FLOOR_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_join.py:FRACTION_JOINT_Y": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_join.py:PASS_THROUGH_BOTTOM_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_join.py:PASS_THROUGH_Y_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_join.py:STANDARD_JOINT_Y_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_join.py:STANDARD_JOINT_Z_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_join.py:_SLIDE_WALL_DROP_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_join.py:_TOLERANCE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_join.py:_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_layout.py:BOSS_WALL_OVERLAP_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_layout.py:_MINIMUM_SD_FLOOR_GAP_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_layout.py:_OPEN_BAY_STRIP_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:FLOOR_EMBED_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_model.py:OPENING_RIM_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_modules.py:HEADROOM_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_modules.py:MINIMUM_FLOOR_GAP_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_modules.py:ROTATIONS": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_modules.py:STANDOFF_DIAMETER_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_openings.py:_BOSS_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_openings.py:_CABLE_EXIT_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_openings.py:_SD_OPENING_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_openings.py:_SD_OPENING_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_viewer.py:_ANGULAR_TOLERANCE_RAD": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_viewer.py:_MAX_VERTICES": {
+      "status": "sourced",
+      "source": "The 16-bit vertex index of the mesh the viewer writes, as stated in features/enclosure_group_viewer.py"
+    },
+    "features/enclosure_group_viewer.py:_TOLERANCE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:COUNTERSINK_FLOOR_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:GROOVE_DEPTH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:GROOVE_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:LIP_DEPTH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:NOTCH_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:RELIEF_SLIT_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:RIDGE_DROP_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:RIDGE_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:RIDGE_PROTRUSION_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:RIM_CHAMFER_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:SKIRT_FIT_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:SKIRT_THICKNESS_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:SNAP_SKIRT_DEPTH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:SNAP_SPAN_FRACTION": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:VENT_MAXIMUM_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:VENT_MINIMUM_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:VENT_PITCH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:VENT_RIM_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_lid.py:VENT_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_review.py:_CONTACT_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_review.py:_SCREW_LENGTHS_MM": {
+      "status": "sourced",
+      "source": "Standard metric screw lengths, as stated in features/enclosure_review.py; no standard number is cited"
+    },
+    "features/enclosure_review.py:_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/enclosure_revision.py:NOISE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_revision.py:PLUG_STEP_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_revision.py:SCALE_TOLERANCE": {
+      "status": "unstated"
+    },
+    "features/enclosure_thermal.py:CONVECTION_W_M2K": {
+      "status": "unstated"
+    },
+    "features/enclosure_thermal.py:DEFAULT_AMBIENT_C": {
+      "status": "unstated"
+    },
+    "features/enclosure_thermal.py:DEFAULT_SERVICE_LIMIT_C": {
+      "status": "design_default",
+      "note": "A design value for PETG's continuous air temperature, well under the 70 to 80 C at which it softens; a material profile's max_service_c overrides it"
+    },
+    "features/enclosure_thermal.py:WARN_FRACTION": {
+      "status": "unstated"
+    },
+    "features/enclosure_trial.py:MINIMUM_SETTLED_MINUTES": {
+      "status": "unstated"
+    },
+    "features/fan_bay.py:FAN_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/fan_bay.py:GUARD_CELL_MM": {
+      "status": "unstated"
+    },
+    "features/fan_bay.py:_FRAME_BITE_REDUCTION_MM": {
+      "status": "unstated"
+    },
+    "features/fan_bay.py:_SCREW_LENGTHS_MM": {
+      "status": "unstated"
+    },
+    "features/guide_bores.py:CHUCK_LENGTH_MM": {
+      "status": "unstated"
+    },
+    "features/guide_bores.py:CHUCK_LIMIT_MM": {
+      "status": "unstated"
+    },
+    "features/guide_bores.py:CHUCK_RESOLUTION_MM": {
+      "status": "unstated"
+    },
+    "features/guide_bores.py:EXIT_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/guide_bores.py:GUIDE_LENGTH_FACTOR": {
+      "status": "design_default",
+      "note": "A printed bore's length in drill diameters: a design default, not a measured value; a trial replaces it"
+    },
+    "features/guide_bores.py:MAXIMUM_BORES": {
+      "status": "unstated"
+    },
+    "features/guide_bores.py:MAXIMUM_TILT_DEG": {
+      "status": "unstated"
+    },
+    "features/guide_bores.py:MINIMUM_GUIDE_LENGTH_MM": {
+      "status": "design_default",
+      "note": "A printed bore's least length: a design default, not a measured value; a trial replaces it"
+    },
+    "features/guide_bores.py:PLATE_STEP_MM": {
+      "status": "unstated"
+    },
+    "features/guide_bores.py:STEEP_TILT_DEG": {
+      "status": "unstated"
+    },
+    "features/guide_bores.py:_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/guide_file.py:DEFAULT_GAP_MM": {
+      "status": "unstated"
+    },
+    "features/guide_file.py:DEFAULT_PLATE_MM": {
+      "status": "unstated"
+    },
+    "features/guide_file.py:DEFAULT_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/guide_file.py:GAP_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/guide_file.py:LEDGE_SHOULDER_MM": {
+      "status": "unstated"
+    },
+    "features/guide_file.py:MINIMUM_BEARING_AREA_MM2": {
+      "status": "design_default",
+      "note": "The least a ledge nest must rest on; the code calls it a design default"
+    },
+    "features/guide_file.py:MINIMUM_TOP_SHARE": {
+      "status": "unstated"
+    },
+    "features/guide_file.py:NEST_DEPTH_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/guide_file.py:PLATE_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/guide_file.py:SHALLOW_NEST_MM": {
+      "status": "unstated"
+    },
+    "features/guide_file.py:WALL_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/guide_import.py:CHUCK_FACTOR": {
+      "status": "unstated"
+    },
+    "features/guide_import.py:DEFAULT_NEST_DEPTH_MM": {
+      "status": "design_default",
+      "note": "The code calls it a guess at the nest's depth"
+    },
+    "features/guide_import.py:DEPTH_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/guide_import.py:MINIMUM_CHUCK_MM": {
+      "status": "unstated"
+    },
+    "features/guide_import.py:SIZE_TOLERANCE_MM": {
+      "status": "unstated"
+    },
+    "features/guide_trial.py:MINIMUM_TRIALS_TO_VERIFY": {
+      "status": "unstated"
+    },
+    "features/housing.py:SKIN_CORNER_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/housing.py:_CONNECTOR_ACCESS_MM": {
+      "status": "unstated"
+    },
+    "features/housing.py:_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/housing_cradle.py:CORNER_KEEPOUT_MM": {
+      "status": "unstated"
+    },
+    "features/housing_cradle.py:FACE_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/housing_cradle.py:FEATURE_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/housing_cradle.py:HOOK_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/housing_cradle.py:HOOK_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/housing_cradle.py:OVERHANG_MM": {
+      "status": "unstated"
+    },
+    "features/housing_cradle.py:TAB_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/housing_cradle.py:TAB_LENGTH_MM": {
+      "status": "unstated"
+    },
+    "features/housing_cradle.py:TAB_SLIT_MM": {
+      "status": "unstated"
+    },
+    "features/housing_cradle.py:TOP_GAP_MM": {
+      "status": "unstated"
+    },
+    "features/housing_cradle.py:_STEP_MM": {
+      "status": "unstated"
+    },
+    "features/housing_cradle.py:_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/housing_file.py:DEFAULT_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/housing_file.py:DEFAULT_CORNER_RADIUS_MM": {
+      "status": "unstated"
+    },
+    "features/housing_file.py:DEFAULT_FLOOR_MM": {
+      "status": "unstated"
+    },
+    "features/housing_file.py:DEFAULT_LID_MM": {
+      "status": "unstated"
+    },
+    "features/housing_file.py:DEFAULT_SKIN_EDGE_RADIUS_MM": {
+      "status": "design_default",
+      "note": "A comfort setting, not a medical figure"
+    },
+    "features/housing_file.py:DEFAULT_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/housing_skin.py:_FLAT_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:BAR_OFFSET_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:BELT_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:CLIP_ARM_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:CLIP_GRIP_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:CLIP_NUB_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:CLIP_POST_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:CLIP_THICKNESS_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:CLIP_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:EAR_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:EAR_THICKNESS_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:EMBED_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:LUG_THICKNESS_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:MINIMUM_STRAIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:PATCH_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:PATCH_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:RING_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:TAB_THICKNESS_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:WEB_MM": {
+      "status": "unstated"
+    },
+    "features/housing_wear.py:_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/jig_file.py:BELOW_FACE_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/jig_file.py:DEFAULT_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/jig_file.py:DEPTH_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/jig_file.py:MAXIMUM_INSERTS": {
+      "status": "unstated"
+    },
+    "features/jig_file.py:POCKET_DEPTH_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/jig_file.py:POCKET_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/jig_file.py:POCKET_TOLERANCE_MM": {
+      "status": "unstated"
+    },
+    "features/jig_file.py:POSITION_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/jig_file.py:SHALLOW_POCKET_MM": {
+      "status": "unstated"
+    },
+    "features/jig_file.py:SHOULDER_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/jig_file.py:TIP_LENGTH_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/jig_file.py:TIP_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/jig_file.py:WALL_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/jig_holes.py:MINIMUM_HOLE_MM": {
+      "status": "unstated"
+    },
+    "features/jig_holes.py:THROUGH_SHARE": {
+      "status": "unstated"
+    },
+    "features/jig_holes.py:TOP_TOLERANCE_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:CATCH_BUMP_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:CATCH_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:CATCH_ENGAGEMENT_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:CATCH_HOOK_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:CATCH_PULL_LIP_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:CATCH_TONGUE_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:CATCH_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:HINGE_WEB_DEPTH_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:SWING_DEGREES": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:SWING_STEP_DEGREES": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_AXIS_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_BARREL_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_CATCH_END_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_CATCH_FLOOR_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_CATCH_OPENING_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_END_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_KNUCKLE_GAP_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_LONGEST_ROD_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_MINIMUM_KNUCKLE_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_NUT_THICKNESS_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_PIN_LENGTHS_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_PIN_SLACK_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_ROD_STEP_MM": {
+      "status": "unstated"
+    },
+    "features/lid_hinge.py:_ROOT_OVERLAP_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:BULGE_DROP_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:DEFAULT_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:GROOVE_DEPTH_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:RETAINING_STRIP_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:TONGUE_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:TRAVEL_STEP_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:_BUMP_ENGAGEMENT_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:_BUMP_FROM_END_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:_BUMP_RADIUS_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:_DIMPLE_EXTRA_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:_END_SLIT_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:_OPENING_SUPPORT_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:_ROOT_MM": {
+      "status": "unstated"
+    },
+    "features/lid_slide.py:_SLIT_MM": {
+      "status": "unstated"
+    },
+    "features/mount_rack.py:PAD_HEIGHT_OFFSET_MM": {
+      "status": "unstated"
+    },
+    "features/mount_rack.py:RACK_HOLE_DIAMETER_MM": {
+      "status": "unstated"
+    },
+    "features/mount_rack.py:RACK_HOLE_PITCH_MM": {
+      "status": "sourced",
+      "source": "EIA-310 19 inch rack, as cited in features/mount_rack.py"
+    },
+    "features/mount_rack.py:RACK_HOLE_SPACING_MM": {
+      "status": "sourced",
+      "source": "EIA-310 19 inch rack, as cited in features/mount_rack.py"
+    },
+    "features/mount_rack.py:RACK_OPENING_MM": {
+      "status": "unstated"
+    },
+    "features/mount_rack.py:RACK_PANEL_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/mount_rack.py:RACK_PANEL_WIDTH_MM": {
+      "status": "sourced",
+      "source": "EIA-310 19 inch rack, as cited in features/mount_rack.py"
+    },
+    "features/mount_rack.py:RACK_UNIT_MM": {
+      "status": "sourced",
+      "source": "EIA-310 19 inch rack, as cited in features/mount_rack.py"
+    },
+    "features/mount_rack.py:_COVERED_OPENING_TOLERANCE": {
+      "status": "unstated"
+    },
+    "features/mount_rack.py:_FLANGE_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/mount_rack.py:_HEIGHT_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/mount_rack.py:_MINIMUM_REACH_MM": {
+      "status": "unstated"
+    },
+    "features/mount_rack.py:_PAD_WALL_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/mount_stack.py:FOOT_ABOVE_RECESS_MM": {
+      "status": "unstated"
+    },
+    "features/mount_stack.py:MAXIMUM_EXTRA_CELLS": {
+      "status": "unstated"
+    },
+    "features/mount_stack.py:MAXIMUM_WINDOWS": {
+      "status": "unstated"
+    },
+    "features/mount_stack.py:OFFSET_STEP_MM": {
+      "status": "unstated"
+    },
+    "features/mount_stack.py:OPENING_MERGE_MM": {
+      "status": "unstated"
+    },
+    "features/mount_stack.py:RECESS_EXTRA_MM": {
+      "status": "unstated"
+    },
+    "features/mount_stack.py:RECESS_OVER_MM": {
+      "status": "unstated"
+    },
+    "features/mount_stack.py:RECESS_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/mount_stack.py:TOP_RIM_MM": {
+      "status": "design_default",
+      "note": "The engine's own choice, and a baseplate's default"
+    },
+    "features/mount_stack.py:WINDOW_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:DIN_FLANGE_THICKNESS_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:DIN_FLANGE_WIDTH_MM": {
+      "status": "sourced",
+      "source": "DIN rail TS35, as cited in features/mounts.py"
+    },
+    "features/mounts.py:DIN_RAIL_WIDTH_MM": {
+      "status": "sourced",
+      "source": "DIN rail TS35, as cited in features/mounts.py"
+    },
+    "features/mounts.py:FEATURE_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:FLEXURE_STRAIN_LIMIT": {
+      "status": "design_default",
+      "note": "A design strain limit for a printed PETG tongue, well under the material's yield; provisional until a print trial measures it"
+    },
+    "features/mounts.py:FLEXURE_THICKNESS_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:HEAD_DIAMETER_FACTOR": {
+      "status": "unstated"
+    },
+    "features/mounts.py:KEYHOLE_HEAD_DIAMETER_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:KEYHOLE_HEAD_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:KEYHOLE_SLOT_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:KEYHOLE_TRAVEL_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:MINIMUM_PAD_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:PAD_EMBED_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:POCKET_ROOF_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:VESA_ENGAGEMENT_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:VESA_HEAD_DIAMETER_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:VESA_HEAD_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_COUNTERSINK_FLOOR_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_DIN_EDGE_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_DIN_END_SLIT_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_DIN_FIXED_HOOK_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_DIN_GRIP_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_DIN_INNER_SLIT_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_DIN_LATCH_HOOK_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_DIN_LIP_THICKNESS_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_DIN_LIP_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_DIN_ROOT_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_DIN_SWING_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_DIN_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_INTERFERENCE_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_PLATE_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/mounts.py:_SCREW_LENGTHS_MM": {
+      "status": "unstated"
+    },
+    "features/nest_core.py:RELEASE_STEP_MM": {
+      "status": "unstated"
+    },
+    "features/nest_core.py:TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/nest_features.py:CHARACTER_WIDTH": {
+      "status": "unstated"
+    },
+    "features/nest_features.py:DEFAULT_EMBOSS_MM": {
+      "status": "unstated"
+    },
+    "features/nest_features.py:DEFAULT_TEXT_SIZE_MM": {
+      "status": "unstated"
+    },
+    "features/nest_features.py:HOOK_FACE_MM": {
+      "status": "unstated"
+    },
+    "features/nest_features.py:HOOK_GAP_MM": {
+      "status": "unstated"
+    },
+    "features/nest_features.py:HOOK_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/nest_features.py:LABEL_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/nest_features.py:MAXIMUM_LABEL_CHARACTERS": {
+      "status": "unstated"
+    },
+    "features/nest_features.py:SLIT_MM": {
+      "status": "unstated"
+    },
+    "features/nest_features.py:TAB_ROOT_MM": {
+      "status": "unstated"
+    },
+    "features/nest_features.py:TAB_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:DEFAULT_FLANGE_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:DEFAULT_FLOOR_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:DEFAULT_LIP_OVERHANG_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:DEFAULT_LIP_TABS": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:DEFAULT_NOTCHES": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:DEFAULT_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:DEPTH_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:FLANGE_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:FLOOR_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:LIP_OVERHANG_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:MAXIMUM_LIP_TABS": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:MAXIMUM_NOTCHES": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:NOTCH_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:NOTCH_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:SHALLOW_POCKET_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:STRAP_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:STRAP_THICKNESS_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/nest_file.py:WALL_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture.py:POST_STOP_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture.py:RELEASE_STEP_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture.py:_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_closure.py:EAR_GAP_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_closure.py:EAR_SPACING_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_closure.py:NOTCH_RADIUS_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_file.py:TIGHT_TIP_SHARE": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_file.py:WORKING_TRAVEL_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:DEFAULT_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:DOWEL_DIAMETER_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:EAR_OFFSET_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:EAR_RADIUS_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:FLOOR_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:LEDGE_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:MINIMUM_PLATE_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:MINIMUM_POST_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:PART_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:PIN_PART_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:PLATE_FACTOR": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:RELIEF_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:SUPPORT_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:SUPPORT_POST_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_plan.py:UNDER_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/pcb_fixture_trial.py:MINIMUM_TRIALS_TO_VERIFY": {
+      "status": "unstated"
+    },
+    "features/stack.py:TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/stack_detent.py:BACK_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/stack_detent.py:BUMP_BELOW_RIM_MM": {
+      "status": "unstated"
+    },
+    "features/stack_detent.py:BUMP_FROM_BACK_MM": {
+      "status": "unstated"
+    },
+    "features/stack_detent.py:BUMP_Z_MM": {
+      "status": "unstated"
+    },
+    "features/stack_detent.py:STOP_FRONT_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/stack_detent.py:STOP_TRAVEL_SHARE": {
+      "status": "unstated"
+    },
+    "features/stack_detent.py:TONGUE_Z_MM": {
+      "status": "unstated"
+    },
+    "features/stack_detent.py:WINDOW_EXTRA_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "features/stack_detent.py:WINDOW_EXTRA_LENGTH_MM": {
+      "status": "unstated"
+    },
+    "features/stack_detent.py:_EPSILON": {
+      "status": "unstated"
+    },
+    "features/stack_drawers.py:DEFAULT_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/stack_drawers.py:LEDGE_MM": {
+      "status": "unstated"
+    },
+    "features/stack_drawers.py:LEDGE_THICKNESS_MM": {
+      "status": "unstated"
+    },
+    "features/stack_drawers.py:MAXIMUM_DRAWERS": {
+      "status": "unstated"
+    },
+    "features/stack_drawers.py:MINIMUM_DRAWER_DEPTH_MM": {
+      "status": "unstated"
+    },
+    "features/stack_drawers.py:MINIMUM_DRAWER_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/stack_drawers.py:PULL_RADIUS_MM": {
+      "status": "unstated"
+    },
+    "features/stack_drawers.py:ROOF_MM": {
+      "status": "unstated"
+    },
+    "features/stack_drawers.py:TOP_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/stack_file.py:DEFAULT_FLOOR_MM": {
+      "status": "unstated"
+    },
+    "features/stack_file.py:DEFAULT_RIM_MM": {
+      "status": "unstated"
+    },
+    "features/stack_file.py:DEFAULT_SCOOP_MM": {
+      "status": "unstated"
+    },
+    "features/stack_file.py:DEFAULT_TAB_MM": {
+      "status": "unstated"
+    },
+    "features/stack_file.py:DEFAULT_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/stack_file.py:MAXIMUM_CELLS": {
+      "status": "unstated"
+    },
+    "features/stack_file.py:MAXIMUM_DRAWERS": {
+      "status": "unstated"
+    },
+    "features/stack_file.py:MAXIMUM_UNITS": {
+      "status": "unstated"
+    },
+    "features/stack_file.py:MINIMUM_COMPARTMENT_MM": {
+      "status": "unstated"
+    },
+    "features/stack_latch.py:DEFAULT_ENGAGEMENT_MM": {
+      "status": "unstated"
+    },
+    "features/stack_latch.py:DEFAULT_LEAST_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/stack_latch.py:END_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/stack_latch.py:ENGAGEMENT_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/stack_latch.py:HOOK_FLAT_MM": {
+      "status": "unstated"
+    },
+    "features/stack_latch.py:HOOK_WIDTH_MM": {
+      "status": "unstated"
+    },
+    "features/stack_latch.py:MINIMUM_ENGAGEMENT_MM": {
+      "status": "unstated"
+    },
+    "features/stack_latch.py:MINIMUM_RUN_MM": {
+      "status": "unstated"
+    },
+    "features/stack_latch.py:RELIEF_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/stack_latch.py:SLIT_MM": {
+      "status": "unstated"
+    },
+    "features/stack_latch.py:_EPSILON": {
+      "status": "unstated"
+    },
+    "features/stack_layers.py:DEFAULT_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/stack_layers.py:DEFAULT_PLATE_MM": {
+      "status": "unstated"
+    },
+    "features/stack_layers.py:DEFAULT_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/stack_layers.py:HOLE_TOLERANCE_MM": {
+      "status": "unstated"
+    },
+    "features/stack_layers.py:OPENING_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/stack_layers.py:SPACER_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/stack_layers.py:_SHA256_LENGTH": {
+      "status": "unstated"
+    },
+    "features/stack_layers.py:_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/stack_profile.py:MAXIMUM_HOLDING_POINTS": {
+      "status": "unstated"
+    },
+    "features/stack_profile.py:MAXIMUM_LEAN": {
+      "status": "design_default",
+      "note": "45 degrees, the printer's limit without support, as the code states"
+    },
+    "features/stack_profile.py:MINIMUM_POINT_SPACING_MM": {
+      "status": "unstated"
+    },
+    "features/stack_profile.py:_EPSILON": {
+      "status": "unstated"
+    },
+    "features/stack_profile.py:_EXAMPLE_FOOT": {
+      "status": "example",
+      "source": "The Gridfinity Rebuilt OpenSCAD library (src/core/standard.scad, commit 910e22d), as cited in features/stack_profile.py; an example to check and cite"
+    },
+    "features/stack_profile.py:_EXAMPLE_HOLDING_POINTS": {
+      "status": "example",
+      "source": "The Gridfinity Rebuilt OpenSCAD library (src/core/standard.scad, commit 910e22d), as cited in features/stack_profile.py; an example to check and cite"
+    },
+    "features/stack_profile.py:_EXAMPLE_LIP": {
+      "status": "example",
+      "source": "The Gridfinity Rebuilt OpenSCAD library (src/core/standard.scad, commit 910e22d), as cited in features/stack_profile.py; an example to check and cite"
+    },
+    "features/stack_solids.py:DIVIDER_MM": {
+      "status": "unstated"
+    },
+    "features/stack_solids.py:LIP_TIP_MM": {
+      "status": "unstated"
+    },
+    "features/stack_solids.py:MINIMUM_RADIUS_MM": {
+      "status": "unstated"
+    },
+    "features/stack_solids.py:RIDGE_TOP_MM": {
+      "status": "unstated"
+    },
+    "features/stack_solids.py:TAB_ANGLE_RATIO": {
+      "status": "unstated"
+    },
+    "features/stack_solids.py:_OPEN_MM": {
+      "status": "unstated"
+    },
+    "features/vent_patterns.py:LID_INSET_MM": {
+      "status": "unstated"
+    },
+    "features/vent_patterns.py:MAX_CELLS": {
+      "status": "unstated"
+    },
+    "features/vent_patterns.py:MIN_WEB_MM": {
+      "status": "unstated"
+    },
+    "features/vent_patterns.py:WALL_BAND_MM": {
+      "status": "unstated"
+    },
+    "features/vent_patterns.py:WALL_FLOOR_RIM_MM": {
+      "status": "unstated"
+    },
+    "features/vent_patterns.py:_BEHIND_MM": {
+      "status": "unstated"
+    },
+    "features/vent_patterns.py:_BOX_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/vent_patterns.py:_CHECK_RING": {
+      "status": "unstated"
+    },
+    "features/vent_patterns.py:_LOUVER_LENGTH_MM": {
+      "status": "unstated"
+    },
+    "features/vent_patterns.py:_LOUVER_WALL_MM": {
+      "status": "unstated"
+    },
+    "geometry/edge_outline.py:_EPSILON": {
+      "status": "unstated"
+    },
+    "geometry/intersection.py:_MINIMUM_OVERLAP_MM": {
+      "status": "unstated"
+    },
+    "geometry/silhouette.py:MAXIMUM_PIXELS": {
+      "status": "unstated"
+    },
+    "geometry/silhouette.py:MINIMUM_RESOLUTION_MM": {
+      "status": "unstated"
+    },
+    "geometry/silhouette.py:TESSELLATION_TOLERANCE_MM": {
+      "status": "unstated"
+    },
+    "geometry/silhouette.py:_RING": {
+      "status": "unstated"
+    },
+    "hardware/bushings.py:_TABLE": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file.py:BOARD_SIZE_RANGE_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file.py:BOARD_SIZE_WARNING_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file.py:CRADLE_ENVELOPE_INSET_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file.py:HOLE_DIAMETER_RANGE_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file.py:MAXIMUM_ENVELOPE_INSET_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file.py:MAXIMUM_OVERHANG_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file.py:OUTLINE_TOLERANCE_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file.py:OVERHANG_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file.py:STANDOFF_WALL_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file.py:THICKNESS_RANGE_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file.py:TYPICAL_THICKNESS_RANGE_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_import.py:HEIGHT_TIERS_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_import.py:MERGE_GAP_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_import.py:MINIMUM_HEIGHT_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_import.py:MINIMUM_HOLE_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_import.py:OVERHANG_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_import.py:PCB_THICKNESS_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_import.py:PLAIN_RECTANGLE_SHARE": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_import.py:RECTANGULAR_SHARE": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_import.py:SIMPLIFY_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_outline.py:CORNER_SEGMENTS": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_outline.py:MAXIMUM_POINTS": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_outline.py:SIZE_TOLERANCE_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_test_points.py:MAXIMUM_TEST_POINTS": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_test_points.py:PAD_DIAMETER_RANGE_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/kicad_import.py:CHORD_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/kicad_import.py:DEFAULT_THICKNESS_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/kicad_import.py:JOIN_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/kicad_import.py:MINIMUM_MOUNTING_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/kicad_import.py:MINIMUM_VERSION": {
+      "status": "unstated"
+    },
+    "hardware/electronics/kicad_import.py:ROUNDED_FIT_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/kicad_import.py:SIMPLIFY_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/kicad_import.py:SIZE_GROUP_MM": {
+      "status": "unstated"
+    },
+    "hardware/pogo.py:_IN": {
+      "status": "unstated"
+    },
+    "hardware/pogo.py:_NEWTONS_PER_GRAM_FORCE": {
+      "status": "unstated"
+    },
+    "hardware/wearables/capture.py:DIFFERENCE_ERROR_FRACTION": {
+      "status": "unstated"
+    },
+    "hardware/wearables/capture.py:DIFFERENCE_WARNING_MM": {
+      "status": "unstated"
+    },
+    "hardware/wearables/capture.py:MAXIMUM_MASS_G": {
+      "status": "unstated"
+    },
+    "hardware/wearables/capture.py:READINGS": {
+      "status": "unstated"
+    },
+    "hardware/wearables/capture.py:SPREAD_WARNING_MM": {
+      "status": "unstated"
+    },
+    "printing/bambu.py:SLICE_TIMEOUT_SECONDS": {
+      "status": "design_default",
+      "note": "A limit chosen so a stalled slice fails instead of hanging: a plate slices in seconds to a few minutes"
+    },
+    "profiles/compensation.py:DEFAULT_MINIMUM_TRIALS": {
+      "status": "unstated"
+    },
+    "profiles/fixture_accuracy.py:DEFAULT_MINIMUM_TRIALS": {
+      "status": "unstated"
+    },
+    "profiles/guide_accuracy.py:DEFAULT_MINIMUM_TRIALS": {
+      "status": "unstated"
+    },
+    "profiles/thermal.py:DEFAULT_MINIMUM_TRIALS": {
+      "status": "unstated"
+    },
+    "retention/artifact_revision.py:_DEFAULT_CORNER_KEEPOUT_MM": {
+      "status": "unstated"
+    },
+    "retention/artifact_revision.py:_DEFAULT_VERTICAL_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "retention/design_review.py:_CAPTURE_SEARCH_MM": {
+      "status": "unstated"
+    },
+    "retention/design_review.py:_CLOSEST_LISTED": {
+      "status": "unstated"
+    },
+    "retention/design_review.py:_OVERHANG_MM": {
+      "status": "unstated"
+    },
+    "retention/design_review.py:_SEATING_EPSILON_MM": {
+      "status": "unstated"
+    },
+    "retention/edge_capture.py:_MINIMUM_LOCATION_SEPARATION_MM": {
+      "status": "unstated"
+    },
+    "retention/export_checks.py:_MAX_PROBES_PER_AXIS": {
+      "status": "unstated"
+    },
+    "retention/export_checks.py:_PLANE_TOLERANCE_MM": {
+      "status": "unstated"
+    },
+    "retention/export_checks.py:_PROBE_INSET_MM": {
+      "status": "unstated"
+    },
+    "retention/export_checks.py:_PROBE_OFFSET_MM": {
+      "status": "unstated"
+    },
+    "retention/export_checks.py:_REPORTED_BODIES": {
+      "status": "unstated"
+    },
+    "retention/export_validation.py:_BOARD_MATCH_TOLERANCE_MM": {
+      "status": "unstated"
+    },
+    "retention/installation_path.py:_SPLIT_EPSILON_MM": {
+      "status": "unstated"
+    },
+    "retention/measurement_feedback.py:MAXIMUM_STEP_MM": {
+      "status": "unstated"
+    },
+    "retention/measurement_feedback.py:NOISE_MM": {
+      "status": "unstated"
+    },
+    "retention/production_edge_execution.py:_INTERFERENCE_TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "retention/snap_shell.py:_MINIMUM_LOCATION_SEPARATION_MM": {
+      "status": "unstated"
+    },
+    "retention/snap_shell_candidate.py:CORNER_KEEPOUT_MM": {
+      "status": "unstated"
+    },
+    "retention/snap_shell_candidate.py:FEATURE_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "retention/snap_shell_candidate.py:_SLIDE_STEP_MM": {
+      "status": "unstated"
+    }
+  }
+}

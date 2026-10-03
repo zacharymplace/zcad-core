@@ -26,6 +26,7 @@ nav:
   - Architecture:
       - Overview: architecture.md
       - Retention strategy evidence: architecture/retention-strategy-evidence.md
+      - Figures taken on trust: reference/figures.md
   - Guides:
       - Validation Lab workflow: guides/validation-lab-workflow.md
       - Engine example: guides/engine-example.md
