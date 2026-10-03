@@ -9,7 +9,12 @@ import cadquery as cq
 import pytest
 
 from zcad_core.printing import BAMBU_STUDIO, SliceError, slice_models
-from zcad_core.printing.bambu import bambu_command, preset_names, process_overrides
+from zcad_core.printing.bambu import (
+    _run_bambu,
+    bambu_command,
+    preset_names,
+    process_overrides,
+)
 
 SLICER_PROFILE = (
     Path(__file__).resolve().parents[2]
@@ -66,6 +71,21 @@ def test_refuses_missing_models_and_existing_output(tmp_path: Path) -> None:
             slicer_profile_path=SLICER_PROFILE,
             app=tmp_path / "NoSuch.app",
         )
+
+
+def test_a_stalled_slicer_is_stopped_and_refused(tmp_path: Path) -> None:
+    app = tmp_path / "Fake.app"
+    binary = app / "Contents/MacOS/BambuStudio"
+    binary.parent.mkdir(parents=True)
+    binary.write_text("#!/bin/sh\nexec sleep 60\n", encoding="utf-8")
+    binary.chmod(0o755)
+    model = tmp_path / "part.stl"
+    model.write_text("solid part\n", encoding="utf-8")
+
+    with pytest.raises(SliceError, match="stalled"):
+        _run_bambu(app, {"machine": {}}, [model], tmp_path / "out", 0.5)
+
+    assert not (tmp_path / "out").exists()
 
 
 @pytest.mark.slow

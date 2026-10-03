@@ -30,6 +30,10 @@ from typing import Any
 from zcad_core.printing.provenance import source_provenance
 
 BAMBU_STUDIO = Path("/Applications/BambuStudio.app")
+# Bambu Studio is stopped if a slice has not finished in this long. A plate slices in seconds to a
+# few minutes; one that takes a quarter of an hour has stalled, and without a limit it would hold
+# a build, or a push's tests, for good.
+SLICE_TIMEOUT_SECONDS = 900.0
 SLICE_SUMMARY_SCHEMA_VERSION = "1.2.0"
 
 # Project profile ids -> Bambu system presets, keyed by nozzle diameter.
@@ -154,6 +158,7 @@ def slice_models(
     slicer_profile_path: Path,
     app: Path = BAMBU_STUDIO,
     summary_fields: dict[str, Any] | None = None,
+    timeout_seconds: float = SLICE_TIMEOUT_SECONDS,
 ) -> SliceResult:
     """Slice the models onto one plate and write the slice evidence, with
     any ``summary_fields`` the caller adds to the summary."""
@@ -169,7 +174,7 @@ def slice_models(
     configs = {kind: flatten(index, kind, name) for kind, name in names.items()}
     overrides = process_overrides(profile)
     configs["process"].update(overrides)
-    plate = _run_bambu(app, configs, models, output_directory)
+    plate = _run_bambu(app, configs, models, output_directory, timeout_seconds)
     gcode = output_directory / "plate_1.gcode"
     summary = {
         "schema_version": SLICE_SUMMARY_SCHEMA_VERSION,
@@ -224,8 +229,10 @@ def _run_bambu(
     configs: dict[str, dict[str, Any]],
     models: Sequence[Path],
     output_directory: Path,
+    timeout_seconds: float = SLICE_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    """Slice in a scratch folder, copy the plate out, and return its metrics."""
+    """Slice in a scratch folder, copy the plate out, and return its metrics. Bambu Studio is
+    stopped, and the slice refused, if it has not finished in ``timeout_seconds``."""
 
     with tempfile.TemporaryDirectory(prefix="zcad-slice-") as folder:
         work = Path(folder)
@@ -235,12 +242,20 @@ def _run_bambu(
                 json.dumps(config, indent=1, sort_keys=True) + "\n", encoding="utf-8"
             )
 
-        completed = subprocess.run(
-            bambu_command(app, work, models),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        try:
+            completed = subprocess.run(
+                bambu_command(app, work, models),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise SliceError(
+                f"Bambu Studio had not finished slicing in {timeout_seconds:g} seconds and "
+                "was stopped: it has stalled. Quit any Bambu Studio that is open and try "
+                "again"
+            ) from error
         result_path = work / "result.json"
 
         if not result_path.is_file():
