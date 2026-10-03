@@ -191,7 +191,8 @@ existing build changes unless a design asks for the new thing.
 
 - **Whether an enclosure's lid gets a profile.** A stack plate lets a box sit on a grid,
   and not carry anything on its lid. The proposal is a `--stack-top` option that adds the lip
-  to the lid, off by default, so no lid changes unless asked.
+  to the lid, off by default, so no lid changes unless asked. [Stacking on an enclosure's lid](stack-top.md) replaces it: a
+  lip cannot be cut into a lid that is not whole cells, so the top is a baseplate that sits on the lid and is held by the lid's own screws.
 - **How a bin's height and a tray's height share a unit.** A tray is shallow, a few mm, and a
   bin's unit is 7 mm. The proposal is that a tray's height is a whole number of a finer unit
   the profile may give, and is a whole unit when it stacks with a bin.
