@@ -84,6 +84,7 @@ class EnclosureCheck(str, Enum):
     DETENT_HOLDS = "detent_holds_lid"
     STACK_TOP_SITS_FLAT = "stack_top_sits_flat"
     STACK_TOP_SCREWS_REACH = "stack_top_screws_reach"
+    STACK_TOP_HOLDS = "stack_top_holds"
 
 
 CHECK_GUIDANCE = {
@@ -137,6 +138,10 @@ CHECK_GUIDANCE = {
     EnclosureCheck.STACK_TOP_SITS_FLAT: (
         "The stack top lies flat on the lid, with no rocking and no gap you can see "
         "at any corner, and a bin stands in its pockets"
+    ),
+    EnclosureCheck.STACK_TOP_HOLDS: (
+        "A bin stands in the plate's pockets and is held: its magnets seat flush and "
+        "attract, or its hooks click into the keepers and let go to a pull"
     ),
     EnclosureCheck.STACK_TOP_SCREWS_REACH: (
         "A screw goes through the plate, the lid and into its insert at every corner, "
@@ -211,9 +216,18 @@ def applicable_checks(enclosure: Enclosure) -> tuple[EnclosureCheck, ...]:
         skipped |= {
             EnclosureCheck.STACK_TOP_SITS_FLAT,
             EnclosureCheck.STACK_TOP_SCREWS_REACH,
+            EnclosureCheck.STACK_TOP_HOLDS,
         }
+    elif not top_holds(enclosure.stack_top.stack):
+        skipped.add(EnclosureCheck.STACK_TOP_HOLDS)
 
     return tuple(check for check in EnclosureCheck if check not in skipped)
+
+
+def top_holds(stack: dict[str, Any]) -> bool:
+    """Whether a stack top holds by anything but the lip: magnets, or latch keepers."""
+
+    return stack.get("holding", "lip") != "lip" or bool(stack.get("latch_sides"))
 
 
 def stack_top_nominals(top: StackTop | None) -> dict[str, float]:
@@ -464,6 +478,10 @@ def _stack_top_template(stack: dict[str, Any]) -> dict[str, Any]:
             "thickness_mm": stack["thickness_mm"],
             "recommended_screw_mm": stack["recommended_screw_mm"],
             "screw_reach_mm": stack["screw_reach_mm"],
+            "holding": stack.get("holding", "lip"),
+            "magnet": stack.get("magnet", ""),
+            "latch_sides": stack.get("latch_sides", []),
+            "latch_engagement_mm": stack.get("latch_engagement_mm"),
         },
         "gap_under_plate_mm": None,
         "screws_pass_all_holes": None,
@@ -750,6 +768,10 @@ def _stack_top(trial: Path, build: dict[str, Any]) -> dict[str, Any] | None:
             "floor_mm": stack["floor_mm"],
             "thickness_mm": stack["thickness_mm"],
             "screw_reach_mm": stack["screw_reach_mm"],
+            "holding": stack.get("holding", "lip"),
+            "magnet": stack.get("magnet", ""),
+            "latch_sides": stack.get("latch_sides", []),
+            "latch_engagement_mm": stack.get("latch_engagement_mm"),
         },
         "notes": entry.get("notes", ""),
         "not_a_limit": (

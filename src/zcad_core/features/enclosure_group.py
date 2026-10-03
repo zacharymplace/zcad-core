@@ -86,7 +86,7 @@ from zcad_core.features.mount_rack import (
     front_pads,
     is_rack,
 )
-from zcad_core.features.mount_stack import build_stack_top
+from zcad_core.features.mount_stack import TopHolding, build_stack_top, latch_sides
 from zcad_core.features.mounts import (
     MountPads,
     MountPlate,
@@ -418,6 +418,13 @@ def build_group_enclosure(
             fastener=fastener,
             profile=load_profile(Path(design.stack_profile)),
             compensation=0.0,
+            holding=TopHolding(
+                design.stack_top_holding,
+                design.stack_top_magnet or "",
+                latch_sides(design.stack_top_latch),
+                design.stack_top_engagement_mm,
+                design.slide_clearance_mm,
+            ),
         )
 
     checks = _checks(base, lid, hardware)

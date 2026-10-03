@@ -17,7 +17,7 @@ from zcad_core.features.fan_bay import FanReport
 from zcad_core.features.lid_hinge import HingeReport
 from zcad_core.features.lid_slide import SlideReport, slide_clearance_error
 from zcad_core.features.mount_rack import RACK, FrontPads
-from zcad_core.features.mount_stack import StackTop
+from zcad_core.features.mount_stack import StackTop, check_top_holding, latch_sides
 from zcad_core.features.mounts import MOUNTS, MountPads, MountPlate
 from zcad_core.features.vent_patterns import PATTERNS, VentReport
 
@@ -111,6 +111,13 @@ class GroupDesign:
     stack_profile: str | None = None
     # A baseplate over a screwed lid, held by the lid's own screws, so things stack on the row.
     stack_top: bool = False
+    # What a stack top holds by: the lip alone, or magnets in the pockets' floors; and the sides
+    # whose pocket walls take a keeper for the hooks of a latched item above, as a
+    # comma-separated string such as "front,back" so a record round-trips.
+    stack_top_holding: str = "lip"
+    stack_top_magnet: str | None = None
+    stack_top_latch: str = ""
+    stack_top_engagement_mm: float | None = None
     # A vent pattern sized to a free area, in mm2: inlets low in the two side
     # walls, which carry no openings, and outlets in the lid at least as
     # large. ``vents`` is the separate set of lid slots over each Pi's fan.
@@ -181,6 +188,14 @@ class GroupDesign:
                 "mount 'stack', a stack top and stack_profile go together: a stack mount "
                 "or a stack top needs the profile it is built to, and a profile needs one"
             )
+
+        check_top_holding(
+            self.stack_top_holding,
+            self.stack_top_magnet,
+            latch_sides(self.stack_top_latch),
+            self.stack_top_engagement_mm,
+            self.stack_top,
+        )
 
         for name in (
             "wall_mm",

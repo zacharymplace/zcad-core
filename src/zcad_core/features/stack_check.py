@@ -257,6 +257,10 @@ def _from_record(path: Path, top: bool = False) -> tuple[Resolved | None, list[s
             cells=cells,
             floor_mm=float(stack["floor_mm"]),
             rim_mm=float(stack["rim_mm"]),
+            holding=str(stack.get("holding", "lip")),
+            magnet=str(stack.get("magnet", "")),
+            latch_sides=tuple(str(side) for side in stack.get("latch_sides", [])),
+            latch_engagement_mm=stack.get("latch_engagement_mm"),
         )
         if top
         else Item(

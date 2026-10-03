@@ -738,6 +738,10 @@ def _group_build(args: argparse.Namespace) -> int:
         mount_plate_mm=args.mount_plate_mm,
         stack_profile=str(args.stack_profile) if args.stack_profile else None,
         stack_top=getattr(args, "stack_top", False),
+        stack_top_holding=getattr(args, "stack_top_holding", "lip"),
+        stack_top_magnet=getattr(args, "stack_top_magnet", None),
+        stack_top_latch=getattr(args, "stack_top_latch", ""),
+        stack_top_engagement_mm=getattr(args, "stack_top_engagement_mm", None),
         vent_pattern=args.vent_pattern,
         vent_area_mm2=args.vent_area_mm2,
         lid_attachment=args.lid,
@@ -951,6 +955,28 @@ def register(
         action="store_true",
         help="add a baseplate over a screwed lid, held by the lid's own screws, so things "
         "stack on the row; needs --stack-profile and --no-vents",
+    )
+    build.add_argument(
+        "--stack-top-holding",
+        choices=("lip", "magnet"),
+        default="lip",
+        help="what a --stack-top holds a bin by: the lip alone, or magnets in its pockets' floors",
+    )
+    build.add_argument(
+        "--stack-top-magnet",
+        default=None,
+        help="the catalogued magnet for --stack-top-holding magnet",
+    )
+    build.add_argument(
+        "--stack-top-latch",
+        default="",
+        help="comma-separated sides (front,back,left,right) whose pocket walls take a latch keeper",
+    )
+    build.add_argument(
+        "--stack-top-engagement-mm",
+        type=float,
+        default=None,
+        help="how far a latch's hook engages its keeper; the profile's, else 0.4",
     )
     build.add_argument(
         "--lid",
