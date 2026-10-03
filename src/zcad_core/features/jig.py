@@ -34,9 +34,10 @@ from zcad_core.features.jig_file import (
     resolved_sites,
 )
 from zcad_core.features.nest_core import TOLERANCE_MM3, clear, lifts_off, pocketed
+from zcad_core.features.nest_trial import jig_checks
 from zcad_core.geometry.intersection import intersection_volume
 
-JIG_RECORD_SCHEMA_VERSION = "1.0.0"
+JIG_RECORD_SCHEMA_VERSION = "1.1.0"
 JIG_RECORD = "jig.json"
 RECORD_KIND = "jig-build"
 NOT_CLAIMED = (
@@ -376,6 +377,15 @@ def jig_record(jig: Jig, files: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "tolerance_status": jig.tolerance_status,
         "parts": files,
         "fit_checks": jig.checks,
+        "checks": jig_checks(),
+        "nominal_measurements_mm": {
+            "overall_width_mm": round(width, 3),
+            "overall_depth_mm": round(depth, 3),
+            "overall_height_mm": round(height, 3),
+            "plate_thickness_mm": round(jig.plate_thickness_mm, 3),
+            "bore_diameter_mm": round(jig.bores[0].diameter_mm, 3),
+            "wall_mm": spec.wall_mm,
+        },
         "verified": False,
         "not_claimed": NOT_CLAIMED,
     }

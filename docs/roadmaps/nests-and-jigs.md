@@ -139,7 +139,7 @@ zcad-validation jig build --jig-file my-jig.json --output-directory exports/my-j
    label.
 3. **The insert jig (built).** The `jig` file with typed positions, the bore, the iron's figures and the plate-as-stop, `check` and `build`, and the record.
 4. **Inserts from the part's holes (built).** `from_part` and `holes`, reading the through-holes, and the checks of a found hole against the insert.
-5. **Trials.** `nest trial` and `jig trial`, in the other trials' style: for a nest, whether the part seats, lifts out, stays in, and the strap holds
+5. **Trials (built).** `nest trial` and `jig trial`, in the other trials' style: for a nest, whether the part seats, lifts out, stays in, and the strap holds
    it still, with a count of uses and whether anything wore; for a jig, whether each insert went in square and to what measured depth below the face,
    with the measured offset from the pocket's centre. The engine states no limit for any reading.
 
@@ -221,3 +221,16 @@ See [An insert jig for your part](../guides/insert-jig.md).
 - **A found hole is checked as a typed pocket is**, with the hole's own diameter and depth: too small for the insert refused, 0.3 mm off the catalogued size a warning, too shallow refused.
 - **Depth comes from the face's vertices**, not its bounding box, which OCC pads by about a hundredth of a millimetre.
 - **Not covered:** a hole off the vertical axis, a countersunk or stepped hole (only the part open at the face counts), and a part modelled with +Z not up.
+
+### What phase 5 changed
+
+See the *Trying a print* sections of [the holding nest](../guides/holding-nest.md) and [the insert jig](../guides/insert-jig.md). All five phases are built.
+
+- **One module for both trials.** `nest_trial.py` holds `start_/complete_nest_trial` and `start_/complete_jig_trial` on the same helpers the layer trial uses (`_observations`, `_measurements`, the
+  disposition); `nest trial` and `jig trial` are the commands, each with `start` and `complete`.
+- **The build records grew.** `nest.json` and `jig.json` are now schema 1.1.0 and carry `checks` and `nominal_measurements_mm`, which the trial reads. The nest's checks include the lip, strap and label ones only
+  when the nest has them.
+- **A nest's readings are a count of uses and whether anything wore** (`use.json`); a jig's are per insert, whether it went in square, its measured depth below the face and its offset from the pocket's
+  centre (`insertion.json`), with the depth set beside the designed one. The roadmap's "whether the strap holds it still" is an observation; the strap's slot sizes are measured.
+- **No limits.** Nothing is compared with a figure: the record states the deviation from the design, and nothing about how well a nest holds or whether an insert holds.
+- **Not covered:** a printed trial of an insert's pull-out or of a nest's holding force, which need a rig of their own.
