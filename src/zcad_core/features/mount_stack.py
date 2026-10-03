@@ -1,4 +1,4 @@
-"""The stack mount: a plate that bolts to an enclosure's pads and stands on the grid.
+"""The stack mount and the stack top: plates that put an enclosure on the grid and the grid on it.
 
 A stack plate is a flat plate on a stack profile's foot, in whole cells: a cap that
 screws to the enclosure's four mount pads instead of sitting loose. The enclosure then
@@ -11,12 +11,19 @@ foot's edge: it tries one more cell across or deep, up to two, so the pads fall 
 feet, and refuses if none does. The plate is centred on the pads.
 
 The recess depth and its margin are the engine's own design choices.
+
+A **stack top** is the other way up: a baseplate, in whole cells that cover the lid, that sits on
+a screwed lid's top face and is held by the lid's own screws, made longer. Each screw goes down
+through a recess sunk in a pocket's floor, through the plate and the lid, into its insert. Bins,
+frames and other enclosures then stand on the enclosure as on any baseplate. The plate's floor
+is the screw head's recess and a millimetre of floor under it.
 """
 
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import cadquery as cq
@@ -31,7 +38,7 @@ from zcad_core.features.mounts import (
 )
 from zcad_core.features.stack_drawers import cap_solid
 from zcad_core.features.stack_profile import StackProfile
-from zcad_core.features.stack_solids import cell_centres
+from zcad_core.features.stack_solids import baseplate_solid, cell_centres
 from zcad_core.hardware import FastenerSpec
 
 # A screw's head is about its nominal diameter tall; the recess is a little deeper.
@@ -43,6 +50,25 @@ RECESS_WALL_MM = 1.0
 RECESS_OVER_MM = 0.6
 # How many cells past the least the search may add, each way.
 MAXIMUM_EXTRA_CELLS = 2
+
+
+# A stack top's rim round its outermost pockets, the engine's own choice and a baseplate's default.
+TOP_RIM_MM = 1.2
+
+
+@dataclass(frozen=True)
+class StackTop:
+    """A stack top and what the build says of it."""
+
+    plate: cq.Workplane
+    cells: tuple[int, int]
+    size_mm: tuple[float, float]
+    thickness_mm: float
+    floor_mm: float
+    screw_recess_mm: float
+    screw_reach_mm: float
+    recommended_screw_mm: int
+    stack: dict[str, Any]
 
 
 def _recess_radius(fastener: FastenerSpec) -> float:
@@ -206,4 +232,124 @@ def require_plate_fits_bed(
             f"{volume['y']:.0f} mm. A stack plate is whole cells under the "
             "enclosure's footprint: build a narrower enclosure, or shorter units "
             "bolted together"
+        )
+
+
+def build_stack_top(
+    positions: Sequence[tuple[float, float]],
+    *,
+    centre: tuple[float, float],
+    lid_size_mm: tuple[float, float],
+    lid_top_z_mm: float,
+    lid_mm: float,
+    fastener: FastenerSpec,
+    profile: StackProfile,
+    compensation: float,
+) -> StackTop:
+    """A baseplate on a lid, in the enclosure's frame: its underside flat on the lid's top face
+    at ``lid_top_z_mm``, centred on ``centre``, with a hole and a head recess at each of the lid's
+    screws at ``positions``. The cells are the least that cover the lid with every recess inside
+    a pocket's floor, searched like the stack plate's."""
+
+    if not positions:
+        raise ValueError(
+            "A stack top is held by the lid's screws, and this lid has none: the board's "
+            "enclosure has no corner bosses to screw it to"
+        )
+
+    insert_depth = fastener.heat_set_insert_depth_mm
+
+    if insert_depth is None:
+        raise ValueError(
+            f"The catalogue has no heat-set insert depth for {fastener.identifier}"
+        )
+
+    recess = recess_depth_mm(fastener)
+    floor = recess + FOOT_ABOVE_RECESS_MM
+    radius = _recess_radius(fastener)
+    least = (
+        math.ceil(lid_size_mm[0] / profile.pitch_mm),
+        math.ceil(lid_size_mm[1] / profile.pitch_mm),
+    )
+    relative = [(x - centre[0], y - centre[1]) for x, y in positions]
+
+    for cells in _cell_options(least):
+        if all(_inside_a_foot(point, cells, profile, radius) for point in relative):
+            break
+    else:
+        raise ValueError(
+            f"No stack top of {least[0]} to {least[0] + MAXIMUM_EXTRA_CELLS} by "
+            f"{least[1]} to {least[1] + MAXIMUM_EXTRA_CELLS} cells puts every lid screw "
+            f"inside a pocket's floor with a {fastener.identifier} head's recess: a screw "
+            "would land on a ridge. Change the wall, the fastener or the profile"
+        )
+
+    plate, _ = baseplate_solid(profile, cells, floor, TOP_RIM_MM)
+    plate = plate.translate((centre[0], centre[1], lid_top_z_mm))
+    hole = fastener.clearance_hole_mm + compensation
+
+    for x, y in positions:
+        plate = cut_all(
+            plate,
+            cq.Solid.makeCylinder(
+                hole / 2, floor + 2.0, pnt=cq.Vector(x, y, lid_top_z_mm - 1.0)
+            ),
+            cq.Solid.makeCylinder(
+                radius,
+                recess + 1.0,
+                pnt=cq.Vector(x, y, lid_top_z_mm + floor - recess),
+            ),
+        )
+
+    box = plate.val().BoundingBox()  # type: ignore[union-attr]
+    reach = (floor - recess) + lid_mm + insert_depth
+    screw = standard_screw_length(reach)
+    stack: dict[str, Any] = {
+        "profile": {
+            "identifier": profile.identifier,
+            "path": str(profile.path),
+            "sha256": profile.sha256,
+        },
+        "cells": list(cells),
+        "floor_mm": round(floor, 3),
+        "rim_mm": TOP_RIM_MM,
+        "thickness_mm": round(box.zlen, 3),
+        "holding": "lip",
+        "screw_recess_mm": recess,
+        "screw_reach_mm": round(reach, 3),
+        "recommended_screw_mm": screw,
+        "lid_top_z_mm": round(lid_top_z_mm, 3),
+    }
+
+    return StackTop(
+        plate=plate,
+        cells=cells,
+        size_mm=(box.xlen, box.ylen),
+        thickness_mm=box.zlen,
+        floor_mm=floor,
+        screw_recess_mm=recess,
+        screw_reach_mm=reach,
+        recommended_screw_mm=screw,
+        stack=stack,
+    )
+
+
+def require_top_fits_bed(
+    top: StackTop | None, volume: Mapping[str, Any] | None
+) -> None:
+    """Refuse a stack top larger than the printer's bed, with its cells and the bed's."""
+
+    if top is None or not volume:
+        return
+
+    width, depth = top.size_mm
+    fits = width <= volume["x"] and depth <= volume["y"]
+    turned = width <= volume["y"] and depth <= volume["x"]
+
+    if not (fits or turned) or top.thickness_mm > volume["z"]:
+        raise ValueError(
+            f"The stack top is {top.cells[0]} x {top.cells[1]} cells, {width:.0f} x "
+            f"{depth:.0f} x {top.thickness_mm:.0f} mm; the printer's bed is "
+            f"{volume['x']:.0f} x {volume['y']:.0f} x {volume['z']:.0f} mm. A stack top is "
+            "whole cells over the lid: build a smaller enclosure"
         )

@@ -80,6 +80,7 @@ from zcad_core.features.lid_slide import (
     add_slide,
     slide_clearance_error,
 )
+from zcad_core.features.mount_stack import StackTop, build_stack_top
 from zcad_core.features.mounts import (
     MOUNTS,
     MountPads,
@@ -236,17 +237,21 @@ class EnclosureDesign:
     # A mount plate that bolts to four pads under the floor; none by default.
     mount: str | None = None
     mount_plate_mm: float = 4.0
-    # The stack profile file a ``stack`` mount is built to.
+    # The stack profile file a ``stack`` mount or a stack top is built to.
     stack_profile: str | None = None
+    # A baseplate over a screwed lid, held by the lid's own screws, so things stack on the box.
+    stack_top: bool = False
 
     def validate(self) -> None:
         if self.mount is not None and self.mount not in MOUNTS:
             raise ValueError(f"mount must be one of {MOUNTS}")
 
-        if (self.mount == "stack") != (self.stack_profile is not None):
+        if (self.mount == "stack" or self.stack_top) != (
+            self.stack_profile is not None
+        ):
             raise ValueError(
-                "mount 'stack' and stack_profile go together: a stack mount needs "
-                "the profile it is built to, and a profile needs the mount"
+                "mount 'stack', a stack top and stack_profile go together: a stack mount "
+                "or a stack top needs the profile it is built to, and a profile needs one"
             )
 
         for name in ("wall_mm", "floor_mm", "lid_mm", "boss_radial_wall_mm"):
@@ -377,6 +382,8 @@ class Enclosure:
     # design asks for a mount.
     mount_pads: MountPads | None = None
     mount: MountPlate | None = None
+    # The baseplate over the lid, when the design asks for a stack top.
+    stack_top: StackTop | None = None
     # The hinge and its catch, for a hinged lid.
     hinge: HingeReport | None = None
     # The grooves and detent, for a sliding lid.
@@ -411,6 +418,10 @@ def build_enclosure(
     design = design or EnclosureDesign()
     design.validate()
     fastener = get_fastener(design.fastener)
+
+    if design.stack_top:
+        _require_stack_top_possible(design, assembly, board_identifier, display)
+
     if design.side_clearance_mm is None:
         spec, side_clearance = _automatic_specification(
             assembly,
@@ -561,6 +572,23 @@ def build_enclosure(
         )
         require_mount_clear(base, mount)
 
+    stack_top = None
+
+    if design.stack_top and design.stack_profile:
+        stack_top = build_stack_top(
+            positions,
+            centre=(spec.center_x_mm, spec.center_y_mm),
+            lid_size_mm=(
+                spec.inner_width_mm + 2 * design.wall_mm,
+                spec.inner_depth_mm + 2 * design.wall_mm,
+            ),
+            lid_top_z_mm=cavity_top + design.lid_mm,
+            lid_mm=design.lid_mm,
+            fastener=fastener,
+            profile=load_profile(Path(design.stack_profile)),
+            compensation=design.hole_compensation_mm,
+        )
+
     _require_clear_of_assembly(assembly, base=base, lid=lid)
     _require_parts_clear(base, lid)
     thermal = _thermal_estimate(
@@ -582,6 +610,7 @@ def build_enclosure(
         display_screw_reach_mm=display_screws[1] if display_screws else None,
         mount_pads=pads,
         mount=mount,
+        stack_top=stack_top,
         hinge=hinge,
         slide=slide,
         thermal=thermal,
@@ -589,6 +618,45 @@ def build_enclosure(
         fan=fan_summary,
         fan_body=cooling.fan_plan.body if cooling.fan_plan else None,
     )
+
+
+def _require_stack_top_possible(
+    design: EnclosureDesign,
+    assembly: DeviceAssembly,
+    board_identifier: str,
+    display: DisplaySpec | None,
+) -> None:
+    """Refuse a stack top on a lid that does not stay shut with its own screws or has openings:
+    the plate would fix a hinged, sliding or snap lid or cover a window or an outlet."""
+
+    reasons: list[str] = []
+
+    if design.lid_attachment != "screws":
+        reasons.append(
+            f"the lid is '{design.lid_attachment}', and a stack top is held by a screwed "
+            "lid's own screws, so the lid must be 'screws'"
+        )
+
+    if display is not None:
+        reasons.append("the lid has the display's window")
+
+    if design.vent_area_mm2:
+        reasons.append("the lid has outlets (vent_area_mm2)")
+
+    if design.fan is not None and design.fan_position == "lid":
+        reasons.append("a fan is mounted in the lid")
+
+    if any(
+        component.metadata.get("board_identifier") == board_identifier
+        and component.metadata.get("lid_vent")
+        for component in assembly.components
+    ):
+        reasons.append("a board part draws air through slots in the lid")
+
+    if reasons:
+        raise ValueError(
+            "A stack top cannot go on this enclosure:\n- " + "\n- ".join(reasons)
+        )
 
 
 def _is_closed(design: EnclosureDesign, assembly: DeviceAssembly) -> bool:

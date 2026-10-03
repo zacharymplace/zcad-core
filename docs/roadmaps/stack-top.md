@@ -69,7 +69,7 @@ at least that and a plate is 8.85 mm tall with the example profile (a floor of 4
 
 ## Phases
 
-1. **The top plate on a single-board enclosure.** `--stack-top` with `--stack-profile`, the cells search, the recesses, the screw length, the refusals, `check-stack` reading the
+1. **The top plate on a single-board enclosure (built).** `--stack-top` with `--stack-profile`, the cells search, the recesses, the screw length, the refusals, `check-stack` reading the
    record's `stack_top` entry as a baseplate, and the build record.
 2. **The Pi 5 group.** The same for a group enclosure's lid, which is larger and has its own screws and outlets.
 3. **Trials.** The record names the plate and the longer screws; a trial reads whether the plate sits flat, whether the screws reach the inserts, and a stack's wobble and count, as the
@@ -90,3 +90,20 @@ Each phase is one PR, and no existing build changes unless `--stack-top` is aske
   cells, since a pocket cannot sit over a window, and the build would need to place them. The proposal is to refuse first and add it if a trial finds a box that needs it.
 - **Whether the plate should be two parts.** A plate that is only the pockets, laid on a thin plate screwed to the lid, would let the screws stay short. The proposal is one part, since a second
   part is a second print and a second thing to lose.
+
+### What phase 1 changed
+
+See *A stack top: things stacked on the box* in [Stackable items](../guides/stackable-items.md).
+
+- **It is `build_stack_top` in `mount_stack.py`, on the baseplate the profile already builds.** The plate is `baseplate_solid` with a floor of the head's recess and a millimetre, translated onto the
+  lid's top face, with a hole and a recess cut at each lid screw. The cells are searched with the stack plate's own `_cell_options` and `_inside_a_foot`, so a screw's recess lies inside a foot's bottom area,
+  which is inside the pocket floor.
+- **The floor is 4.5 mm and the plate 8.85 mm** with an M3 head on the example profile, as the design said. The screw reach is 8 mm: a millimetre of floor under the head, the 2 mm lid and the insert's
+  5 mm, so the build prints an 8 mm screw where the lid's own is 6.
+- **Cells.** A Pico 2 box takes 1 x 2, 44.4 x 86.4 mm. The design's rule, the least cells that cover the lid with every recess in a floor, found a 1 x 2 plate that does, so the search added nothing here.
+- **Refusals are all listed.** `_require_stack_top_possible` runs before the enclosure is built and names every reason together: a lid that is not `screws`, the display's window, `vent_area_mm2` outlets, a fan in
+  the lid, and board parts that draw air through lid slots. The design also named a lid whose screws the catalogue cannot lengthen; with the lengths listed that cannot happen for an M3, so it is not checked.
+- **`stack_top` is its own flag beside `mount`.** An enclosure can have a stack plate under it and a stack top over it. `stack_profile` goes with either, and a profile with neither is refused.
+- **`check-stack` reads `RECORD:top`.** The enclosure's record carries `stack_top` (profile by hash, cells, floor, rim, screws), and `check-stack` takes the top as a baseplate of those cells and floor, as the
+  *lower* item. A record with none says how to build one.
+- **Not built yet:** the Pi 5 group, and the trial readings, as phases 2 and 3. Holding by magnets, bolts or latches on a top is not asked for in this phase.

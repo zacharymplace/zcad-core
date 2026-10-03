@@ -149,6 +149,9 @@ other pattern.
 [stack profile](stackable-items.md)'s foot, in whole cells, that stands on a baseplate or a bin of the
 same cells. See *Enclosures on the grid* there.
 
+`--stack-top` (with `--stack-profile`) adds the other half: a baseplate over a screwed lid, held by the lid's own screws, so bins and other boxes stack on this one. See
+[Stackable items](stackable-items.md#a-stack-top-things-stacked-on-the-box).
+
 The keyhole plate is refused if a keyhole would come within 2 mm of a screw
 hole or an edge, which small enclosures cannot avoid; the plate then needs a
 larger footprint.

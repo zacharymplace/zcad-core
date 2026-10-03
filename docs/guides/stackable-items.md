@@ -142,6 +142,29 @@ zcad-validation stack check-stack --upper exports/pico-on-grid/enclosure.json --
 It checks it as it checks a bin: the profile by hash (a profile that has changed since the build is not trusted), the cells, the
 holding (a stack plate holds by the lip alone) and the overlap of real solids. Nothing stacks on a stack plate.
 
+### A stack top: things stacked on the box
+
+A stack plate puts an enclosure on the grid. A **stack top** puts the grid on the enclosure: a baseplate, in whole cells that cover the lid, that sits on the lid and is held by the
+lid's own screws. A lip cannot be cut into a lid, because a lip is whole cells and a lid is the size of the board.
+
+```bash
+zcad-validation enclosure build --board raspberry_pi_pico_2 --stack-top \
+  --stack-profile my-profile.json --output-directory exports/pico-with-top
+zcad-validation stack check-stack --upper my-stack.json:tub --lower exports/pico-with-top/enclosure.json:top
+```
+
+- **It is a baseplate.** Bins, frames and another enclosure's stack plate stand in its pockets as on any baseplate, and `check-stack` reads it as one: `RECORD:top` names it. Holding by
+  magnets, bolts or latches on a top is not built yet.
+- **The cells** are the least that cover the lid, and the build tries up to two more cells each way, smallest area first, until every lid screw's head recess lies inside a pocket's floor. A
+  Pico 2 box takes 1 x 2 cells, 44.4 x 86.4 mm. The plate is centred on the lid and overhangs it where the cells are bigger, and it is refused, with its cells, if it is bigger than the printer's bed.
+- **It is held by the lid's own screws, made longer.** Each goes down through a recess sunk in a pocket's floor, through the plate and the lid, into its insert. The recess is the head's diameter and a little
+  more, and as deep as the head plus 0.5 mm; the plate's **floor is that and a millimetre under it**, 4.5 mm with an M3 head, so the plate is 8.85 mm tall on the example profile. The build prints the screw
+  length: the millimetre, the lid and the insert's depth, 8 mm for an M3 on a 2 mm lid, where the lid's own are 6.
+- **It needs a lid that is screwed shut and has nothing in it.** A snap, hinged or sliding lid is refused, as is a lid with the display's window, outlets (`--vent-area-mm2`), a fan, or slots over a
+  board part. The plate would fix a lid that must open or cover an opening, and the build names each reason it finds. Vent slots in the walls are fine.
+- **The engine states no load rating:** it does not say what the lid carries or whether the plate flexes under a bin. The record's `stack_top` names the plate, its profile by hash, its cells, its floor
+  and the screws.
+
 ## Electronics layers
 
 A **layer** stacks over a board, as a hat does. It adopts the board's own mounting holes, not the grid's, so
