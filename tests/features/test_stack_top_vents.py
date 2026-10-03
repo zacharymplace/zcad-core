@@ -15,6 +15,7 @@ from zcad_core.cli import main
 from zcad_core.features.mount_stack import (
     MAXIMUM_WINDOWS,
     _merge,
+    _offsets,
     build_stack_top,
     lid_openings,
     plain_lid,
@@ -252,3 +253,60 @@ def test_a_pico_with_an_outlet_is_refused_because_its_screws_share_the_cells(
 
     assert code == 1
     assert "in a cell with no window" in capsys.readouterr().err
+
+
+# --- shifting the plate off the lid's centre ----------------------------------------------------
+
+
+def test_with_no_windows_the_plate_is_not_shifted(tmp_path: Path) -> None:
+    profile = load_profile(write_profile(tmp_path))
+
+    assert _offsets((3, 1), (60.0, 40.0), profile, False) == [(0.0, 0.0)]
+    assert top_for(tmp_path, []).stack["offset_mm"] == [0.0, 0.0]
+
+
+def test_the_shifts_tried_are_the_least_first_and_keep_the_lid_covered(
+    tmp_path: Path,
+) -> None:
+    profile = load_profile(write_profile(tmp_path))
+    shifts = _offsets((3, 1), (60.0, 40.0), profile, True)
+
+    assert shifts[0] == (0.0, 0.0)
+    sizes = [x * x + y * y for x, y in shifts[1:]]
+
+    assert sizes == sorted(sizes)
+    # A plate of three cells is 128.4 mm long against a 60 mm lid, so it may move 34 mm along
+    # it; across, 44.4 mm against 40 mm leaves 2.2 mm, so 2 mm.
+    assert max(abs(x) for x, _ in shifts) == 34.0
+    assert max(abs(y) for _, y in shifts) == 2.0
+
+
+def test_a_window_off_the_middle_is_met_by_shifting_the_plate(tmp_path: Path) -> None:
+    # The window is over a cell at the left that holds a screw, with the plate centred.
+    top = top_for(
+        tmp_path,
+        [(-24.0, -5.0, -16.0, 5.0)],
+        positions=[(-34.0, -10.0), (-34.0, 10.0), (34.0, -10.0), (34.0, 10.0)],
+        size=(60.0, 40.0),
+    )
+
+    assert top.cells == (3, 1) and top.vent_cells == (1,)
+    assert top.stack["offset_mm"] == [-5.0, 0.0]
+    box = top.plate.val().BoundingBox()
+
+    assert (box.xmin + box.xmax) / 2 == pytest.approx(-5.0, abs=0.01)
+    # The window is through the plate, and a screw's hole is open beside the pockets.
+    assert not inside(top.plate, -20.0, 0.0, LID_TOP + 1.0)
+    assert not inside(top.plate, 34.0, 10.0, LID_TOP + 0.5)
+    # The pockets are where the shifted cells are: left of the vent cell, and right of it.
+    floor_top = LID_TOP + top.floor_mm
+    assert not inside(top.plate, -47.0, 0.0, floor_top + 0.5)
+    assert not inside(top.plate, 37.0, 0.0, floor_top + 0.5)
+    assert inside(top.plate, -47.0, 0.0, floor_top - 0.5)
+
+
+def test_a_lid_whose_outlet_fills_it_is_still_refused_with_the_shift_named(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="even with the plate shifted"):
+        top_for(tmp_path, [(-70.0, -8.0, 70.0, 8.0)], positions=[(0.0, 10.0)])

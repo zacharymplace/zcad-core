@@ -179,4 +179,17 @@ See *Vent windows* in [Stackable items](../guides/stackable-items.md#a-stack-top
   The fan is refused for a reason the design missed: the fan's frame stands above the lid, where the plate goes.
 - **`check-stack` knows the vent cells.** The top's record carries them, the baseplate built from it has no pockets there, and a bin laid over one is refused with a message that names them.
 - **A top with windows asks one more check,** `stack_top_vents_open`, and its template names the cells and windows.
-- **Not covered:** a plate shifted off the lid's centre so a window falls on a cell boundary, which would let a small box have windows; airflow through a window, which is a temperature for a trial.
+- **Not covered:** airflow through a window, which is a temperature for a trial.
+
+### What shifting the plate changed
+
+See *Vent windows* in [Stackable items](../guides/stackable-items.md#a-stack-top-things-stacked-on-the-box).
+
+- **The search has a shift.** `_place` tries, for each number of cells, no shift and then every whole millimetre each way that leaves the lid covered (the plate's slack, `(cells x pitch + 2 x rim - lid) / 2`), the least first,
+  and takes the first plate whose screws are all in cells with no window. It is tried only when the lid has windows, so a top without them is placed as before, centred.
+- **The case it was for.** A window off the middle of the lid, over a cell at one end that holds a screw: lid 60 x 40 mm, screws at 34 mm, a window 8 x 10 mm 20 mm left of centre. Centred, the left cell is a vent cell with a
+  screw in it, and no number of cells fixes that; shifted 5 mm left, the window is in the middle cell and the screws are in the end cells. The test builds exactly this.
+- **It does not rescue the Pico 2 with a large outlet.** The earlier note said a shift would let a small box have windows. On the Pico 2 box with `--vent-area-mm2 300` the outlet is 20 x 50 mm on a 33 x 77 mm lid, wider than
+  the space between the screws and nearly as tall as the lid, so a window touches every row that could hold the screws, wherever the plate is. The refusal stays and now says the shift was tried. With a small outlet the
+  centred search already finds a plate, so a shift is not needed.
+- **The record names the shift** as `offset_mm`, `[0, 0]` when there is none, and the plate is built at that centre.
