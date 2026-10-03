@@ -21,6 +21,7 @@ zcad-validation = "zcad_core.cli:main"
 dev = [
   "mypy>=2.3,<3",
   "pytest>=9,<10",
+  "pytest-timeout>=2,<3",
   "pytest-xdist>=3,<4",
   "ruff>=0.16,<1",
 ]
@@ -66,6 +67,9 @@ warn_unreachable = true
 pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = ["--strict-markers"]
+# A test that has not finished in a quarter of an hour has hung; it fails, with a stack, rather
+# than holding the gate (and a push's tests) for good. Needs pytest-timeout, in the dev extras.
+timeout = 900
 markers = [
   "slow: loads a vendor STEP model from evidence/; deselect with -m 'not slow'",
 ]
