@@ -265,6 +265,9 @@ with the designed figures beside the blanks:
 
 - **A hooked item:** whether it **clicked on** and **clicked off**, the **separation force** by spring scale pulling it off, and a **count of snaps** with whether anything wore.
 - **A drawer:** whether it **clicked shut** and **clicked open**, the **pull force** to take it out of its dimples, and the same count.
+- **A drawer with a stop** has four readings more: whether it **stopped** when pulled out, the **stop force** a spring scale reads pulling against the stop before you squeeze, whether squeezing both
+  bumps in through the windows **released** it, and whether it then **went back** in past the windows and clicked shut. Its checks are `stop_holds` and `stop_releases`, and its frame's is
+  `windows_clean`. The sizes to measure add how far the drawer stops out (`<drawer>_stop_travel_mm`) and each window's length and height (`<frame>_window_length_mm`, `<frame>_window_height_mm`).
 
 **The engine states no limit for any reading, and states no holding force.** It records the force and the count and sets each beside what was designed.
 
