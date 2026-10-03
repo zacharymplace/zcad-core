@@ -37,24 +37,30 @@ from zcad_core.features.enclosure_group_model import (
     GroupEnclosure,
 )
 from zcad_core.features.enclosure_trial import (
+    CHECK_GUIDANCE,
     LID,
     MEASUREMENTS,
     OBSERVATIONS,
+    STACK_TOP,
     THERMAL,
+    EnclosureCheck,
     EnclosureTrialDisposition,
     _lid,
     _lid_template,
     _measurements,
     _observations,
     _read,
+    _stack_top,
+    _stack_top_template,
     _thermal,
     _thermal_template,
     lid_summary_of,
     sha256,
+    stack_top_nominals,
 )
 
-GROUP_BUILD_SCHEMA_VERSION = "1.0.0"
-GROUP_TRIAL_SCHEMA_VERSION = "1.0.0"
+GROUP_BUILD_SCHEMA_VERSION = "1.1.0"
+GROUP_TRIAL_SCHEMA_VERSION = "1.1.0"
 BUILD_RECORD = "enclosure-group.json"
 TRIAL_RECORD = "enclosure-group-trial.json"
 
@@ -129,6 +135,9 @@ def box_checks(design: GroupDesign, hinge: bool, slide: bool) -> list[str]:
     if slide:
         checks += ["lid_slides_free", "detent_holds_lid"]
 
+    if design.stack_top:
+        checks += ["stack_top_sits_flat", "stack_top_screws_reach"]
+
     return [*checks, "nothing_rattles"]
 
 
@@ -158,6 +167,12 @@ def check_guidance(name: str) -> str:
 
     if name in _BOX_GUIDANCE:
         return _BOX_GUIDANCE[name]
+
+    if name in (
+        EnclosureCheck.STACK_TOP_SITS_FLAT.value,
+        EnclosureCheck.STACK_TOP_SCREWS_REACH.value,
+    ):
+        return CHECK_GUIDANCE[EnclosureCheck(name)]
 
     kind = name.split("-", 2)[2]
 
@@ -190,6 +205,8 @@ def nominal_measurements(group: GroupEnclosure) -> dict[str, float]:
     if design.join_bolts:
         # Two units bolted together: their walls meet with no gap.
         nominals["joint_gap_mm"] = 0.0
+
+    nominals.update(stack_top_nominals(group.stack_top))
 
     return {name: round(value, 3) for name, value in nominals.items()}
 
@@ -320,6 +337,12 @@ def start_group_trial(build_record_path: Path) -> Path:
             json.dumps(_lid_template(build["lid"]), indent=2) + "\n", encoding="utf-8"
         )
 
+    if build.get("stack_top"):
+        (trial / STACK_TOP).write_text(
+            json.dumps(_stack_top_template(build["stack_top"]), indent=2) + "\n",
+            encoding="utf-8",
+        )
+
     return trial
 
 
@@ -358,6 +381,7 @@ def complete_group_trial(
     measurements = _measurements(trial)
     thermal = _thermal(trial, build)
     lid = _lid(trial, build)
+    stack_top = _stack_top(trial, build)
     failed = [entry["check"] for entry in observations if not entry["passed"]]
 
     if (
@@ -365,10 +389,11 @@ def complete_group_trial(
         and not measurements
         and thermal is None
         and lid is None
+        and stack_top is None
     ):
         raise ValueError(
             f"A {disposition.value} trial needs at least one measurement, a "
-            "recorded temperature, or a lid reading"
+            "recorded temperature, a lid reading, or a stack top reading"
         )
 
     if disposition is EnclosureTrialDisposition.PASS and failed:
@@ -398,6 +423,7 @@ def complete_group_trial(
         ],
         "thermal": thermal,
         "lid": lid,
+        "stack_top": stack_top,
         "notes": notes,
         "completed_at_utc": datetime.now(UTC).isoformat(),
     }

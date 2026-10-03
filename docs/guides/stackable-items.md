@@ -168,6 +168,15 @@ zcad-validation stack check-stack --upper my-stack.json:tub --lower exports/pico
 - **The engine states no load rating:** it does not say what the lid carries or whether the plate flexes under a bin. The record's `stack_top` names the plate, its profile by hash, its cells, its floor
   and the screws.
 
+**Trying a print.** A build with a stack top adds two checks to the enclosure's or the group's trial, `stack_top_sits_flat` and `stack_top_screws_reach`, and six sizes to measure (the plate's width,
+depth and thickness, its floor, and the screw recess's depth and diameter). `trial start` also writes `stack_top.json`, with what was designed beside blanks:
+
+- **`gap_under_plate_mm`:** the gap a feeler gauge finds between the plate and the lid at the worst corner with the screws in.
+- **`screws_pass_all_holes`** and **`screw_length_mm`:** whether a screw goes through plate, lid and insert at every corner, and the length you used, kept beside the recommended one.
+- **A bin stacked on it:** its **`bin_wobble_mm`** by feeler gauge, the **`separation_force_n`** a spring scale reads lifting it off, and a **count of stackings** with whether anything wore. Wear needs the count.
+
+Each is left blank if not taken, and any one reading is enough to complete a trial. **The engine states no limit and no load rating for any reading.** A blank `stack_top.json` is left out of the record.
+
 ## Electronics layers
 
 A **layer** stacks over a board, as a hat does. It adopts the board's own mounting holes, not the grid's, so

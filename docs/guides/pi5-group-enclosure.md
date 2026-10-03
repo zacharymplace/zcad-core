@@ -519,7 +519,7 @@ zcad-validation enclosure-group trial complete \
 ```
 
 `trial start` writes `trials/trial-001/` with `observations.json`, `measurements.json`
-and `thermal.json`, and `lid.json` for a hinged or sliding lid.
+and `thermal.json`, `lid.json` for a hinged or sliding lid, and `stack_top.json` for a row built with `--stack-top`.
 
 - **Checks.** One set for the box (a clean print, the inserts, the lid closing, a
   hinged lid swinging, the catch or the slide's detent, nothing rattling) and one for

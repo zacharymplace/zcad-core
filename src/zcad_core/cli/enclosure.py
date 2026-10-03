@@ -606,6 +606,9 @@ def _trial_start(args: argparse.Namespace) -> int:
     if (trial / "lid.json").is_file():
         payload["lid"] = str(trial / "lid.json")
 
+    if (trial / "stack_top.json").is_file():
+        payload["stack_top"] = str(trial / "stack_top.json")
+
     # A slice beside the build record may predate a fix to the geometry.
     summary = args.build_record.parent / "slice" / "slice-summary.json"
 
