@@ -53,6 +53,23 @@ components. Then read the file against the real board, since a model is often
 wrong, and trial it like any board from a file. A model with no mounting holes
 gives a board for the snap-in cradle.
 
+## From a KiCad board
+
+If you have the board's KiCad design (KiCad 6 or later), read the outline, thickness and holes from it:
+
+```bash
+zcad-validation board import --kicad board.kicad_pcb --output my-board.json \
+  --default-height 6 --default-height-source "tallest part, measured"
+```
+
+The import reads the board's `Edge.Cuts` outline (a rectangle, a rounded rectangle, or a polygon), the thickness the file gives, and the mounting holes (round non-plated drills and `MountingHole`
+footprints; the commonest size is taken and others are listed). It does not read the parts yet, so two things stay open and the file is written with `needs_review`: the **cable connector**, which you set by hand,
+and the **heights**, which a KiCad file does not hold. `--default-height` with `--default-height-source` gives one height for every part, which is written as the board's `envelope` with where it came from;
+give both or neither. A file with no thickness gets a placeholder you must replace.
+
+This reader has been tested on boards written by hand, **not on a file exported from KiCad**, so check the outline and holes against the board. A hole whose place depends on how KiCad turns or
+mirrors a footprint is flagged `footprint_transforms` for you to check. See [Importing a KiCad board](../roadmaps/kicad-import.md).
+
 ## Measuring a board
 
 Look at the board from above, with its centre as the origin: **+X to the right,

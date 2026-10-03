@@ -9,7 +9,9 @@
 
 This is the design for reading a KiCad board into a board file, so that the engine's enclosures, [PCB test fixtures](pcb-test-fixtures.md), nests and guides can be built from a design the user already has.
 
-This is a design, not built work. Nothing below exists in the code yet.
+**Status (2026-10-03): phase 1 is built; phases 2 to 4 are design only.** Phase 1 reads the outline, the thickness and the mounting holes (`zcad-validation board import --kicad`), and is
+tested only against boards written by hand to the format's documented tokens, not against a file exported from KiCad: **no real board has been read yet**. What the reader assumes, and what a real
+board must check, is under [Phase 1, as built](#phase-1-as-built).
 
 ## What the engine does not claim
 
@@ -125,6 +127,29 @@ is settled. A second import with the same options writes the same file.
 4. **Heights from 3D models.** `--models DIR`, reading a footprint's STEP model through its `at`, `scale` and `rotate`, marked as from a model.
 
 Each phase is one PR, and no existing board or import changes.
+
+### Phase 1, as built
+
+`zcad-validation board import --kicad FILE --output OUT [--default-height MM --default-height-source TEXT]`, in `hardware/electronics/kicad_sexp.py` (the reader) and `kicad_import.py`.
+
+- **Reads** KiCad 6 and later (file version 20211014 or newer; an older file or a `module` is refused with what to do). The outline is `Edge.Cuts` lines, arcs, circles, rectangles, polygons and curves, in the
+  board and in footprints, joined within 0.01 mm and sampled to 0.02 mm. A plain rectangle is written as `rectangle`, a rectangle with four equal quarter-round corners as `rounded_rectangle`, anything else as a
+  `polygon` (at most 500 points). A panel (more than one outer loop) and an open outline are refused, the second with the two ends and the gap.
+- **Holes**: round non-plated drills, plated drills of a `MountingHole*` footprint, and `Edge.Cuts` circles of 0.8 to 8 mm. The commonest diameter of 1.6 mm or more is the mounting size, a tie going to the smaller;
+  other sizes and oval slots are listed with positions, and so is any other cut-out, none of them modelled.
+- **Thickness** from `(general (thickness T))`. A file without one gets 1.6 mm as a placeholder **and** `needs_review: thickness`: the figure is not read, so it is not trusted.
+- **Heights** are open (`needs_review: heights`) unless `--default-height` is given with `--default-height-source`; the two go together, the default is written as `envelope.top_mm`, and the board file's `source`
+  says it is one default and where it came from.
+- **The cable connector** cannot be read until phase 2 reads parts, so the file is written with `needs_review: cable_connector` and a placeholder connector. To build from it now, set `cable_connector` by hand
+  and remove `needs_review`.
+
+**Unverified, and written as such.** Three conventions are assumed and have not been checked against KiCad: Y points down (so Y is flipped); a footprint's angle is counter-clockwise on screen; and a bottom-side
+footprint is mirrored in X before it is turned. The first is how KiCad draws and affects every board; the other two only matter for a point that is *not at its footprint's origin*. A mounting hole at the centre
+of a `MountingHole` footprint, the usual case, does not depend on them. Where one does (an offset drill in a turned or bottom-side footprint, or `Edge.Cuts` drawn inside one), the import lists it under
+`unverified_transforms` and writes `needs_review: footprint_transforms`, which the loader refuses until the positions are checked against the board. The tests pin these assumptions as assumptions; a real
+board with a rotated footprint and one on the bottom side is what settles them.
+
+The file-version floor, 20211014 for KiCad 6, is from memory of KiCad's source and has not been checked against an exported file.
 
 ## Not covered
 
