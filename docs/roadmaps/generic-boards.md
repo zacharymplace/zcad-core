@@ -189,6 +189,7 @@ Each phase is one PR. Phases 1 and 2 add a way in and change no existing board.
 - **KiCad and other EDA files.** A `.kicad_pcb` gives the outline, the holes,
   and footprint positions, but not part heights, which live in 3D models. A later
   import could read the first three and ask for the heights.
+  [Importing a KiCad board](kicad-import.md) is that design.
 - **Displays.** A display is its own spec with its own fields. The same file
   and import would suit it, as a follow-up.
 - **Boards with no cable connector, flexible boards, and boards that stack.** A
