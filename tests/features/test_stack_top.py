@@ -12,10 +12,8 @@ import cadquery as cq
 import pytest
 
 from zcad_core.cli import main
-from zcad_core.features.enclosure import (
-    EnclosureDesign,
-    _require_stack_top_possible,
-)
+from zcad_core.features.enclosure import EnclosureDesign
+from zcad_core.features.enclosure_checks import _require_stack_top_possible
 from zcad_core.features.mount_stack import (
     build_stack_top,
     recess_depth_mm,

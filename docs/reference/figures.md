@@ -70,7 +70,7 @@ The engine states no strength, holding force or load claim, and a figure it did 
 
 | Figure | Value | Basis |
 | --- | --- | --- |
-| `features/enclosure.py:_OPENING_CLEARANCE_MM` | `0.6` | The builder's default fit, before hole compensation widens it |
+| `features/enclosure_openings.py:_OPENING_CLEARANCE_MM` | `0.6` | The builder's default fit, before hole compensation widens it |
 | `features/enclosure_thermal.py:DEFAULT_SERVICE_LIMIT_C` | `60.0` | A design value for PETG's continuous air temperature, well under the 70 to 80 C at which it softens; a material profile's max_service_c overrides it |
 | `features/guide_bores.py:GUIDE_LENGTH_FACTOR` | `1.5` | A printed bore's length in drill diameters: a design default, not a measured value; a trial replaces it |
 | `features/guide_bores.py:MINIMUM_GUIDE_LENGTH_MM` | `3.0` | A printed bore's least length: a design default, not a measured value; a trial replaces it |
@@ -223,32 +223,21 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `DisplayRetainerParameters.pad_mm` = `2.5`
 - `DisplayRetainerParameters.wall_mm` = `1.2`
 
-**`features/enclosure.py`**
+**`features/enclosure_cooling.py`**
 
-- `EnclosureDesign.boss_radial_wall_mm` = `1.8`
-- `EnclosureDesign.bottom_clearance_mm` = `2.0`
-- `EnclosureDesign.cable_plug_height_mm` = `7.5`
-- `EnclosureDesign.cable_plug_width_mm` = `12.5`
-- `EnclosureDesign.floor_mm` = `2.0`
-- `EnclosureDesign.lid_mm` = `2.0`
-- `EnclosureDesign.mount_plate_mm` = `4.0`
-- `EnclosureDesign.slide_clearance_mm` = `0.2`
-- `EnclosureDesign.top_clearance_mm` = `2.0`
-- `EnclosureDesign.wall_mm` = `2.0`
-- `HOLE_COMPENSATION_RANGE_MM` = `(-0.2, 1.0)`
-- `_BOSS_WALL_OVERLAP_MM` = `0.5`
-- `_COUNTERSINK_HEAD_ALLOWANCE_MM` = `0.0`
-- `_CRADLE_CLEARANCE_MM` = `0.3`
-- `_DISPLAY_POST_WALL_MM` = `1.2`
-- `_FLOOR_EMBED_MM` = `0.5`
-- `_HINGE_SIDE_CLEARANCE_MM` = `3.0`
-- `_INTERFERENCE_TOLERANCE_MM3` = `1e-06`
 - `_LID_VENT_PITCH_MM` = `5.0`
 - `_LID_VENT_WIDTH_MM` = `2.4`
-- `_MINIMUM_SIDE_CLEARANCE_MM` = `2.0`
-- `_OPENING_OVERCUT_MM` = `0.5`
-- `_PLUG_MARGIN_MM` = `1.5`
+
+**`features/enclosure_display.py`**
+
+- `_DISPLAY_POST_WALL_MM` = `1.2`
 - `_RETAINER_CLEARANCE_MM` = `0.3`
+
+**`features/enclosure_geometry.py`**
+
+- `_BOSS_WALL_OVERLAP_MM` = `0.5`
+- `_CRADLE_CLEARANCE_MM` = `0.3`
+- `_INTERFERENCE_TOLERANCE_MM3` = `1e-06`
 - `_SUPPORT_MARGIN_MM` = `2.0`
 - `_UNDER_BOARD_CLEARANCE_MM` = `0.3`
 
@@ -368,6 +357,30 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `VENT_RIM_MM` = `1.5`
 - `VENT_WIDTH_MM` = `1.6`
 
+**`features/enclosure_lid_build.py`**
+
+- `_COUNTERSINK_HEAD_ALLOWANCE_MM` = `0.0`
+
+**`features/enclosure_model.py`**
+
+- `EnclosureDesign.boss_radial_wall_mm` = `1.8`
+- `EnclosureDesign.bottom_clearance_mm` = `2.0`
+- `EnclosureDesign.cable_plug_height_mm` = `7.5`
+- `EnclosureDesign.cable_plug_width_mm` = `12.5`
+- `EnclosureDesign.floor_mm` = `2.0`
+- `EnclosureDesign.lid_mm` = `2.0`
+- `EnclosureDesign.mount_plate_mm` = `4.0`
+- `EnclosureDesign.slide_clearance_mm` = `0.2`
+- `EnclosureDesign.top_clearance_mm` = `2.0`
+- `EnclosureDesign.wall_mm` = `2.0`
+- `HOLE_COMPENSATION_RANGE_MM` = `(-0.2, 1.0)`
+- `_FLOOR_EMBED_MM` = `0.5`
+
+**`features/enclosure_openings.py`**
+
+- `_OPENING_OVERCUT_MM` = `0.5`
+- `_PLUG_MARGIN_MM` = `1.5`
+
 **`features/enclosure_review.py`**
 
 - `_CONTACT_MM` = `0.05`
@@ -379,6 +392,11 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `NOISE_MM` = `0.05`
 - `PLUG_STEP_MM` = `1.0`
 - `SCALE_TOLERANCE` = `0.005`
+
+**`features/enclosure_specification.py`**
+
+- `_HINGE_SIDE_CLEARANCE_MM` = `3.0`
+- `_MINIMUM_SIDE_CLEARANCE_MM` = `2.0`
 
 **`features/enclosure_thermal.py`**
 

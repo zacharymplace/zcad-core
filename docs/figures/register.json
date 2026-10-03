@@ -155,86 +155,31 @@
     "features/display_retainer.py:DisplayRetainerParameters.wall_mm": {
       "status": "unstated"
     },
-    "features/enclosure.py:EnclosureDesign.boss_radial_wall_mm": {
+    "features/enclosure_cooling.py:_LID_VENT_PITCH_MM": {
       "status": "unstated"
     },
-    "features/enclosure.py:EnclosureDesign.bottom_clearance_mm": {
+    "features/enclosure_cooling.py:_LID_VENT_WIDTH_MM": {
       "status": "unstated"
     },
-    "features/enclosure.py:EnclosureDesign.cable_plug_height_mm": {
+    "features/enclosure_display.py:_DISPLAY_POST_WALL_MM": {
       "status": "unstated"
     },
-    "features/enclosure.py:EnclosureDesign.cable_plug_width_mm": {
+    "features/enclosure_display.py:_RETAINER_CLEARANCE_MM": {
       "status": "unstated"
     },
-    "features/enclosure.py:EnclosureDesign.floor_mm": {
+    "features/enclosure_geometry.py:_BOSS_WALL_OVERLAP_MM": {
       "status": "unstated"
     },
-    "features/enclosure.py:EnclosureDesign.lid_mm": {
+    "features/enclosure_geometry.py:_CRADLE_CLEARANCE_MM": {
       "status": "unstated"
     },
-    "features/enclosure.py:EnclosureDesign.mount_plate_mm": {
+    "features/enclosure_geometry.py:_INTERFERENCE_TOLERANCE_MM3": {
       "status": "unstated"
     },
-    "features/enclosure.py:EnclosureDesign.slide_clearance_mm": {
+    "features/enclosure_geometry.py:_SUPPORT_MARGIN_MM": {
       "status": "unstated"
     },
-    "features/enclosure.py:EnclosureDesign.top_clearance_mm": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:EnclosureDesign.wall_mm": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:HOLE_COMPENSATION_RANGE_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_BOSS_WALL_OVERLAP_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_COUNTERSINK_HEAD_ALLOWANCE_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_CRADLE_CLEARANCE_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_DISPLAY_POST_WALL_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_FLOOR_EMBED_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_HINGE_SIDE_CLEARANCE_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_INTERFERENCE_TOLERANCE_MM3": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_LID_VENT_PITCH_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_LID_VENT_WIDTH_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_MINIMUM_SIDE_CLEARANCE_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_OPENING_CLEARANCE_MM": {
-      "status": "design_default",
-      "note": "The builder's default fit, before hole compensation widens it"
-    },
-    "features/enclosure.py:_OPENING_OVERCUT_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_PLUG_MARGIN_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_RETAINER_CLEARANCE_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_SUPPORT_MARGIN_MM": {
-      "status": "unstated"
-    },
-    "features/enclosure.py:_UNDER_BOARD_CLEARANCE_MM": {
+    "features/enclosure_geometry.py:_UNDER_BOARD_CLEARANCE_MM": {
       "status": "unstated"
     },
     "features/enclosure_group.py:_INTERFERENCE_TOLERANCE_MM3": {
@@ -499,6 +444,55 @@
     "features/enclosure_lid.py:VENT_WIDTH_MM": {
       "status": "unstated"
     },
+    "features/enclosure_lid_build.py:_COUNTERSINK_HEAD_ALLOWANCE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_model.py:EnclosureDesign.boss_radial_wall_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_model.py:EnclosureDesign.bottom_clearance_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_model.py:EnclosureDesign.cable_plug_height_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_model.py:EnclosureDesign.cable_plug_width_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_model.py:EnclosureDesign.floor_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_model.py:EnclosureDesign.lid_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_model.py:EnclosureDesign.mount_plate_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_model.py:EnclosureDesign.slide_clearance_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_model.py:EnclosureDesign.top_clearance_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_model.py:EnclosureDesign.wall_mm": {
+      "status": "unstated"
+    },
+    "features/enclosure_model.py:HOLE_COMPENSATION_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_model.py:_FLOOR_EMBED_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_openings.py:_OPENING_CLEARANCE_MM": {
+      "status": "design_default",
+      "note": "The builder's default fit, before hole compensation widens it"
+    },
+    "features/enclosure_openings.py:_OPENING_OVERCUT_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_openings.py:_PLUG_MARGIN_MM": {
+      "status": "unstated"
+    },
     "features/enclosure_review.py:_CONTACT_MM": {
       "status": "unstated"
     },
@@ -519,6 +513,12 @@
       "status": "unstated"
     },
     "features/enclosure_revision.py:SCALE_TOLERANCE": {
+      "status": "unstated"
+    },
+    "features/enclosure_specification.py:_HINGE_SIDE_CLEARANCE_MM": {
+      "status": "unstated"
+    },
+    "features/enclosure_specification.py:_MINIMUM_SIDE_CLEARANCE_MM": {
       "status": "unstated"
     },
     "features/enclosure_thermal.py:CONVECTION_W_M2K": {
