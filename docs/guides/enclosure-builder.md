@@ -413,6 +413,9 @@ trial records them and decides nothing. A blank `lid.json` is left out of the
 record, so a trial that does not try the lid is unchanged. Any one reading is
 enough to complete a trial.
 
+An enclosure built with `--stack-top` also opens a `stack_top.json`: the gap under the plate, whether the screws pass, the screw length used, and a stacked bin's wobble, lifting force and count of
+stackings. See [Stackable items](stackable-items.md#a-stack-top-things-stacked-on-the-box).
+
 ### Recording a temperature
 
 Every trial also opens a `thermal.json`. It shows what the build predicted, and

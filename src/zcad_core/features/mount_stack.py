@@ -316,6 +316,7 @@ def build_stack_top(
         "thickness_mm": round(box.zlen, 3),
         "holding": "lip",
         "screw_recess_mm": recess,
+        "recess_diameter_mm": round(2 * radius, 3),
         "screw_reach_mm": round(reach, 3),
         "recommended_screw_mm": screw,
         "lid_top_z_mm": round(lid_top_z_mm, 3),

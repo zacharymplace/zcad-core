@@ -72,7 +72,7 @@ at least that and a plate is 8.85 mm tall with the example profile (a floor of 4
 1. **The top plate on a single-board enclosure (built).** `--stack-top` with `--stack-profile`, the cells search, the recesses, the screw length, the refusals, `check-stack` reading the
    record's `stack_top` entry as a baseplate, and the build record.
 2. **The Pi 5 group (built).** The same for a group enclosure's lid, which is larger and has its own screws and outlets.
-3. **Trials.** The record names the plate and the longer screws; a trial reads whether the plate sits flat, whether the screws reach the inserts, and a stack's wobble and count, as the
+3. **Trials (built).** The record names the plate and the longer screws; a trial reads whether the plate sits flat, whether the screws reach the inserts, and a stack's wobble and count, as the
    stack plate's does. The engine states no limit.
 
 Each phase is one PR, and no existing build changes unless `--stack-top` is asked for.
@@ -121,3 +121,17 @@ See *A stack top: things stacked on the box* in [Stackable items](../guides/stac
 - **`stack_top` joins `GroupDesign` and `GroupEnclosure`**, and the group's build record carries `stack_top`, so `check-stack RECORD:top` reads it as it does an enclosure's. The record's `design` holds `stack_top`.
 - **A row too wide for the bed is refused with its cells,** by the same bed check as the plate. The two-bay Pi 5 row, 176 mm wide, is refused by the row's own bed check first.
 - **Not built yet:** the trials, phase 3.
+
+### What phase 3 changed
+
+See *Trying a print* in [Stackable items](../guides/stackable-items.md#a-stack-top-things-stacked-on-the-box). All three phases are built.
+
+- **The readings are `stack_top.json` beside the enclosure's other trial files.** It is written only when the build has a stack top, as `lid.json` is for a hinged lid, and a blank one is left out of the record. Both the
+  enclosure trial and the group trial read it, through the same functions.
+- **Two checks and six sizes.** `stack_top_sits_flat` and `stack_top_screws_reach` join the enclosure checks; the plate's width, depth, thickness and floor and the recess's depth and diameter join the sizes to measure.
+  The record's stack figures gain `recess_diameter_mm` for that. The design asked the trial to read "whether the plate sits flat, whether the screws reach the inserts, and a stack's wobble and count"; the wobble
+  and the count are of a bin stacked on the plate, and the force of lifting it off is added.
+- **The screw length used is a reading,** kept beside the recommended one, so a trial that used a 6 mm screw says so.
+- **No limits, no load rating.** The readings are set beside what was designed and nothing is compared with a figure.
+- **Records are schema 1.1.0** for the enclosure's and the group's build and trial.
+- **Not covered:** a rig for the force, a count to wear-out, and vent windows in the plate over a lid's outlets, which stays open until a trial finds a box that needs them.

@@ -17,6 +17,11 @@ A hinged or sliding lid also gets a ``lid.json``: what a hand and a spring scale
 find of the pin, the swing, the slide force, and how many openings the lid took.
 The engine states no figure for any of these; a trial records them, and a
 completed trial keeps them beside what the build designed.
+
+An enclosure with a **stack top** also gets a ``stack_top.json``: the **gap** a feeler gauge
+finds under the plate, whether the **screws pass** every hole, the length of screw used, and, of a
+bin stacked on it, its **wobble**, the **force** a spring scale reads lifting it off, and a **count of
+stackings** with whether anything wore. The engine states no limit for any of them.
 """
 
 from __future__ import annotations
@@ -35,17 +40,19 @@ from zcad_core.features.enclosure import Enclosure
 from zcad_core.features.insert_bosses import InsertBossParameters
 from zcad_core.features.lid_hinge import HingeReport
 from zcad_core.features.lid_slide import SlideReport
+from zcad_core.features.mount_stack import StackTop
 from zcad_core.hardware import DisplaySpec, get_fastener
 from zcad_core.validation.measurements import PhysicalMeasurement
 
-ENCLOSURE_BUILD_SCHEMA_VERSION = "1.0.0"
-ENCLOSURE_TRIAL_SCHEMA_VERSION = "1.0.0"
+ENCLOSURE_BUILD_SCHEMA_VERSION = "1.1.0"
+ENCLOSURE_TRIAL_SCHEMA_VERSION = "1.1.0"
 BUILD_RECORD = "enclosure.json"
 TRIAL_RECORD = "enclosure-trial.json"
 OBSERVATIONS = "observations.json"
 MEASUREMENTS = "measurements.json"
 THERMAL = "thermal.json"
 LID = "lid.json"
+STACK_TOP = "stack_top.json"
 # A temperature is only a figure once it has stopped changing.
 MINIMUM_SETTLED_MINUTES = 10.0
 THERMAL_GUIDANCE = (
@@ -75,6 +82,8 @@ class EnclosureCheck(str, Enum):
     CATCH_HOLDS = "catch_holds_lid"
     LID_SLIDES = "lid_slides_free"
     DETENT_HOLDS = "detent_holds_lid"
+    STACK_TOP_SITS_FLAT = "stack_top_sits_flat"
+    STACK_TOP_SCREWS_REACH = "stack_top_screws_reach"
 
 
 CHECK_GUIDANCE = {
@@ -124,6 +133,15 @@ CHECK_GUIDANCE = {
     EnclosureCheck.DETENT_HOLDS: (
         "The detent clicks as the lid reaches home and holds it shut when "
         "the box is shaken"
+    ),
+    EnclosureCheck.STACK_TOP_SITS_FLAT: (
+        "The stack top lies flat on the lid, with no rocking and no gap you can see "
+        "at any corner, and a bin stands in its pockets"
+    ),
+    EnclosureCheck.STACK_TOP_SCREWS_REACH: (
+        "A screw goes through the plate, the lid and into its insert at every corner, "
+        "its head sitting in the recess below the pocket's floor, and draws the plate "
+        "down without cracking it"
     ),
 }
 LID_GUIDANCE = {
@@ -189,7 +207,29 @@ def applicable_checks(enclosure: Enclosure) -> tuple[EnclosureCheck, ...]:
     if enclosure.slide is None:
         skipped |= {EnclosureCheck.LID_SLIDES, EnclosureCheck.DETENT_HOLDS}
 
+    if enclosure.stack_top is None:
+        skipped |= {
+            EnclosureCheck.STACK_TOP_SITS_FLAT,
+            EnclosureCheck.STACK_TOP_SCREWS_REACH,
+        }
+
     return tuple(check for check in EnclosureCheck if check not in skipped)
+
+
+def stack_top_nominals(top: StackTop | None) -> dict[str, float]:
+    """The sizes of a stack top a trial measures with calipers and a depth gauge, in mm."""
+
+    if top is None:
+        return {}
+
+    return {
+        "stack_top_width_mm": top.size_mm[0],
+        "stack_top_depth_mm": top.size_mm[1],
+        "stack_top_thickness_mm": top.thickness_mm,
+        "stack_top_floor_mm": top.floor_mm,
+        "stack_top_recess_depth_mm": top.screw_recess_mm,
+        "stack_top_recess_diameter_mm": float(top.stack["recess_diameter_mm"]),
+    }
 
 
 def nominal_measurements(
@@ -233,6 +273,8 @@ def nominal_measurements(
 
     if enclosure.slide is not None:
         nominals["slide_clearance_per_side_mm"] = enclosure.slide.clearance_mm
+
+    nominals.update(stack_top_nominals(enclosure.stack_top))
 
     if display is not None:
         clearance = display.recommended_window_clearance_mm
@@ -379,6 +421,12 @@ def start_enclosure_trial(build_record_path: Path) -> Path:
             json.dumps(_lid_template(build["lid"]), indent=2) + "\n", encoding="utf-8"
         )
 
+    if build.get("stack_top"):
+        (trial / STACK_TOP).write_text(
+            json.dumps(_stack_top_template(build["stack_top"]), indent=2) + "\n",
+            encoding="utf-8",
+        )
+
     (trial / OBSERVATIONS).write_text(
         json.dumps(observations, indent=2) + "\n", encoding="utf-8"
     )
@@ -387,6 +435,45 @@ def start_enclosure_trial(build_record_path: Path) -> Path:
     )
 
     return trial
+
+
+STACK_TOP_GUIDANCE = (
+    "gap_under_plate_mm: the gap a feeler gauge finds between the plate and the lid at the worst "
+    "corner with the screws in; screws_pass_all_holes: a screw goes through plate, lid and "
+    "insert at every corner; screw_length_mm: the length you used; bin_wobble_mm: the gap a "
+    "feeler gauge finds at a corner of a bin stacked on it when the bin is pressed down at the "
+    "opposite side; separation_force_n: the highest force a spring scale reads lifting that bin "
+    "off; stackings_counted: how many times it was stacked and lifted off, and anything_wore "
+    "whether the plate, the lid or a boss wore, cracked or went slack"
+)
+
+
+def _stack_top_template(stack: dict[str, Any]) -> dict[str, Any]:
+    """The stack top template: what the build designed, and blanks for a feeler gauge, a spring
+    scale and a count. Leave a reading blank when it was not taken."""
+
+    return {
+        "not_a_limit": (
+            "The engine states no limit for any reading here, and no load rating: it records "
+            "what was measured and what was seen"
+        ),
+        "guidance": STACK_TOP_GUIDANCE,
+        "designed": {
+            "cells": stack["cells"],
+            "floor_mm": stack["floor_mm"],
+            "thickness_mm": stack["thickness_mm"],
+            "recommended_screw_mm": stack["recommended_screw_mm"],
+            "screw_reach_mm": stack["screw_reach_mm"],
+        },
+        "gap_under_plate_mm": None,
+        "screws_pass_all_holes": None,
+        "screw_length_mm": None,
+        "bin_wobble_mm": None,
+        "separation_force_n": None,
+        "stackings_counted": None,
+        "anything_wore": None,
+        "notes": "",
+    }
 
 
 def _lid_template(lid: dict[str, Any]) -> dict[str, Any]:
@@ -609,6 +696,80 @@ def _lid(trial: Path, build: dict[str, Any]) -> dict[str, Any] | None:
     return record
 
 
+def _stack_top(trial: Path, build: dict[str, Any]) -> dict[str, Any] | None:
+    """The trial's stack top readings, validated and set beside what was designed; ``None``
+    when none was taken."""
+
+    stack = build.get("stack_top")
+    path = trial / STACK_TOP
+    entry = _read(path) if path.is_file() else {}
+
+    if not stack:
+        if entry:
+            raise ValueError(
+                "stack_top.json: this enclosure was built with no stack top"
+            )
+
+        return None
+
+    where = STACK_TOP
+    gap = _non_negative(entry, "gap_under_plate_mm", where)
+    wobble = _non_negative(entry, "bin_wobble_mm", where)
+    force = _positive(entry, "separation_force_n", where)
+    length = _positive(entry, "screw_length_mm", where)
+    passes = entry.get("screws_pass_all_holes")
+    count, wore = entry.get("stackings_counted"), entry.get("anything_wore")
+
+    if passes is not None and not isinstance(passes, bool):
+        raise TypeError(f"{where}: screws_pass_all_holes must be true or false")
+
+    if count is None:
+        if wore is not None:
+            raise ValueError(f"{where}: anything_wore needs stackings_counted")
+    elif isinstance(count, bool) or not isinstance(count, int) or count < 1:
+        raise ValueError(f"{where}: stackings_counted must be a whole number from 1")
+    elif not isinstance(wore, bool):
+        raise TypeError(f"{where}: anything_wore must be true or false")
+
+    readings = (gap, wobble, force, length, passes, count)
+
+    if all(value is None for value in readings):
+        return None
+
+    return {
+        "gap_under_plate_mm": gap,
+        "screws_pass_all_holes": passes,
+        "screw_length_mm": length,
+        "recommended_screw_mm": stack["recommended_screw_mm"],
+        "bin_wobble_mm": wobble,
+        "separation_force_n": force,
+        "stackings_counted": count,
+        "anything_wore": wore,
+        "designed": {
+            "cells": stack["cells"],
+            "floor_mm": stack["floor_mm"],
+            "thickness_mm": stack["thickness_mm"],
+            "screw_reach_mm": stack["screw_reach_mm"],
+        },
+        "notes": entry.get("notes", ""),
+        "not_a_limit": (
+            "The engine states no limit for any reading here, and no load rating"
+        ),
+    }
+
+
+def _non_negative(entry: dict[str, Any], name: str, where: str) -> float | None:
+    value = entry.get(name)
+
+    if value is None:
+        return None
+
+    if isinstance(value, bool) or not isinstance(value, int | float) or value < 0:
+        raise ValueError(f"{where}: {name} must be a number from zero, not {value!r}")
+
+    return float(value)
+
+
 def _wear(entry: dict[str, Any], where: str) -> dict[str, Any]:
     """The count of openings and whether the lid was damaged by them. Damage
     needs a count: a lid is only as worn as the number of times it was worked."""
@@ -714,6 +875,7 @@ def complete_enclosure_trial(
     measurements = _measurements(trial)
     thermal = _thermal(trial, build)
     lid = _lid(trial, build)
+    stack_top = _stack_top(trial, build)
     failed = [entry["check"] for entry in observations if not entry["passed"]]
 
     if (
@@ -721,10 +883,11 @@ def complete_enclosure_trial(
         and not measurements
         and thermal is None
         and lid is None
+        and stack_top is None
     ):
         raise ValueError(
             f"A {disposition.value} trial needs at least one measurement, a "
-            "recorded temperature, or a lid reading"
+            "recorded temperature, a lid reading, or a stack top reading"
         )
 
     if disposition is EnclosureTrialDisposition.PASS and failed:
@@ -748,6 +911,7 @@ def complete_enclosure_trial(
         ],
         "thermal": thermal,
         "lid": lid,
+        "stack_top": stack_top,
         "notes": notes,
         "completed_at_utc": datetime.now(UTC).isoformat(),
     }
