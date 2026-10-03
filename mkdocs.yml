@@ -35,6 +35,10 @@ nav:
       - A test fixture for your board: guides/pcb-test-fixture.md
       - Pi 5 group enclosure: guides/pi5-group-enclosure.md
       - Measuring a wearable: guides/wearable-capture.md
+      - A housing for something you wear: guides/wearable-housing.md
+      - A holding nest for your part: guides/holding-nest.md
+      - An insert jig for your part: guides/insert-jig.md
+      - Stackable items: guides/stackable-items.md
   - Roadmaps:
       - Validation Lab: roadmaps/validation-lab.md
       - Next phases: roadmaps/next-phases.md
@@ -44,6 +48,14 @@ nav:
       - Generic boards: roadmaps/generic-boards.md
       - Drill guides and fixtures: roadmaps/drill-guides.md
       - PCB test fixtures: roadmaps/pcb-test-fixtures.md
+      - Modular bays: roadmaps/modular-bays.md
+      - Wearable housings: roadmaps/wearable-housings.md
+      - Nests and jigs: roadmaps/nests-and-jigs.md
+      - Stackable items: roadmaps/stackable-items.md
+      - Stackable latches: roadmaps/stackable-latches.md
+      - Stacking on a lid: roadmaps/stack-top.md
+      - A drawer stop: roadmaps/drawer-stop.md
+      - Importing a KiCad board: roadmaps/kicad-import.md
   - API Reference:
       - Overview: reference/index.md
       - assemblies: reference/assemblies.md

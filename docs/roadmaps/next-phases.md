@@ -44,8 +44,10 @@ publication-eligible.
    skip wherever `evidence/` is absent, as it is in a linked worktree; they
    are marked `slow`, and
    `scripts/check.sh --fast` skips them for a quicker local loop. Tests run
-   in parallel with pytest-xdist: the full gate takes about a minute and
-   `--fast` under 40 seconds (2026-09-29).
+   in parallel with pytest-xdist: the full gate takes about four and a half
+   minutes (2026-10-03; the suite has grown since it took about a minute).
+   A slice that stalls is stopped after 900 s and a test that runs past 900 s
+   fails (`pytest-timeout`), so a hang is a failure, not a wait.
 
 ### Visual reviews (2026-09-28)
 
