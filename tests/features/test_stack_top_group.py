@@ -71,38 +71,37 @@ def test_a_group_stack_top_goes_with_its_profile() -> None:
 
 
 @pytest.mark.parametrize(
-    ("changes", "slots", "fans", "message"),
+    ("changes", "fans", "message"),
     [
-        ({"lid_attachment": "hinge"}, 0, 0, "the lid is 'hinge'"),
-        ({"lid_attachment": "slide"}, 0, 0, "the lid is 'slide'"),
-        ({}, 3, 0, "build with --no-vents"),
-        ({"vent_area_mm2": 400.0}, 0, 0, "the lid has outlets"),
-        ({}, 0, 1, "a fan is mounted in the lid"),
+        ({"lid_attachment": "hinge"}, 0, "the lid is 'hinge'"),
+        ({"lid_attachment": "slide"}, 0, "the lid is 'slide'"),
+        ({}, 1, "a fan is mounted on the lid"),
     ],
 )
-def test_a_row_whose_lid_moves_or_has_openings_is_refused_with_the_reason(
-    changes: dict[str, Any], slots: int, fans: int, message: str
+def test_a_row_whose_lid_moves_or_has_a_fan_is_refused_with_the_reason(
+    changes: dict[str, Any], fans: int, message: str
 ) -> None:
     design = GroupDesign(stack_top=True, stack_profile="p.json", **changes)
 
     with pytest.raises(ValueError, match="cannot go on this row") as raised:
-        _require_stack_top_possible(design, slots=slots, fans=fans)
+        _require_stack_top_possible(design, fans=fans)
 
     assert message in str(raised.value)
 
 
+def test_slots_and_outlets_are_not_reasons_to_refuse() -> None:
+    design = GroupDesign(stack_top=True, stack_profile="p.json", vent_area_mm2=400.0)
+
+    _require_stack_top_possible(design, fans=0)
+
+
 def test_every_reason_is_listed_at_once() -> None:
-    design = GroupDesign(
-        stack_top=True,
-        stack_profile="p.json",
-        lid_attachment="hinge",
-        vent_area_mm2=9.0,
-    )
+    design = GroupDesign(stack_top=True, stack_profile="p.json", lid_attachment="hinge")
 
     with pytest.raises(ValueError) as raised:
-        _require_stack_top_possible(design, slots=2, fans=1)
+        _require_stack_top_possible(design, fans=1)
 
-    assert str(raised.value).count("\n- ") == 4
+    assert str(raised.value).count("\n- ") == 2
 
 
 def test_a_one_bay_pi5_row_builds_a_top_and_records_it(tmp_path: Path) -> None:
@@ -139,11 +138,11 @@ def test_the_plate_covers_the_lid_and_sits_on_its_top_face(tmp_path: Path) -> No
     )
 
 
-def test_the_default_row_with_its_fan_slots_is_refused_and_says_what_to_do(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+def test_the_default_row_with_its_fan_slots_builds_with_a_window_over_them(
+    tmp_path: Path,
 ) -> None:
     profile = write_profile(tmp_path)
-    code, _ = run(
+    code, built = run(
         "enclosure-group",
         "build",
         "--bays",
@@ -155,8 +154,13 @@ def test_the_default_row_with_its_fan_slots_is_refused_and_says_what_to_do(
         str(tmp_path / "default"),
     )
 
-    assert code == 1
-    assert "build with --no-vents" in capsys.readouterr().err
+    assert code == 0 and built["validation_status"] == "PASS"
+    stack = built["stack_top"]["stack"]
+
+    assert stack["vent_cells"] and stack["vent_windows_mm"]
+    assert stack["cells_usable"] == stack["cells"][0] * stack["cells"][1] - len(
+        stack["vent_cells"]
+    )
 
 
 def test_a_sliding_row_is_refused_at_the_command(

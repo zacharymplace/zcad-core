@@ -85,6 +85,7 @@ class EnclosureCheck(str, Enum):
     STACK_TOP_SITS_FLAT = "stack_top_sits_flat"
     STACK_TOP_SCREWS_REACH = "stack_top_screws_reach"
     STACK_TOP_HOLDS = "stack_top_holds"
+    STACK_TOP_VENTS_OPEN = "stack_top_vents_open"
 
 
 CHECK_GUIDANCE = {
@@ -142,6 +143,10 @@ CHECK_GUIDANCE = {
     EnclosureCheck.STACK_TOP_HOLDS: (
         "A bin stands in the plate's pockets and is held: its magnets seat flush and "
         "attract, or its hooks click into the keepers and let go to a pull"
+    ),
+    EnclosureCheck.STACK_TOP_VENTS_OPEN: (
+        "Each window in the plate lies over its outlet with nothing across it, and air "
+        "can pass through; the cells with no pocket are left empty"
     ),
     EnclosureCheck.STACK_TOP_SCREWS_REACH: (
         "A screw goes through the plate, the lid and into its insert at every corner, "
@@ -217,9 +222,14 @@ def applicable_checks(enclosure: Enclosure) -> tuple[EnclosureCheck, ...]:
             EnclosureCheck.STACK_TOP_SITS_FLAT,
             EnclosureCheck.STACK_TOP_SCREWS_REACH,
             EnclosureCheck.STACK_TOP_HOLDS,
+            EnclosureCheck.STACK_TOP_VENTS_OPEN,
         }
-    elif not top_holds(enclosure.stack_top.stack):
-        skipped.add(EnclosureCheck.STACK_TOP_HOLDS)
+    else:
+        if not top_holds(enclosure.stack_top.stack):
+            skipped.add(EnclosureCheck.STACK_TOP_HOLDS)
+
+        if not enclosure.stack_top.stack.get("vent_cells"):
+            skipped.add(EnclosureCheck.STACK_TOP_VENTS_OPEN)
 
     return tuple(check for check in EnclosureCheck if check not in skipped)
 
@@ -482,6 +492,8 @@ def _stack_top_template(stack: dict[str, Any]) -> dict[str, Any]:
             "magnet": stack.get("magnet", ""),
             "latch_sides": stack.get("latch_sides", []),
             "latch_engagement_mm": stack.get("latch_engagement_mm"),
+            "vent_cells": stack.get("vent_cells", []),
+            "vent_windows_mm": stack.get("vent_windows_mm", []),
         },
         "gap_under_plate_mm": None,
         "screws_pass_all_holes": None,

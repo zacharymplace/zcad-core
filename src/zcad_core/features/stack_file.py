@@ -164,6 +164,8 @@ class Item:
     # A stop that keeps a drawer in: windows in a frame's walls, a vertical-faced bump on a
     # drawer. It needs the detent.
     stop: bool = False
+    # A stack top's vent cells: the baseplate's cells with a window and no pocket.
+    vent_cells: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)

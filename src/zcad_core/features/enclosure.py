@@ -86,6 +86,8 @@ from zcad_core.features.mount_stack import (
     build_stack_top,
     check_top_holding,
     latch_sides,
+    lid_openings,
+    plain_lid,
 )
 from zcad_core.features.mounts import (
     MOUNTS,
@@ -441,7 +443,7 @@ def build_enclosure(
     fastener = get_fastener(design.fastener)
 
     if design.stack_top:
-        _require_stack_top_possible(design, assembly, board_identifier, display)
+        _require_stack_top_possible(design)
 
     if design.side_clearance_mm is None:
         spec, side_clearance = _automatic_specification(
@@ -596,6 +598,23 @@ def build_enclosure(
     stack_top = None
 
     if design.stack_top and design.stack_profile:
+        lid_size = (
+            spec.inner_width_mm + 2 * design.wall_mm,
+            spec.inner_depth_mm + 2 * design.wall_mm,
+        )
+        lid_windows = lid_openings(
+            lid,
+            plain_lid(
+                (spec.center_x_mm, spec.center_y_mm),
+                lid_size,
+                cavity_top,
+                design.lid_mm,
+                positions,
+                fastener.clearance_hole_mm + design.hole_compensation_mm,
+            ),
+            cavity_top,
+            cavity_top + design.lid_mm,
+        )
         stack_top = build_stack_top(
             positions,
             centre=(spec.center_x_mm, spec.center_y_mm),
@@ -608,6 +627,7 @@ def build_enclosure(
             fastener=fastener,
             profile=load_profile(Path(design.stack_profile)),
             compensation=design.hole_compensation_mm,
+            openings=lid_windows,
             holding=TopHolding(
                 design.stack_top_holding,
                 design.stack_top_magnet or "",
@@ -648,14 +668,10 @@ def build_enclosure(
     )
 
 
-def _require_stack_top_possible(
-    design: EnclosureDesign,
-    assembly: DeviceAssembly,
-    board_identifier: str,
-    display: DisplaySpec | None,
-) -> None:
-    """Refuse a stack top on a lid that does not stay shut with its own screws or has openings:
-    the plate would fix a hinged, sliding or snap lid or cover a window or an outlet."""
+def _require_stack_top_possible(design: EnclosureDesign) -> None:
+    """Refuse a stack top on a lid that does not stay shut with its own screws or has a fan on
+    it: the plate would fix a hinged, sliding or snap lid, and stand on a fan's frame. The lid's
+    openings are not a reason: the plate leaves a window over each."""
 
     reasons: list[str] = []
 
@@ -665,21 +681,8 @@ def _require_stack_top_possible(
             "lid's own screws, so the lid must be 'screws'"
         )
 
-    if display is not None:
-        reasons.append("the lid has the display's window")
-
-    if design.vent_area_mm2:
-        reasons.append("the lid has outlets (vent_area_mm2)")
-
     if design.fan is not None and design.fan_position == "lid":
-        reasons.append("a fan is mounted in the lid")
-
-    if any(
-        component.metadata.get("board_identifier") == board_identifier
-        and component.metadata.get("lid_vent")
-        for component in assembly.components
-    ):
-        reasons.append("a board part draws air through slots in the lid")
+        reasons.append("a fan is mounted on the lid, and its frame stands above it")
 
     if reasons:
         raise ValueError(

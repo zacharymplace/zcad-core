@@ -11,7 +11,7 @@ foot, a lip and a pocket are true ruled surfaces and arcs, not faceted.
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from itertools import pairwise
 
 import cadquery as cq
@@ -185,10 +185,15 @@ def bin_solid(
 
 
 def baseplate_solid(
-    profile: StackProfile, cells: tuple[int, int], floor_mm: float, rim_mm: float
+    profile: StackProfile,
+    cells: tuple[int, int],
+    floor_mm: float,
+    rim_mm: float,
+    skip: Collection[int] = frozenset(),
 ) -> tuple[cq.Workplane, float]:
     """A baseplate, and the height of its pocket floor: a plate with a pocket for
-    each cell that the profile's foot, with the nest clearance, sits in."""
+    each cell that the profile's foot, with the nest clearance, sits in. A cell whose index is in
+    ``skip`` gets no pocket and stays solid, as a stack top's vent cell does."""
 
     clearance = profile.min_nest_clearance_mm
     ridge_inset = (RIDGE_TOP_MM + 2 * clearance - profile.gap_mm) / 2
@@ -209,7 +214,10 @@ def baseplate_solid(
     ]
     points.append((points[-1][0], floor_mm + depth_z + _OPEN_MM))
 
-    for centre in cell_centres(cells, profile.pitch_mm):
+    for index, centre in enumerate(cell_centres(cells, profile.pitch_mm)):
+        if index in skip:
+            continue
+
         pocket = chain(top, top, profile.corner_radius_mm, points).translate(
             (centre[0], centre[1], 0.0)
         )
