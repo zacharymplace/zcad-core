@@ -162,6 +162,9 @@ zcad-validation stack check-stack --upper my-stack.json:tub --lower exports/pico
   length: the millimetre, the lid and the insert's depth, 8 mm for an M3 on a 2 mm lid, where the lid's own are 6.
 - **It needs a lid that is screwed shut and has nothing in it.** A snap, hinged or sliding lid is refused, as is a lid with the display's window, outlets (`--vent-area-mm2`), a fan, or slots over a
   board part. The plate would fix a lid that must open or cover an opening, and the build names each reason it finds. Vent slots in the walls are fine.
+- **A group enclosure takes one too:** `enclosure-group build --stack-top --stack-profile my-profile.json`, on a screwed lid. The row's lid has slots over each Pi's fan by default, which a plate
+  would cover, so the build refuses and says to build with `--no-vents`; with no slots a Pi's fan breathes through the base. The refusals are the same: a hinged or sliding lid, `--vent-area-mm2`
+  outlets, a fan in the lid. The group's lid is 3 mm, so its screws reach 9 mm and an M3 is 8 mm. A one-bay Pi 5 row takes 3 x 3 cells; a row wider than the bed is refused, with its cells.
 - **The engine states no load rating:** it does not say what the lid carries or whether the plate flexes under a bin. The record's `stack_top` names the plate, its profile by hash, its cells, its floor
   and the screws.
 

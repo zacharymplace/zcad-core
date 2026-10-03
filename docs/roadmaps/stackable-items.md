@@ -337,7 +337,7 @@ See *The build record and stacking trials* in [Stackable items](../guides/stacka
 - **A layer has no build record yet.** `stack layer build` still writes only its parts; the layer record follows (below).
 
 All six phases are built. The latch has its own [design](stackable-latches.md), and all four of its phases are built: bins, frames, baseplates and caps that snap, a drawer
-that clicks shut, and their trials. A stop that keeps a drawer in has its own [design](drawer-stop.md), with both its phases built. The enclosure lid's top, `--stack-top`, has its own [design](stack-top.md), with its first phase (a single-board enclosure) built.
+that clicks shut, and their trials. A stop that keeps a drawer in has its own [design](drawer-stop.md), with both its phases built. The enclosure lid's top, `--stack-top`, has its own [design](stack-top.md), with its first two phases (a single-board enclosure and a group) built.
 
 ### The layer record
 
