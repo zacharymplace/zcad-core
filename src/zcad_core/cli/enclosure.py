@@ -45,7 +45,10 @@ from zcad_core.features.enclosure_trial import (
 from zcad_core.features.fan_bay import FAN_DIRECTIONS, FAN_POSITIONS
 from zcad_core.features.lid_hinge import HingeReport
 from zcad_core.features.lid_slide import SlideReport
-from zcad_core.features.mount_stack import require_plate_fits_bed
+from zcad_core.features.mount_stack import (
+    require_plate_fits_bed,
+    require_top_fits_bed,
+)
 from zcad_core.features.mounts import MOUNTS, flexure_payload
 from zcad_core.features.vent_patterns import PATTERNS
 from zcad_core.hardware import (
@@ -232,6 +235,7 @@ def _design(args: argparse.Namespace) -> EnclosureDesign:
         mount=args.mount,
         mount_plate_mm=args.mount_plate_mm,
         stack_profile=str(args.stack_profile) if args.stack_profile else None,
+        stack_top=getattr(args, "stack_top", False),
     )
 
 
@@ -240,6 +244,9 @@ def _parts(enclosure: Enclosure) -> dict[str, cq.Workplane]:
 
     if enclosure.mount is not None:
         parts["mount"] = enclosure.mount.plate
+
+    if enclosure.stack_top is not None:
+        parts["stack_top"] = enclosure.stack_top.plate
 
     return parts
 
@@ -260,6 +267,25 @@ def _mount_payload(enclosure: Enclosure) -> dict[str, object] | None:
         "pad_height_mm": enclosure.mount_pads.height_mm,
         "plate_size_mm": list(enclosure.mount.size_mm),
         "stack": enclosure.mount.stack,
+    }
+
+
+def _stack_top_payload(enclosure: Enclosure) -> dict[str, object] | None:
+    top = enclosure.stack_top
+
+    if top is None:
+        return None
+
+    return {
+        "cells": list(top.cells),
+        "size_mm": [round(top.size_mm[0], 3), round(top.size_mm[1], 3)],
+        "thickness_mm": round(top.thickness_mm, 3),
+        "floor_mm": round(top.floor_mm, 3),
+        "screws": f"{enclosure.fastener.identifier} x {top.recommended_screw_mm} mm, "
+        f"{len(enclosure.fastener_positions)} through the plate and the lid in place of "
+        "the lid's own, in a head recess",
+        "screw_reach_mm": round(top.screw_reach_mm, 3),
+        "stack": top.stack,
     }
 
 
@@ -368,6 +394,7 @@ def _build(
     name = args.name or f"{board.identifier.lower().replace('_', '-')}-enclosure"
     printer_profile = load_printer_profile(args.printer_profile)
     require_plate_fits_bed(enclosure.mount, printer_profile.get("build_volume_mm"))
+    require_top_fits_bed(enclosure.stack_top, printer_profile.get("build_volume_mm"))
     result = export_parts(
         ExportRequest(
             design_name=name,
@@ -427,6 +454,7 @@ def _build(
         "board_support": enclosure.board_support,
         "display_support": enclosure.display_support,
         "mount": _mount_payload(enclosure),
+        "stack_top": _stack_top_payload(enclosure),
         "thermal": enclosure.thermal.to_dict() if enclosure.thermal else None,
         "vents": enclosure.vents.to_dict() if enclosure.vents else None,
         "fan": enclosure.fan.to_dict() if enclosure.fan else None,
@@ -762,7 +790,13 @@ def register(
         "--stack-profile",
         type=Path,
         default=None,
-        help="the stack profile file a --mount stack plate is built to",
+        help="the stack profile file a --mount stack plate or a --stack-top is built to",
+    )
+    build.add_argument(
+        "--stack-top",
+        action="store_true",
+        help="add a baseplate over a screwed lid, held by the lid's own screws, so things "
+        "stack on the box; needs --stack-profile",
     )
     build.add_argument(
         "--vent-pattern",

@@ -213,15 +213,20 @@ def _from_file(
     return Resolved(_item(spec, name), load_stack_profile(spec)), []
 
 
-def _from_record(path: Path) -> tuple[Resolved | None, list[str]]:
-    """A stack plate from an enclosure's or a group's build record."""
+def _from_record(path: Path, top: bool = False) -> tuple[Resolved | None, list[str]]:
+    """A stack plate from an enclosure's or a group's build record, or, with ``top``, the stack
+    top over an enclosure's lid: a baseplate things stand on."""
 
     record = json.loads(path.read_text(encoding="utf-8"))
-    stack = record.get("stack") if isinstance(record, dict) else None
+    key = "stack_top" if top else "stack"
+    stack = record.get(key) if isinstance(record, dict) else None
 
     if not isinstance(stack, dict):
         message = (
-            f"{path.name} has no stack plate: build it with --mount stack and a "
+            f"{path.name} has no stack top: build it with --stack-top and a "
+            "--stack-profile"
+            if top
+            else f"{path.name} has no stack plate: build it with --mount stack and a "
             "--stack-profile"
         )
 
@@ -244,11 +249,22 @@ def _from_record(path: Path) -> tuple[Resolved | None, list[str]]:
         return None, [message]
 
     cells = (int(stack["cells"][0]), int(stack["cells"][1]))
-    item = Item(
-        kind="plate",
-        name=str(record.get("design_name", path.stem)),
-        cells=cells,
-        floor_mm=float(stack["plate_mm"]),
+    name = str(record.get("design_name", path.stem))
+    item = (
+        Item(
+            kind="baseplate",
+            name=f"{name}-top",
+            cells=cells,
+            floor_mm=float(stack["floor_mm"]),
+            rim_mm=float(stack["rim_mm"]),
+        )
+        if top
+        else Item(
+            kind="plate",
+            name=name,
+            cells=cells,
+            floor_mm=float(stack["plate_mm"]),
+        )
     )
 
     return Resolved(item, profile), []
@@ -297,8 +313,9 @@ def _from_stack_record(path: Path, name: str) -> tuple[Resolved | None, list[str
 
 
 def resolve(text: str, printer: Mapping[str, Any]) -> tuple[Resolved | None, list[str]]:
-    """One argument of ``check-stack``: ``FILE:NAME`` for an item in a stack file, or the
-    path of an enclosure's or a group's build record, for its stack plate."""
+    """One argument of ``check-stack``: ``FILE:NAME`` for an item in a stack file, the path of
+    an enclosure's or a group's build record for its stack plate, or ``RECORD:top`` for the stack
+    top over an enclosure's lid."""
 
     path = Path(text)
 
@@ -309,6 +326,16 @@ def resolve(text: str, printer: Mapping[str, Any]) -> tuple[Resolved | None, lis
             return _from_record(path)
 
     file, name = locate(text)
+
+    if name == "top" and file.suffix == ".json" and file.is_file():
+        data = json.loads(file.read_text(encoding="utf-8"))
+
+        if (
+            isinstance(data, dict)
+            and "design_name" in data
+            and not _is_stack_record(file)
+        ):
+            return _from_record(file, top=True)
 
     if _is_stack_record(file):
         return _from_stack_record(file, name)
