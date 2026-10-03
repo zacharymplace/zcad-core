@@ -32,6 +32,14 @@ from zcad_core.features.stack_holding import (
     check_holding_fits,
     holding_for,
 )
+from zcad_core.features.stack_latch import (
+    DEFAULT_SIDES,
+    ENGAGEMENT_RANGE_MM,
+    SIDES,
+    clash_errors,
+    engagement_for,
+    plan_latch,
+)
 from zcad_core.features.stack_profile import (
     StackProfile,
     load_profile,
@@ -82,6 +90,7 @@ _ITEM = {
             "holding",
             "magnet",
             "fastener",
+            "latch",
         }
     ),
     "baseplate": frozenset(
@@ -94,6 +103,7 @@ _ITEM = {
             "holding",
             "magnet",
             "fastener",
+            "latch",
         }
     ),
     "cap": frozenset({"kind", "name", "cells", "floor_mm"}),
@@ -109,6 +119,7 @@ _ITEM = {
             "holding",
             "magnet",
             "fastener",
+            "latch",
         }
     ),
     "drawer": frozenset({"kind", "name", "frame", "wall_mm", "floor_mm", "pull"}),
@@ -135,6 +146,10 @@ class Item:
     drawers: int = 0
     frame: str = ""
     pull: bool = True
+    # A latch: the sides of each cell's foot that carry a hook, and of each lip a keeper.
+    latch_sides: tuple[str, ...] = ()
+    # None: the profile's engagement, else the engine's.
+    latch_engagement_mm: float | None = None
 
 
 @dataclass(frozen=True)
@@ -270,6 +285,52 @@ def _check_bin(entry: Mapping[str, Any], where: str, findings: Findings) -> None
     number(entry, "floor_mm", where, findings, low=0.4, high=10.0, required=False)
 
 
+def check_latch_fields(
+    entry: Mapping[str, Any], where: str, findings: Findings
+) -> None:
+    """An item's ``latch``: the sides it has hooks and keepers on, and how far a hook
+    engages."""
+
+    latch = entry.get("latch")
+
+    if latch is None:
+        return
+
+    if not isinstance(latch, Mapping):
+        findings.errors.append(f"{where}.latch must be an object")
+
+        return
+
+    unknown = sorted(set(latch) - {"sides", "engagement_mm"})
+
+    if unknown:
+        findings.errors.append(
+            f"{where}.latch has unknown fields: {', '.join(unknown)}"
+        )
+
+    sides = latch.get("sides", list(DEFAULT_SIDES))
+
+    if (
+        not isinstance(sides, list)
+        or not sides
+        or len(set(sides)) != len(sides)
+        or not all(isinstance(side, str) and side in SIDES for side in sides)
+    ):
+        findings.errors.append(
+            f"{where}.latch.sides must be a list of different sides from {SIDES}"
+        )
+
+    number(
+        latch,
+        "engagement_mm",
+        f"{where}.latch",
+        findings,
+        low=ENGAGEMENT_RANGE_MM[0],
+        high=ENGAGEMENT_RANGE_MM[1],
+        required=False,
+    )
+
+
 def _check_item(entry: Any, index: int, names: list[str], findings: Findings) -> None:
     where = f"items[{index}]"
 
@@ -304,6 +365,7 @@ def _check_item(entry: Any, index: int, names: list[str], findings: Findings) ->
 
     _check_kind(entry, kind, where, findings)
     check_holding_fields(entry, where, findings)
+    check_latch_fields(entry, where, findings)
 
 
 def _check_kind(
@@ -447,7 +509,25 @@ def _item(entry: Mapping[str, Any]) -> Item:
         drawers=int(entry.get("drawers", 0)),
         frame=str(entry.get("frame", "")),
         pull=bool(entry.get("pull", True)),
+        latch_sides=_latch_sides(entry),
+        latch_engagement_mm=_latch_engagement(entry),
     )
+
+
+def _latch_sides(entry: Mapping[str, Any]) -> tuple[str, ...]:
+    latch = entry.get("latch")
+
+    if latch is None:
+        return ()
+
+    return tuple(str(side) for side in latch.get("sides", DEFAULT_SIDES))
+
+
+def _latch_engagement(entry: Mapping[str, Any]) -> float | None:
+    latch = entry.get("latch")
+    value = None if latch is None else latch.get("engagement_mm")
+
+    return None if value is None else float(value)
 
 
 def stack_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> StackSpec:
@@ -525,6 +605,7 @@ def _check_item_fits(
     )
 
     _check_thickness(item, least_wall, least_floor, errors)
+    _check_latch_fits(item, profile, least_wall, clearance, errors)
 
     if item.kind in ("bin", "frame"):
         _check_bin_fits(item, profile, errors)
@@ -534,6 +615,44 @@ def _check_item_fits(
 
     if item.kind == "drawer" and spec is not None:
         _check_drawer_plan(item, profile, spec, clearance, errors)
+
+
+def _check_latch_fits(
+    item: Item,
+    profile: StackProfile,
+    least_wall: float,
+    clearance: float,
+    errors: list[str],
+) -> None:
+    """Refuse a latch the profile, the printer or the item's holding pockets cannot carry."""
+
+    if not item.latch_sides:
+        return
+
+    plan, problems = plan_latch(
+        profile,
+        engagement_for(item.latch_engagement_mm, profile),
+        least_wall,
+        clearance,
+    )
+    errors.extend(f"{item.name}: {problem}" for problem in problems)
+
+    if plan is None or item.kind == "baseplate":
+        return
+
+    holding = holding_for(item.holding, item.magnet, item.fastener)
+
+    if holding.holds:
+        errors.extend(
+            f"{item.name}: {problem}"
+            for problem in clash_errors(
+                plan,
+                item.latch_sides,
+                profile.holding_points,
+                holding.pocket_diameter_mm / 2,
+                least_wall,
+            )
+        )
 
 
 def _check_thickness(

@@ -15,7 +15,7 @@ its hash. See the stackable items design.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import cadquery as cq
@@ -40,6 +40,19 @@ from zcad_core.features.stack_file import (
     load_stack_profile,
 )
 from zcad_core.features.stack_holding import Holding, holding_for, screw_length_mm
+from zcad_core.features.stack_latch import (
+    LatchPlan,
+    add_latch_feet,
+    cells_on_side,
+    cut_lip_keepers,
+    cut_plate_keepers,
+    engagement_for,
+    foot_points,
+    hook_solids,
+    inward,
+    keeper_points,
+    plan_latch,
+)
 from zcad_core.features.stack_profile import StackProfile
 from zcad_core.features.stack_solids import (
     DIVIDER_MM,
@@ -50,6 +63,7 @@ from zcad_core.features.stack_solids import (
     add_scoop,
     baseplate_solid,
     bin_solid,
+    cell_centres,
     cut_foot_pockets,
     cut_plate_holding,
     holding_centres,
@@ -82,8 +96,42 @@ class Stack:
         return all(self.checks.values())
 
 
+def latch_plan_for(
+    item: Item, profile: StackProfile, printer: Mapping[str, Any] | None
+) -> LatchPlan | None:
+    """The item's latch, or ``None`` if it has none; refused if the profile or the printer
+    cannot carry it."""
+
+    if not item.latch_sides:
+        return None
+
+    least_wall = printer_numbers(printer)[1] if printer is not None else 0.0
+    plan, problems = plan_latch(
+        profile,
+        engagement_for(item.latch_engagement_mm, profile),
+        least_wall,
+        slide_clearance(printer),
+    )
+
+    if plan is None:
+        raise ValueError(
+            f"{item.name} cannot be built with a latch:\n- " + "\n- ".join(problems)
+        )
+
+    return plan
+
+
+def _latch_summary(item: Item, plan: LatchPlan | None) -> dict[str, Any]:
+    """What an item's latch is, as sizes, with no claim of how hard it holds."""
+
+    if plan is None:
+        return {}
+
+    return {"latch": {"sides": list(item.latch_sides), **plan.to_dict()}}
+
+
 def _bin(
-    item: Item, profile: StackProfile
+    item: Item, profile: StackProfile, plan: LatchPlan | None = None
 ) -> tuple[cq.Workplane, float, dict[str, Any]]:
     model, top = bin_solid(profile, item.cells, item.units, item.wall_mm, item.floor_mm)
     width = item.cells[0] * profile.pitch_mm - profile.gap_mm - 2 * item.wall_mm
@@ -110,6 +158,11 @@ def _bin(
             holding.pocket_depth_mm,
         )
 
+    if plan is not None:
+        centres = cell_centres(item.cells, profile.pitch_mm)
+        model = add_latch_feet(model, plan, centres, item.latch_sides)
+        model = cut_lip_keepers(model, plan, centres, item.latch_sides, top)
+
     summary: dict[str, Any] = {
         "kind": "bin",
         "cells": list(item.cells),
@@ -123,13 +176,14 @@ def _bin(
         "label_tab": item.label_tab,
         "scoop": item.scoop,
         **_holding_summary(holding, item.floor_mm),
+        **_latch_summary(item, plan),
     }
 
     return model, top, summary
 
 
 def _baseplate(
-    item: Item, profile: StackProfile
+    item: Item, profile: StackProfile, plan: LatchPlan | None = None
 ) -> tuple[cq.Workplane, float, dict[str, Any]]:
     model, floor = baseplate_solid(profile, item.cells, item.floor_mm, item.rim_mm)
     holding = holding_for(item.holding, item.magnet, item.fastener)
@@ -147,6 +201,15 @@ def _baseplate(
             floor,
         )
 
+    if plan is not None:
+        model = cut_plate_keepers(
+            model,
+            plan,
+            cell_centres(item.cells, profile.pitch_mm),
+            item.latch_sides,
+            floor,
+        )
+
     summary = {
         "kind": "baseplate",
         "cells": list(item.cells),
@@ -154,6 +217,7 @@ def _baseplate(
         "rim_mm": item.rim_mm,
         "ridge_top_mm": RIDGE_TOP_MM,
         **_holding_summary(holding, item.floor_mm),
+        **_latch_summary(item, plan),
     }
 
     return model, floor, summary
@@ -228,7 +292,10 @@ def frame_plan(
 
 
 def _frame(
-    item: Item, profile: StackProfile, clearance: float
+    item: Item,
+    profile: StackProfile,
+    clearance: float,
+    latch: LatchPlan | None = None,
 ) -> tuple[cq.Workplane, float, dict[str, Any]]:
     plan = frame_plan(item, profile, clearance)
     model, top = frame_solid(
@@ -245,6 +312,11 @@ def _frame(
             holding.pocket_depth_mm,
         )
 
+    if latch is not None:
+        centres = cell_centres(item.cells, profile.pitch_mm)
+        model = add_latch_feet(model, latch, centres, item.latch_sides)
+        model = cut_lip_keepers(model, latch, centres, item.latch_sides, top)
+
     summary: dict[str, Any] = {
         "kind": "frame",
         "cells": list(item.cells),
@@ -259,6 +331,7 @@ def _frame(
         "ledge_thickness_mm": LEDGE_THICKNESS_MM,
         "roof_mm": ROOF_MM,
         **_holding_summary(holding, item.floor_mm),
+        **_latch_summary(item, latch),
     }
 
     return model, top, summary
@@ -318,19 +391,21 @@ def build_item(
     """One item's solid, the height a thing stacked on it sits at (a bin's walls' tops,
     a baseplate's pocket floor), and what the build says of it."""
 
+    plan = latch_plan_for(item, profile, printer)
+
     if item.kind == "baseplate":
-        return _baseplate(item, profile)
+        return _baseplate(item, profile, plan)
 
     if item.kind in ("cap", "plate"):
         return _cap(item, profile)
 
     if item.kind == "frame":
-        return _frame(item, profile, slide_clearance(printer))
+        return _frame(item, profile, slide_clearance(printer), plan)
 
     if item.kind == "drawer":
         return _drawer(item, profile, slide_clearance(printer), siblings or {})
 
-    return _bin(item, profile)
+    return _bin(item, profile, plan)
 
 
 def _drawer_slides(drawer: cq.Workplane, frame: cq.Workplane, plan: FramePlan) -> bool:
@@ -347,6 +422,74 @@ def _drawer_slides(drawer: cq.Workplane, frame: cq.Workplane, plan: FramePlan) -
                 return False
 
     return True
+
+
+def latch_checks(
+    item: Item,
+    profile: StackProfile,
+    printer: Mapping[str, Any],
+    plan: LatchPlan,
+    model: cq.Workplane,
+    height: float,
+) -> dict[str, bool]:
+    """A latch laid out as real solids: the tongues are freed and the keepers are open, a hook
+    seated in the lip below overlaps what a plain lip would be, so it does engage, and a hook
+    deflected by its tongue's travel passes the plain lip all the way down."""
+
+    centres = cell_centres(item.cells, profile.pitch_mm)
+    solids = workplane_shape(model).Solids()
+
+    def solid_at(point: tuple[float, float, float]) -> bool:
+        return any(solid.isInside(cq.Vector(*point)) for solid in solids)
+
+    freed = True
+    opened = True
+
+    for side in item.latch_sides:
+        for centre in cells_on_side(side, centres):
+            feet = foot_points(plan, centre, side)
+            keepers = keeper_points(plan, centre, side, height)
+            freed = freed and solid_at(feet["skin"]) and not solid_at(feet["relief"])
+            opened = (
+                opened
+                and not solid_at(keepers["keeper_mouth"])
+                and solid_at(keepers["keeper_backing"])
+            )
+
+    plain, _, _ = build_item(replace(item, latch_sides=()), profile, printer)
+    engaged = True
+    passes = True
+    lip = profile.lip_height_mm
+
+    for side in item.latch_sides:
+        hooks = hook_solids(plan, centres, side)
+
+        if hooks is None:
+            continue
+
+        seated = hooks.translate((0.0, 0.0, height))
+        engaged = engaged and overlap_mm3(seated, plain) > 0.05
+        dx, dy = inward(side)
+        step = 0.25
+        rise = lip
+
+        while rise >= 0.0:
+            moved = hooks.translate(
+                (
+                    dx * (plan.deflection_mm + 0.001),
+                    dy * (plan.deflection_mm + 0.001),
+                    height + rise,
+                )
+            )
+            passes = passes and overlap_mm3(moved, plain) <= TOLERANCE_MM3
+            rise -= step
+
+    return {
+        f"{item.name}.latch_tongues_freed": freed,
+        f"{item.name}.latch_keepers_open": opened,
+        f"{item.name}.latch_hook_engages": engaged,
+        f"{item.name}.latch_hook_passes": passes,
+    }
 
 
 def build_stack(spec: StackSpec, printer: Mapping[str, Any]) -> Stack:
@@ -398,6 +541,20 @@ def build_stack(spec: StackSpec, printer: Mapping[str, Any]) -> Stack:
             plate, floor = plates.get(item.cells) or baseplate_solid(
                 profile, item.cells, item.floor_mm, 1.2
             )
+            latch = latch_plan_for(item, profile, printer)
+
+            if latch is not None:
+                plate = cut_plate_keepers(
+                    plate,
+                    latch,
+                    cell_centres(item.cells, profile.pitch_mm),
+                    item.latch_sides,
+                    floor,
+                )
+                checks.update(
+                    latch_checks(item, profile, printer, latch, model, height)
+                )
+
             checks[f"{item.name}.sits_on_baseplate"] = (
                 overlap_mm3(model.translate((0, 0, floor)), plate) <= TOLERANCE_MM3
             )

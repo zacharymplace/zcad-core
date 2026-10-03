@@ -168,6 +168,12 @@ def item_from_record(entry: dict[str, Any]) -> Item:
         drawers=int(entry["drawers"]),
         frame=str(entry["frame"]),
         pull=bool(entry["pull"]),
+        latch_sides=tuple(str(side) for side in entry.get("latch_sides", [])),
+        latch_engagement_mm=(
+            None
+            if entry.get("latch_engagement_mm") is None
+            else float(entry["latch_engagement_mm"])
+        ),
     )
 
 
