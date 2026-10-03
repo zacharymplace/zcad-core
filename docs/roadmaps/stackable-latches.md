@@ -136,7 +136,7 @@ drawer whose side clearance (0.2 mm on the A1 mini) plus the bump is too small t
 
 1. **The foot tongue and the keeper (built).** `latch` on a bin, a frame and a baseplate, the profile's own engagement, the tongue's strain
    and length, the hook, the keepers, the placement checks, the built-solid checks, in `stack_latch.py`; `check-stack` learns the sides.
-2. **The snapping cap.** The cap's tongue and hook, and the keeper's agreement with a bin or a frame.
+2. **The snapping cap (built).** The cap's tongue and hook, and the keeper's agreement with a bin or a frame.
 3. **The drawer's closed detent.** The drawer's side tongues, the frame's dimples, and the checks.
 4. **Latch trials.** The stack build record carries the latch figures; stack trials gain a latch reading: whether it clicked on and
    off, the **separation force** by spring scale, and a **count of snaps** with whether anything wore. The engine states no limit for any.
@@ -175,4 +175,17 @@ See *Latches* in [Stackable items](../guides/stackable-items.md).
   a keeper, so none is checked.
 - **The seat check is the stack's own.** Laying an item on itself and on a baseplate, already in the build, now covers a hook seated in a
   keeper with no overlap; four new checks per latched bin or frame cover the rest.
-- **Not built yet:** the snapping cap, the drawer's detent and the trial readings, as phases 2 to 4.
+- **Not built yet:** the drawer's detent and the trial readings, as phases 3 and 4.
+
+### What phase 2 changed
+
+See *Latches* in [Stackable items](../guides/stackable-items.md).
+
+- **A cap takes `latch` like a bin.** It has the same solid foot, so the tongue and hook are the bin's, cut and added by the same functions. It has no lip, so it has no
+  keepers. Its `latch` field is the same: `sides` and `engagement_mm`.
+- **A cap snaps into the lid bin the build lays it on.** The cap's seat check used a plain bin; it now uses one with keepers cut at the cap's sides, so a hook seated in a
+  keeper overlaps nothing. The four latch checks (tongues freed, keepers open, hook engages, hook passes) run on a cap with that bin as the lower item, so `latch_checks`
+  takes the lower item as an argument and a bin or frame passes itself.
+- **`check-stack` treats a cap as hooks.** A latched cap on a bin or frame needs keepers on the same sides at the same engagement; a plain cap on a bin with keepers sits and warns.
+- **A drawer takes no `latch`.** Its field is refused as unknown: a drawer's detent is a different thing, in phase 3.
+- **The cap's top is unchanged.** Nothing stacks on it, hooks or none, and its overall height is the foot and its thickness.

@@ -106,7 +106,7 @@ _ITEM = {
             "latch",
         }
     ),
-    "cap": frozenset({"kind", "name", "cells", "floor_mm"}),
+    "cap": frozenset({"kind", "name", "cells", "floor_mm", "latch"}),
     "frame": frozenset(
         {
             "kind",

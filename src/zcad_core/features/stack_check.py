@@ -117,7 +117,7 @@ def _latch_errors(
     errors: list[str] = []
     warnings: list[str] = []
 
-    if upper.kind not in ("bin", "frame") or lower.kind not in (
+    if upper.kind not in ("bin", "frame", "cap") or lower.kind not in (
         "bin",
         "frame",
         "baseplate",
