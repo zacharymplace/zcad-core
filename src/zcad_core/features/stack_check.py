@@ -261,6 +261,7 @@ def _from_record(path: Path, top: bool = False) -> tuple[Resolved | None, list[s
             magnet=str(stack.get("magnet", "")),
             latch_sides=tuple(str(side) for side in stack.get("latch_sides", [])),
             latch_engagement_mm=stack.get("latch_engagement_mm"),
+            vent_cells=tuple(int(i) for i in stack.get("vent_cells", [])),
         )
         if top
         else Item(
@@ -442,6 +443,15 @@ def _overlap_errors(
     summary["stack_height_mm"] = round(
         lower_height + float(upper_summary.get("overall_height_mm", 0.0)), 3
     )
+
+    if overlap > TOLERANCE_MM3 and lower.vent_cells:
+        return [
+            (
+                f"The solids overlap by {overlap:.2f} mm3 when laid together: {lower.name} "
+                f"has vent cells {list(lower.vent_cells)}, windows with no pocket, and "
+                f"{upper.name} stands over one"
+            )
+        ]
 
     if overlap > TOLERANCE_MM3:
         return [f"The solids overlap by {overlap:.2f} mm3 when laid together"]

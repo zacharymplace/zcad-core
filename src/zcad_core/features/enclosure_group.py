@@ -86,7 +86,13 @@ from zcad_core.features.mount_rack import (
     front_pads,
     is_rack,
 )
-from zcad_core.features.mount_stack import TopHolding, build_stack_top, latch_sides
+from zcad_core.features.mount_stack import (
+    TopHolding,
+    build_stack_top,
+    latch_sides,
+    lid_openings,
+    plain_lid,
+)
 from zcad_core.features.mounts import (
     MountPads,
     MountPlate,
@@ -404,10 +410,19 @@ def build_group_enclosure(
     stack_top = None
 
     if design.stack_top and design.stack_profile:
-        _require_stack_top_possible(
-            design,
-            slots=len(_vent_centres(layouts, modules, pi, wall)) if design.vents else 0,
-            fans=len(fan_cuts),
+        _require_stack_top_possible(design, fans=len(fan_cuts))
+        lid_windows = lid_openings(
+            lid,
+            plain_lid(
+                (outer[0] / 2, outer[1] / 2),
+                (outer[0], outer[1]),
+                cavity_top,
+                design.lid_mm,
+                boss_positions,
+                fastener.clearance_hole_mm,
+            ),
+            cavity_top,
+            cavity_top + design.lid_mm,
         )
         stack_top = build_stack_top(
             boss_positions,
@@ -418,6 +433,7 @@ def build_group_enclosure(
             fastener=fastener,
             profile=load_profile(Path(design.stack_profile)),
             compensation=0.0,
+            openings=lid_windows,
             holding=TopHolding(
                 design.stack_top_holding,
                 design.stack_top_magnet or "",
@@ -461,9 +477,10 @@ def build_group_enclosure(
     )
 
 
-def _require_stack_top_possible(design: GroupDesign, *, slots: int, fans: int) -> None:
-    """Refuse a stack top on a lid that does not stay shut with its own screws or has openings:
-    the plate would fix a hinged or sliding lid or cover a slot, an outlet or a fan."""
+def _require_stack_top_possible(design: GroupDesign, *, fans: int) -> None:
+    """Refuse a stack top on a lid that does not stay shut with its own screws or has a fan on
+    it: the plate would fix a hinged or sliding lid, and stand on a fan's frame. The lid's slots
+    and outlets are not a reason: the plate leaves a window over each."""
 
     reasons: list[str] = []
 
@@ -473,17 +490,8 @@ def _require_stack_top_possible(design: GroupDesign, *, slots: int, fans: int) -
             "lid's own screws, so the lid must be 'screws'"
         )
 
-    if slots:
-        reasons.append(
-            "the lid has slots over each Pi's fan or a board part that draws air: build "
-            "with --no-vents"
-        )
-
-    if design.vent_area_mm2:
-        reasons.append("the lid has outlets (vent_area_mm2)")
-
     if fans:
-        reasons.append("a fan is mounted in the lid")
+        reasons.append("a fan is mounted on the lid, and its frame stands above it")
 
     if reasons:
         raise ValueError(

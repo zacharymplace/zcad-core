@@ -50,8 +50,7 @@ at least that and a plate is 8.85 mm tall with the example profile (a floor of 4
 
 - **A lid that is not screwed.** A snap lid has no screws to share, a hinged lid must swing, and a sliding lid slides out from under a plate. A plate over any of them would fix the
   lid shut or leave itself unheld, so `--stack-top` needs `--lid screws` and says so.
-- **A lid with openings.** Vent slots, a fan or any lid outlet is under the plate where the air cannot leave. The build refuses it, naming what the lid has; a plate with its own matching
-  openings is an open question, not part of this.
+- **A lid with a fan on it.** Its frame stands above the lid. (A lid with outlets is not refused: the plate leaves a window over each; see *Vent windows*, below.)
 - **Screws that cannot reach.** If the plate's floor and the lid together are more than the screw's catalogued lengths or the boss's insert can take, the build refuses and names the longest that does.
 - **A plate bigger than the bed,** with the cells it would take, as the stack plate is.
 
@@ -81,7 +80,6 @@ Each phase is one PR, and no existing build changes unless `--stack-top` is aske
 
 - **A lid with its own lip.** A lip cut into the lid is not possible unless the lid is whole cells, which a board's enclosure is not.
 - **A top plate over a lid that opens.** Hinge, slide and snap lids, as above.
-- **A plate with openings that match the lid's vents.** See *Vent windows*, below.
 - **A bolt.** A bolt would pass through the lid, which is closed.
 - **Load, flex and creep.** See above.
 
@@ -151,7 +149,7 @@ See *Holding a bin on a top* in [Stackable items](../guides/stackable-items.md#a
 - **The latch's clearance is the design's `slide_clearance_mm`,** the printer's sliding clearance the enclosure is already built to (0.2 mm), since an enclosure build has no printer profile to read it from.
 - **A holding top asks one check more,** `stack_top_holds`, and the trial's template carries the holding it was designed to.
 
-### Vent windows (not built)
+### Vent windows
 
 The open question asked whether a top could leave a lid's outlets open. It needs three decisions, and the proposal is to settle them before building.
 
@@ -165,3 +163,20 @@ The open question asked whether a top could leave a lid's outlets open. It needs
    to state it that way and leave the temperature to a trial.
 
 The alternative is to refuse, as now. A top over a lid with outlets is a box that is built to be hot or has a fan; the proposal is to build windows only once a trial shows a box that needs both.
+
+### What the vent windows changed
+
+See *Vent windows* in [Stackable items](../guides/stackable-items.md#a-stack-top-things-stacked-on-the-box). The three decisions above were taken as proposed, with these results.
+
+- **The openings come from the built lid.** `lid_openings` cuts the built lid from a plain lid of the same size and screw holes (`plain_lid`) and takes the footprint of each piece that goes right through the
+  lid's thickness; a countersink or a pocket does not, so is not an opening. Pieces within 4 mm are one. The same code serves the enclosure and the group, which build their lids differently.
+- **A vent cell is solid, not an empty cell.** `baseplate_solid` takes a `skip` set of cells and leaves them without a pocket; the window is cut through the plate over them. A vent cell keeps the plate's full
+  height, since the ridges stay and a removed cell would leave the plate in pieces.
+- **The screws decide.** The design said the plate would lose cells; it did not say it would lose the plate. A lid screw's head recess is cut down into a pocket floor, which a vent cell lacks, so every screw must be
+  in a cell with no window, and the cell search runs again with that. The result is a split decided by the lid: the one-bay Pi 5 row (screws at its ends, fan slots in its middle) gets a 3 x 3 top with a window over
+  two cells, and a Pico 2 box with an outlet is refused, because with the example profile its screws sit in every cell a window could take.
+- **The lid's other blockers are gone except two.** A display's window, outlets, slots over a part and the group's fan slots no longer refuse a top. A lid that is not screwed and a lid with a fan on it still do.
+  The fan is refused for a reason the design missed: the fan's frame stands above the lid, where the plate goes.
+- **`check-stack` knows the vent cells.** The top's record carries them, the baseplate built from it has no pockets there, and a bin laid over one is refused with a message that names them.
+- **A top with windows asks one more check,** `stack_top_vents_open`, and its template names the cells and windows.
+- **Not covered:** a plate shifted off the lid's centre so a window falls on a cell boundary, which would let a small box have windows; airflow through a window, which is a temperature for a trial.

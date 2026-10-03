@@ -119,7 +119,9 @@ _BAY_GUIDANCE = {
 }
 
 
-def box_checks(design: GroupDesign, hinge: bool, slide: bool) -> list[str]:
+def box_checks(
+    design: GroupDesign, hinge: bool, slide: bool, top_vents: bool = False
+) -> list[str]:
     """The checks for the box as a whole."""
 
     checks = ["parts_printed_cleanly"]
@@ -140,6 +142,9 @@ def box_checks(design: GroupDesign, hinge: bool, slide: bool) -> list[str]:
 
         if design.stack_top_holding != "lip" or design.stack_top_latch:
             checks.append("stack_top_holds")
+
+        if top_vents:
+            checks.append("stack_top_vents_open")
 
     return [*checks, "nothing_rattles"]
 
@@ -175,6 +180,7 @@ def check_guidance(name: str) -> str:
         EnclosureCheck.STACK_TOP_SITS_FLAT.value,
         EnclosureCheck.STACK_TOP_SCREWS_REACH.value,
         EnclosureCheck.STACK_TOP_HOLDS.value,
+        EnclosureCheck.STACK_TOP_VENTS_OPEN.value,
     ):
         return CHECK_GUIDANCE[EnclosureCheck(name)]
 
@@ -267,7 +273,12 @@ def write_group_record(
 
     design = group.design
     checks = [
-        *box_checks(design, group.hinge is not None, group.slide is not None),
+        *box_checks(
+            design,
+            group.hinge is not None,
+            group.slide is not None,
+            bool(group.stack_top and group.stack_top.stack.get("vent_cells")),
+        ),
         *bay_checks(bays),
     ]
     record = {

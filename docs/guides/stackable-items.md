@@ -160,13 +160,24 @@ zcad-validation stack check-stack --upper my-stack.json:tub --lower exports/pico
 - **It is held by the lid's own screws, made longer.** Each goes down through a recess sunk in a pocket's floor, through the plate and the lid, into its insert. The recess is the head's diameter and a little
   more, and as deep as the head plus 0.5 mm; the plate's **floor is that and a millimetre under it**, 4.5 mm with an M3 head, so the plate is 8.85 mm tall on the example profile. The build prints the screw
   length: the millimetre, the lid and the insert's depth, 8 mm for an M3 on a 2 mm lid, where the lid's own are 6.
-- **It needs a lid that is screwed shut and has nothing in it.** A snap, hinged or sliding lid is refused, as is a lid with the display's window, outlets (`--vent-area-mm2`), a fan, or slots over a
-  board part. The plate would fix a lid that must open or cover an opening, and the build names each reason it finds. Vent slots in the walls are fine.
-- **A group enclosure takes one too:** `enclosure-group build --stack-top --stack-profile my-profile.json`, on a screwed lid. The row's lid has slots over each Pi's fan by default, which a plate
-  would cover, so the build refuses and says to build with `--no-vents`; with no slots a Pi's fan breathes through the base. The refusals are the same: a hinged or sliding lid, `--vent-area-mm2`
-  outlets, a fan in the lid. The group's lid is 3 mm, so its screws reach 9 mm and an M3 is 8 mm. A one-bay Pi 5 row takes 3 x 3 cells; a row wider than the bed is refused, with its cells.
+- **It needs a lid that is screwed shut and has no fan on it.** A snap, hinged or sliding lid is refused, as is a lid with a fan on it, whose frame stands above the lid. The plate would fix a lid that must
+  open or stand on the fan, and the build names each reason it finds. A lid's openings are not a reason: the plate leaves a window over each (below).
+- **A group enclosure takes one too:** `enclosure-group build --stack-top --stack-profile my-profile.json`, on a screwed lid, with the same refusals. The group's lid is 3 mm, so its screws reach 9 mm and an M3 is
+  8 mm. A one-bay Pi 5 row takes 3 x 3 cells, with a window over its fan slots; a row wider than the bed is refused, with its cells.
 - **The engine states no load rating:** it does not say what the lid carries or whether the plate flexes under a bin. The record's `stack_top` names the plate, its profile by hash, its cells, its floor
   and the screws.
+
+**Vent windows.** A lid's openings (the outlets from `--vent-area-mm2`, the slots over a Pi's fan or a board part, a display's window) are found from the built lid: what it has cut away from a plain lid,
+right through its thickness, joined where the pieces are within 4 mm. The plate leaves a **window** over each, the opening and 2 mm more each way, cut through it.
+
+- **A vent cell has no pocket.** A pocket cannot sit over a window, so each cell a window touches is a **vent cell**: solid, with the window through it and no pocket for a foot. The record names them
+  (`vent_cells`, `vent_windows_mm`) and the cells that are left (`cells_usable`). A bin that would stand over one is refused by `check-stack`, which names the vent cells.
+- **A lid screw cannot be in a vent cell,** since its head's recess is cut down into a pocket floor and a vent cell has none. The cells are searched as before, up to two more each way, for a plate whose screws are
+  all in cells with no window, and refused if none is. **A small box often fails this:** a Pico 2 box with an outlet has a screw in every cell that a window could take, so the build refuses and says so. The
+  one-bay Pi 5 row has screws at the ends and its fan slots in the middle, and gets a window over two of nine cells.
+- **Several windows:** the lid's openings may make up to four windows, and more is refused as too scattered for a plate to leave open. A lid with a fan on it is still refused.
+- **The engine says nothing about air.** The window leaves the outlet open as geometry. It does not say the box runs cool under a top, and the thermal estimate does not model one: a trial's temperature is where
+  that shows. A top with windows asks one more check, `stack_top_vents_open`.
 
 **Holding a bin on a top.** Two options, on `enclosure build` and `enclosure-group build`:
 

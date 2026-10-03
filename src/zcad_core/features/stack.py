@@ -258,7 +258,9 @@ def _bin(
 def _baseplate(
     item: Item, profile: StackProfile, plan: LatchPlan | None = None
 ) -> tuple[cq.Workplane, float, dict[str, Any]]:
-    model, floor = baseplate_solid(profile, item.cells, item.floor_mm, item.rim_mm)
+    model, floor = baseplate_solid(
+        profile, item.cells, item.floor_mm, item.rim_mm, item.vent_cells
+    )
     holding = holding_for(item.holding, item.magnet, item.fastener)
 
     if holding.holds:

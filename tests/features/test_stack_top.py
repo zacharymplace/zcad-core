@@ -6,7 +6,6 @@ import contextlib
 import io
 import json
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, cast
 
 import cadquery as cq
@@ -96,49 +95,37 @@ def design(**changes: Any) -> EnclosureDesign:
     return EnclosureDesign(stack_top=True, stack_profile="p.json", **changes)
 
 
-def assembly(*components: dict[str, Any]) -> Any:
-    return SimpleNamespace(components=[SimpleNamespace(metadata=c) for c in components])
-
-
 @pytest.mark.parametrize(
-    ("changes", "display", "parts", "message"),
+    ("changes", "message"),
     [
-        ({"lid_attachment": "snap"}, None, [], "the lid is 'snap'"),
-        ({"lid_attachment": "hinge"}, None, [], "the lid is 'hinge'"),
-        ({"lid_attachment": "slide"}, None, [], "the lid is 'slide'"),
-        ({}, object(), [], "the display's window"),
-        ({"vent_area_mm2": 300.0}, None, [], "the lid has outlets"),
+        ({"lid_attachment": "snap"}, "the lid is 'snap'"),
+        ({"lid_attachment": "hinge"}, "the lid is 'hinge'"),
+        ({"lid_attachment": "slide"}, "the lid is 'slide'"),
         (
             {"fan": "x", "fan_position": "lid"},
-            None,
-            [],
-            "a fan is mounted in the lid",
-        ),
-        (
-            {},
-            None,
-            [{"board_identifier": "b", "lid_vent": True}],
-            "draws air through slots in the lid",
+            "a fan is mounted on the lid",
         ),
     ],
 )
-def test_a_lid_that_moves_or_has_openings_is_refused_with_the_reason(
-    changes: dict[str, Any], display: Any, parts: list[dict[str, Any]], message: str
+def test_a_lid_that_moves_or_has_a_fan_on_it_is_refused_with_the_reason(
+    changes: dict[str, Any], message: str
 ) -> None:
     with pytest.raises(ValueError, match="cannot go on this enclosure") as raised:
-        _require_stack_top_possible(design(**changes), assembly(*parts), "b", display)
+        _require_stack_top_possible(design(**changes))
 
     assert message in str(raised.value)
 
 
-def test_a_plain_screwed_lid_is_allowed_and_wall_vents_do_not_block_it() -> None:
-    _require_stack_top_possible(design(vent_slots=2), assembly(), "b", None)
+def test_a_plain_screwed_lid_is_allowed_with_vents_and_outlets() -> None:
+    # Wall vents and lid outlets are not reasons: the plate leaves a window over an outlet.
+    _require_stack_top_possible(design(vent_slots=2))
+    _require_stack_top_possible(design(vent_area_mm2=300.0))
 
 
 def test_every_reason_is_listed_at_once() -> None:
     with pytest.raises(ValueError) as raised:
         _require_stack_top_possible(
-            design(lid_attachment="snap", vent_area_mm2=300.0), assembly(), "b", None
+            design(lid_attachment="snap", fan="x", fan_position="lid")
         )
 
     assert str(raised.value).count("\n- ") == 2
