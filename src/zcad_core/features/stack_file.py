@@ -23,6 +23,9 @@ from typing import Any
 
 from zcad_core.features.guide_bores import printer_numbers
 from zcad_core.features.guide_common import IDENTIFIER, Findings, number, section
+from zcad_core.features.stack_detent import DEFAULT_ENGAGEMENT_MM as DETENT_DEFAULT_MM
+from zcad_core.features.stack_detent import ENGAGEMENT_RANGE_MM as DETENT_RANGE_MM
+from zcad_core.features.stack_detent import plan_detent
 from zcad_core.features.stack_drawers import (
     DEFAULT_CLEARANCE_MM,
     plan_frame,
@@ -120,9 +123,12 @@ _ITEM = {
             "magnet",
             "fastener",
             "latch",
+            "detent",
         }
     ),
-    "drawer": frozenset({"kind", "name", "frame", "wall_mm", "floor_mm", "pull"}),
+    "drawer": frozenset(
+        {"kind", "name", "frame", "wall_mm", "floor_mm", "pull", "detent"}
+    ),
 }
 
 
@@ -150,6 +156,10 @@ class Item:
     latch_sides: tuple[str, ...] = ()
     # None: the profile's engagement, else the engine's.
     latch_engagement_mm: float | None = None
+    # A drawer's closed detent: a frame has the dimples, a drawer the bumps. None: the engine's
+    # engagement.
+    detent: bool = False
+    detent_engagement_mm: float | None = None
 
 
 @dataclass(frozen=True)
@@ -331,6 +341,39 @@ def check_latch_fields(
     )
 
 
+def check_detent_fields(
+    entry: Mapping[str, Any], where: str, findings: Findings
+) -> None:
+    """A frame's or drawer's ``detent``: an object, empty to take the engine's engagement."""
+
+    detent = entry.get("detent")
+
+    if detent is None:
+        return
+
+    if not isinstance(detent, Mapping):
+        findings.errors.append(f"{where}.detent must be an object")
+
+        return
+
+    unknown = sorted(set(detent) - {"engagement_mm"})
+
+    if unknown:
+        findings.errors.append(
+            f"{where}.detent has unknown fields: {', '.join(unknown)}"
+        )
+
+    number(
+        detent,
+        "engagement_mm",
+        f"{where}.detent",
+        findings,
+        low=DETENT_RANGE_MM[0],
+        high=DETENT_RANGE_MM[1],
+        required=False,
+    )
+
+
 def _check_item(entry: Any, index: int, names: list[str], findings: Findings) -> None:
     where = f"items[{index}]"
 
@@ -366,6 +409,7 @@ def _check_item(entry: Any, index: int, names: list[str], findings: Findings) ->
     _check_kind(entry, kind, where, findings)
     check_holding_fields(entry, where, findings)
     check_latch_fields(entry, where, findings)
+    check_detent_fields(entry, where, findings)
 
 
 def _check_kind(
@@ -511,7 +555,25 @@ def _item(entry: Mapping[str, Any]) -> Item:
         pull=bool(entry.get("pull", True)),
         latch_sides=_latch_sides(entry),
         latch_engagement_mm=_latch_engagement(entry),
+        detent=entry.get("detent") is not None,
+        detent_engagement_mm=_detent_engagement(entry),
     )
+
+
+def _detent_engagement(entry: Mapping[str, Any]) -> float | None:
+    detent = entry.get("detent")
+    value = None if detent is None else detent.get("engagement_mm")
+
+    return None if value is None else float(value)
+
+
+def detent_engagement(item: Item) -> float:
+    """The engagement an item's detent uses: its own, else the engine's."""
+
+    if item.detent_engagement_mm is not None:
+        return item.detent_engagement_mm
+
+    return DETENT_DEFAULT_MM
 
 
 def _latch_sides(entry: Mapping[str, Any]) -> tuple[str, ...]:
@@ -613,8 +675,11 @@ def _check_item_fits(
     if item.kind == "frame":
         _check_frame_plan(item, profile, clearance, errors)
 
+        if item.detent:
+            _check_frame_detent(item, profile, least_wall, clearance, errors)
+
     if item.kind == "drawer" and spec is not None:
-        _check_drawer_plan(item, profile, spec, clearance, errors)
+        _check_drawer_plan(item, profile, spec, clearance, errors, least_wall)
 
 
 def _check_latch_fits(
@@ -671,6 +736,36 @@ def _check_thickness(
         )
 
 
+def _check_frame_detent(
+    item: Item,
+    profile: StackProfile,
+    least_wall: float,
+    clearance: float,
+    errors: list[str],
+) -> None:
+    """Refuse dimples the frame's wall cannot take."""
+
+    try:
+        plan = plan_frame(
+            profile,
+            item.cells,
+            item.units,
+            item.drawers,
+            item.wall_mm,
+            item.floor_mm,
+            item.wall_mm,
+            item.floor_mm,
+            clearance,
+        )
+    except ValueError:
+        return
+
+    _, problems = plan_detent(
+        plan, item.wall_mm, detent_engagement(item), least_wall, clearance
+    )
+    errors.extend(f"{item.name}: {problem}" for problem in problems)
+
+
 def _check_frame_plan(
     item: Item, profile: StackProfile, clearance: float, errors: list[str]
 ) -> None:
@@ -696,6 +791,7 @@ def _check_drawer_plan(
     spec: StackSpec,
     clearance: float,
     errors: list[str],
+    least_wall: float = 0.0,
 ) -> None:
     frame = next((f for f in spec.items if f.name == item.frame), None)
 
@@ -705,7 +801,7 @@ def _check_drawer_plan(
         return
 
     try:
-        plan_frame(
+        plan = plan_frame(
             profile,
             frame.cells,
             frame.units,
@@ -720,6 +816,37 @@ def _check_drawer_plan(
         errors.append(f"{item.name}: {error}")
 
         return
+
+    if item.detent:
+        _check_drawer_detent(item, frame, plan, least_wall, clearance, errors)
+
+
+def _check_drawer_detent(
+    item: Item,
+    frame: Item,
+    plan: Any,
+    least_wall: float,
+    clearance: float,
+    errors: list[str],
+) -> None:
+    """A drawer's bumps need dimples in its frame, at the same engagement, and room."""
+
+    if not frame.detent:
+        errors.append(
+            f"{item.name}: its bumps need dimples, and {frame.name} has no detent: add "
+            "detent to the frame"
+        )
+    elif abs(detent_engagement(item) - detent_engagement(frame)) > 1e-9:
+        errors.append(
+            f"{item.name}: its detent engages {detent_engagement(item):g} mm and "
+            f"{frame.name}'s dimples are cut for {detent_engagement(frame):g} mm: they "
+            "must agree"
+        )
+
+    _, problems = plan_detent(
+        plan, frame.wall_mm, detent_engagement(item), least_wall, clearance
+    )
+    errors.extend(f"{item.name}: {problem}" for problem in problems)
 
 
 def _check_bin_fits(item: Item, profile: StackProfile, errors: list[str]) -> None:

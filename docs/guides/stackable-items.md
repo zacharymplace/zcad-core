@@ -5,7 +5,7 @@ baseplates built on one profile sit on each other, and a bin stacks on a bin lik
 release builds bins, baseplates, caps, and drawer frames with their drawers, holds them with magnets
 or bolts, puts the enclosures on the grid, stacks plates and spacers over boards, checks whether
 two items stack, and keeps a record and trials of a print. Bins, frames, baseplates and caps can also snap together with
-printed latches; a drawer's detent comes next (see the [stackable items design](../roadmaps/stackable-items.md) and the
+printed latches, and a drawer can click shut (see the [stackable items design](../roadmaps/stackable-items.md) and the
 [latch design](../roadmaps/stackable-latches.md)).
 
 ```bash
@@ -98,7 +98,7 @@ inside. What a tray adds is a lid, and a drawer is what a frame adds.
   It can hold by magnet or bolt in its foot, like a bin.
 - **A drawer** is a tray that slides along a slot's ledges, its front flush with the frame's front, with a half-round
   finger pull in its front wall. The drawer is as wide as the frame inside less the printer's sliding clearance each
-  side (0.2 mm on the A1 mini), and stops short of the back wall by the same. **It is held by nothing: it comes out
+  side (0.2 mm on the A1 mini), and stops short of the back wall by the same. **It is held by nothing, unless it has a detent (see *A drawer that clicks shut*): it comes out
   when pulled.**
 
 A frame is refused, with the figures, if its drawers would be too shallow to hold anything (under 3 mm inside), or if
@@ -325,3 +325,33 @@ A source is needed and an `EXAMPLE` one is refused. A profile with a thicker lip
 is void with the lip solid behind it; a hook seated in the lip overlaps what a plain lip would be, so it does engage; and a hook deflected by its tongue's travel passes
 the plain lip at every height from the lip's top down, so it goes on and comes off. The item laid on itself, and on a baseplate with keepers, has no overlap. The record
 carries each item's latch figures.
+
+## A drawer that clicks shut
+
+A drawer is held by nothing: it comes out when pulled. A **detent** gives it a closed position. Near the back of each side wall of the drawer a **tongue** is cut free of the
+wall with a **bump** on its outer face, and the frame's side wall has a **dimple** where the bump sits when the drawer is shut. Pushed shut, the drawer clicks into the dimple;
+pulled, it clicks out. **It does not stop the drawer coming out the front, and the engine states no holding force.**
+
+```json
+{"kind": "frame", "name": "chest", "cells": [1, 1], "units": 4, "drawers": 2, "wall_mm": 1.8, "detent": {}},
+{"kind": "drawer", "name": "tray", "frame": "chest", "detent": {}}
+```
+
+`detent` goes on a frame and on the drawers that click into it, and takes an optional `engagement_mm` (0.4 by default, 0.3 to 1.5). The frame has dimples in every slot, and a drawer with
+bumps is refused if its frame has none or is cut for another engagement. A frame with a detent and a drawer without one is fine: the drawer just slides.
+
+- **The tongue** is a strip of the drawer's side wall along its length, 4.5 mm tall down from the rim, freed by a 0.8 mm slit under it and a 0.8 mm slit at its free end, and fixed at the
+  back. It bends in the wall's thickness, so its thickness is the drawer's `wall_mm`, and its reach is the least, to the next half millimetre, that keeps the strain under the provisional
+  1.5 per cent limit with the bump pushed in by the engagement: 7 mm for a 1.2 mm wall and 0.4 mm. The drawer must be at least 5.3 mm deep inside for it, and the inside face of the
+  tongue must be left clear.
+- **The bump** is 3 mm tall and 1.6 mm along the wall at its base, with a 45 degree ramp each way, and stands out of the drawer by the sliding clearance plus the engagement. **The dimple** is the bump's
+  shape grown by the sliding clearance, cut into the frame's wall past its face.
+- **The frame's wall** must stay the printer's minimum wall behind a dimple: the dimple is the engagement plus the clearance deep, 0.6 mm by default, so **`wall_mm` must be at least 1.8 mm**
+  with a 1.2 mm minimum, and the build says so. This is why the example sets `wall_mm`.
+- **Where.** The bump is 14 mm from the back of the drawer and 2 mm below its rim, laid out from the frame's own sizes, so a frame and the drawers that go in it agree on the dimple whatever
+  the drawer's own wall and floor. A drawer wall over 4 mm, whose tongue would end against the back wall, is refused.
+
+**The build lays real solids.** Each frame gets `detent_dimples_open`: every dimple's mouth is void with the wall solid behind it, at every slot. Each drawer gets `detent_tongues_freed` (the
+tongue's wall is solid and both slits are void), `detent_clicks_in` (a bump in its dimple overlaps what the frame's plain wall would be, so it does engage) and `detent_passes` (a bump pushed in by
+the engagement passes the plain wall along nine tenths of the drawer's length). `slides_in_<frame>` still holds the drawer clear of the frame shut and at half and nine tenths out, with the
+bumps pushed in once it is out of the dimple. These sizes are the engine's own choices, provisional until a trial.
