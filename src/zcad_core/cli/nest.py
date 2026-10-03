@@ -10,6 +10,7 @@ from typing import Any
 
 from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
+from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.nest import (
     build_nest,
     print_oriented,
@@ -20,6 +21,10 @@ from zcad_core.features.nest_file import (
     check_nest_file,
     inspect_nest_file,
     nest_template,
+)
+from zcad_core.features.nest_trial import (
+    complete_nest_trial,
+    start_nest_trial,
 )
 from zcad_core.profiles import load_printer_profile
 
@@ -142,6 +147,37 @@ def _nest_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def _nest_trial_start(args: argparse.Namespace) -> int:
+    trial = start_nest_trial(args.build_record)
+    emit(
+        {
+            "trial": str(trial),
+            "observations": str(trial / "observations.json"),
+            "measurements": str(trial / "measurements.json"),
+            "use": str(trial / "use.json"),
+        }
+    )
+
+    return 0
+
+
+def _nest_trial_complete(args: argparse.Namespace) -> int:
+    record = complete_nest_trial(
+        args.trial_directory,
+        disposition=EnclosureTrialDisposition(args.disposition),
+        material_profile_id=args.material_profile,
+        notes=args.notes,
+    )
+    emit(
+        {
+            "trial_record": str(record),
+            "passed": json.loads(record.read_text(encoding="utf-8"))["passed"],
+        }
+    )
+
+    return 0
+
+
 def register(
     subcommands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
@@ -173,3 +209,26 @@ def register(
     build.add_argument("--output-directory", required=True, type=Path)
     build.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
     build.set_defaults(handler=_nest_build)
+
+    trial = commands.add_parser(
+        "trial", help="record a print of a nest and how it did its job"
+    )
+    trial_commands = trial.add_subparsers(dest="trial_command", required=True)
+    trial_start = trial_commands.add_parser(
+        "start",
+        help="write the next trial's observation, measurement and use templates",
+    )
+    trial_start.add_argument("--build-record", required=True, type=Path)
+    trial_start.set_defaults(handler=_nest_trial_start)
+    trial_complete = trial_commands.add_parser(
+        "complete", help="validate a filled-in trial and write its record"
+    )
+    trial_complete.add_argument("--trial-directory", required=True, type=Path)
+    trial_complete.add_argument(
+        "--disposition",
+        required=True,
+        choices=[disposition.value for disposition in EnclosureTrialDisposition],
+    )
+    trial_complete.add_argument("--material-profile", default="petg")
+    trial_complete.add_argument("--notes", default="")
+    trial_complete.set_defaults(handler=_nest_trial_complete)

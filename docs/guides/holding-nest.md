@@ -79,3 +79,18 @@ Strap slots must lie in the flange, and each lip hook must have the part's top u
 
 **The engine says nothing about how well the nest holds a part, how hard a lip grips, or what a strap will bear.** It says the part fits the pocket and lifts straight out. A nest is unverified until a printed
 trial has passed.
+
+## Trying a print
+
+`nest build` writes `nest.json`, which lists the checks a trial asks (the lip, strap and label checks only when the nest has them) and the sizes to measure with calipers. After printing and using the nest on your part:
+
+```bash
+zcad-validation nest trial start --build-record exports/my-nest/nest.json
+# fill in trials/trial-001/observations.json, measurements.json and use.json, then:
+zcad-validation nest trial complete --trial-directory exports/my-nest/trials/trial-001 --disposition pass
+```
+
+`observations.json` takes pass or fail for each check: it printed cleanly, the part seats, the part lifts out, the part stays in (a lip), a strap holds the nest still (strap slots), the label
+reads (a label). `measurements.json` takes the sizes you measured. `use.json` takes the **count of uses** and whether anything wore. The record, `nest-trial.json`, sets each measurement beside
+what was designed. **The engine states no limit for any reading.** A passing trial cannot have a failed check, a pass or revise trial needs a measurement or a use reading, and a trial is checked
+against the printed parts' hashes in the build record, so a print that has changed since is refused. A completed trial is never overwritten.

@@ -73,3 +73,17 @@ The iron's tip reaches the insert's top when the shoulder rests on the plate. Th
 **The engine states no temperature, time or force for installing an insert, and nothing about whether an insert holds or a part survives the heat.** It says where
 each insert is and how far the iron can go. A jig is unverified until a printed trial has passed.
 
+## Trying a print
+
+`jig build` writes `jig.json`, which lists the checks a trial asks and the sizes to measure. After printing it and installing the inserts:
+
+```bash
+zcad-validation jig trial start --build-record exports/my-jig/jig.json
+# fill in trials/trial-001/observations.json, measurements.json and insertion.json, then:
+zcad-validation jig trial complete --trial-directory exports/my-jig/trials/trial-001 --disposition pass
+```
+
+`observations.json` takes pass or fail for each check: it printed cleanly, the part seats, the part lifts out, an insert drops down every bore, and the iron's shoulder stops on the plate.
+`insertion.json` has an entry for each insert: **whether it went in square**, the **depth below the face** it ended at (negative if it stands proud), and its **offset from the pocket's centre**, all as
+you measured them. The record, `jig-trial.json`, sets each depth beside the designed one. **The engine states no limit for any reading**, and nothing about whether an insert holds. A trial is
+checked against the printed parts' hashes, and a completed trial is never overwritten.

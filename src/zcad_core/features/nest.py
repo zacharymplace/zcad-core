@@ -50,9 +50,10 @@ from zcad_core.features.nest_file import (
     NestSpec,
     pocket_depth_mm,
 )
+from zcad_core.features.nest_trial import nest_checks
 from zcad_core.geometry.outline_prism import outline_prism
 
-NEST_RECORD_SCHEMA_VERSION = "1.0.0"
+NEST_RECORD_SCHEMA_VERSION = "1.1.0"
 NEST_RECORD = "nest.json"
 RECORD_KIND = "nest-build"
 NOT_CLAIMED = (
@@ -597,9 +598,33 @@ def nest_record(nest: Nest, files: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "tolerance_status": nest.tolerance_status,
         "parts": files,
         "fit_checks": nest.checks,
+        "checks": nest_checks(
+            lip=bool(nest.tabs), strap=bool(nest.slots), label=nest.label is not None
+        ),
+        "nominal_measurements_mm": _nominal_measurements(nest),
         "verified": False,
         "not_claimed": NOT_CLAIMED,
     }
+
+
+def _nominal_measurements(nest: Nest) -> dict[str, float]:
+    """The sizes a trial measures with calipers, in mm, from the solid as built."""
+
+    width, depth, height = nest.size_mm
+    sizes = {
+        "overall_width_mm": round(width, 3),
+        "overall_depth_mm": round(depth, 3),
+        "overall_height_mm": round(height, 3),
+        "pocket_depth_mm": round(nest.depth_mm, 3),
+        "wall_mm": nest.spec.wall_mm,
+        "floor_mm": nest.spec.floor_mm,
+    }
+
+    if nest.slots:
+        sizes["strap_slot_width_mm"] = round(nest.slots[0].width_mm, 3)
+        sizes["strap_slot_length_mm"] = round(nest.slots[0].length_mm, 3)
+
+    return sizes
 
 
 def write_nest_record(
