@@ -5,9 +5,17 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from zcad_core.cli._common import emit
 from zcad_core.hardware import board_template, check_board_file, load_board
+from zcad_core.hardware.electronics.kicad_import import (
+    ImportedKicadBoard,
+    import_kicad,
+)
+
+if TYPE_CHECKING:
+    from zcad_core.hardware.electronics.board_import import ImportedBoard
 
 
 def _board_check(args: argparse.Namespace) -> int:
@@ -78,21 +86,51 @@ def _board_template(args: argparse.Namespace) -> int:
     return 0
 
 
-def _board_import(args: argparse.Namespace) -> int:
-    """Read a board file from a vendor STEP model, to review and edit."""
+def _import_from_kicad(args: argparse.Namespace) -> ImportedKicadBoard:
+    for flag, value in (
+        ("--pcb-solid-index", args.pcb_solid_index),
+        ("--cable-connector", args.cable_connector),
+    ):
+        if value is not None:
+            raise ValueError(f"{flag} is for a STEP model, not a KiCad file")
 
-    # Imported here: reading a model needs CadQuery's STEP reader.
-    from zcad_core.hardware.electronics.board_import import import_step
+    return import_kicad(
+        args.kicad,
+        identifier=args.identifier,
+        default_height_mm=args.default_height,
+        default_height_source=args.default_height_source,
+    )
+
+
+def _board_import(args: argparse.Namespace) -> int:
+    """Read a board file from a vendor STEP model or a KiCad PCB, to review
+    and edit."""
 
     if args.output.exists():
         raise FileExistsError(f"Refusing to overwrite {args.output}")
 
-    imported = import_step(
-        args.step,
-        identifier=args.identifier,
-        pcb_solid_index=args.pcb_solid_index,
-        cable_connector=args.cable_connector,
-    )
+    imported: ImportedBoard | ImportedKicadBoard
+
+    if args.kicad is not None:
+        imported = _import_from_kicad(args)
+    else:
+        for flag, value in (
+            ("--default-height", args.default_height),
+            ("--default-height-source", args.default_height_source),
+        ):
+            if value is not None:
+                raise ValueError(f"{flag} is for a KiCad file, not a STEP model")
+
+        # Imported here: reading a model needs CadQuery's STEP reader.
+        from zcad_core.hardware.electronics.board_import import import_step
+
+        imported = import_step(
+            args.step,
+            identifier=args.identifier,
+            pcb_solid_index=args.pcb_solid_index,
+            cable_connector=args.cable_connector,
+        )
+
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(imported.data, indent=2) + "\n", encoding="utf-8")
     check, _ = check_board_file(args.output)
@@ -152,9 +190,12 @@ def register(
     template.set_defaults(handler=_board_template)
     import_ = commands.add_parser(
         "import",
-        help="read a board file from a vendor STEP model (+Z up), to review",
+        help="read a board file from a vendor STEP model (+Z up) or a KiCad "
+        "PCB, to review",
     )
-    import_.add_argument("--step", required=True, type=Path)
+    source = import_.add_mutually_exclusive_group(required=True)
+    source.add_argument("--step", type=Path, help="a vendor STEP model")
+    source.add_argument("--kicad", type=Path, help="a .kicad_pcb, KiCad 6 or later")
     import_.add_argument("--output", required=True, type=Path)
     import_.add_argument("--identifier", help="the board's name; default: the file's")
     import_.add_argument(
@@ -166,6 +207,19 @@ def register(
         "--cable-connector",
         metavar="PART",
         help="the part the cable plugs into, from the candidates a first import lists",
+    )
+    import_.add_argument(
+        "--default-height",
+        type=float,
+        metavar="MM",
+        help="KiCad only: one height for every part, the tallest, from "
+        "--default-height-source",
+    )
+    import_.add_argument(
+        "--default-height-source",
+        metavar="TEXT",
+        help="KiCad only: where --default-height comes from, e.g. 'tallest part, "
+        "measured'",
     )
     import_.set_defaults(handler=_board_import)
     promote = commands.add_parser(
