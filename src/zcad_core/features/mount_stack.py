@@ -37,9 +37,27 @@ from zcad_core.features.mounts import (
     standard_screw_length,
 )
 from zcad_core.features.stack_drawers import cap_solid
+from zcad_core.features.stack_holding import (
+    HOLDING_TOP,
+    Holding,
+    holding_for,
+)
+from zcad_core.features.stack_latch import (
+    DEFAULT_LEAST_WALL_MM,
+    ENGAGEMENT_RANGE_MM,
+    SIDES,
+    cut_plate_keepers,
+    engagement_for,
+    plan_latch,
+)
 from zcad_core.features.stack_profile import StackProfile
-from zcad_core.features.stack_solids import baseplate_solid, cell_centres
+from zcad_core.features.stack_solids import (
+    baseplate_solid,
+    cell_centres,
+    holding_centres,
+)
 from zcad_core.hardware import FastenerSpec
+from zcad_core.hardware.magnets import list_magnets
 
 # A screw's head is about its nominal diameter tall; the recess is a little deeper.
 RECESS_EXTRA_MM = 0.5
@@ -54,6 +72,88 @@ MAXIMUM_EXTRA_CELLS = 2
 
 # A stack top's rim round its outermost pockets, the engine's own choice and a baseplate's default.
 TOP_RIM_MM = 1.2
+
+
+@dataclass(frozen=True)
+class TopHolding:
+    """How a stack top holds what stands on it: the lip alone, or magnets under each cell's
+    pocket floor, and hooks of the item above caught in keepers cut in the pocket walls. A bolt
+    needs a hole through what is under the plate, and the lid is closed, so there is none."""
+
+    kind: str = "lip"
+    magnet: str = ""
+    latch_sides: tuple[str, ...] = ()
+    engagement_mm: float | None = None
+    clearance_mm: float = 0.2
+
+    @property
+    def holds(self) -> bool:
+        return self.kind != "lip" or bool(self.latch_sides)
+
+
+def latch_sides(text: str) -> tuple[str, ...]:
+    """The sides in a comma-separated ``stack_top_latch`` such as ``front,back``."""
+
+    return tuple(side.strip() for side in text.split(",") if side.strip())
+
+
+def check_top_holding(
+    kind: str,
+    magnet: str | None,
+    latch_sides: Sequence[str],
+    engagement_mm: float | None,
+    stack_top: bool,
+) -> None:
+    """Refuse holding options that do not go with a stack top or each other."""
+
+    if kind not in HOLDING_TOP:
+        raise ValueError(
+            f"stack_top_holding must be one of {HOLDING_TOP}: "
+            + (
+                "a bolt would go through the lid, which is closed"
+                if kind == "bolt"
+                else f"{kind!r} is not a holding"
+            )
+        )
+
+    given = (
+        kind != "lip"
+        or magnet is not None
+        or bool(latch_sides)
+        or (engagement_mm is not None)
+    )
+
+    if given and not stack_top:
+        raise ValueError(
+            "stack_top_holding, stack_top_magnet, stack_top_latch and "
+            "stack_top_engagement_mm are options of a stack top: set stack_top"
+        )
+
+    if kind == "magnet" and magnet not in list_magnets():
+        raise ValueError(
+            f"stack_top_magnet must name a catalogued magnet: {list(list_magnets())}"
+        )
+
+    if kind != "magnet" and magnet is not None:
+        raise ValueError("stack_top_magnet is for holding by magnets only")
+
+    if not all(side in SIDES for side in latch_sides) or len(set(latch_sides)) != len(
+        latch_sides
+    ):
+        raise ValueError(f"stack_top_latch must be different sides from {SIDES}")
+
+    if engagement_mm is not None:
+        low, high = ENGAGEMENT_RANGE_MM
+
+        if not low <= engagement_mm <= high:
+            raise ValueError(
+                f"stack_top_engagement_mm is {engagement_mm:g}, outside {low:g} to {high:g}"
+            )
+
+        if not latch_sides:
+            raise ValueError(
+                "stack_top_engagement_mm is for a latch: set stack_top_latch"
+            )
 
 
 @dataclass(frozen=True)
@@ -235,6 +335,55 @@ def require_plate_fits_bed(
         )
 
 
+def _top_magnet(
+    holding: TopHolding, profile: StackProfile, floor: float
+) -> Holding | None:
+    """The magnet a top holds by, or ``None``; refused if the profile has no holding points or the
+    plate's floor cannot keep a minimum floor under a pocket."""
+
+    if holding.kind != "magnet":
+        return None
+
+    if not profile.holding_points:
+        raise ValueError(
+            "Holding a stack top by magnets needs holding_points in the profile, and it has none"
+        )
+
+    magnet = holding_for("magnet", holding.magnet, "")
+    need = magnet.pocket_depth_mm + DEFAULT_LEAST_WALL_MM
+
+    if floor < need:
+        raise ValueError(
+            f"A {magnet.identifier} pocket is {magnet.pocket_depth_mm:g} mm deep, so the "
+            f"plate's floor must be at least {need:g} mm to keep a minimum floor under it; "
+            f"it is {floor:g}"
+        )
+
+    return magnet
+
+
+def magnet_points(
+    relative: Sequence[tuple[float, float]],
+    cells: tuple[int, int],
+    profile: StackProfile,
+    radius: float,
+    magnet: Holding,
+) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+    """The holding points that get a magnet pocket, and those that do not: a pocket is left out
+    where a screw's recess comes within a wall of it in the same floor. The lid's screws sit in
+    the corners, as the grid's holding points do, so on a small lid some of them meet."""
+
+    room = radius + magnet.pocket_diameter_mm / 2 + RECESS_WALL_MM
+    kept: list[tuple[float, float]] = []
+    skipped: list[tuple[float, float]] = []
+
+    for mx, my in holding_centres(profile, cells):
+        near = any(math.hypot(x - mx, y - my) < room for x, y in relative)
+        (skipped if near else kept).append((mx, my))
+
+    return kept, skipped
+
+
 def build_stack_top(
     positions: Sequence[tuple[float, float]],
     *,
@@ -245,6 +394,7 @@ def build_stack_top(
     fastener: FastenerSpec,
     profile: StackProfile,
     compensation: float,
+    holding: TopHolding | None = None,
 ) -> StackTop:
     """A baseplate on a lid, in the enclosure's frame: its underside flat on the lid's top face
     at ``lid_top_z_mm``, centred on ``centre``, with a hole and a head recess at each of the lid's
@@ -264,9 +414,11 @@ def build_stack_top(
             f"The catalogue has no heat-set insert depth for {fastener.identifier}"
         )
 
+    holding = holding or TopHolding()
     recess = recess_depth_mm(fastener)
     floor = recess + FOOT_ABOVE_RECESS_MM
     radius = _recess_radius(fastener)
+    magnet = _top_magnet(holding, profile, floor)
     least = (
         math.ceil(lid_size_mm[0] / profile.pitch_mm),
         math.ceil(lid_size_mm[1] / profile.pitch_mm),
@@ -285,6 +437,54 @@ def build_stack_top(
         )
 
     plate, _ = baseplate_solid(profile, cells, floor, TOP_RIM_MM)
+    kept: list[tuple[float, float]] = []
+    skipped: list[tuple[float, float]] = []
+
+    if magnet is not None:
+        kept, skipped = magnet_points(relative, cells, profile, radius, magnet)
+
+        if not kept:
+            raise ValueError(
+                f"Every magnet point of a {cells[0]} x {cells[1]} stack top is within a wall "
+                f"of a lid screw's recess, so a {magnet.identifier} pocket fits nowhere: use "
+                "a smaller magnet or a profile whose holding points are farther in"
+            )
+
+        plate = cut_all(
+            plate,
+            *(
+                cq.Solid.makeCylinder(
+                    magnet.pocket_diameter_mm / 2,
+                    magnet.pocket_depth_mm + 0.5,
+                    pnt=cq.Vector(x, y, floor - magnet.pocket_depth_mm),
+                )
+                for x, y in kept
+            ),
+        )
+
+    latch_engagement: float | None = None
+
+    if holding.latch_sides:
+        engagement = engagement_for(holding.engagement_mm, profile)
+        plan, problems = plan_latch(
+            profile, engagement, DEFAULT_LEAST_WALL_MM, holding.clearance_mm
+        )
+
+        if plan is None:
+            raise ValueError(
+                "The stack top cannot be built with a latch:\n- "
+                + "\n- ".join(problems)
+            )
+
+        latch_engagement = engagement
+        plate = cut_plate_keepers(
+            plate,
+            plan,
+            cell_centres(cells, profile.pitch_mm),
+            holding.latch_sides,
+            floor,
+        )
+
     plate = plate.translate((centre[0], centre[1], lid_top_z_mm))
     hole = fastener.clearance_hole_mm + compensation
 
@@ -314,7 +514,14 @@ def build_stack_top(
         "floor_mm": round(floor, 3),
         "rim_mm": TOP_RIM_MM,
         "thickness_mm": round(box.zlen, 3),
-        "holding": "lip",
+        "holding": holding.kind,
+        "magnet": magnet.identifier if magnet else "",
+        "pocket_diameter_mm": round(magnet.pocket_diameter_mm, 3) if magnet else None,
+        "pocket_depth_mm": round(magnet.pocket_depth_mm, 3) if magnet else None,
+        "magnet_points": [[round(x, 3), round(y, 3)] for x, y in kept],
+        "magnet_points_left_out": [[round(x, 3), round(y, 3)] for x, y in skipped],
+        "latch_sides": list(holding.latch_sides),
+        "latch_engagement_mm": latch_engagement,
         "screw_recess_mm": recess,
         "recess_diameter_mm": round(2 * radius, 3),
         "screw_reach_mm": round(reach, 3),

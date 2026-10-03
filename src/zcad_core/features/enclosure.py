@@ -80,7 +80,13 @@ from zcad_core.features.lid_slide import (
     add_slide,
     slide_clearance_error,
 )
-from zcad_core.features.mount_stack import StackTop, build_stack_top
+from zcad_core.features.mount_stack import (
+    StackTop,
+    TopHolding,
+    build_stack_top,
+    check_top_holding,
+    latch_sides,
+)
 from zcad_core.features.mounts import (
     MOUNTS,
     MountPads,
@@ -241,6 +247,13 @@ class EnclosureDesign:
     stack_profile: str | None = None
     # A baseplate over a screwed lid, held by the lid's own screws, so things stack on the box.
     stack_top: bool = False
+    # What a stack top holds by: the lip alone, or magnets in the pockets' floors; and the sides
+    # whose pocket walls take a keeper for the hooks of a latched item above, as a
+    # comma-separated string such as "front,back" so a record round-trips.
+    stack_top_holding: str = "lip"
+    stack_top_magnet: str | None = None
+    stack_top_latch: str = ""
+    stack_top_engagement_mm: float | None = None
 
     def validate(self) -> None:
         if self.mount is not None and self.mount not in MOUNTS:
@@ -253,6 +266,14 @@ class EnclosureDesign:
                 "mount 'stack', a stack top and stack_profile go together: a stack mount "
                 "or a stack top needs the profile it is built to, and a profile needs one"
             )
+
+        check_top_holding(
+            self.stack_top_holding,
+            self.stack_top_magnet,
+            latch_sides(self.stack_top_latch),
+            self.stack_top_engagement_mm,
+            self.stack_top,
+        )
 
         for name in ("wall_mm", "floor_mm", "lid_mm", "boss_radial_wall_mm"):
             if getattr(self, name) <= 0:
@@ -587,6 +608,13 @@ def build_enclosure(
             fastener=fastener,
             profile=load_profile(Path(design.stack_profile)),
             compensation=design.hole_compensation_mm,
+            holding=TopHolding(
+                design.stack_top_holding,
+                design.stack_top_magnet or "",
+                latch_sides(design.stack_top_latch),
+                design.stack_top_engagement_mm,
+                design.slide_clearance_mm,
+            ),
         )
 
     _require_clear_of_assembly(assembly, base=base, lid=lid)

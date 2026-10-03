@@ -153,8 +153,8 @@ zcad-validation enclosure build --board raspberry_pi_pico_2 --stack-top \
 zcad-validation stack check-stack --upper my-stack.json:tub --lower exports/pico-with-top/enclosure.json:top
 ```
 
-- **It is a baseplate.** Bins, frames and another enclosure's stack plate stand in its pockets as on any baseplate, and `check-stack` reads it as one: `RECORD:top` names it. Holding by
-  magnets, bolts or latches on a top is not built yet.
+- **It is a baseplate.** Bins, frames and another enclosure's stack plate stand in its pockets as on any baseplate, and `check-stack` reads it as one: `RECORD:top` names it. It holds by the lip
+  alone unless you ask for more (below).
 - **The cells** are the least that cover the lid, and the build tries up to two more cells each way, smallest area first, until every lid screw's head recess lies inside a pocket's floor. A
   Pico 2 box takes 1 x 2 cells, 44.4 x 86.4 mm. The plate is centred on the lid and overhangs it where the cells are bigger, and it is refused, with its cells, if it is bigger than the printer's bed.
 - **It is held by the lid's own screws, made longer.** Each goes down through a recess sunk in a pocket's floor, through the plate and the lid, into its insert. The recess is the head's diameter and a little
@@ -168,6 +168,22 @@ zcad-validation stack check-stack --upper my-stack.json:tub --lower exports/pico
 - **The engine states no load rating:** it does not say what the lid carries or whether the plate flexes under a bin. The record's `stack_top` names the plate, its profile by hash, its cells, its floor
   and the screws.
 
+**Holding a bin on a top.** Two options, on `enclosure build` and `enclosure-group build`:
+
+```bash
+zcad-validation enclosure build --board raspberry_pi_pico_2 --stack-top --stack-profile my-profile.json \
+  --stack-top-holding magnet --stack-top-magnet D6X2 --stack-top-latch front,back \
+  --output-directory exports/pico-with-held-top
+```
+
+- **Magnets** (`--stack-top-holding magnet --stack-top-magnet NAME`): a pocket sunk into each cell's pocket floor at the profile's holding points, for a bin built with the same magnet. The floor is
+  4.5 mm, so a pocket leaves a minimum floor under it. **A bolt is not offered:** it would go through the lid, which is closed.
+- **Latches** (`--stack-top-latch front,back`, with `--stack-top-engagement-mm` if you want one): a keeper in each cell's pocket wall on the named sides, for a latched bin or frame, built as a baseplate's are.
+- **Where a screw meets a magnet.** The lid's screws sit in the corners, as the grid's holding points do, and a screw's head recess and a magnet pocket cannot share a floor. **A pocket is left out of any
+  holding point within a wall of a recess**, and the record names the points kept (`magnet_points`) and those left out (`magnet_points_left_out`). On the Pico 2 box's 1 x 2 plate four of the eight points are left out,
+  so each cell keeps its two inner magnets; the build refuses only if no point is left. A bin has all four magnets, so a top holds with fewer than the bin carries.
+- `check-stack` holds a bin to what the top carries: it must agree on the magnet and have a latch on every side the top has keepers for, or the hooks would strike the pocket wall.
+
 **Trying a print.** A build with a stack top adds two checks to the enclosure's or the group's trial, `stack_top_sits_flat` and `stack_top_screws_reach`, and six sizes to measure (the plate's width,
 depth and thickness, its floor, and the screw recess's depth and diameter). `trial start` also writes `stack_top.json`, with what was designed beside blanks:
 
@@ -176,6 +192,7 @@ depth and thickness, its floor, and the screw recess's depth and diameter). `tri
 - **A bin stacked on it:** its **`bin_wobble_mm`** by feeler gauge, the **`separation_force_n`** a spring scale reads lifting it off, and a **count of stackings** with whether anything wore. Wear needs the count.
 
 Each is left blank if not taken, and any one reading is enough to complete a trial. **The engine states no limit and no load rating for any reading.** A blank `stack_top.json` is left out of the record.
+A top that holds by magnets or latches also asks `stack_top_holds`, and the template names what it was designed to hold by.
 
 ## Electronics layers
 

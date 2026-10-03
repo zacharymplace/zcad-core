@@ -138,6 +138,9 @@ def box_checks(design: GroupDesign, hinge: bool, slide: bool) -> list[str]:
     if design.stack_top:
         checks += ["stack_top_sits_flat", "stack_top_screws_reach"]
 
+        if design.stack_top_holding != "lip" or design.stack_top_latch:
+            checks.append("stack_top_holds")
+
     return [*checks, "nothing_rattles"]
 
 
@@ -171,6 +174,7 @@ def check_guidance(name: str) -> str:
     if name in (
         EnclosureCheck.STACK_TOP_SITS_FLAT.value,
         EnclosureCheck.STACK_TOP_SCREWS_REACH.value,
+        EnclosureCheck.STACK_TOP_HOLDS.value,
     ):
         return CHECK_GUIDANCE[EnclosureCheck(name)]
 

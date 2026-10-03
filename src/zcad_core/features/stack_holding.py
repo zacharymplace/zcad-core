@@ -28,6 +28,8 @@ from zcad_core.hardware.fasteners import get_fastener, list_fasteners
 from zcad_core.hardware.magnets import get_magnet, list_magnets
 
 HOLDING = ("lip", "magnet", "bolt")
+# What a stack top can hold by: a bolt would go through the closed lid.
+HOLDING_TOP = ("lip", "magnet")
 
 
 @dataclass(frozen=True)

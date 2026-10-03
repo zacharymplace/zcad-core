@@ -81,7 +81,8 @@ Each phase is one PR, and no existing build changes unless `--stack-top` is aske
 
 - **A lid with its own lip.** A lip cut into the lid is not possible unless the lid is whole cells, which a board's enclosure is not.
 - **A top plate over a lid that opens.** Hinge, slide and snap lids, as above.
-- **A plate with openings that match the lid's vents.** See the open questions.
+- **A plate with openings that match the lid's vents.** See *Vent windows*, below.
+- **A bolt.** A bolt would pass through the lid, which is closed.
 - **Load, flex and creep.** See above.
 
 ## Open questions
@@ -135,3 +136,32 @@ See *Trying a print* in [Stackable items](../guides/stackable-items.md#a-stack-t
 - **No limits, no load rating.** The readings are set beside what was designed and nothing is compared with a figure.
 - **Records are schema 1.1.0** for the enclosure's and the group's build and trial.
 - **Not covered:** a rig for the force, a count to wear-out, and vent windows in the plate over a lid's outlets, which stays open until a trial finds a box that needs them.
+
+### What the extras changed
+
+See *Holding a bin on a top* in [Stackable items](../guides/stackable-items.md#a-stack-top-things-stacked-on-the-box).
+
+- **Holding is the baseplate's own.** A top can carry magnet pockets in its pocket floors and latch keepers in its pocket walls, built with the functions a baseplate uses (`cut_plate_keepers`, the magnet's catalogued pocket) and
+  recorded in the stack figures, so `check-stack RECORD:top` holds a bin to them with the rules a baseplate already has. A bolt is refused: it would go through the closed lid.
+- **A screw and a magnet meet.** The design did not foresee it. The Pico 2 box's lid screws sit at (10.9, 32.9) from the plate's centre and the example profile's holding points at 13 mm out in each cell: 2.4 mm apart
+  at the nearest. A recess and a pocket cannot share a floor, and no cell count separates them (the search found none from 1 x 2 to 3 x 4), so a pocket is **left out of each holding point within a wall of a recess**
+  and the record says which. The alternative, refusing, would have made a magnet top impossible on the commonest box.
+- **A top holds with fewer magnets than the bin carries.** A bin has all four; a Pico top has two per cell. How well that holds is a reading, not a figure, and the trial's `stack_top_holds` and its lifting force are where it shows.
+- **Latches had no such trouble:** a keeper is in the pocket wall above the floor, and a recess is below its surface.
+- **The latch's clearance is the design's `slide_clearance_mm`,** the printer's sliding clearance the enclosure is already built to (0.2 mm), since an enclosure build has no printer profile to read it from.
+- **A holding top asks one check more,** `stack_top_holds`, and the trial's template carries the holding it was designed to.
+
+### Vent windows (not built)
+
+The open question asked whether a top could leave a lid's outlets open. It needs three decisions, and the proposal is to settle them before building.
+
+1. **Finding the opening.** An enclosure's lid has its outlets from three builders (`vent_area_mm2` fields of slots or a hex grid, a fan's guard, slots over a board part), and the display's window. The plate needs the
+   union of their footprints. The proposal is to take it from the built lid, the through-cuts the lid has beyond its screw holes, grown by a margin, and to refuse a lid whose openings are not one or a few
+   rectangles' worth.
+2. **What stands over a window.** A pocket cannot sit over a window: a foot's bottom would hang over the void. The proposal is that every cell a window touches is a **vent cell** with no pocket, a flat floor with
+   the window cut through it, and that the plate's usable cells are the others. A bin of a vent cell's footprint is refused by `check-stack`, naming the cell. This costs cells: on a Pico 2 box's 1 x 2 plate a lid outlet
+   would take one of the two.
+3. **What it claims.** The plate leaving the outlet open is a statement about geometry, not air: the engine does not say the box runs cool with a top on it, and the thermal estimate does not model one. The proposal is
+   to state it that way and leave the temperature to a trial.
+
+The alternative is to refuse, as now. A top over a lid with outlets is a box that is built to be hot or has a fan; the proposal is to build windows only once a trial shows a box that needs both.
