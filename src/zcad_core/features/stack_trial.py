@@ -174,6 +174,12 @@ def item_from_record(entry: dict[str, Any]) -> Item:
             if entry.get("latch_engagement_mm") is None
             else float(entry["latch_engagement_mm"])
         ),
+        detent=bool(entry.get("detent", False)),
+        detent_engagement_mm=(
+            None
+            if entry.get("detent_engagement_mm") is None
+            else float(entry["detent_engagement_mm"])
+        ),
     )
 
 

@@ -21,6 +21,15 @@ from typing import Any
 import cadquery as cq
 
 from zcad_core.features.guide_bores import printer_numbers
+from zcad_core.features.stack_detent import (
+    DetentPlan,
+    add_bumps,
+    bump_solid,
+    cut_dimples,
+    cut_tongues,
+    detent_points,
+    plan_detent,
+)
 from zcad_core.features.stack_drawers import (
     DEFAULT_CLEARANCE_MM,
     LEDGE_MM,
@@ -37,6 +46,7 @@ from zcad_core.features.stack_file import (
     DEFAULT_TAB_MM,
     Item,
     StackSpec,
+    detent_engagement,
     load_stack_profile,
 )
 from zcad_core.features.stack_holding import Holding, holding_for, screw_length_mm
@@ -119,6 +129,47 @@ def latch_plan_for(
         )
 
     return plan
+
+
+def detent_plan_for(
+    item: Item,
+    profile: StackProfile,
+    printer: Mapping[str, Any] | None,
+    siblings: Mapping[str, Item] | None = None,
+) -> DetentPlan | None:
+    """The detent of a frame or a drawer, or ``None`` if it has none; refused if the frame
+    or the drawer cannot carry it."""
+
+    if not item.detent:
+        return None
+
+    clearance = slide_clearance(printer)
+    least_wall = printer_numbers(printer)[1] if printer is not None else 0.0
+
+    if item.kind == "drawer":
+        frame = (siblings or {})[item.frame]
+        plan = frame_plan(frame, profile, clearance, item)
+    else:
+        frame = item
+        plan = frame_plan(item, profile, clearance)
+
+    detent, problems = plan_detent(
+        plan, frame.wall_mm, detent_engagement(item), least_wall, clearance
+    )
+
+    if detent is None:
+        raise ValueError(
+            f"{item.name} cannot be built with a detent:\n- " + "\n- ".join(problems)
+        )
+
+    return detent
+
+
+def _detent_summary(plan: DetentPlan | None) -> dict[str, Any]:
+    if plan is None:
+        return {}
+
+    return {"detent": plan.to_dict()}
 
 
 def _latch_summary(item: Item, plan: LatchPlan | None) -> dict[str, Any]:
@@ -296,6 +347,7 @@ def _frame(
     profile: StackProfile,
     clearance: float,
     latch: LatchPlan | None = None,
+    detent: DetentPlan | None = None,
 ) -> tuple[cq.Workplane, float, dict[str, Any]]:
     plan = frame_plan(item, profile, clearance)
     model, top = frame_solid(
@@ -317,6 +369,9 @@ def _frame(
         model = add_latch_feet(model, latch, centres, item.latch_sides)
         model = cut_lip_keepers(model, latch, centres, item.latch_sides, top)
 
+    if detent is not None:
+        model = cut_dimples(model, detent)
+
     summary: dict[str, Any] = {
         "kind": "frame",
         "cells": list(item.cells),
@@ -332,6 +387,7 @@ def _frame(
         "roof_mm": ROOF_MM,
         **_holding_summary(holding, item.floor_mm),
         **_latch_summary(item, latch),
+        **_detent_summary(detent),
     }
 
     return model, top, summary
@@ -364,10 +420,15 @@ def _drawer(
     profile: StackProfile,
     clearance: float,
     siblings: Mapping[str, Item],
+    detent: DetentPlan | None = None,
 ) -> tuple[cq.Workplane, float, dict[str, Any]]:
     frame = siblings[item.frame]
     plan = frame_plan(frame, profile, clearance, item)
     model = drawer_solid(plan, item.pull)
+
+    if detent is not None:
+        model = add_bumps(cut_tongues(model, detent), detent)
+
     summary: dict[str, Any] = {
         "kind": "drawer",
         "frame": item.frame,
@@ -382,7 +443,12 @@ def _drawer(
         "clearance_per_side_mm": clearance,
         "finger_pull": item.pull,
         "slots": plan.slots,
-        "held_by": "nothing: it comes out when pulled",
+        "held_by": (
+            "nothing: it comes out when pulled"
+            if detent is None
+            else "a detent: it clicks shut, and comes out when pulled"
+        ),
+        **_detent_summary(detent),
     }
     top = plan.floor_z + LEDGE_THICKNESS_MM + plan.drawer_height
 
@@ -406,26 +472,96 @@ def build_item(
     if item.kind in ("cap", "plate"):
         return _cap(item, profile, plan)
 
+    detent = detent_plan_for(item, profile, printer, siblings)
+
     if item.kind == "frame":
-        return _frame(item, profile, slide_clearance(printer), plan)
+        return _frame(item, profile, slide_clearance(printer), plan, detent)
 
     if item.kind == "drawer":
-        return _drawer(item, profile, slide_clearance(printer), siblings or {})
+        return _drawer(item, profile, slide_clearance(printer), siblings or {}, detent)
 
     return _bin(item, profile, plan)
 
 
-def _drawer_slides(drawer: cq.Workplane, frame: cq.Workplane, plan: FramePlan) -> bool:
+def _drawer_slides(
+    drawer: cq.Workplane,
+    frame: cq.Workplane,
+    plan: FramePlan,
+    free: cq.Workplane | None = None,
+) -> bool:
     """The drawer, in every slot and pulled out by none, half and nine tenths of its
-    length, does not touch the frame."""
+    length, does not touch the frame. A detent's bumps press on the frame's wall once they
+    are out of their dimples, so ``free``, the drawer without them, is the one that is
+    pulled out."""
 
     for slot in range(plan.slots):
         for travel in (0.0, 0.5, 0.9):
-            moved = drawer.translate(
+            part = drawer if travel == 0.0 or free is None else free
+            moved = part.translate(
                 (0.0, -travel * plan.drawer_length, slot * plan.pitch)
             )
 
             if overlap_mm3(moved, frame) > TOLERANCE_MM3:
+                return False
+
+    return True
+
+
+def detent_checks(
+    item: Item,
+    plan: DetentPlan,
+    drawer: cq.Workplane,
+    frame_plain: cq.Workplane,
+    length: float,
+) -> dict[str, bool]:
+    """A drawer's detent laid out as real solids: each tongue is freed, a bump in its dimple
+    overlaps what the frame's plain wall would be, so it does click in, and a bump pushed in by
+    the engagement passes the plain wall along the whole of the drawer's travel."""
+
+    solids = workplane_shape(drawer).Solids()
+    freed = True
+    clicks = True
+    passes = True
+
+    for side in (1, -1):
+        points = detent_points(plan, side)
+        freed = (
+            freed
+            and any(s.isInside(cq.Vector(*points["tongue"])) for s in solids)
+            and not any(s.isInside(cq.Vector(*points["under_slit"])) for s in solids)
+            and not any(s.isInside(cq.Vector(*points["end_slit"])) for s in solids)
+        )
+        bump = bump_solid(plan, side)
+        clicks = clicks and overlap_mm3(bump, frame_plain) > 0.05
+        pushed = bump.translate((-side * (plan.engagement_mm + 0.001), 0.0, 0.0))
+        travel = 0.0
+
+        while travel <= 0.9 * length:
+            moved = pushed.translate((0.0, -travel, 0.0))
+            passes = passes and overlap_mm3(moved, frame_plain) <= TOLERANCE_MM3
+            travel += 1.0
+
+    return {
+        f"{item.name}.detent_tongues_freed": freed,
+        f"{item.name}.detent_clicks_in": clicks,
+        f"{item.name}.detent_passes": passes,
+    }
+
+
+def dimples_open(model: cq.Workplane, plan: DetentPlan) -> bool:
+    """Each dimple's mouth is void and the frame's wall behind it is solid, at every slot."""
+
+    solids = workplane_shape(model).Solids()
+
+    for slot in range(plan.slots):
+        for side in (1, -1):
+            points = detent_points(plan, side, slot)
+            mouth = any(s.isInside(cq.Vector(*points["dimple_mouth"])) for s in solids)
+            behind = any(
+                s.isInside(cq.Vector(*points["dimple_backing"])) for s in solids
+            )
+
+            if mouth or not behind:
                 return False
 
     return True
@@ -562,9 +698,31 @@ def build_stack(spec: StackSpec, printer: Mapping[str, Any]) -> Stack:
         if item.kind == "drawer":
             frame_item = siblings[item.frame]
             plan = frame_plan(frame_item, profile, clearance, item)
+            detent = detent_plan_for(item, profile, printer, siblings)
+            free = None
+
+            if detent is not None:
+                free, _, _ = build_item(
+                    replace(item, detent=False), profile, printer, siblings
+                )
+                frame_plain, _, _ = build_item(
+                    replace(frame_item, detent=False), profile, printer, siblings
+                )
+                checks.update(
+                    detent_checks(item, detent, model, frame_plain, plan.drawer_length)
+                )
+
             checks[f"{item.name}.slides_in_{item.frame}"] = _drawer_slides(
-                model, parts[item.frame], plan
+                model, parts[item.frame], plan, free
             )
+
+        if item.kind == "frame" and item.detent:
+            frame_detent = detent_plan_for(item, profile, printer)
+
+            if frame_detent is not None:
+                checks[f"{item.name}.detent_dimples_open"] = dimples_open(
+                    model, frame_detent
+                )
 
         if item.kind in ("bin", "frame"):
             checks[f"{item.name}.stacks_on_itself"] = (

@@ -137,7 +137,7 @@ drawer whose side clearance (0.2 mm on the A1 mini) plus the bump is too small t
 1. **The foot tongue and the keeper (built).** `latch` on a bin, a frame and a baseplate, the profile's own engagement, the tongue's strain
    and length, the hook, the keepers, the placement checks, the built-solid checks, in `stack_latch.py`; `check-stack` learns the sides.
 2. **The snapping cap (built).** The cap's tongue and hook, and the keeper's agreement with a bin or a frame.
-3. **The drawer's closed detent.** The drawer's side tongues, the frame's dimples, and the checks.
+3. **The drawer's closed detent (built).** The drawer's side tongues, the frame's dimples, and the checks.
 4. **Latch trials.** The stack build record carries the latch figures; stack trials gain a latch reading: whether it clicked on and
    off, the **separation force** by spring scale, and a **count of snaps** with whether anything wore. The engine states no limit for any.
 
@@ -189,3 +189,19 @@ See *Latches* in [Stackable items](../guides/stackable-items.md).
 - **`check-stack` treats a cap as hooks.** A latched cap on a bin or frame needs keepers on the same sides at the same engagement; a plain cap on a bin with keepers sits and warns.
 - **A drawer takes no `latch`.** Its field is refused as unknown: a drawer's detent is a different thing, in phase 3.
 - **The cap's top is unchanged.** Nothing stacks on it, hooks or none, and its overall height is the foot and its thickness.
+
+### What phase 3 changed
+
+See *A drawer that clicks shut* in [Stackable items](../guides/stackable-items.md).
+
+- **The detent is a field of its own on a frame and a drawer.** `detent` on a frame cuts a dimple in each side wall at every slot; on a drawer it cuts the tongues and adds the bumps. A drawer
+  with bumps needs a frame with dimples at the same engagement, as a latched cap needs keepers. It is not a `holding` kind and not a `latch`: a latch is a foot and a lip, and a drawer has neither.
+- **The tongue is cut from the drawer's side wall with an open top.** The wall's rim is the tongue's free top, so only two slits free it, one under it and one at its free end, and nothing
+  has to be cut behind it: the inside of a tray is open. Its thickness is the drawer's wall, so a thicker wall needs a longer tongue for the same strain.
+- **The dimple's place does not depend on the drawer.** The frame is built without knowing its drawers' walls, so the bump is laid out from the back of the drawer (14 mm) and the rim (2 mm
+  down), which a frame's own plan gives. Only the tongue's length, which the drawer's wall sets, moves, and it moves toward the back.
+- **The frame's wall is the limit.** A dimple of the engagement plus the clearance leaves the wall behind it at least the printer's minimum only if the wall is 1.8 mm or more with the
+  default 0.4 mm, so a frame with a detent needs `wall_mm` of 1.8, which the design had named as the check.
+- **The slides check frees the bumps once they leave the dimple.** The drawer pulled out by half and nine tenths of its length would press the wall by the engagement, so those positions use
+  the drawer without bumps; shut, the drawer with its bumps must clear the frame's dimples.
+- **Not built yet:** the trial readings, phase 4.
