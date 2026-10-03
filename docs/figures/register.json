@@ -1604,40 +1604,40 @@
       "status": "design_default",
       "note": "The spec's own recommendation (the engine's choice); no basis is written down"
     },
-    "hardware/electronics/board_file.py:BOARD_SIZE_RANGE_MM": {
-      "status": "unstated"
-    },
-    "hardware/electronics/board_file.py:BOARD_SIZE_WARNING_MM": {
-      "status": "unstated"
-    },
-    "hardware/electronics/board_file.py:CRADLE_ENVELOPE_INSET_MM": {
-      "status": "unstated"
-    },
-    "hardware/electronics/board_file.py:HOLE_DIAMETER_RANGE_MM": {
-      "status": "unstated"
-    },
-    "hardware/electronics/board_file.py:MAXIMUM_ENVELOPE_INSET_MM": {
-      "status": "unstated"
-    },
-    "hardware/electronics/board_file.py:MAXIMUM_OVERHANG_MM": {
-      "status": "unstated"
-    },
-    "hardware/electronics/board_file.py:OUTLINE_TOLERANCE_MM": {
-      "status": "unstated"
-    },
-    "hardware/electronics/board_file.py:OVERHANG_MM": {
-      "status": "unstated"
-    },
-    "hardware/electronics/board_file.py:STANDOFF_WALL_MM": {
-      "status": "unstated"
-    },
-    "hardware/electronics/board_file.py:THICKNESS_RANGE_MM": {
-      "status": "unstated"
-    },
-    "hardware/electronics/board_file.py:TYPICAL_THICKNESS_RANGE_MM": {
-      "status": "unstated"
-    },
     "hardware/electronics/board_file.py:_rectangle_inside(margin)": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file_model.py:BOARD_SIZE_RANGE_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file_model.py:BOARD_SIZE_WARNING_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file_model.py:CRADLE_ENVELOPE_INSET_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file_model.py:HOLE_DIAMETER_RANGE_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file_model.py:MAXIMUM_ENVELOPE_INSET_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file_model.py:MAXIMUM_OVERHANG_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file_model.py:OUTLINE_TOLERANCE_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file_model.py:OVERHANG_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file_model.py:STANDOFF_WALL_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file_model.py:THICKNESS_RANGE_MM": {
+      "status": "unstated"
+    },
+    "hardware/electronics/board_file_model.py:TYPICAL_THICKNESS_RANGE_MM": {
       "status": "unstated"
     },
     "hardware/electronics/board_import.py:HEIGHT_TIERS_MM": {
