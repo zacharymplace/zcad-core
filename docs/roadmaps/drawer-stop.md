@@ -74,7 +74,7 @@ ramp, which pushes it in, and the bump drops into the window and stops, and a pu
 ## Phases
 
 1. **The stop (built).** `stop` on a frame and a drawer beside `detent`: the vertical-faced bump, the window, the checks, the record's figures.
-2. **Stop trials.** Readings in `latch.json` for a drawer with a stop: whether it stopped, the **force** a pull needed to take it past, whether it released and went back, and a count with
+2. **Stop trials (built).** Readings in `latch.json` for a drawer with a stop: whether it stopped, the **force** a pull needed to take it past, whether it released and went back, and a count with
    whether anything wore. The engine states no limit for any.
 
 Each phase is one PR, and no existing drawer changes unless it asks for a stop.
@@ -108,3 +108,15 @@ See *A drawer that clicks shut* in [Stackable items](../guides/stackable-items.m
 - **Three checks, two of them against the real frame.** `stop_holds`: the bump pulled out the stop's travel sits in its window, and a millimetre farther strikes the window's front wall. `stop_releases`: a bump pushed
   in by the engagement passes the whole travel of the frame with its dimples and windows. And the frame's `stop_windows_open`: each window void with the wall solid just ahead of its front edge.
 - **Not built yet:** the trial readings, as phase 2.
+
+### What phase 2 changed
+
+See *Trying a print* and *The build record and stacking trials* in [Stackable items](../guides/stackable-items.md). Both phases are built.
+
+- **The stop's readings join the drawer's in `latch.json`.** A drawer with a stop has the detent's readings (clicked shut and open, the pull force out of the dimple, a count and whether anything wore)
+  and four more: `stopped`, `stop_force_n`, `released` and `went_back`. A plain detent drawer is read as before, and its entry has no stop fields.
+- **Two checks and one for the frame.** `stop_holds` and `stop_releases` for the drawer, `windows_clean` for its frame, asked only of items that have a stop.
+- **How far it stops out is a measurement.** The record's sizes to measure add `<drawer>_stop_travel_mm`, the designed 21.5 mm, and `<frame>_window_length_mm` and `_window_height_mm`; a trial's
+  measurement of the travel is set beside it, so the question the design left open, whether 54 per cent is enough, gets a number from each print.
+- **The force is a reading, not a limit.** The stop force and the pull force are the highest a spring scale read. The engine compares neither with a figure, and says nothing about whether a stop holds.
+- **Not covered:** a rig for the force, and a drawer that stops past two thirds of its length.

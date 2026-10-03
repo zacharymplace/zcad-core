@@ -16,7 +16,9 @@ it measures. A trial then records one print of exactly those parts, in the style
 ``latch.json`` holds the readings of the latches and detents an item has, if it has any: whether
 a hooked item **clicked on** and **off**, the **force** a spring scale reads separating it, and a
 **count of snaps** with whether anything wore; for a drawer with a detent, whether it clicked shut
-and open, the **force** to pull it out of its dimples, and the same count. The engine states no
+and open, the **force** to pull it out of its dimples, and the same count; and for a drawer with a
+stop, also whether it **stopped**, the **force** a pull needed against the stop, whether squeezing the
+bumps **released** it, and whether it **went back**. The engine states no
 limit for any, and no holding force.
 
 ``stacking.json`` holds four kinds of reading for each item: a **wobble**, the gap a feeler
@@ -99,12 +101,22 @@ _GUIDANCE = {
         "sides, with the tongues springing back and nothing cracking"
     ),
     "dimples_clean": "Every dimple in the frame's side walls is clean, open and sound",
+    "stop_holds": (
+        "Pulled out, the drawer stops with both bumps against their windows' front edges, "
+        "and a firm pull does not take it past"
+    ),
+    "stop_releases": (
+        "Squeezing both bumps in through the windows, with a pin or a fingernail, lets the "
+        "drawer out, the tongues spring back, and the drawer goes back in past the windows "
+        "and clicks shut"
+    ),
+    "windows_clean": "Every window in the frame's side walls is clean, open and sound",
 }
 
 
 def _snap_checks(item: Item) -> list[str]:
-    """What a trial asks of an item's latch or detent: hooks click, keepers are clean, a
-    drawer's bumps click, a frame's dimples are clean."""
+    """What a trial asks of an item's latch, detent or stop: hooks click, keepers are clean, a
+    drawer's bumps click and stop, a frame's dimples and windows are clean."""
 
     checks: list[str] = []
 
@@ -117,6 +129,13 @@ def _snap_checks(item: Item) -> list[str]:
 
     if item.detent:
         checks.append("detent_clicks" if item.kind == "drawer" else "dimples_clean")
+
+    if item.stop:
+        checks += (
+            ["stop_holds", "stop_releases"]
+            if item.kind == "drawer"
+            else ["windows_clean"]
+        )
 
     return checks
 
@@ -189,6 +208,12 @@ def nominal_measurements(stack: Stack) -> dict[str, float]:
         if detent is not None:
             nominals[f"{key}_bump_stand_out_mm"] = detent["protrusion_mm"]
             nominals[f"{key}_dimple_depth_mm"] = detent["dimple_depth_mm"]
+
+            if "stop" in detent and summary.get("kind") == "drawer":
+                nominals[f"{key}_stop_travel_mm"] = detent["stop"]["travel_mm"]
+            elif "stop" in detent:
+                nominals[f"{key}_window_length_mm"] = detent["stop"]["window_length_mm"]
+                nominals[f"{key}_window_height_mm"] = detent["stop"]["window_height_mm"]
 
     return nominals
 
@@ -327,9 +352,9 @@ def _stacking_template(build: dict[str, Any]) -> dict[str, Any]:
 
 
 def _snap_items(build: dict[str, Any]) -> dict[str, str]:
-    """The items whose snaps a trial reads: ``hook`` for one that carries hooks and ``drawer``
-    for a drawer with a detent. A frame's dimples and a baseplate's keepers are read through
-    what clicks into them."""
+    """The items whose snaps a trial reads: ``hook`` for one that carries hooks, ``drawer`` for
+    a drawer with a detent and ``stop`` for one with a stop too. A frame's dimples and windows
+    and a baseplate's keepers are read through what clicks into them."""
 
     snaps: dict[str, str] = {}
 
@@ -337,7 +362,7 @@ def _snap_items(build: dict[str, Any]) -> dict[str, str]:
         item = entry["item"]
 
         if item["kind"] == "drawer" and item.get("detent"):
-            snaps[name] = "drawer"
+            snaps[name] = "stop" if item.get("stop") else "drawer"
         elif item["kind"] in ("bin", "frame", "cap") and item.get("latch_sides"):
             snaps[name] = "hook"
 
@@ -358,7 +383,7 @@ def _latch_template(build: dict[str, Any]) -> dict[str, Any] | None:
     for name, kind in snaps.items():
         summary = build["items"][name]["summary"]
 
-        if kind == "drawer":
+        if kind in ("drawer", "stop"):
             items[name] = {
                 "designed": summary["detent"],
                 "guidance": (
@@ -375,6 +400,19 @@ def _latch_template(build: dict[str, Any]) -> dict[str, Any] | None:
                 "anything_wore": None,
                 "notes": "",
             }
+
+            if kind == "stop":
+                items[name]["guidance"] += (
+                    ". For the stop: stopped, whether it stopped when pulled out; "
+                    "stop_force_n, the highest force a spring scale reads pulling against "
+                    "the stop before you squeeze; released, whether squeezing both bumps in "
+                    "through the windows let it out; went_back, whether it then went back "
+                    "in past the windows and clicked shut. Measure how far it came out in "
+                    "measurements.json"
+                )
+                items[name].update(
+                    stopped=None, stop_force_n=None, released=None, went_back=None
+                )
         else:
             items[name] = {
                 "designed": summary["latch"],
@@ -548,11 +586,21 @@ def _snap_reading(name: str, kind: str, entry: dict[str, Any]) -> dict[str, Any]
     where = f"latch.json items.{name}"
     first, second, force_name = (
         ("clicked_shut", "clicked_open", "pull_force_n")
-        if kind == "drawer"
+        if kind in ("drawer", "stop")
         else ("clicked_on", "clicked_off", "separation_force_n")
     )
     clicked = (_yes_no(entry, first, where), _yes_no(entry, second, where))
     force = _positive(entry, force_name, where)
+    stop = (
+        {
+            "stopped": _yes_no(entry, "stopped", where),
+            "stop_force_n": _positive(entry, "stop_force_n", where),
+            "released": _yes_no(entry, "released", where),
+            "went_back": _yes_no(entry, "went_back", where),
+        }
+        if kind == "stop"
+        else {}
+    )
     count, wore = entry.get("snaps_counted"), entry.get("anything_wore")
 
     if count is None:
@@ -563,7 +611,12 @@ def _snap_reading(name: str, kind: str, entry: dict[str, Any]) -> dict[str, Any]
     elif not isinstance(wore, bool):
         raise TypeError(f"{where}: anything_wore must be true or false")
 
-    if clicked == (None, None) and force is None and count is None:
+    if (
+        clicked == (None, None)
+        and force is None
+        and count is None
+        and all(value is None for value in stop.values())
+    ):
         return None
 
     return {
@@ -571,6 +624,7 @@ def _snap_reading(name: str, kind: str, entry: dict[str, Any]) -> dict[str, Any]
         first: clicked[0],
         second: clicked[1],
         force_name: force,
+        **stop,
         "snaps_counted": count,
         "anything_wore": wore,
         "notes": entry.get("notes", ""),
@@ -600,7 +654,7 @@ def _latch_readings(trial: Path, build: dict[str, Any]) -> dict[str, Any] | None
         if reading is not None:
             summary = build["items"][name]["summary"]
             reading["designed"] = summary[
-                "detent" if snaps[name] == "drawer" else "latch"
+                "latch" if snaps[name] == "hook" else "detent"
             ]
             readings.append(reading)
 
