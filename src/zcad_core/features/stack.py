@@ -27,8 +27,10 @@ from zcad_core.features.stack_detent import (
     bump_solid,
     cut_dimples,
     cut_tongues,
+    cut_windows,
     detent_points,
     plan_detent,
+    stop_points,
 )
 from zcad_core.features.stack_drawers import (
     DEFAULT_CLEARANCE_MM,
@@ -154,7 +156,12 @@ def detent_plan_for(
         plan = frame_plan(item, profile, clearance)
 
     detent, problems = plan_detent(
-        plan, frame.wall_mm, detent_engagement(item), least_wall, clearance
+        plan,
+        frame.wall_mm,
+        detent_engagement(item),
+        least_wall,
+        clearance,
+        item.stop,
     )
 
     if detent is None:
@@ -163,6 +170,21 @@ def detent_plan_for(
         )
 
     return detent
+
+
+def _held_by(detent: DetentPlan | None) -> str:
+    """What keeps a drawer in, in words."""
+
+    if detent is None:
+        return "nothing: it comes out when pulled"
+
+    if detent.stop:
+        return (
+            "a stop: it comes out only when both bumps are squeezed in through the "
+            "windows, and clicks shut"
+        )
+
+    return "a detent: it clicks shut, and comes out when pulled"
 
 
 def _detent_summary(plan: DetentPlan | None) -> dict[str, Any]:
@@ -372,6 +394,9 @@ def _frame(
     if detent is not None:
         model = cut_dimples(model, detent)
 
+        if detent.stop:
+            model = cut_windows(model, detent)
+
     summary: dict[str, Any] = {
         "kind": "frame",
         "cells": list(item.cells),
@@ -443,11 +468,7 @@ def _drawer(
         "clearance_per_side_mm": clearance,
         "finger_pull": item.pull,
         "slots": plan.slots,
-        "held_by": (
-            "nothing: it comes out when pulled"
-            if detent is None
-            else "a detent: it clicks shut, and comes out when pulled"
-        ),
+        "held_by": _held_by(detent),
         **_detent_summary(detent),
     }
     top = plan.floor_z + LEDGE_THICKNESS_MM + plan.drawer_height
@@ -513,15 +534,21 @@ def detent_checks(
     drawer: cq.Workplane,
     frame_plain: cq.Workplane,
     length: float,
+    frame: cq.Workplane | None = None,
 ) -> dict[str, bool]:
     """A drawer's detent laid out as real solids: each tongue is freed, a bump in its dimple
     overlaps what the frame's plain wall would be, so it does click in, and a bump pushed in by
-    the engagement passes the plain wall along the whole of the drawer's travel."""
+    the engagement passes the plain wall along the whole of the drawer's travel. A stop adds two
+    checks against the real frame, with its windows: pulled out the stop's travel, the bump sits
+    in its window and a millimetre farther it strikes the window's front wall; and a bump pushed in
+    by the engagement passes the whole of the travel, windows and all."""
 
     solids = workplane_shape(drawer).Solids()
     freed = True
     clicks = True
     passes = True
+    holds = True
+    releases = True
 
     for side in (1, -1):
         points = detent_points(plan, side)
@@ -539,13 +566,50 @@ def detent_checks(
         while travel <= 0.9 * length:
             moved = pushed.translate((0.0, -travel, 0.0))
             passes = passes and overlap_mm3(moved, frame_plain) <= TOLERANCE_MM3
+
+            if plan.stop and frame is not None:
+                releases = releases and overlap_mm3(moved, frame) <= TOLERANCE_MM3
+
             travel += 1.0
 
-    return {
+        if plan.stop and frame is not None:
+            seated = bump.translate((0.0, -plan.stop_travel_mm, 0.0))
+            beyond = bump.translate((0.0, -plan.stop_travel_mm - 1.0, 0.0))
+            holds = (
+                holds
+                and overlap_mm3(seated, frame) <= TOLERANCE_MM3
+                and overlap_mm3(beyond, frame) > 0.01
+            )
+
+    checks = {
         f"{item.name}.detent_tongues_freed": freed,
         f"{item.name}.detent_clicks_in": clicks,
         f"{item.name}.detent_passes": passes,
     }
+
+    if plan.stop and frame is not None:
+        checks[f"{item.name}.stop_holds"] = holds
+        checks[f"{item.name}.stop_releases"] = releases
+
+    return checks
+
+
+def windows_open(model: cq.Workplane, plan: DetentPlan) -> bool:
+    """Each window is void and the frame's wall just ahead of its front edge is solid, at every
+    slot."""
+
+    solids = workplane_shape(model).Solids()
+
+    for slot in range(plan.slots):
+        for side in (1, -1):
+            points = stop_points(plan, side, slot)
+            open_ = not any(s.isInside(cq.Vector(*points["window"])) for s in solids)
+            wall = any(s.isInside(cq.Vector(*points["front_wall"])) for s in solids)
+
+            if not open_ or not wall:
+                return False
+
+    return True
 
 
 def dimples_open(model: cq.Workplane, plan: DetentPlan) -> bool:
@@ -709,7 +773,14 @@ def build_stack(spec: StackSpec, printer: Mapping[str, Any]) -> Stack:
                     replace(frame_item, detent=False), profile, printer, siblings
                 )
                 checks.update(
-                    detent_checks(item, detent, model, frame_plain, plan.drawer_length)
+                    detent_checks(
+                        item,
+                        detent,
+                        model,
+                        frame_plain,
+                        plan.drawer_length,
+                        parts[item.frame],
+                    )
                 )
 
             checks[f"{item.name}.slides_in_{item.frame}"] = _drawer_slides(
@@ -723,6 +794,11 @@ def build_stack(spec: StackSpec, printer: Mapping[str, Any]) -> Stack:
                 checks[f"{item.name}.detent_dimples_open"] = dimples_open(
                     model, frame_detent
                 )
+
+                if frame_detent.stop:
+                    checks[f"{item.name}.stop_windows_open"] = windows_open(
+                        model, frame_detent
+                    )
 
         if item.kind in ("bin", "frame"):
             checks[f"{item.name}.stacks_on_itself"] = (

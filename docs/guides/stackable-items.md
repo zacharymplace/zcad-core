@@ -365,3 +365,22 @@ bumps is refused if its frame has none or is cut for another engagement. A frame
 tongue's wall is solid and both slits are void), `detent_clicks_in` (a bump in its dimple overlaps what the frame's plain wall would be, so it does engage) and `detent_passes` (a bump pushed in by
 the engagement passes the plain wall along nine tenths of the drawer's length). `slides_in_<frame>` still holds the drawer clear of the frame shut and at half and nine tenths out, with the
 bumps pushed in once it is out of the dimple. These sizes are the engine's own choices, provisional until a trial.
+
+### A stop that keeps the drawer in
+
+```json
+{"kind": "frame", "name": "chest", "cells": [1, 1], "units": 4, "drawers": 2, "wall_mm": 1.8, "detent": {}, "stop": {}},
+{"kind": "drawer", "name": "tray", "frame": "chest", "detent": {}, "stop": {}}
+```
+
+`stop` on a frame and on a drawer, each with its `detent`, keeps the drawer in the frame when it is pulled out. The bump's front face is vertical, and the frame has a **window** through each
+side wall at every slot, where the bump sits when the drawer is pulled out; the window's front edge is a vertical wall, so the bump catches on it. **To take the drawer out, squeeze:** push both
+bumps in through the windows, with a pin or a fingernail, on both sides at once, and pull. **To put it back,** push the rear in: the bump's rear face is a 45 degree ramp, so it rides over the frame's
+front edge and drops into the window, and a push shuts the drawer, clicking into its dimple. The dimple has a ramped front wall for a stop, so the drawer still clicks out of its closed position.
+
+- **The stop lets the drawer out 21.5 mm of its 40 mm, 54 per cent,** with the example profile: the window's front edge is 3 mm back from the frame's front. A stop must let it out between a fifth and
+  two thirds of its length, and is refused outside that. A drawer stopped there still has more than half of its length inside the frame.
+- **The window** is 5.6 mm along the wall and 4.2 mm tall, so a pin 2 mm across reaches the bump. Slots must leave the printer's minimum wall between windows.
+- **A drawer with a stop needs a frame with one,** at the same engagement. A frame with windows and a drawer with only a detent is fine: the drawer comes out as it did.
+- **Checks on the real solids:** `stop_holds` (pulled the stop's travel, the bump sits in its window, and a millimetre more strikes the window's front wall), `stop_releases` (a bump pushed in by the
+  engagement passes the whole travel of the frame with its dimples and windows), and the frame's `stop_windows_open`. The engine states no holding force: it stops a pull and a squeeze lets it go.

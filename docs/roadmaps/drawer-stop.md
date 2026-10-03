@@ -45,8 +45,8 @@ The drawer already has a tongue with a bump on each side, near its back, clickin
 and out, because the bump's corner meets the ramp. Only the window's front edge is a hard face.
 
 **To release,** squeeze: a pin or a fingernail through each window pushes its bump in by the engagement, and the drawer comes out, with the tongues springing back after. The windows are on
-both sides, so a thumb and a finger on the two outside faces of the frame push both at once. **To put the drawer back,** its rear goes in, the bump meets the frame's front edge,
-which is chamfered 45 degrees on the inside of each side wall to push the bump in, and the bump drops into the window and stops, and a push shuts the drawer, clicking into the dimple.
+both sides, so a thumb and a finger on the two outside faces of the frame push both at once. **To put the drawer back,** its rear goes in, the bump meets the frame's front edge with its rear face, a 45 degree
+ramp, which pushes it in, and the bump drops into the window and stops, and a push shuts the drawer, clicking into the dimple.
 
 ### The sizes
 
@@ -56,8 +56,6 @@ which is chamfered 45 degrees on the inside of each side wall to push the bump i
   root must stand clear of the back wall.
 - **The window** is as tall as the bump (3 mm) and 0.6 mm more each way, and as wide along the wall as the bump's base (1.6 mm) and 4 mm more, so a pin 2 mm across reaches the bump. It keeps the printer's minimum wall round it, which the frame's wall (1.8 mm) and
   the ledges below allow.
-- **The chamfer** is 0.8 mm, a little more than the bump's engagement, on the inside of the frame's front edge of each side wall. It thins the wall to 1.0 mm at the very edge, under the printer's
-  1.2 mm minimum. That is a chamfer and not a wall, and it is listed under the open questions.
 - **The drawer's wall** is at least 1.8 mm for the same reason the frame's is (a tongue needs the engagement and the clearance past a minimum wall), and the build says so.
 
 ## Checks
@@ -69,13 +67,13 @@ which is chamfered 45 degrees on the inside of each side wall to push the bump i
 | Bump | A bump that the tongue's strain does not allow, as the detent's is checked |
 | The stop holds | The drawer pulled to the stop, with its bumps pushed in by nothing, is stopped by the window: its bump overlaps the window's front wall if pulled a millimetre more |
 | The release works | A bump pushed in by the engagement passes the window and the whole of the travel after it |
-| It goes back | A bump pushed in by the engagement passes the frame's chamfer going in, and then the closed dimple |
+| It goes back | A bump pushed in by the engagement passes the frame's front edge, the window and the closed dimple |
 | The drawer slides | As now: shut, and at half and nine tenths out, with the bumps pushed in once out of their holes |
 | One solid | The frame and the drawer |
 
 ## Phases
 
-1. **The stop.** `stop` on a frame and a drawer beside `detent`: the vertical-faced bump, the window, the chamfer, the checks, the record's figures.
+1. **The stop (built).** `stop` on a frame and a drawer beside `detent`: the vertical-faced bump, the window, the checks, the record's figures.
 2. **Stop trials.** Readings in `latch.json` for a drawer with a stop: whether it stopped, the **force** a pull needed to take it past, whether it released and went back, and a count with
    whether anything wore. The engine states no limit for any.
 
@@ -91,6 +89,22 @@ Each phase is one PR, and no existing drawer changes unless it asks for a stop.
 ## Open questions
 
 - **Whether a 56 per cent pull-out is enough.** It is what the example profile's drawer allows with the detent's tongue where it is; 65 per cent is the most. The proposal is to build 56 and let a trial say.
-- **The chamfer's thin edge.** A 0.8 mm chamfer leaves 1.0 mm at the very edge of a 1.8 mm wall. The alternative is a frame wall of 2.0 mm, which the profile's lip reach allows (2.6 mm). The proposal is to
-  refuse a frame wall under the printer's minimum plus the chamfer, 2.0 mm with the A1 mini, for a frame with a stop.
 - **Whether both sides need a stop.** One side only is released with one pin, and lets a drawer hang by a single bump. The proposal is both sides.
+
+### What phase 1 changed
+
+See *A drawer that clicks shut* in [Stackable items](../guides/stackable-items.md).
+
+- **No chamfer.** The design said a chamfer on the frame's front edge would push the bump in as the drawer goes back. A drawer going in leads with the bump's *rear* face, which is a 45 degree ramp, so
+  the bump rides over the frame's front edge and the window's rear edge on its own, and the thin edge the chamfer would have left, with the 2.0 mm wall rule that came with it, is gone.
+- **The dimple has a ramped front wall for a stop.** A vertical-faced bump does not fit the dimple the symmetric bump had: its square corner is outside the ramp. A stop's dimple is the bump grown by the
+  clearance with its front wall a 45 degree ramp that starts the clearance ahead of the bump's face and climbs to the wall's face, so the bump's corner rides up it and the drawer still clicks out of its
+  closed position. Only the window's front edge is a hard face.
+- **The stop's travel is 21.5 mm, 54 per cent.** The window's front edge is 3 mm back from the frame's front edge, and the bump's face is 0.2 mm clear of it at the stop. The design said about 22 mm and
+  56 per cent; the clearance and the bump's half-base account for the difference. A stop must come out between a fifth and two thirds of the drawer, and is refused outside that.
+- **`stop` is an empty object on a frame and a drawer** and needs that item's `detent`: it reuses the detent's tongue, dimple and engagement. A drawer with a stop needs a frame with one. A frame with
+  windows and a drawer with only a detent is fine: the drawer's symmetric bump rides in and out of a window like anywhere else, and nothing stops it.
+- **The window** is 5.6 mm along the wall and 4.2 mm tall, through the wall, at every slot on both sides. Windows in slots closer than the printer's minimum wall plus the window's height are refused.
+- **Three checks, two of them against the real frame.** `stop_holds`: the bump pulled out the stop's travel sits in its window, and a millimetre farther strikes the window's front wall. `stop_releases`: a bump pushed
+  in by the engagement passes the whole travel of the frame with its dimples and windows. And the frame's `stop_windows_open`: each window void with the wall solid just ahead of its front edge.
+- **Not built yet:** the trial readings, as phase 2.

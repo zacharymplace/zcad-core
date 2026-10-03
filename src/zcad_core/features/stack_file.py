@@ -124,10 +124,11 @@ _ITEM = {
             "fastener",
             "latch",
             "detent",
+            "stop",
         }
     ),
     "drawer": frozenset(
-        {"kind", "name", "frame", "wall_mm", "floor_mm", "pull", "detent"}
+        {"kind", "name", "frame", "wall_mm", "floor_mm", "pull", "detent", "stop"}
     ),
 }
 
@@ -160,6 +161,9 @@ class Item:
     # engagement.
     detent: bool = False
     detent_engagement_mm: float | None = None
+    # A stop that keeps a drawer in: windows in a frame's walls, a vertical-faced bump on a
+    # drawer. It needs the detent.
+    stop: bool = False
 
 
 @dataclass(frozen=True)
@@ -374,6 +378,26 @@ def check_detent_fields(
     )
 
 
+def check_stop_fields(entry: Mapping[str, Any], where: str, findings: Findings) -> None:
+    """A frame's or drawer's ``stop``: an object with nothing in it, needing a ``detent``,
+    whose engagement it shares."""
+
+    stop = entry.get("stop")
+
+    if stop is None:
+        return
+
+    if not isinstance(stop, Mapping) or stop:
+        findings.errors.append(
+            f"{where}.stop must be an empty object: its engagement is the detent's"
+        )
+
+    if entry.get("detent") is None:
+        findings.errors.append(
+            f"{where}.stop needs {where}.detent: a stop reuses the detent's tongue and dimple"
+        )
+
+
 def _check_item(entry: Any, index: int, names: list[str], findings: Findings) -> None:
     where = f"items[{index}]"
 
@@ -410,6 +434,7 @@ def _check_item(entry: Any, index: int, names: list[str], findings: Findings) ->
     check_holding_fields(entry, where, findings)
     check_latch_fields(entry, where, findings)
     check_detent_fields(entry, where, findings)
+    check_stop_fields(entry, where, findings)
 
 
 def _check_kind(
@@ -557,6 +582,7 @@ def _item(entry: Mapping[str, Any]) -> Item:
         latch_engagement_mm=_latch_engagement(entry),
         detent=entry.get("detent") is not None,
         detent_engagement_mm=_detent_engagement(entry),
+        stop=entry.get("stop") is not None,
     )
 
 
@@ -761,7 +787,12 @@ def _check_frame_detent(
         return
 
     _, problems = plan_detent(
-        plan, item.wall_mm, detent_engagement(item), least_wall, clearance
+        plan,
+        item.wall_mm,
+        detent_engagement(item),
+        least_wall,
+        clearance,
+        item.stop,
     )
     errors.extend(f"{item.name}: {problem}" for problem in problems)
 
@@ -843,8 +874,19 @@ def _check_drawer_detent(
             "must agree"
         )
 
+    if item.stop and not frame.stop:
+        errors.append(
+            f"{item.name}: its stop needs windows, and {frame.name} has no stop: add stop "
+            "to the frame"
+        )
+
     _, problems = plan_detent(
-        plan, frame.wall_mm, detent_engagement(item), least_wall, clearance
+        plan,
+        frame.wall_mm,
+        detent_engagement(item),
+        least_wall,
+        clearance,
+        item.stop,
     )
     errors.extend(f"{item.name}: {problem}" for problem in problems)
 
