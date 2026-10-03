@@ -4,8 +4,9 @@ A **stack profile** says how an item's top and bottom faces meet another's. Bins
 baseplates built on one profile sit on each other, and a bin stacks on a bin like it. This
 release builds bins, baseplates, caps, and drawer frames with their drawers, holds them with magnets
 or bolts, puts the enclosures on the grid, stacks plates and spacers over boards, checks whether
-two items stack, and keeps a record and trials of a print; latches come in a later release (see the
-[stackable items design](../roadmaps/stackable-items.md)).
+two items stack, and keeps a record and trials of a print. Bins, frames and baseplates can also snap together with
+printed latches; caps and drawers come next (see the [stackable items design](../roadmaps/stackable-items.md) and the
+[latch design](../roadmaps/stackable-latches.md)).
 
 ```bash
 zcad-validation stack template --kind stack-profile --output my-profile.json
@@ -91,7 +92,7 @@ A **tray** is a bin that is not very tall, and a bin does not need another kind 
 inside. What a tray adds is a lid, and a drawer is what a frame adds.
 
 - **A cap** is a flat lid on the profile's foot. It sits in the lip of a bin or a frame of the same cells, the way a
-  bin does, and nothing stacks on it. It is held by the lip alone: a cap does not snap, because a latch has no design yet.
+  bin does, and nothing stacks on it. It is held by the lip alone: a cap does not snap yet.
 - **A frame** is a bin with its front wall taken out, a roof, and a pair of ledges up the inside of its side walls
   for each of its `drawers`. It has the foot and the lip, so it stands on a baseplate and takes a bin or a cap on top.
   It can hold by magnet or bolt in its foot, like a bin.
@@ -273,3 +274,53 @@ profile whose sections nest on paper but not in solid fails the build.
 **The engine states no load rating, no stable height for a stack, and no compatibility with any other maker's
 parts.** It says a part was built to the profile in the file named by its hash. Whether it sits on a bought
 baseplate is a reading for a trial, which comes with the build record in a later release.
+
+## Latches
+
+A **latch** is a printed snap between a foot and a lip: a hook on the side of the upper item's foot, caught in a recess, the **keeper**, cut
+into the lip of the item below. It is a detent, not a lock: it resists being pulled apart and lets go to a pull. **The engine states no holding
+force**, and a stack that must not come apart is bolted.
+
+```json
+{"kind": "bin", "name": "box", "cells": [2, 1], "units": 3, "latch": {"sides": ["front", "back"]}},
+{"kind": "baseplate", "name": "plate", "cells": [2, 1], "latch": {"sides": ["front", "back"]}}
+```
+
+`latch` takes `sides` from `front` (-Y), `back` (+Y), `left` (-X) and `right` (+X), defaulting to front and back, and an optional `engagement_mm`. It is
+a field of its own, so an item can hold by magnets and latch too.
+
+| Item | What `latch` builds |
+| --- | --- |
+| `bin`, `frame` | On each cell's foot along each named side, a hook on a tongue, and in its own lip a keeper at the same place, so it takes the item above and holds to the one below. |
+| `baseplate` | A keeper in the pocket wall of every cell on each named side. |
+
+**A hook that meets no keeper strikes the lip or the pocket wall.** A latched bin or frame stacks only on an item with keepers on the same sides and the same
+engagement, and `check-stack` says which side is missing. An item with keepers and nothing hooked to them only warns.
+
+**The tongue** is a strip of the foot's skin, 1.2 mm thick (the printer's minimum wall), freed by a relief pocket cut up into the solid foot from its bottom, and
+bending outward along the side as the slide lid's detent does. Its reach is the least, to the next half millimetre, that keeps its strain under the provisional
+1.5 per cent limit: 7 mm for the default 0.4 mm engagement. The build reports the strain, and refuses a cell side too short for the reach it needs. A tongue is refused
+near a magnet or bolt pocket.
+
+**The hook** is 6 mm wide and stands out of the foot by the gap across the wall (0.25 mm on the example profile) plus the engagement, with a 45 degree ramp each side. **The
+keeper** is the hook's shape grown by the printer's sliding clearance, cut into the lip's face. These sizes, the slit (0.8 mm) and the flat on a hook's tip (0.4 mm)
+are the engine's own choices, provisional until a trial.
+
+**What the profile allows.** The engine finds a vertical run of the foot's face and of the lip's face that overlap in height (0.8 to 2.5 mm on the example profile), and
+refuses a profile with under 1.5 mm. The engagement is held by two limits from the profile:
+
+- the hook's ramps take twice its protrusion from the vertical run, leaving a flat of at least 0.4 mm: **at most 0.4 mm** on the example profile;
+- the lip behind a keeper stays at least the printer's minimum wall: at most 0.5 mm on the example profile.
+
+The default engagement is 0.4 mm. A profile can state its own, with a source, once a trial has settled it:
+
+```json
+"latch": {"engagement_mm": 0.35, "source": "trial of 12 snaps on the A1 mini, PETG"}
+```
+
+A source is needed and an `EXAMPLE` one is refused. A profile with a thicker lip or a taller vertical run, an edit to its sections, allows more.
+
+**The build lays real solids.** Each latched bin or frame gets four checks on top of the stack's own: each tongue's skin is solid and its relief void; each keeper's mouth
+is void with the lip solid behind it; a hook seated in the lip overlaps what a plain lip would be, so it does engage; and a hook deflected by its tongue's travel passes
+the plain lip at every height from the lip's top down, so it goes on and comes off. The item laid on itself, and on a baseplate with keepers, has no overlap. The record
+carries each item's latch figures.

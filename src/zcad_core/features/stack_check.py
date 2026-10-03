@@ -35,6 +35,7 @@ from zcad_core.features.stack_file import (
     load_stack_profile,
 )
 from zcad_core.features.stack_holding import Holding, holding_for
+from zcad_core.features.stack_latch import engagement_for
 from zcad_core.features.stack_profile import StackProfile, load_profile
 from zcad_core.features.stack_trial import RECORD_KIND, item_from_record
 
@@ -102,6 +103,53 @@ def _holding_errors(
         errors.append(
             f"They disagree on what holds them: {_describe(upper, upper_hold)} on "
             f"{_describe(lower, lower_hold)}"
+        )
+
+    return errors, warnings
+
+
+def _latch_errors(
+    upper: Item, lower: Item, profile: StackProfile
+) -> tuple[list[str], list[str]]:
+    """The upper item's hooks need a keeper in the lower on each side they are on, at the same
+    engagement. A lower item with keepers and an upper with no hooks only warns."""
+
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    if upper.kind not in ("bin", "frame") or lower.kind not in (
+        "bin",
+        "frame",
+        "baseplate",
+    ):
+        return errors, warnings
+
+    missing = [side for side in upper.latch_sides if side not in lower.latch_sides]
+
+    if missing:
+        errors.append(
+            f"{upper.name} has hooks on its {', '.join(missing)} side, and {lower.name} has no "
+            "keeper there: the hooks would strike it"
+        )
+
+    if upper.latch_sides and lower.latch_sides:
+        hook = engagement_for(upper.latch_engagement_mm, profile)
+        keeper = engagement_for(lower.latch_engagement_mm, profile)
+
+        if abs(hook - keeper) > 1e-9:
+            errors.append(
+                f"{upper.name}'s hooks engage {hook:g} mm and {lower.name}'s keepers are cut "
+                f"for {keeper:g} mm: they must agree"
+            )
+
+    if lower.latch_sides and not upper.latch_sides:
+        warnings.append(
+            f"{lower.name} has keepers and {upper.name} has no hooks: they are held by "
+            + (
+                "the lip alone"
+                if lower.kind != "baseplate"
+                else "what holds them in the feet"
+            )
         )
 
     return errors, warnings
@@ -316,6 +364,9 @@ def check_resolved(
     errors += _shape_errors(upper, lower)
     held_errors, warnings = _holding_errors(upper, lower, upper_hold, lower_hold)
     errors += held_errors
+    latch_errors, latch_warnings = _latch_errors(upper, lower, upper_profile)
+    errors += latch_errors
+    warnings += latch_warnings
     summary: dict[str, Any] = {
         "upper": _describe(upper, upper_hold),
         "lower": _describe(lower, lower_hold),
@@ -324,6 +375,9 @@ def check_resolved(
         ),
         "not_claimed": NOT_CLAIMED,
     }
+
+    if upper.latch_sides and not latch_errors:
+        summary["latched_on"] = list(upper.latch_sides)
 
     if not errors:
         errors += _overlap_errors(upper, lower, upper_profile, printer, summary)

@@ -52,6 +52,7 @@ _TOP_LEVEL = frozenset(
         "lip",
         "min_nest_clearance_mm",
         "holding_points",
+        "latch",
         "needs_review",
     }
 )
@@ -86,6 +87,10 @@ class StackProfile:
     # Where, from a cell's centre, a magnet pocket or a bolt goes: in the foot's bottom
     # and in a baseplate's floor.
     holding_points: tuple[tuple[float, float], ...] = ()
+    # How far a latch's hook engages its keeper, if the profile says: the profile owner's figure,
+    # with its source. The engine's own default is used otherwise.
+    latch_engagement_mm: float | None = None
+    latch_source: str = ""
 
     @property
     def cell_top_mm(self) -> float:
@@ -296,6 +301,37 @@ def _check_holding_points(
     return tuple(points)
 
 
+def _check_latch(data: Mapping[str, Any], findings: Findings) -> None:
+    """The profile's own latch engagement, if it gives one: a figure and its source."""
+
+    entry = data.get("latch")
+
+    if entry is None:
+        return
+
+    if not isinstance(entry, Mapping):
+        findings.errors.append("latch must be an object")
+
+        return
+
+    unknown = sorted(set(entry) - {"engagement_mm", "source"})
+
+    if unknown:
+        findings.errors.append(f"latch has unknown fields: {', '.join(unknown)}")
+
+    number(entry, "engagement_mm", "latch", findings, low=0.1, high=1.5)
+    source = entry.get("source")
+
+    if not isinstance(source, str) or not source.strip():
+        findings.errors.append(
+            "latch.source must say where the engagement came from: it is your figure"
+        )
+    elif source.strip().upper().startswith("EXAMPLE"):
+        findings.errors.append(
+            "latch.source is still an example: say where it came from"
+        )
+
+
 def _check_geometry(
     profile: Mapping[str, float], foot: Section, findings: Findings
 ) -> None:
@@ -363,6 +399,7 @@ def check_profile_data(data: Any) -> ProfileCheck:
         )
     }
     points = _check_holding_points(data, findings)
+    _check_latch(data, findings)
     foot = _check_section(data.get("foot"), "foot", findings)
     lip = _check_section(data.get("lip"), "lip", findings)
 
@@ -437,4 +474,8 @@ def load_profile(path: Path) -> StackProfile:
         holding_points=tuple(
             (float(x), float(y)) for x, y in data.get("holding_points", [])
         ),
+        latch_engagement_mm=(
+            None if "latch" not in data else float(data["latch"]["engagement_mm"])
+        ),
+        latch_source=("" if "latch" not in data else str(data["latch"]["source"])),
     )

@@ -7,8 +7,9 @@
 by the foot, so there was nowhere to put one. It left three things waiting on that design: a **snapping cap** for a tray, a **stop for
 a drawer**, and the open question of where a keeper goes on a bin.
 
-This is the design for one printed latch, a **snap detent between a foot and a lip**, and for the two items that adopt it: a cap that
-snaps on, and a drawer that clicks shut. The enclosure lid's lip, `--stack-top`, is a separate and smaller piece and is not in it.
+This is the design for one printed latch, a **snap detent between a foot and a lip**, and for the two items that adopt it after the
+bin: a cap that snaps on, and a drawer that clicks shut. The enclosure lid's lip, `--stack-top`, is a separate and smaller piece and is
+not in it.
 
 ## What the engine does not claim
 
@@ -19,9 +20,9 @@ The stance of the stackable items design carries over:
   collide. A trial records a separation force and a count; the engine has no sourced figure to compare either with.
 - **A latch here is a detent, not a lock.** It lets go to a pull. Nothing in the engine is built to keep a stack shut against a
   determined hand; a stack that must not come apart is bolted.
-- **No figure it was not given.** The foot and lip sections come from the profile file with its source. A latch's own sizes (a tongue's
-  width and thickness, a hook's height and ramps, the least engagement) are the engine's design choices, listed under each decision and
-  stated as such, and every one is provisional until a trial.
+- **No figure it was not given.** The foot and lip sections come from the profile file with its source, and so may the engagement. A
+  latch's own sizes (a hook's width, the slit, the flat on a hook's tip, the relief behind a tongue, the ramps) are the engine's design
+  choices, listed under each decision and stated as such, and every one is provisional until a trial.
 
 ## What the engine already has
 
@@ -38,57 +39,67 @@ The stance of the stackable items design carries over:
 
 The foot of the upper item stands in the lip of the lower, and the only space between them is the nesting clearance (0.25 mm with the
 example profile). A printed snap needs a hook that sticks out a few tenths of a millimetre into a recess, so the recess has to be cut
-into material. There are three places, and one works:
+into material. There are three places, and the third works:
 
 | Place | Why not, or why |
 | --- | --- |
 | Outside the item's outline | Bins stand `gap_mm` (0.5) apart. A hook there strikes the next bin. |
-| Between the baseplate and a bin | The baseplate's pocket walls come to a ridge 0.8 mm wide at the mouth. There is nothing to cut a keeper in. A baseplate keeps its magnets and bolts. |
-| **On the foot's side, into the lip's inside face** | **The foot is a solid, so a tongue can be cut from it. The lip is solid too, 1.9 mm thick where its face is vertical on the example profile.** |
+| Under the foot's bottom | Between two bins nothing lies under a foot's holding point, so a latch there meets nothing. |
+| **On the foot's side, into the lip's inside face** | **The foot is a solid, so a tongue can be cut from it. The lip is solid too, 1.9 mm thick where its face is vertical on the example profile. A baseplate's pocket wall is solid, 3 to 4 mm thick at that height (the ridge narrows to 0.8 mm only at the mouth), so it takes a keeper too.** |
 
-So the latch is a **foot tongue and a lip keeper**: a hook on the upper item's foot catches in a recess in the lip of the item below.
-It holds a bin on a bin, a cap on a bin or a frame, and a frame on a bin. It does not hold anything to a baseplate.
+So the latch is a **foot tongue and a keeper**: a hook on the upper item's foot catches in a recess in the lip of the item below, or in
+the pocket wall of a baseplate. It holds a bin on a bin, a cap on a bin or a frame, a frame on a bin, and a bin or frame on a baseplate.
+A hook that meets no keeper strikes the lip or the pocket wall, so a latched item only stacks on one that has keepers.
 
 ### The tongue
 
 A tongue cut from the foot's height cannot work. The foot is 4.75 mm tall; a tongue bending in that direction, 1.2 mm thick and
-bending 0.45 mm, would strain 5.1 per cent over 4 mm and needs 7.3 mm for the 1.5 per cent limit. So the tongue lies **along the foot's
+bending 0.4 mm, would strain 4.5 per cent over 4 mm and needs 6.9 mm for the 1.5 per cent limit. So the tongue lies **along the foot's
 side, in plane**, as the slide lid's detent does: a strip of the foot's outer skin, 1.2 mm thick (the printer's minimum wall), freed
-by a U-shaped relief pocket cut up into the foot from its bottom and fixed at one end. Over 10 mm the same tongue strains 0.8 per cent.
-The foot is solid inside its skin, so the relief pocket has room, and it opens to the bed side when the item prints on its foot.
+by a relief pocket cut up into the foot from its bottom, a slit at its free end and a slit along its top, and fixed at one end. Over
+7 mm of reach the same tongue strains 1.47 per cent. The foot is solid inside its skin, so the relief pocket has room, and it opens to
+the bed side when the item prints on its foot.
 
-The build takes the least tongue length that keeps the strain under the limit for the hook's deflection, and refuses a side that is
-too short to carry it, saying how long it would need to be.
+The build takes the least reach, to the next half millimetre, that keeps the strain under the limit for the hook's deflection, and
+refuses a profile whose cell side is too short to carry it, saying how much it needs.
 
 ### The hook and the keeper
 
-The hook is a wedge on the free end of the tongue with a ramp on each side, so the unit goes on with a push and comes off with a pull.
-Both ramps deflect the tongue by the same amount, so the strain is checked once.
+The hook is a wedge on the free end of the tongue with a 45 degree ramp on each side, so the unit goes on with a push and comes off with
+a pull. Both ramps deflect the tongue by the same amount, so the strain is checked once.
 
 - **Where.** On the part of the foot's face that is vertical, against the part of the lip's face that is vertical when the foot is
-  seated. The build finds both from the profile's sections, and refuses a profile that has no vertical run of at least 1.5 mm where
-  the two overlap (the example profile has 1.7 mm). Nothing about a face is assumed.
-- **How far it engages.** `engagement_mm`, 0.4 by default, is how far the hook reaches into the keeper past the lip's face. The hook
-  stands out of the foot by the nesting clearance plus the engagement; the keeper is cut that deep into the lip.
-- **What it leaves.** The lip behind a keeper must still be a wall: the lip's thickness less the keeper's depth is at least the
-  printer's minimum wall. On the example profile (lip 1.9 mm, clearance 0.25 mm, wall 1.2 mm) the deepest keeper leaves **an engagement
-  of at most 0.45 mm.** That is about twice the printer's sliding clearance of 0.2 mm, which is the honest weakness of this
-  design: a printed hook that reaches 0.4 mm is a detent a trial must show works. The build refuses an engagement under 0.3 mm
-  (the engine's choice) and one the lip cannot back, naming the lip's thickness and the most it allows.
-- **How wide.** A tongue is 10 mm wide with 0.8 mm slits, the nest lip's proportions. The keeper is the hook's width plus the
-  printer's sliding clearance each end, and its height is the hook's plus the same.
+  seated. The build finds both from the profile's sections, and refuses a profile with no vertical run of at least 1.5 mm where the two
+  overlap (the example profile has 1.7 mm, from 0.8 to 2.5 mm). Nothing about a face is assumed.
+- **How far it engages.** `engagement_mm`, 0.4 by default, is how far the hook's tip reaches past the lip's face. The hook stands out of
+  the foot's face by the gap across the wall (0.25 mm) plus the engagement.
+- **The keeper.** It is the hook's section grown by the printer's sliding clearance (0.2 mm on the A1 mini) and cut into the face, so it
+  is the engagement plus that clearance deep, and the hook seats with room at its tip.
+- **Two limits on the engagement**, both from the profile:
+  - *The hook's run.* The ramps take twice the hook's protrusion from the vertical run, and a flat of 0.4 mm (a nozzle's width) must
+    remain. On the example profile that allows an engagement of **at most 0.4 mm**.
+  - *The lip's backing.* The lip behind a keeper must still be a wall: the lip's thickness less the keeper's depth is at least the
+    printer's minimum wall. On the example profile that allows at most 0.5 mm.
+  The build refuses an engagement over either limit, or under 0.3 mm (the engine's choice), and says what the profile allows. 0.4 mm is
+  twice the printer's sliding clearance, which is the honest weakness of this design: a hook that reaches 0.4 mm is a detent a trial must show works.
+- **How wide.** A hook is 6 mm along the foot's side, and a slit is 0.8 mm. The keeper is the hook's width plus the clearance each end.
 
-### Where on the item
+### On the item
 
-`latch: {"sides": ["front", "back"], "engagement_mm": 0.4}` on an item that holds by latch puts one tongue at the middle of each
-named side's first cell (0.5 mm in from the cell's edge, so it clears the corner radius). A tongue is refused if:
+`latch: {"sides": ["front", "back"], "engagement_mm": 0.4}` on a bin, frame or baseplate. `sides` are from `front` (-Y), `back` (+Y), `left` (-X)
+and `right` (+X), and default to front and back; `engagement_mm` defaults to the profile's, else 0.4. It is a field of its own, not a kind of
+`holding`, so an item can hold by magnets and by latches.
 
-- it would meet a holding-point pocket (a magnet or a bolt at the cell's corner, 13 mm out on the example profile);
-- it would meet a divider, a label tab or a scoop on the item above it, which are inside the walls;
-- the side has no straight stretch long enough (a cell's side is 42 mm less the corner radii on either end).
+- A **bin or frame** gets a tongue and hook on each cell's foot on each named side that is on the item's outside, and a keeper cut in its
+  own lip at the same place, so it takes the hooks of an item above and carries its own to the item below.
+- A **baseplate** gets a keeper in the pocket wall of every cell on each named side.
 
-The keepers are cut in the lip of the item **below**, at the same side and cell, so a stack's two items must agree on the sides.
-`check-stack` already says whether two items agree on a holding kind; it learns to say whether their latch sides and engagements agree.
+A tongue is refused if it would come within the printer's minimum wall of a magnet or bolt pocket at a holding point (13 mm out on the
+example profile), or if a cell's side is too short for it. A divider, a label tab or a scoop cannot meet a tongue or a keeper: they stand
+inside the walls above the floor, and the tongue is in the foot below it and the keeper in the lip above it.
+
+The keepers are cut in the item **below**, at the same side and cell, so two items must agree on the sides and on the engagement.
+`check-stack` says so: hooks with no keeper on that side are refused, and keepers with no hooks only warn.
 
 ## Decision: a snapping cap
 
@@ -111,18 +122,20 @@ drawer whose side clearance (0.2 mm on the A1 mini) plus the bump is too small t
 | Check | What it refuses |
 | --- | --- |
 | Vertical run | A profile whose foot and lip have no vertical overlap of 1.5 mm to put a hook and a keeper in |
-| Engagement | An engagement under 0.3 mm, or one the lip cannot back: the lip behind the keeper under the printer's minimum wall |
-| Tongue strain | A tongue longer than its side allows, or strain over the provisional limit, with the length it would need |
-| Placement | A tongue that meets a holding pocket, a divider, a label tab or a scoop, or a keeper that meets another keeper |
+| Engagement | An engagement under 0.3 mm, over what the hook's run allows, or over what the lip can back |
+| Tongue strain | A cell side too short for the reach the strain limit needs |
+| Placement | A tongue within the printer's minimum wall of a holding pocket |
 | Keepers agree | Two items in a stack whose latch sides or engagements differ, named by `check-stack` |
-| Seats and releases | The hook is laid in its keeper and the tongue deflected both ways: the unit goes down with no collision and comes off with none |
+| Freed and open | On the built solid: each skin is solid with its relief void, each keeper's mouth void and its backing solid |
+| Engages and passes | A hook seated in the lip overlaps what a plain lip would be, so it does engage, and a hook deflected by its tongue's travel passes the plain lip at every height from the lip's top down |
+| Seats | The item laid on itself, and on a baseplate with keepers, with no overlap |
 | One solid | Every item and every drawer, as before |
 | A drawer's dimple | A frame wall too thin for the dimple, or a bump that does not fit the clearance |
 
 ## Phases
 
-1. **The foot tongue and the lip keeper.** Latch fields on a bin and a frame, the tongue's strain and length, the hook, the keeper, the
-   placement checks and the seat-and-release check, in `stack_latch.py`; `check-stack` learns the latch sides.
+1. **The foot tongue and the keeper (built).** `latch` on a bin, a frame and a baseplate, the profile's own engagement, the tongue's strain
+   and length, the hook, the keepers, the placement checks, the built-solid checks, in `stack_latch.py`; `check-stack` learns the sides.
 2. **The snapping cap.** The cap's tongue and hook, and the keeper's agreement with a bin or a frame.
 3. **The drawer's closed detent.** The drawer's side tongues, the frame's dimples, and the checks.
 4. **Latch trials.** The stack build record carries the latch figures; stack trials gain a latch reading: whether it clicked on and
@@ -133,15 +146,33 @@ Each phase is one PR, and no existing build changes unless an item asks for a la
 ## Not covered
 
 - **A lock.** A latch here is a detent that lets go to a pull. A stack that must stay shut is bolted.
-- **A latch between an item and a baseplate.** The baseplate has no room for a keeper; it holds by magnets or bolts.
 - **A stop that keeps a drawer in.** The closed detent clicks; it does not stop the drawer leaving the front.
 - **A latch on an enclosure's lid.** The lid's lip, `--stack-top`, is its own piece.
 - **A release tool or a button.** A tongue sits inside the foot and cannot be pressed from outside.
 
 ## Open questions
 
-- **Whether an engagement of at most 0.45 mm is worth building.** It is the most the example profile's lip backs, and the printed fit
-  swamps it. The proposal is to build it with the 0.4 mm default and let the trial answer; the alternative is a profile field that
-  gives the lip a thicker zone for a keeper, which would be the user's figure with a source.
 - **Whether a drawer needs a real stop.** A stop that keeps a drawer from leaving the frame needs the drawer lifted over it, and a
   drawer has 0.6 mm of air above it. The proposal is to ship the detent alone and say so; a lifting stop is a design of its own.
+
+### What phase 1 changed
+
+See *Latches* in [Stackable items](../guides/stackable-items.md).
+
+- **The design's arithmetic was wrong in two places, and phase 1 corrects it.** The keeper is cut the engagement plus the printer's clearance
+  past the lip's face, not the gap as well: the hook is what bridges the gap. That lifts the lip's limit on the engagement from 0.45 to
+  0.5 mm. But the hook's own 45 degree ramps take twice its protrusion from the 1.7 mm vertical run, which caps the engagement at 0.4 mm
+  on the example profile, so 0.4 mm is the default and also the most. And a baseplate can take a keeper, which the design had ruled out.
+- **Both halves of the open question were taken.** The engine builds the 0.4 mm default, and a profile can give its own figure:
+  `latch: {"engagement_mm", "source"}`, refused without a source or with an example one. A profile with a thicker lip or a longer vertical
+  run, which is a profile edit and not a new field, allows more.
+- **A baseplate carries keepers.** Without them a latched bin could not sit on a baseplate: its hooks stand 0.4 mm into the pocket wall,
+  and the build laid exactly that overlap. `latch` on a baseplate cuts a keeper in each cell's pocket wall on the named sides.
+- **`latch` is its own field.** It is not a fifth `holding` kind, which is one choice per item and builds pockets in a foot's bottom.
+- **The hook is 6 mm wide and the tongue's reach is 7 mm** (strain 1.47 per cent against 1.5), a tongue 10 mm long with its slit 0.8 mm
+  more, on the A1 mini. A tongue is built on every cell along each named side.
+- **Holding-pocket clashes are the only placement refusal.** The design also named dividers, label tabs and scoops; none can meet a tongue or
+  a keeper, so none is checked.
+- **The seat check is the stack's own.** Laying an item on itself and on a baseplate, already in the build, now covers a hook seated in a
+  keeper with no overlap; four new checks per latched bin or frame cover the rest.
+- **Not built yet:** the snapping cap, the drawer's detent and the trial readings, as phases 2 to 4.

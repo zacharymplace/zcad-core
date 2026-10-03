@@ -242,7 +242,7 @@ See *How an item holds* and *Does it stack* in [Stackable items](../guides/stack
   this grid there is nowhere for one: bins stand 0.5 mm apart, so a hook outside the outline strikes the next bin,
   and the lip's inside is taken by the foot. A latch needs its own design, starting with the open question of where
   a keeper goes. Magnets and bolts are built and `check-stack` knows `lip`, `magnet` and `bolt`; `latch` joins when it
-  has a design.
+  has a design. That design is now written, with its first phase built: see [Stackable latches](stackable-latches.md).
 - **Pockets meet at the foot and the baseplate, not between two bins.** A magnet or a bolt at a holding point is in
   the bottom of a foot and in a baseplate's floor. Between two bins nothing lies under a foot's holding point, because
   it stands over the cavity, so a bin on a bin is held by the lip alone and `check-stack` says so.
@@ -335,8 +335,8 @@ See *The build record and stacking trials* in [Stackable items](../guides/stacka
   hyphens and dots, so `Tub-1` is measured as `tub_1_width_mm`, kept apart from another item that comes to the same.
 - **A layer has no build record yet.** `stack layer build` still writes only its parts; the layer record follows (below).
 
-All six phases are built. What remains open is the latch, and with it a snapping cap and a stop for a drawer; and the enclosure lid's lip,
-`--stack-top`.
+All six phases are built. The latch has its own [design](stackable-latches.md), and its first phase (bins, frames and baseplates) is built. What remains open
+is a snapping cap and a stop for a drawer, which follow that design; and the enclosure lid's lip, `--stack-top`.
 
 ### The layer record
 
