@@ -153,7 +153,7 @@ Each phase is one PR, and no existing build changes unless an item asks for a la
 ## Open questions
 
 - **Whether a drawer needs a real stop.** A stop that keeps a drawer from leaving the frame needs the drawer lifted over it, and a
-  drawer has 0.6 mm of air above it. The proposal is to ship the detent alone and say so; a lifting stop is a design of its own.
+  drawer has 0.6 mm of air above it. The proposal is to ship the detent alone and say so; a lifting stop is a design of its own. It is: see [A stop that keeps a drawer in](drawer-stop.md), where lifting is ruled out and the stop is the detent's bump with a vertical face and a window in the frame.
 
 ### What phase 1 changed
 
