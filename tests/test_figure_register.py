@@ -33,7 +33,10 @@ def test_every_constant_is_recorded_and_every_entry_names_one() -> None:
 
 def test_the_page_is_the_register_as_it_stands() -> None:
     expected = figures.render(
-        figures.load(REGISTER), figures.scan(), figures.catalogue_items()
+        figures.load(REGISTER),
+        figures.scan(),
+        figures.catalogue_items(),
+        figures.load_review(REGISTER),
     )
 
     assert PAGE.read_text(encoding="utf-8") == expected, (
@@ -207,7 +210,31 @@ def test_the_register_file_round_trips() -> None:
     data = json.loads(REGISTER.read_text(encoding="utf-8"))
 
     assert data["schema_version"] == figures.SCHEMA_VERSION
-    assert figures.dump(data["figures"]) == REGISTER.read_text(encoding="utf-8")
+    assert figures.dump(data["figures"], data.get("review", "")) == REGISTER.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_a_review_note_survives_the_file_and_reaches_the_page(tmp_path: Path) -> None:
+    found = figures.scan(package(tmp_path, "NEW_MM = 1.0\n"))
+    register = figures.updated({}, found)
+    path = tmp_path / "register.json"
+    path.write_text(figures.dump(register, "Checked the code; found nothing."))
+
+    assert figures.load_review(path) == "Checked the code; found nothing."
+    assert figures.load(path) == register
+    assert "Checked the code; found nothing." in figures.render(
+        register, found, [], figures.load_review(path)
+    )
+    assert "Last review" not in figures.render(register, found, [])
+    assert "review" not in json.loads(figures.dump(register))
+
+
+def test_the_real_register_records_what_its_review_did_and_did_not_find() -> None:
+    review = figures.load_review(REGISTER)
+
+    assert "Not found" in review
+    assert "Limits" in review
 
 
 def test_an_old_register_version_is_refused(tmp_path: Path) -> None:

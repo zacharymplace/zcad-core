@@ -12,9 +12,9 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | --- | ---: | --- |
 | `sourced` | 50 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
 | `estimated` | 9 | Read off a drawing's scale or a stated rough estimate: the source does not state it outright |
-| `design_default` | 60 | The engine's own choice, which the code says is a default, a design value or a guess |
+| `design_default` | 99 | The engine's own choice, which the code says is a default, a design value or a guess |
 | `example` | 3 | An illustrative figure, not claimed right for any real part |
-| `unstated` | 675 | No basis is stated in the code |
+| `unstated` | 636 | No basis is stated in the code |
 
 ## Sourced
 
@@ -126,10 +126,49 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | `features/holder_mounts.py:PEG_PLAY_MM` | `0.5` | A design value: play between the board's back face and the peg's riser, so the riser does not bind |
 | `features/holder_tabs.py:MAXIMUM_HOOK_MM` | `2.5` | A design value: the longest a tab's flat-bottomed hook printed upright may reach in from the wall; the holding nest's own lip reaches up to 2.0 mm past its clearance |
 | `features/housing_file.py:DEFAULT_SKIN_EDGE_RADIUS_MM` | `0.8` | A comfort setting, not a medical figure |
+| `features/mount_stack.py:FOOT_ABOVE_RECESS_MM` | `1.0` | The engine's own design choice, as features/mount_stack.py states of the recess depth and its margin |
+| `features/mount_stack.py:RECESS_EXTRA_MM` | `0.5` | The engine's own design choice, as features/mount_stack.py states of the recess depth and its margin |
+| `features/mount_stack.py:RECESS_WALL_MM` | `1.0` | The engine's own design choice, as features/mount_stack.py states of the recess depth and its margin |
 | `features/mount_stack.py:TOP_RIM_MM` | `1.2` | The engine's own choice, and a baseplate's default |
 | `features/mounts.py:FLEXURE_STRAIN_LIMIT` | `0.015` | A design strain limit for a printed PETG tongue, well under the material's yield; provisional until a print trial measures it |
 | `features/mounts.py:VESA_DRIVER_CLEARANCE_MM` | `0.5` | A margin past the head, since a driver comes down the screw's axis and is no wider than its head |
+| `features/nest_features.py:DEFAULT_EMBOSS_MM` | `0.4` | A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice' |
+| `features/nest_features.py:DEFAULT_TEXT_SIZE_MM` | `3.0` | A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice' |
+| `features/nest_features.py:HOOK_FACE_MM` | `0.4` | A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice' |
+| `features/nest_features.py:HOOK_GAP_MM` | `0.3` | A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice' |
+| `features/nest_features.py:HOOK_HEIGHT_MM` | `1.0` | A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice' |
+| `features/nest_features.py:LABEL_MARGIN_MM` | `1.0` | A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice' |
+| `features/nest_features.py:SLIT_MM` | `0.8` | A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice' |
+| `features/nest_features.py:TAB_ROOT_MM` | `2.0` | A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice' |
+| `features/nest_features.py:TAB_WIDTH_MM` | `10.0` | A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice' |
+| `features/nest_file.py:NOTCH_MARGIN_MM` | `3.0` | The engine's own design choice, as features/nest_file.py states of a finger notch |
+| `features/nest_file.py:NOTCH_WIDTH_MM` | `12.0` | The engine's own design choice, as features/nest_file.py states of a finger notch |
+| `features/stack_detent.py:BACK_MARGIN_MM` | `2.0` | A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial' |
+| `features/stack_detent.py:BUMP_BELOW_RIM_MM` | `2.0` | A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial' |
+| `features/stack_detent.py:BUMP_FROM_BACK_MM` | `14.0` | A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial' |
+| `features/stack_detent.py:BUMP_Z_MM` | `3.0` | A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial' |
+| `features/stack_detent.py:STOP_FRONT_MARGIN_MM` | `3.0` | A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial' |
+| `features/stack_detent.py:TONGUE_Z_MM` | `4.5` | A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial' |
+| `features/stack_detent.py:WINDOW_EXTRA_HEIGHT_MM` | `0.6` | A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial' |
+| `features/stack_detent.py:WINDOW_EXTRA_LENGTH_MM` | `4.0` | A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial' |
+| `features/stack_drawers.py:DEFAULT_CLEARANCE_MM` | `0.2` | The engine's own design choice, not a figure from a profile's source, as features/stack_drawers.py states (the drawer's clearances) |
+| `features/stack_drawers.py:LEDGE_MM` | `3.0` | The engine's own design choice, not a figure from a profile's source, as features/stack_drawers.py states (the ledge) |
+| `features/stack_drawers.py:LEDGE_THICKNESS_MM` | `1.6` | The engine's own design choice, not a figure from a profile's source, as features/stack_drawers.py states (the ledge) |
+| `features/stack_drawers.py:PULL_RADIUS_MM` | `6.0` | The engine's own design choice, not a figure from a profile's source, as features/stack_drawers.py states (the finger pull) |
+| `features/stack_drawers.py:ROOF_MM` | `1.6` | The engine's own design choice, not a figure from a profile's source, as features/stack_drawers.py states (the roof) |
+| `features/stack_drawers.py:TOP_CLEARANCE_MM` | `0.6` | The engine's own design choice, not a figure from a profile's source, as features/stack_drawers.py states (the drawer's clearances) |
+| `features/stack_latch.py:HOOK_FLAT_MM` | `0.4` | A size the engine chooses, provisional until a trial, as features/stack_latch.py states; the code gives it as a nozzle's width |
+| `features/stack_latch.py:HOOK_WIDTH_MM` | `6.0` | A size the engine chooses, provisional until a trial, as features/stack_latch.py states |
+| `features/stack_latch.py:RELIEF_MARGIN_MM` | `0.4` | A size the engine chooses, provisional until a trial, as features/stack_latch.py states |
+| `features/stack_latch.py:SLIT_MM` | `0.8` | A size the engine chooses, provisional until a trial, as features/stack_latch.py states |
+| `features/stack_layers.py:DEFAULT_CLEARANCE_MM` | `1.0` | The engine's own design choice, as features/stack_layers.py states (the air over a part) |
+| `features/stack_layers.py:DEFAULT_WALL_MM` | `1.2` | The engine's own design choice, as features/stack_layers.py states (the spacer's wall) |
+| `features/stack_layers.py:OPENING_MARGIN_MM` | `1.0` | The engine's own design choice, as features/stack_layers.py states (the margin round an opening) |
 | `features/stack_profile.py:MAXIMUM_LEAN` | `1.0` | 45 degrees, the printer's limit without support, as the code states |
+| `features/stack_solids.py:DIVIDER_MM` | `1.2` | The engine's own design choice, as features/stack_solids.py states |
+| `features/stack_solids.py:LIP_TIP_MM` | `0.4` | The engine's own design choice, as features/stack_solids.py states; the code gives it as a nozzle's width |
+| `features/stack_solids.py:RIDGE_TOP_MM` | `0.8` | The engine's own design choice, as features/stack_solids.py states |
+| `features/vent_patterns.py:_BOX_MARGIN_MM` | `0.001` | A numerical margin chosen wider than the classifier's own tolerance, as features/vent_patterns.py states |
 | `hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.recommended_clearance_mm` | `0.5` | The spec's own recommendation (the engine's choice); no basis is written down |
 | `hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.recommended_standoff_height_mm` | `3.0` | The spec's own recommendation (the engine's choice); no basis is written down |
 | `hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.recommended_clearance_mm` | `0.5` | The spec's own recommendation (the engine's choice); no basis is written down |
@@ -188,9 +227,14 @@ Each fan, bushing and pogo pin records where its figures came from, whether the 
 | `MILLMAX-0906-0-15-20-76-14-11-0` | pogo pin | yes | barrel_diameter_mm, force_at_travel_mm |
 | `MILLMAX-0906-1-15-20-75-14-11-0` | pogo pin | yes | barrel_diameter_mm, force_at_travel_mm |
 
-## Unstated (675)
+## Unstated (636)
 
 No basis is written down for these. Moving one out of this list means finding where its value came from, or saying it is the engine's own choice, in `docs/figures/register.json`.
+
+
+### Last review for a stated basis
+
+Reviewed on 2026-10-03. **How:** for each unstated figure, the comment lines beside it and the docs were searched for its name and for wording that states a basis (default, choice, guess, standard, datasheet, measured, nozzle, trial and the like), and the module docstrings were read where they say of every size in a module that it is the engine's own choice. **Found:** a stated basis for 39 figures, now `design_default`, each with the code's own words. **Not found:** any basis for the defaults of the design and policy classes (`EnclosureDesign`, `GroupDesign`, and the cradle, retainer, cutout, snap-shell, capture, manufacturing and fixture settings), in their docstrings, comments, the docs, or the commit messages sampled. **No measurement stands behind them:** of the 51 trial files in `evidence/` and `exports/` (measurements, observations and trial records), none holds a measured dimension; the measurement templates are all unfilled. **Limits:** the comment search was by keyword and the comments were not all read, so a basis worded differently may have been missed, and the commit messages were read for five commits only. So these defaults are the engine's starting values, to be settled by a print trial, and nothing in the repository says where each came from.
 
 
 **`assemblies/assembly.py`**
@@ -720,14 +764,11 @@ No basis is written down for these. Moving one out of this list means finding wh
 
 **`features/mount_stack.py`**
 
-- `FOOT_ABOVE_RECESS_MM` = `1.0`
 - `MAXIMUM_EXTRA_CELLS` = `2`
 - `MAXIMUM_WINDOWS` = `4`
 - `OFFSET_STEP_MM` = `1.0`
 - `OPENING_MERGE_MM` = `4.0`
-- `RECESS_EXTRA_MM` = `0.5`
 - `RECESS_OVER_MM` = `0.6`
-- `RECESS_WALL_MM` = `1.0`
 - `TopHolding.clearance_mm` = `0.2`
 - `WINDOW_MARGIN_MM` = `2.0`
 
@@ -772,16 +813,7 @@ No basis is written down for these. Moving one out of this list means finding wh
 **`features/nest_features.py`**
 
 - `CHARACTER_WIDTH` = `0.7`
-- `DEFAULT_EMBOSS_MM` = `0.4`
-- `DEFAULT_TEXT_SIZE_MM` = `3.0`
-- `HOOK_FACE_MM` = `0.4`
-- `HOOK_GAP_MM` = `0.3`
-- `HOOK_HEIGHT_MM` = `1.0`
-- `LABEL_MARGIN_MM` = `1.0`
 - `MAXIMUM_LABEL_CHARACTERS` = `24`
-- `SLIT_MM` = `0.8`
-- `TAB_ROOT_MM` = `2.0`
-- `TAB_WIDTH_MM` = `10.0`
 
 **`features/nest_file.py`**
 
@@ -797,8 +829,6 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `LIP_OVERHANG_RANGE_MM` = `(0.3, 2.0)`
 - `MAXIMUM_LIP_TABS` = `4`
 - `MAXIMUM_NOTCHES` = `4`
-- `NOTCH_MARGIN_MM` = `3.0`
-- `NOTCH_WIDTH_MM` = `12.0`
 - `SHALLOW_POCKET_MM` = `3.0`
 - `STRAP_RANGE_MM` = `(3.0, 60.0)`
 - `STRAP_THICKNESS_RANGE_MM` = `(0.3, 6.0)`
@@ -859,28 +889,14 @@ No basis is written down for these. Moving one out of this list means finding wh
 
 **`features/stack_detent.py`**
 
-- `BACK_MARGIN_MM` = `2.0`
-- `BUMP_BELOW_RIM_MM` = `2.0`
-- `BUMP_FROM_BACK_MM` = `14.0`
-- `BUMP_Z_MM` = `3.0`
-- `STOP_FRONT_MARGIN_MM` = `3.0`
 - `STOP_TRAVEL_SHARE` = `(0.2, 2 / 3)`
-- `TONGUE_Z_MM` = `4.5`
-- `WINDOW_EXTRA_HEIGHT_MM` = `0.6`
-- `WINDOW_EXTRA_LENGTH_MM` = `4.0`
 - `_EPSILON` = `1e-06`
 
 **`features/stack_drawers.py`**
 
-- `DEFAULT_CLEARANCE_MM` = `0.2`
-- `LEDGE_MM` = `3.0`
-- `LEDGE_THICKNESS_MM` = `1.6`
 - `MAXIMUM_DRAWERS` = `8`
 - `MINIMUM_DRAWER_DEPTH_MM` = `3.0`
 - `MINIMUM_DRAWER_WIDTH_MM` = `15.0`
-- `PULL_RADIUS_MM` = `6.0`
-- `ROOF_MM` = `1.6`
-- `TOP_CLEARANCE_MM` = `0.6`
 
 **`features/stack_file.py`**
 
@@ -906,21 +922,14 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `DEFAULT_LEAST_WALL_MM` = `1.2`
 - `END_MARGIN_MM` = `1.0`
 - `ENGAGEMENT_RANGE_MM` = `(0.1, 1.5)`
-- `HOOK_FLAT_MM` = `0.4`
-- `HOOK_WIDTH_MM` = `6.0`
 - `MINIMUM_ENGAGEMENT_MM` = `0.3`
 - `MINIMUM_RUN_MM` = `1.5`
-- `RELIEF_MARGIN_MM` = `0.4`
-- `SLIT_MM` = `0.8`
 - `_EPSILON` = `1e-06`
 
 **`features/stack_layers.py`**
 
-- `DEFAULT_CLEARANCE_MM` = `1.0`
 - `DEFAULT_PLATE_MM` = `2.0`
-- `DEFAULT_WALL_MM` = `1.2`
 - `HOLE_TOLERANCE_MM` = `0.1`
-- `OPENING_MARGIN_MM` = `1.0`
 - `SPACER_MARGIN_MM` = `0.3`
 - `_SHA256_LENGTH` = `64`
 - `_TOLERANCE_MM3` = `0.001`
@@ -933,10 +942,7 @@ No basis is written down for these. Moving one out of this list means finding wh
 
 **`features/stack_solids.py`**
 
-- `DIVIDER_MM` = `1.2`
-- `LIP_TIP_MM` = `0.4`
 - `MINIMUM_RADIUS_MM` = `0.2`
-- `RIDGE_TOP_MM` = `0.8`
 - `TAB_ANGLE_RATIO` = `1.0`
 - `_OPEN_MM` = `1.0`
 
@@ -948,7 +954,6 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `WALL_BAND_MM` = `12.0`
 - `WALL_FLOOR_RIM_MM` = `1.5`
 - `_BEHIND_MM` = `(1.0, 2.5)`
-- `_BOX_MARGIN_MM` = `0.001`
 - `_CHECK_RING` = `8`
 - `_LOUVER_LENGTH_MM` = `14.0`
 - `_LOUVER_WALL_MM` = `2.0`

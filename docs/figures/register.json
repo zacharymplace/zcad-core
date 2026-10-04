@@ -7,6 +7,7 @@
     "example": "An illustrative figure, not claimed right for any real part",
     "unstated": "No basis is stated in the code"
   },
+  "review": "Reviewed on 2026-10-03. **How:** for each unstated figure, the comment lines beside it and the docs were searched for its name and for wording that states a basis (default, choice, guess, standard, datasheet, measured, nozzle, trial and the like), and the module docstrings were read where they say of every size in a module that it is the engine's own choice. **Found:** a stated basis for 39 figures, now `design_default`, each with the code's own words. **Not found:** any basis for the defaults of the design and policy classes (`EnclosureDesign`, `GroupDesign`, and the cradle, retainer, cutout, snap-shell, capture, manufacturing and fixture settings), in their docstrings, comments, the docs, or the commit messages sampled. **No measurement stands behind them:** of the 51 trial files in `evidence/` and `exports/` (measurements, observations and trial records), none holds a measured dimension; the measurement templates are all unfilled. **Limits:** the comment search was by keyword and the comments were not all read, so a basis worded differently may have been missed, and the commit messages were read for five commits only. So these defaults are the engine's starting values, to be settled by a print trial, and nothing in the repository says where each came from.",
   "figures": {
     "assemblies/assembly.py:DeviceAssembly.analyze_interference(collision_volume_tolerance_mm3)": {
       "status": "unstated"
@@ -1288,7 +1289,8 @@
       "status": "unstated"
     },
     "features/mount_stack.py:FOOT_ABOVE_RECESS_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, as features/mount_stack.py states of the recess depth and its margin"
     },
     "features/mount_stack.py:MAXIMUM_EXTRA_CELLS": {
       "status": "unstated"
@@ -1303,13 +1305,15 @@
       "status": "unstated"
     },
     "features/mount_stack.py:RECESS_EXTRA_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, as features/mount_stack.py states of the recess depth and its margin"
     },
     "features/mount_stack.py:RECESS_OVER_MM": {
       "status": "unstated"
     },
     "features/mount_stack.py:RECESS_WALL_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, as features/mount_stack.py states of the recess depth and its margin"
     },
     "features/mount_stack.py:TOP_RIM_MM": {
       "status": "design_default",
@@ -1437,34 +1441,43 @@
       "status": "unstated"
     },
     "features/nest_features.py:DEFAULT_EMBOSS_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice'"
     },
     "features/nest_features.py:DEFAULT_TEXT_SIZE_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice'"
     },
     "features/nest_features.py:HOOK_FACE_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice'"
     },
     "features/nest_features.py:HOOK_GAP_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice'"
     },
     "features/nest_features.py:HOOK_HEIGHT_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice'"
     },
     "features/nest_features.py:LABEL_MARGIN_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice'"
     },
     "features/nest_features.py:MAXIMUM_LABEL_CHARACTERS": {
       "status": "unstated"
     },
     "features/nest_features.py:SLIT_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice'"
     },
     "features/nest_features.py:TAB_ROOT_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice'"
     },
     "features/nest_features.py:TAB_WIDTH_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice'"
     },
     "features/nest_file.py:DEFAULT_FLANGE_MM": {
       "status": "unstated"
@@ -1503,10 +1516,12 @@
       "status": "unstated"
     },
     "features/nest_file.py:NOTCH_MARGIN_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, as features/nest_file.py states of a finger notch"
     },
     "features/nest_file.py:NOTCH_WIDTH_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, as features/nest_file.py states of a finger notch"
     },
     "features/nest_file.py:SHALLOW_POCKET_MM": {
       "status": "unstated"
@@ -1608,43 +1623,54 @@
       "status": "unstated"
     },
     "features/stack_detent.py:BACK_MARGIN_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial'"
     },
     "features/stack_detent.py:BUMP_BELOW_RIM_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial'"
     },
     "features/stack_detent.py:BUMP_FROM_BACK_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial'"
     },
     "features/stack_detent.py:BUMP_Z_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial'"
     },
     "features/stack_detent.py:STOP_FRONT_MARGIN_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial'"
     },
     "features/stack_detent.py:STOP_TRAVEL_SHARE": {
       "status": "unstated"
     },
     "features/stack_detent.py:TONGUE_Z_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial'"
     },
     "features/stack_detent.py:WINDOW_EXTRA_HEIGHT_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial'"
     },
     "features/stack_detent.py:WINDOW_EXTRA_LENGTH_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial'"
     },
     "features/stack_detent.py:_EPSILON": {
       "status": "unstated"
     },
     "features/stack_drawers.py:DEFAULT_CLEARANCE_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, not a figure from a profile's source, as features/stack_drawers.py states (the drawer's clearances)"
     },
     "features/stack_drawers.py:LEDGE_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, not a figure from a profile's source, as features/stack_drawers.py states (the ledge)"
     },
     "features/stack_drawers.py:LEDGE_THICKNESS_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, not a figure from a profile's source, as features/stack_drawers.py states (the ledge)"
     },
     "features/stack_drawers.py:MAXIMUM_DRAWERS": {
       "status": "unstated"
@@ -1656,13 +1682,16 @@
       "status": "unstated"
     },
     "features/stack_drawers.py:PULL_RADIUS_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, not a figure from a profile's source, as features/stack_drawers.py states (the finger pull)"
     },
     "features/stack_drawers.py:ROOF_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, not a figure from a profile's source, as features/stack_drawers.py states (the roof)"
     },
     "features/stack_drawers.py:TOP_CLEARANCE_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, not a figure from a profile's source, as features/stack_drawers.py states (the drawer's clearances)"
     },
     "features/stack_file.py:DEFAULT_FLOOR_MM": {
       "status": "unstated"
@@ -1713,10 +1742,12 @@
       "status": "unstated"
     },
     "features/stack_latch.py:HOOK_FLAT_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size the engine chooses, provisional until a trial, as features/stack_latch.py states; the code gives it as a nozzle's width"
     },
     "features/stack_latch.py:HOOK_WIDTH_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size the engine chooses, provisional until a trial, as features/stack_latch.py states"
     },
     "features/stack_latch.py:MINIMUM_ENGAGEMENT_MM": {
       "status": "unstated"
@@ -1725,28 +1756,33 @@
       "status": "unstated"
     },
     "features/stack_latch.py:RELIEF_MARGIN_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size the engine chooses, provisional until a trial, as features/stack_latch.py states"
     },
     "features/stack_latch.py:SLIT_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A size the engine chooses, provisional until a trial, as features/stack_latch.py states"
     },
     "features/stack_latch.py:_EPSILON": {
       "status": "unstated"
     },
     "features/stack_layers.py:DEFAULT_CLEARANCE_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, as features/stack_layers.py states (the air over a part)"
     },
     "features/stack_layers.py:DEFAULT_PLATE_MM": {
       "status": "unstated"
     },
     "features/stack_layers.py:DEFAULT_WALL_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, as features/stack_layers.py states (the spacer's wall)"
     },
     "features/stack_layers.py:HOLE_TOLERANCE_MM": {
       "status": "unstated"
     },
     "features/stack_layers.py:OPENING_MARGIN_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, as features/stack_layers.py states (the margin round an opening)"
     },
     "features/stack_layers.py:SPACER_MARGIN_MM": {
       "status": "unstated"
@@ -1783,16 +1819,19 @@
       "source": "The Gridfinity Rebuilt OpenSCAD library (src/core/standard.scad, commit 910e22d), as cited in features/stack_profile.py; an example to check and cite"
     },
     "features/stack_solids.py:DIVIDER_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, as features/stack_solids.py states"
     },
     "features/stack_solids.py:LIP_TIP_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, as features/stack_solids.py states; the code gives it as a nozzle's width"
     },
     "features/stack_solids.py:MINIMUM_RADIUS_MM": {
       "status": "unstated"
     },
     "features/stack_solids.py:RIDGE_TOP_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "The engine's own design choice, as features/stack_solids.py states"
     },
     "features/stack_solids.py:TAB_ANGLE_RATIO": {
       "status": "unstated"
@@ -1819,7 +1858,8 @@
       "status": "unstated"
     },
     "features/vent_patterns.py:_BOX_MARGIN_MM": {
-      "status": "unstated"
+      "status": "design_default",
+      "note": "A numerical margin chosen wider than the classifier's own tolerance, as features/vent_patterns.py states"
     },
     "features/vent_patterns.py:_CHECK_RING": {
       "status": "unstated"
