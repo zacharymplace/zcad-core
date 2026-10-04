@@ -8,7 +8,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import cast
 
-from zcad_core.cli.enclosure_group import _bays
+from zcad_core.cli.enclosure_group_bays import _bays
 from zcad_core.features.enclosure_group import Bay, BayKind
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "examples"

@@ -11,7 +11,7 @@ import cadquery as cq
 import pytest
 
 from zcad_core.cli import main
-from zcad_core.cli.enclosure_group import _bay
+from zcad_core.cli.enclosure_group_bays import _bay
 from zcad_core.features.enclosure_group import Bay, GroupDesign, build_group_enclosure
 from zcad_core.hardware import board_template, get_fan
 from zcad_core.hardware.thermal import get_power_figure

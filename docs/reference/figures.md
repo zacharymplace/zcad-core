@@ -164,7 +164,7 @@ No basis is written down for these. Moving one out of this list means finding wh
 
 - `DEFAULT_DISPLAY_HEIGHT_MM` = `8.0`
 
-**`cli/enclosure_group.py`**
+**`cli/enclosure_group_review.py`**
 
 - `_REVIEW_LID_LIFT_MM` = `25.0`
 

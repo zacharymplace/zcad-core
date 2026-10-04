@@ -32,7 +32,7 @@
     "cli/enclosure.py:DEFAULT_DISPLAY_HEIGHT_MM": {
       "status": "unstated"
     },
-    "cli/enclosure_group.py:_REVIEW_LID_LIFT_MM": {
+    "cli/enclosure_group_review.py:_REVIEW_LID_LIFT_MM": {
       "status": "unstated"
     },
     "features/board_cradle.py:BoardCradleParameters.clearance_mm": {
