@@ -10,7 +10,7 @@ import cadquery as cq
 import pytest
 
 from zcad_core.cli import main
-from zcad_core.cli.enclosure_group import _review_lid, _write_review
+from zcad_core.cli.enclosure_group_review import _review_lid, _write_review
 from zcad_core.features.enclosure_group import (
     GroupDesign,
     GroupEnclosure,
