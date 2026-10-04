@@ -243,14 +243,16 @@ No basis is written down for these. Moving one out of this list means finding wh
 
 **`features/enclosure_group.py`**
 
-- `_INTERFERENCE_TOLERANCE_MM3` = `1e-06`
-- `_JOIN_BOSS_REACH_MM` = `8.0`
-- `_SCREW_LENGTHS_MM` = `(4, 5, 6, 8, 10, 12, 16, 20)`
 - `_SLIDE_DIVIDER_DROP_MM` = `0.3`
-- `_VENT_LENGTH_MM` = `30.0`
-- `_VENT_PITCH_MM` = `5.0`
-- `_VENT_SLOTS` = `5`
-- `_VENT_WIDTH_MM` = `2.4`
+
+**`features/enclosure_group_base.py`**
+
+- `_JOIN_BOSS_REACH_MM` = `8.0`
+
+**`features/enclosure_group_checks.py`**
+
+- `_INTERFERENCE_TOLERANCE_MM3` = `1e-06`
+- `_SCREW_LENGTHS_MM` = `(4, 5, 6, 8, 10, 12, 16, 20)`
 
 **`features/enclosure_group_dividers.py`**
 
@@ -289,6 +291,13 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `BOSS_WALL_OVERLAP_MM` = `0.5`
 - `_MINIMUM_SD_FLOOR_GAP_MM` = `0.4`
 - `_OPEN_BAY_STRIP_MM` = `14.0`
+
+**`features/enclosure_group_lid.py`**
+
+- `_VENT_LENGTH_MM` = `30.0`
+- `_VENT_PITCH_MM` = `5.0`
+- `_VENT_SLOTS` = `5`
+- `_VENT_WIDTH_MM` = `2.4`
 
 **`features/enclosure_group_model.py`**
 

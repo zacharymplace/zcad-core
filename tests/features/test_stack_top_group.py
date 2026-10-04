@@ -11,7 +11,7 @@ from typing import Any, cast
 import pytest
 
 from zcad_core.cli import main
-from zcad_core.features.enclosure_group import _require_stack_top_possible
+from zcad_core.features.enclosure_group_checks import _require_stack_top_possible
 from zcad_core.features.enclosure_group_model import GroupDesign
 from zcad_core.features.stack_file import stack_template
 from zcad_core.features.stack_profile import profile_template
