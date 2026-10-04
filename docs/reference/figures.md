@@ -127,7 +127,7 @@ Each fan, bushing and pogo pin records where its figures came from, whether the 
 | `DIN179A-8X10` | bushing | yes | none listed |
 | `DIN179A-8X16` | bushing | yes | none listed |
 | `DIN179A-8X20` | bushing | yes | none listed |
-| `NOCTUA_NF_A4X10_5V` | fan | no (search excerpt) | hole_spacing_mm, thickness_mm, current_typical_a, screw |
+| `NOCTUA_NF_A4X10_5V` | fan | yes | screw |
 | `NOCTUA_NF_A6X25_5V` | fan | no (search excerpt) | hole_spacing_mm, current_typical_a, screw |
 | `SUNON_MF30100V1_1000U_A99` | fan | yes | current_max_a, screw |
 | `MILLMAX-0906-0-15-20-76-14-11-0` | pogo pin | yes | barrel_diameter_mm, force_at_travel_mm |
