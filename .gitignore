@@ -3,6 +3,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .venv/
+# Other Python versions' environments, from scripts/check-python.sh
+.venv-py*/
 .DS_Store
 build/
 exports/
