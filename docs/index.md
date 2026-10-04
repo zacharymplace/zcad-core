@@ -51,6 +51,28 @@ python3.11 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 ```
 
+### Other Python versions
+
+The package says it supports Python 3.11 and later, but the gate and the CI
+workflow run only 3.11, and GitHub Actions is disabled for the account, so a
+newer version is tested only when you ask. `scripts/check-python.sh` does:
+
+```bash
+scripts/check-python.sh 3.12            # the full suite on Python 3.12
+scripts/check-python.sh 3.12 -k stack   # anything after the version goes to pytest
+```
+
+It makes the environment `.venv-py3.12` beside the main checkout's `.venv`
+(with uv, or with `python3.12` on the PATH), installs the dependencies from
+`pyproject.toml`, and runs the tests. It is not part of the pre-push hook: it
+takes as long as the whole gate again. The last run, on 2026-10-03, was Python
+3.12.2 with CadQuery 2.8.0, NumPy 2.5.3 and SciPy 1.18.1: every test passed. One
+test skips itself off 3.11 on purpose, `test_generator_code_matches_its_version`,
+since its fingerprint is a hash of the generator's syntax tree, which differs
+between Python versions; the tests that load vendor models from `evidence/` skip
+in a linked worktree, as they do for the gate. Python 3.13 and later have not
+been run.
+
 ## Command-line interface
 
 The `zcad-validation` console script drives two things. The Validation Lab
