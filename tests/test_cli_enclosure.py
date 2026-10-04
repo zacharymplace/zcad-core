@@ -350,6 +350,11 @@ def test_build_slices_both_parts_ready_to_print(
         "seeed-xiao-esp32-s3-enclosure-base.stl",
         "seeed-xiao-esp32-s3-enclosure-lid.stl",
     ]
+    # The slice records how to build it again, without slicing.
+    summary = json.loads((tmp_path / "slice" / "slice-summary.json").read_text("utf-8"))
+    assert summary["rebuild"]["argv"][:2] == ["enclosure", "build"]
+    assert "--slice" not in summary["rebuild"]["argv"]
+    assert set(summary["rebuild"]["parts"]) == {"base", "lid"}
 
 
 def test_revise_proposes_and_builds_the_next_design(

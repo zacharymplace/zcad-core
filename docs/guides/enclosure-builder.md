@@ -366,6 +366,25 @@ their source, or from uncommitted changes). It exits 1 unless all are
 current. `enclosure trial start` reports the same for the slice beside its
 build record.
 
+That check is quick but blunt: any change under `src/zcad_core` or
+`profiles/` calls every slice stale, including changes that never touch its
+part. `--rebuild` settles it:
+
+```bash
+zcad-validation slice check --rebuild exports/pico2-enclosure
+```
+
+For each slice the quick check calls stale or unknown, it runs the build
+again with today's code into a temporary folder, using the command line the
+slice recorded (less its output folder, `--slice`, `--slicer-profile`, and
+`--review`). It then compares the new part STLs with those the slice was built
+from. A part exports byte for byte the same from the same geometry, so
+identical parts mean `current`, and a different part means `stale`, naming
+the part. Each design takes about a minute. Only `enclosure build --slice`
+and `enclosure-group build --slice` record a command line. A slice made
+before they did, or by `enclosure revise`, stays `unknown` until it is sliced
+again. Each entry says whether the commit or a rebuild decided it.
+
 After printing and assembling, fill in the trial's `observations.json`
 (`pass` or `fail` for each check that applies: clean print, inserts, lid
 closure, board seated and held, cable plugs in, other openings clear,
