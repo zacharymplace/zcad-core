@@ -103,19 +103,20 @@ class FanSpec:
 
 _NOCTUA_4X10 = FanSource(
     kind="vendor",
-    title="Noctua NF-A4x10 5V, information sheet",
-    url="https://cdn.noctua.at/media/noctua_nf_a4x10%205v_infosheet_en_web.pdf",
+    title="Noctua NF-A4x10 5V, specifications page",
+    url="https://www.noctua.at/en/products/nf-a4x10-5v/specifications",
     detail=(
-        "the maker's information sheet was read (a PDF on the maker's own site): size "
-        "40 x 40 x 10 mm, 5 V, input power 0.25 W maximum (0.05 A), airflow 8.2 m3/h "
-        "maximum. Not in the sheet, and from a search excerpt of the specifications "
-        "page (https://noctua.at/en/products/fan/nf-a4x10-5v/specification), which "
-        "could not be opened: holes 32 x 32 mm, typical input 0.22 W (0.044 A), and a "
-        "thickness of 11 mm without anti-vibration pads, where the sheet says 10 mm "
-        "(the larger is kept); the screw size is an assumption"
+        "the maker's specifications page was read (2026-10-04): 40 x 40 x 10 mm "
+        "nominal and 40 x 40 x 11 mm without anti-vibration pads (12 mm with them; "
+        "11 mm is used), mounting holes 32 x 32 mm, 5 V, input power 0.22 W typical "
+        "and 0.25 W maximum, input current 0.044 A typical and 0.05 A maximum, "
+        "airflow 8.2 m3/h maximum, as the maker's information sheet also gives "
+        "(https://cdn.noctua.at/media/noctua_nf_a4x10%205v_infosheet_en_web.pdf). "
+        "The page lists fan screws in the box but not their size, so the screw is "
+        "an assumption"
     ),
-    read=False,
-    unverified=("hole_spacing_mm", "thickness_mm", "current_typical_a", "screw"),
+    read=True,
+    unverified=("screw",),
 )
 
 _NOCTUA_6X25 = FanSource(

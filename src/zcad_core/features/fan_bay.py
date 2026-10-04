@@ -135,10 +135,13 @@ class FanReport:
                     "vents so the fan has somewhere to draw from or push to."
                 )
                 + (
-                    ""
-                    if self.datasheet_read
-                    else " The fan's figures were not read from the maker's own "
+                    " The fan's figures were not read from the maker's own "
                     f"page; check them{self.unverified}."
+                    if not self.datasheet_read
+                    # Read, but some figure (often the screw) is still assumed.
+                    else f" Check before buying{self.unverified}."
+                    if self.unverified
+                    else ""
                 )
             ),
         }

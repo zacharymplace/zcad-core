@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+from dataclasses import replace
 from functools import cache
 from pathlib import Path
 
@@ -70,11 +71,8 @@ def test_every_fan_carries_a_source_and_says_what_is_still_unverified(
     assert fan.opening_diameter_mm == pytest.approx(0.9 * fan.size_mm)
 
 
-@pytest.mark.parametrize("identifier", [FAN_40, FAN_60])
-def test_the_noctua_fans_were_checked_against_the_info_sheet_but_not_their_holes(
-    identifier: str,
-) -> None:
-    fan = get_fan(identifier)
+def test_the_nf_a6x25_was_checked_against_the_info_sheet_but_not_its_holes() -> None:
+    fan = get_fan(FAN_60)
 
     # The maker's sheet gives the size, the maximum power and the airflow; it gives no
     # hole pattern, so that is still an excerpt and the entry says so.
@@ -86,16 +84,31 @@ def test_the_noctua_fans_were_checked_against_the_info_sheet_but_not_their_holes
     assert "hole_spacing_mm" in fan.unverified_note
 
 
+def test_the_nf_a4x10_was_read_on_the_makers_specifications_page() -> None:
+    fan = get_fan(FAN_40)
+
+    # noctua.at, NF-A4x10 5V, Specifications: 40 x 40 x 11 mm without the
+    # anti-vibration pads, holes 32 x 32 mm, 0.044 A typical and 0.05 A maximum.
+    assert fan.source.read is True
+    assert "specifications page was read" in fan.source.detail
+    assert (
+        fan.source.url == "https://www.noctua.at/en/products/nf-a4x10-5v/specifications"
+    )
+    assert (fan.size_mm, fan.thickness_mm, fan.hole_spacing_mm) == (40.0, 11.0, 32.0)
+    assert (fan.current_typical_a, fan.current_max_a) == (0.044, 0.05)
+    # The page lists screws in the box but not their size.
+    assert fan.source.unverified == ("screw",)
+
+
 def test_the_noctua_sheets_agree_with_the_catalog_on_what_they_state() -> None:
     small, large = get_fan(FAN_40), get_fan(FAN_60)
 
     # NF-A4x10 5V: 40 x 40 mm, 0.25 W at 5 V maximum (0.05 A), 8.2 m3/h.
     assert small.size_mm == 40.0 and small.rated_v == 5.0
     assert small.peak_w == pytest.approx(0.25) and small.airflow_m3h == 8.2
-    # The sheet says 10 mm thick and a search excerpt of the page says 11 without
-    # pads: the larger is kept, and the entry names the difference.
-    assert small.thickness_mm == 11.0 and "thickness_mm" in small.source.unverified
-    assert "the sheet says 10 mm" in small.source.detail
+    # 10 mm nominal, 11 mm without the anti-vibration pads: the larger is used.
+    assert small.thickness_mm == 11.0 and "thickness_mm" not in small.source.unverified
+    assert "11 mm without anti-vibration pads" in small.source.detail
     # NF-A6x25 5V: 60 x 60 x 25 mm, 1.3 W at 5 V maximum (0.26 A), 29.2 m3/h.
     assert large.size_mm == 60.0 and large.thickness_mm == 25.0
     assert large.peak_w == pytest.approx(1.3) and large.airflow_m3h == 29.2
@@ -132,7 +145,6 @@ def test_a_fans_heat_is_in_the_power_table_with_its_source() -> None:
     assert figure is not None
     assert figure.typical_w == pytest.approx(0.22)
     assert figure.peak_w == pytest.approx(0.25)
-    assert "excerpt" in figure.source.detail
     assert figure.source.url == get_fan(FAN_40).source.url
 
 
@@ -420,8 +432,22 @@ def test_a_fan_with_nowhere_to_draw_from_says_so() -> None:
 
     assert shut.air_path is False and "add vents" in shut.to_dict()["note"]
     assert open_box.air_path is True and "add vents" not in open_box.to_dict()["note"]
-    # The unread figures are flagged every time.
-    assert "not read from the maker's own page" in open_box.to_dict()["note"]
+    # Read from the maker's page, but the screw is still an assumption, and the
+    # note says so; an unread fan is flagged in full.
+    assert "not read from the maker's own page" not in open_box.to_dict()["note"]
+    assert (
+        "Check before buying (screw not from a document" in open_box.to_dict()["note"]
+    )
+    unread_fan = replace(plan.fan, source=replace(plan.fan.source, read=False))
+    unread = fan_report(
+        replace(plan, fan=unread_fan),
+        guard,
+        plate_mm=2.0,
+        screw=get_fastener("M3"),
+        openings=[],
+        vent_free_mm2=1000.0,
+    )
+    assert "not read from the maker's own page" in unread.to_dict()["note"]
     assert open_box.to_dict()["airflow_free_air_m3h"] == 8.2
     assert "not credited" in open_box.to_dict()["note"]
 
@@ -514,7 +540,7 @@ def test_the_builder_adds_the_fan_and_reports_it() -> None:
     assert fan.model == "Noctua NF-A4x10 5V" and fan.position == "lid"
     assert fan.screws == "M3 x 10 mm, 4"
     assert fan.guard_cells > 10 and 0.3 < fan.open_ratio < 0.7
-    assert fan.air_path and fan.datasheet_read is False
+    assert fan.air_path and fan.datasheet_read is True
     assert len(enclosure.base.solids().vals()) == 1
     assert len(enclosure.lid.solids().vals()) == 1
 
@@ -602,7 +628,7 @@ def test_cli_builds_a_fan_bay_and_reports_and_records_it(
     fan = output["fan"]
     assert isinstance(fan, dict)
     assert fan["model"] == "Noctua NF-A4x10 5V" and fan["direction"] == "out"
-    assert fan["datasheet_read"] is False and fan["air_path"] is True
+    assert fan["datasheet_read"] is True and fan["air_path"] is True
     review = output["review"]
     assert isinstance(review, dict) and review["passed"] is True
     record = json.loads((tmp_path / "enclosure.json").read_text())

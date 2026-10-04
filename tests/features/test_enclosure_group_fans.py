@@ -74,9 +74,11 @@ def test_the_fan_report_carries_the_makers_figures_and_their_status(row: Any) ->
 
     assert report.direction == "out"
     assert report.power_typical_w == pytest.approx(0.044 * 5.0)
-    # The catalog's figures for this fan were not read from the maker's page.
-    assert report.datasheet_read is False
-    assert "not read from the maker's own page" in report.to_dict()["note"]
+    # The catalog's figures for this fan were read from the maker's page; only
+    # the screw is still assumed, and the note says so.
+    assert report.datasheet_read is True
+    assert "not read from the maker's own page" not in report.to_dict()["note"]
+    assert "screw not from a document that was read" in report.to_dict()["note"]
 
 
 def test_a_hinged_lid_carries_the_fan_with_it() -> None:
@@ -191,7 +193,10 @@ def test_the_estimate_counts_a_boards_power_and_a_fans(
     # A fan moves air, so the box is not closed.
     assert thermal["closed"] is False
     assert [f["model"] for f in output["fans"]] == ["Noctua NF-A4x10 5V"]
-    assert any("not read from the maker's own page" in w for w in output["warnings"])
+    # Its figures were read from the maker's page, so no warning about them.
+    assert not any(
+        "not read from the maker's own page" in w for w in output["warnings"]
+    )
 
 
 def test_a_pi_and_a_fan_are_both_counted(
