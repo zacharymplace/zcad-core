@@ -34,6 +34,7 @@ def main() -> int:
     args = parser.parse_args()
     found = figures.scan()
     register = figures.load(REGISTER) if REGISTER.exists() else {}
+    review = figures.load_review(REGISTER) if REGISTER.exists() else ""
 
     if args.update:
         merged = figures.updated(register, found)
@@ -47,8 +48,8 @@ def main() -> int:
             print(f"added {key} as unstated")
 
         REGISTER.parent.mkdir(parents=True, exist_ok=True)
-        REGISTER.write_text(figures.dump(merged), encoding="utf-8")
-        page = figures.render(merged, found, figures.catalogue_items())
+        REGISTER.write_text(figures.dump(merged, review), encoding="utf-8")
+        page = figures.render(merged, found, figures.catalogue_items(), review)
         PAGE.write_text(page, encoding="utf-8")
         counts = figures.summary(merged)
         print(
@@ -61,7 +62,7 @@ def main() -> int:
     issues = figures.problems(register, found)
 
     if register and not issues:
-        expected = figures.render(register, found, figures.catalogue_items())
+        expected = figures.render(register, found, figures.catalogue_items(), review)
 
         if not PAGE.exists() or PAGE.read_text(encoding="utf-8") != expected:
             issues.append(

@@ -251,6 +251,13 @@ def load(path: Path) -> dict[str, dict[str, str]]:
     return figures
 
 
+def load_review(path: Path) -> str:
+    """What the last review for a stated basis did and found, in the register
+    file's own words, or an empty string when none is recorded."""
+
+    return str(json.loads(path.read_text(encoding="utf-8")).get("review", ""))
+
+
 def problems(register: dict[str, dict[str, str]], figures: list[Figure]) -> list[str]:
     """What is wrong between the register and the source: an empty list when
     every figure is recorded, every entry names one, and each is well formed."""
@@ -296,18 +303,18 @@ def updated(
     return dict(sorted(merged.items()))
 
 
-def dump(register: dict[str, dict[str, str]]) -> str:
-    return (
-        json.dumps(
-            {
-                "schema_version": SCHEMA_VERSION,
-                "statuses": STATUS_MEANING,
-                "figures": register,
-            },
-            indent=2,
-        )
-        + "\n"
-    )
+def dump(register: dict[str, dict[str, str]], review: str = "") -> str:
+    payload: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "statuses": STATUS_MEANING,
+    }
+
+    if review:
+        payload["review"] = review
+
+    payload["figures"] = register
+
+    return json.dumps(payload, indent=2) + "\n"
 
 
 def catalogue_items() -> list[dict[str, Any]]:
@@ -349,6 +356,7 @@ def render(
     register: dict[str, dict[str, str]],
     figures: list[Figure],
     catalogue: list[dict[str, Any]],
+    review: str = "",
 ) -> str:
     """The register as a docs page."""
 
@@ -438,6 +446,9 @@ def render(
         ),
         "",
     ]
+    if review:
+        lines += ["", "### Last review for a stated basis", "", review, ""]
+
     current = ""
 
     for key in unstated:
