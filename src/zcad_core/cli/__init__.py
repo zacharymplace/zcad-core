@@ -86,6 +86,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    # A slice records the command that built it, so it can be built again.
+    args.argv = list(sys.argv[1:] if argv is None else argv)
 
     try:
         return int(args.handler(args))

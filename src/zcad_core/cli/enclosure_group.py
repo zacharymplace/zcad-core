@@ -33,6 +33,7 @@ from zcad_core.cli.enclosure_group_thermal import (
     _trial_complete,
     _trial_start,
 )
+from zcad_core.cli.slice_check import rebuild_recipe
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.connector_cutouts import MINIMUM_OPENING_WEB_MM
 from zcad_core.features.enclosure_group import (
@@ -66,13 +67,17 @@ DEFAULT_SLICER_PROFILE = Path(
 
 
 def _slice(
-    args: argparse.Namespace, group: GroupEnclosure, name: str
+    args: argparse.Namespace,
+    group: GroupEnclosure,
+    name: str,
+    part_stls: dict[str, Path],
 ) -> dict[str, object]:
     """Write print-oriented STLs and slice the base and the lid, each on a
     plate of its own: together they would not fit the bed."""
 
     print_directory = args.output_directory / "print"
     print_directory.mkdir()
+    recipe = rebuild_recipe(getattr(args, "argv", None), part_stls)
     plates: dict[str, dict[str, object]] = {}
     minutes = 0
     grams = 0.0
@@ -86,7 +91,7 @@ def _slice(
                 [model],
                 args.output_directory / "slice" / part,
                 slicer_profile_path=args.slicer_profile,
-                summary_fields={"design_name": name, "part": part},
+                summary_fields={"design_name": name, "part": part, "rebuild": recipe},
             )
         except SliceError as error:
             raise ValueError(str(error)) from error
@@ -183,7 +188,13 @@ def _group_build(args: argparse.Namespace) -> int:
         if group.recommended_join_screw_mm
         else None
     )
-    printed = _slice(args, group, name) if args.slice and group.passed else None
+    printed = (
+        _slice(
+            args, group, name, {part.part_name: part.stl_path for part in result.parts}
+        )
+        if args.slice and group.passed
+        else None
+    )
     emit(
         {
             "design_name": name,

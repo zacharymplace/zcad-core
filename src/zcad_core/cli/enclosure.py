@@ -18,6 +18,7 @@ from zcad_core.assemblies import (
     lowest_display_height_mm,
 )
 from zcad_core.cli._common import emit
+from zcad_core.cli.slice_check import rebuild_recipe
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features import (
     Enclosure,
@@ -487,7 +488,13 @@ def _build(
         payload["review"] = _review_payload(enclosure, review)
 
     if args.slice:
-        payload["print"] = _slice(args, enclosure, name, build_record)
+        payload["print"] = _slice(
+            args,
+            enclosure,
+            name,
+            build_record,
+            {part.part_name: part.stl_path for part in result.parts},
+        )
 
     return payload, passed
 
@@ -560,7 +567,11 @@ def _review_payload(enclosure: Enclosure, review: EnclosureReview) -> dict[str, 
 
 
 def _slice(
-    args: argparse.Namespace, enclosure: Enclosure, name: str, build_record: Path
+    args: argparse.Namespace,
+    enclosure: Enclosure,
+    name: str,
+    build_record: Path,
+    part_stls: dict[str, Path],
 ) -> dict[str, object]:
     """Write print-oriented STLs, slice them onto one plate, and open the
     first trial."""
@@ -582,6 +593,7 @@ def _slice(
             summary_fields={
                 "design_name": name,
                 "build_record_sha256": sha256(build_record),
+                "rebuild": rebuild_recipe(getattr(args, "argv", None), part_stls),
             },
         )
     except SliceError as error:
