@@ -163,6 +163,15 @@ def test_a_taller_enclosure_than_1u_is_refused() -> None:
         build_group_enclosure(design=GroupDesign(mount="rack", headroom_mm=40.0))
 
 
+def test_a_hinges_knuckles_count_against_the_rack_unit() -> None:
+    # The lid plate tops out at 41.6 mm, inside 1U, but the knuckles reach
+    # 43.6 mm, past it; the check must see the knuckles.
+    with pytest.raises(ValueError, match="43.6 mm tall"):
+        build_group_enclosure(
+            design=GroupDesign(mount="rack", lid_attachment="hinge", headroom_mm=31.2)
+        )
+
+
 def test_an_enclosure_wider_than_the_rack_is_refused() -> None:
     base = cq.Workplane("XY").box(460.0, 96.0, 25.4, centered=False)
     pads = front_pads(

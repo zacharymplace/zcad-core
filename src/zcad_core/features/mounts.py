@@ -47,6 +47,9 @@ VESA_HEAD_DIAMETER_MM = 8.0
 VESA_HEAD_HEIGHT_MM = 3.1
 # How far a VESA screw should reach into the device, past the plate.
 VESA_ENGAGEMENT_MM = 10.0
+# A driver comes down a VESA screw's axis and is no wider than its head, so the
+# head must clear the enclosure's outline by this much.
+VESA_DRIVER_CLEARANCE_MM = 0.5
 # DIN rail TS35: 35 mm wide, flanges 1.0 to 1.5 mm thick and 4 mm wide (a
 # 27 mm web between them), 7.5 or 15 mm deep. The plate's outer face sits on
 # the flanges; a hook on each side reaches under a flange. The fixed hook is
@@ -91,6 +94,10 @@ class MountPads:
     floor_underside_z_mm: float
     pocket_diameter_mm: float
     pocket_depth_mm: float
+    # The enclosure's outer footprint, x0, x1, y0, y1, which nothing can reach
+    # past once the plate is on: a screw driven from the pads' side must stand
+    # outside it.
+    footprint_mm: tuple[float, float, float, float] | None = None
 
     @property
     def mating_z_mm(self) -> float:
@@ -138,11 +145,16 @@ class MountPlate:
         return self.pieces if self.pieces is not None else {"mount": self.plate}
 
 
-def pad_height_mm(fastener: FastenerSpec, floor_mm: float) -> float:
-    """The pad height that leaves ``POCKET_ROOF_MM`` of floor over the pocket."""
+def pad_height_mm(
+    fastener: FastenerSpec, floor_mm: float, holes_into_floor_mm: float = 0.0
+) -> float:
+    """The pad height that leaves ``POCKET_ROOF_MM`` of floor over the pocket,
+    under the lowest hole that reaches down into the floor from above."""
     depth = insert_dimensions(fastener)[1]
 
-    return max(depth + POCKET_ROOF_MM - floor_mm, MINIMUM_PAD_HEIGHT_MM)
+    return max(
+        depth + POCKET_ROOF_MM + holes_into_floor_mm - floor_mm, MINIMUM_PAD_HEIGHT_MM
+    )
 
 
 def mount_pads(
@@ -154,9 +166,14 @@ def mount_pads(
     wall_mm: float,
     fastener: FastenerSpec,
     hole_compensation_mm: float = 0.0,
+    holes_into_floor_mm: float = 0.0,
 ) -> MountPads:
     """Pads at the corners of the outer footprint, each inset by the wall
-    thickness plus its radius, so the pad sits under the wall's inner face."""
+    thickness plus its radius, so the pad sits under the wall's inner face.
+
+    That puts a pad under the corner boss, whose pilot hole starts
+    ``holes_into_floor_mm`` down inside the floor; the pad grows by as much so
+    the pocket still keeps ``POCKET_ROOF_MM`` of plastic under that hole."""
 
     insert_diameter, depth = insert_dimensions(fastener)
     pocket = insert_diameter + hole_compensation_mm
@@ -179,10 +196,11 @@ def mount_pads(
             (x0 + inset, y1 - inset),
         ),
         diameter_mm=diameter,
-        height_mm=pad_height_mm(fastener, floor_mm),
+        height_mm=pad_height_mm(fastener, floor_mm, holes_into_floor_mm),
         floor_underside_z_mm=floor_underside_z_mm,
         pocket_diameter_mm=pocket,
         pocket_depth_mm=depth,
+        footprint_mm=(x0, x1, y0, y1),
     )
 
 
@@ -432,6 +450,26 @@ def _vesa_plate(
                     "pattern or a smaller enclosure"
                 )
 
+    # Bolted to the enclosure first, the plate's M4s can only be driven where
+    # a driver reaches past the enclosure; bolted to the device first, its
+    # countersunk screws face the device. So every head must stand outside.
+    if pads.footprint_mm is not None:
+        fx0, fx1, fy0, fy1 = pads.footprint_mm
+        reach = head_radius + VESA_DRIVER_CLEARANCE_MM
+        covered = [
+            (hx, hy)
+            for hx, hy in holes
+            if fx0 - reach < hx < fx1 + reach and fy0 - reach < hy < fy1 + reach
+        ]
+
+        if covered:
+            raise ValueError(
+                f"The {spacing:.0f} mm VESA pattern puts {len(covered)} of its "
+                f"{VESA_SCREW} screws under the {fx1 - fx0:.0f} x {fy1 - fy0:.0f} "
+                "mm enclosure, where no driver reaches them once the plate is on; "
+                "use a larger pattern than the enclosure, or another mount"
+            )
+
     pad_x0, pad_x1, pad_y0, pad_y1 = _pad_bounds(pads)
     edge = head_radius + _PLATE_MARGIN_MM
     bounds = (
@@ -673,13 +711,15 @@ def _keyhole_positions(
     center_y = (y0 + y1) / 2
     xs = [x for x, _ in pads.positions]
     radius = KEYHOLE_HEAD_DIAMETER_MM / 2
-    below = KEYHOLE_TRAVEL_MM + KEYHOLE_SLOT_WIDTH_MM / 2
+    # The slot runs up (+Y) from the head hole: the plate hangs with +Y up and
+    # drops onto the screws, so each screw rides up into its slot.
+    above = KEYHOLE_TRAVEL_MM + KEYHOLE_SLOT_WIDTH_MM / 2
     offset = min((max(xs) - min(xs)) / 2, 40.0) * 0.6
-    y = center_y - (radius - below) / 2
+    y = center_y - (above - radius) / 2
     wall = FEATURE_WALL_MM
 
     for x in (center_x - offset, center_x + offset):
-        left, right, low, high = x - radius, x + radius, y - below, y + radius
+        left, right, low, high = x - radius, x + radius, y - radius, y + above
 
         inside = (
             left >= x0 + wall
@@ -720,10 +760,8 @@ def _keyhole_cutters(
 
     return [
         cq.Solid.makeCylinder(head / 2, height, pnt=cq.Vector(x, y, z)),
-        cq.Solid.makeBox(
-            slot, length, height, pnt=cq.Vector(x - slot / 2, y - length, z)
-        ),
-        cq.Solid.makeCylinder(slot / 2, height, pnt=cq.Vector(x, y - length, z)),
+        cq.Solid.makeBox(slot, length, height, pnt=cq.Vector(x - slot / 2, y, z)),
+        cq.Solid.makeCylinder(slot / 2, height, pnt=cq.Vector(x, y + length, z)),
     ]
 
 
