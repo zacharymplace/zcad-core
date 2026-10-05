@@ -655,9 +655,6 @@
     "features/housing.py:_TOLERANCE_MM3": {
       "status": "unstated"
     },
-    "features/housing_cradle.py:FACE_MARGIN_MM": {
-      "status": "unstated"
-    },
     "features/housing_cradle.py:HOOK_HEIGHT_MM": {
       "status": "unstated"
     },
@@ -1927,6 +1924,9 @@
       "source": "Dexcom G7 Technical Specifications Sheet (LBL-1002469 Rev001, Jan 2023), as cited in hardware/wearables/dexcom.py: a published sheet, not a caliper capture"
     },
     "hardware/wearables/edge_placement.py:CORNER_KEEPOUT_MM": {
+      "status": "unstated"
+    },
+    "hardware/wearables/edge_placement.py:FACE_MARGIN_MM": {
       "status": "unstated"
     },
     "hardware/wearables/edge_placement.py:FEATURE_MARGIN_MM": {

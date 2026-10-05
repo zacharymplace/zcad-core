@@ -473,7 +473,6 @@ No basis is written down for these. Moving one out of this list means finding wh
 
 **`features/housing_cradle.py`**
 
-- `FACE_MARGIN_MM` = `0.5`
 - `HOOK_HEIGHT_MM` = `1.0`
 - `HOOK_WIDTH_MM` = `4.0`
 - `OVERHANG_MM` = `0.6`
@@ -967,6 +966,7 @@ No basis is written down for these. Moving one out of this list means finding wh
 **`hardware/wearables/edge_placement.py`**
 
 - `CORNER_KEEPOUT_MM` = `2.0`
+- `FACE_MARGIN_MM` = `0.5`
 - `FEATURE_MARGIN_MM` = `1.0`
 - `_SLIDE_STEP_MM` = `0.5`
 
