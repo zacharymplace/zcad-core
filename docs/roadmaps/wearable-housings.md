@@ -3,11 +3,16 @@
 ## Purpose
 
 The engine has one wearable product: a snap shell for two sealed medical devices,
-the Dexcom G7 and the Tandem Mobi. It is a set of clips at the device's edges, each
-hooking 0.6 mm over the top edge, touching neither face. It is built from published
-sizes, or from a caliper capture that makes it a `provisional_measured_candidate`
-(its clips are not yet designed against the device, so never a `verified_candidate`), and it
-goes through the Validation Lab's retention pipeline. It does not house anything, and
+the Dexcom G7 and the Tandem Mobi. It is a frame the device rests on, a ledge 1.5 mm in
+under its rim and a 1 mm rim up its sides, and a clip at each of the chosen edges,
+standing the clearance out from the edge and hooking 0.6 mm over the top edge, the
+clearance above the top face. Its checks measure that against the device's envelope.
+It is built from published sizes, or from a caliper capture that raises it to a
+`verified_candidate` when those checks pass, and it goes through the Validation Lab's
+retention pipeline. One check is the clips' strain as they bend to let the device in:
+on the 4.7 mm G7 the stem is too short and strains about 6 per cent against the 1.5 per
+cent limit, so the G7's shell is rejected, as phase 2 found for the cradle (below). The ledge covers the rim of the skin side, so it is a holder, not
+something to wear. It does not house anything, and
 nothing about it attaches to a body.
 
 A wearable housing is the rest of that: something you can wear. It has two kinds of

@@ -116,3 +116,24 @@ def test_snap_retention_clip_supports_rotation() -> None:
 
     assert workplane_shape(result).isValid()
     assert workplane_shape(result).Volume() > workplane_shape(base).Volume()
+
+
+def test_the_clip_stands_outside_the_edge_and_hooks_over_the_top() -> None:
+    # The part's edge is at x = 4 and the part lies at +X; its underside is
+    # base_height above base_z (-6), its top face compliant_span above that.
+    parameters = _parameters()
+    clip = workplane_shape(
+        add_snap_retention_clip(cq.Workplane("XY"), parameters=parameters)
+    )
+    box = clip.BoundingBox()
+    part_top = -9.0 + 3.0 + 7.85
+    part = cq.Solid.makeBox(20.0, 20.0, part_top + 9.0, pnt=cq.Vector(4.0, -13.0, -9.0))
+
+    assert box.xmin == pytest.approx(4.0 - 0.25 - 1.2)
+    assert box.xmax == pytest.approx(4.0 + 0.6)
+    assert box.zmin == pytest.approx(-9.0)
+    assert box.zmax == pytest.approx(part_top + 0.25 + 4.0)
+    assert clip.intersect(part).Volume() == pytest.approx(0.0, abs=1e-9)
+    # The lip's flat underside, the clearance above the part's top face.
+    over = cq.Solid.makeBox(0.6, 6.0, 4.0 + 0.25, pnt=cq.Vector(4.0, -6.0, part_top))
+    assert clip.intersect(over).BoundingBox().zmin == pytest.approx(part_top + 0.25)

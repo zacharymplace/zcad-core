@@ -53,67 +53,54 @@ def add_snap_retention_clip(
     *,
     parameters: SnapRetentionClipParameters,
 ) -> cq.Workplane:
-    """Add one upright snap-retention clip to a model."""
+    """Add one upright snap-retention clip to a model.
+
+    ``(x, y)`` is a point on the held part's edge, and the clip faces +X
+    (before ``rotation_degrees`` turns it about that point), so the part
+    lies at +X. The stem stands ``clearance_mm`` out from the edge, from
+    ``base_z_mm`` up, so it joins whatever base holds the part. The part's
+    underside is ``base_height_mm`` above ``base_z_mm`` and its top face
+    ``compliant_span_mm`` above that. The lip hooks ``overhang_mm`` in over
+    the part's top edge, measured from the edge so the clearance never eats
+    into it, with a flat underside ``clearance_mm`` above the top face and
+    a sloped top that lets the part push the clip aside as it is pressed in.
+    """
     parameters.validate()
 
-    stem_height_mm = parameters.compliant_span_mm + parameters.height_mm
-
-    stem = (
-        cq.Workplane("XY")
-        .box(
-            parameters.wall_mm,
-            parameters.width_mm,
-            stem_height_mm,
-            centered=(False, True, False),
-        )
-        .translate(
-            (
-                parameters.x,
-                parameters.y,
-                (parameters.base_z_mm + parameters.base_height_mm),
-            )
-        )
-    )
-
-    lip_bottom_z_mm = (
+    clearance = parameters.clearance_mm
+    inner = -clearance
+    outer = inner - parameters.wall_mm
+    lip_bottom = (
         parameters.base_z_mm
         + parameters.base_height_mm
         + parameters.compliant_span_mm
-        - parameters.clearance_mm
+        + clearance
     )
+    top = lip_bottom + parameters.height_mm
 
-    lip = (
-        cq.Workplane("XY")
-        .box(
-            parameters.wall_mm + parameters.overhang_mm,
+    stem = cq.Workplane("XY").add(
+        cq.Solid.makeBox(
+            inner - outer,
             parameters.width_mm,
-            parameters.height_mm,
-            centered=(False, True, False),
-        )
-        .translate(
-            (
-                parameters.x,
-                parameters.y,
-                lip_bottom_z_mm,
-            )
+            top - parameters.base_z_mm,
+            pnt=cq.Vector(outer, -parameters.width_mm / 2, parameters.base_z_mm),
         )
     )
-
+    lip = (
+        cq.Workplane("XZ")
+        .polyline(
+            [
+                (inner, lip_bottom),
+                (parameters.overhang_mm, lip_bottom),
+                (inner, top),
+            ]
+        )
+        .close()
+        .extrude(parameters.width_mm / 2, both=True)
+    )
     clip = stem.union(lip)
 
     if parameters.rotation_degrees:
-        clip = clip.rotate(
-            (
-                parameters.x,
-                parameters.y,
-                0.0,
-            ),
-            (
-                parameters.x,
-                parameters.y,
-                1.0,
-            ),
-            parameters.rotation_degrees,
-        )
+        clip = clip.rotate((0, 0, 0), (0, 0, 1), parameters.rotation_degrees)
 
-    return model.union(clip)
+    return model.union(clip.translate((parameters.x, parameters.y, 0.0)))

@@ -4,14 +4,19 @@ The Dexcom G7 and Tandem Mobi scripts share this. A candidate's body is a
 rectangular envelope: from the device's published dimensions, which makes
 it a ``provisional_synthetic_candidate`` that no trial may use, or from a
 caliper capture (:mod:`zcad_core.hardware.wearables.capture`), which makes
-it a ``provisional_measured_candidate``: its size is measured, but its clips
-are still the synthetic backend's, whose device clearance and shell
-continuity are placeholders, so it is never a ``verified_candidate`` and
-never approved for publication. The record measures how far the clips reach
-into the device's envelope (``clips_into_device_mm3``), so that is in the
-evidence. A capture's file is copied beside the candidate and its SHA-256
-recorded, and each clip slides along its edge to stand clear of every
-feature the capture lists.
+it a ``verified_candidate`` when the shell's fit checks pass. A capture's
+file is copied beside the candidate and its SHA-256 recorded, and each clip
+slides along its edge to stand clear of every feature the capture lists.
+
+The shell (see :class:`SyntheticSnapShellBackend`) is a frame the device
+rests on and a clip on each chosen edge, built against the envelope: each
+clip stands the clearance out from the device's edge and hooks over its top
+edge. The checks measure that against the envelope: no shell material
+inside it or within the clearance of its sides and top face, each lip over
+the top face, the clips joined to the frame, and each clip's strain as it
+bends to let the device in (too much on a device as thin as the G7, whose
+shell is rejected). The record keeps how much
+shell material is inside the envelope (``clips_into_device_mm3``).
 
 The first revision registers the target as well. A later one names its
 parent and why, writes its own envelope beside the earlier ones so their
@@ -29,11 +34,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
 
 import cadquery as cq
 
-from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware.wearables import EdgeFeature, WearableCapture, load_capture
 from zcad_core.hardware.wearables.edge_placement import clear_offset, edge_reach_mm
 from zcad_core.retention.engine import RetentionEngine, RetentionStrategy
@@ -286,20 +289,29 @@ def register_snap_shell_candidate(
     paths.source_step.parent.mkdir(parents=True, exist_ok=True)
     cq.exporters.export(envelope, str(paths.source_step))
 
+    backend = SyntheticSnapShellBackend()
     engine = RetentionEngine()
-    engine.register(RetentionStrategy.SNAP_SHELL, SyntheticSnapShellBackend())
+    engine.register(RetentionStrategy.SNAP_SHELL, backend)
     execution = engine.execute(
         strategy=RetentionStrategy.SNAP_SHELL,
         request=SnapShellRequest(
             device_thickness_mm=body.thickness_mm,
+            device_length_mm=body.length_mm,
+            device_width_mm=body.width_mm,
             locations=locations,
             policy=policy,
+            edge_features=body.features,
         ),
         model=envelope,
     )
 
     if not isinstance(execution.model, cq.Workplane):
         raise TypeError("Retention execution did not produce a cadquery Workplane")
+
+    if not isinstance(execution.parameters, SnapShellParameters):
+        raise TypeError("Retention execution did not produce snap-shell parameters")
+
+    clips_into_device = backend.clips_into_device_mm3(execution.parameters)
 
     fit_report = as_snap_shell_fit_report(execution.report)
     paths.retention_step.parent.mkdir(parents=True, exist_ok=True)
@@ -312,23 +324,10 @@ def register_snap_shell_candidate(
     source_sha256 = sha256_file(paths.source_step)
     output_sha256 = sha256_file(paths.retention_step)
 
-    # The clips as built, against the envelope they are meant to hold: the
-    # synthetic backend checks neither, so the overlap is measured here.
-    if not isinstance(execution.parameters, SnapShellParameters):
-        raise TypeError("Retention execution did not produce snap-shell parameters")
-
-    clips_into_device = intersection_volume(
-        cast(
-            cq.Shape,
-            SyntheticSnapShellBackend().build_geometry(execution.parameters).val(),
-        ),
-        cast(cq.Shape, envelope.val()),
-    )
-
     if not execution.passed:
         decision = "rejected"
     elif from_capture:
-        decision = "provisional_measured_candidate"
+        decision = "verified_candidate"
     else:
         decision = "provisional_synthetic_candidate"
 
@@ -339,6 +338,8 @@ def register_snap_shell_candidate(
         "overhang_mm": policy.overhang_mm,
         "clearance_mm": policy.clearance_mm,
         "compliant_span_mm": policy.compliant_span_mm,
+        "ledge_mm": policy.ledge_mm,
+        "rim_height_mm": policy.rim_height_mm,
     }
     fit_results = {
         result.check.value: {"passed": result.passed, "detail": result.detail}
@@ -509,7 +510,7 @@ def _report(
     created_at: str,
     source_sha256: str,
     output_sha256: str,
-    clips_into_device_mm3: float = 0.0,
+    clips_into_device_mm3: float,
 ) -> dict[str, object]:
     report: dict[str, object] = {
         "schema_version": "1.0.0",
@@ -548,12 +549,12 @@ def _report(
             {
                 "approved": decision == "verified_candidate",
                 "reason": (
-                    f"Sized from caliper capture {paths.relative(paths.capture_copy)}, "
-                    "but the clips are the synthetic backend's: its device clearance "
-                    "and shell continuity are unverified placeholders, and the clips "
-                    f"reach {clips_into_device_mm3:.1f} mm3 into the device's "
-                    "envelope. Not for publication or a trial until the clips are "
-                    "designed against the device."
+                    f"Built from caliper capture {paths.relative(paths.capture_copy)}; "
+                    "a printed trial on the real device is still required."
+                    if decision == "verified_candidate"
+                    else f"Built from caliper capture "
+                    f"{paths.relative(paths.capture_copy)}, but its fit checks "
+                    "failed; not for publication or a trial."
                 ),
             }
             if body.capture is not None

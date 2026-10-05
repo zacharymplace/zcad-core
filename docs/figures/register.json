@@ -2135,13 +2135,28 @@
     "retention/snap_shell.py:SnapShellPolicy.compliant_span_mm": {
       "status": "unstated"
     },
+    "retention/snap_shell.py:SnapShellPolicy.ledge_mm": {
+      "status": "unstated"
+    },
     "retention/snap_shell.py:SnapShellPolicy.overhang_mm": {
+      "status": "unstated"
+    },
+    "retention/snap_shell.py:SnapShellPolicy.rim_height_mm": {
       "status": "unstated"
     },
     "retention/snap_shell.py:SnapShellPolicy.wall_mm": {
       "status": "unstated"
     },
     "retention/snap_shell.py:_MINIMUM_LOCATION_SEPARATION_MM": {
+      "status": "unstated"
+    },
+    "retention/synthetic_snap_shell_backend.py:_CLEARANCE_SLACK_MM": {
+      "status": "unstated"
+    },
+    "retention/synthetic_snap_shell_backend.py:_ON_EDGE_MM": {
+      "status": "unstated"
+    },
+    "retention/synthetic_snap_shell_backend.py:_TOLERANCE_MM3": {
       "status": "unstated"
     },
     "retention/validation_fixture.py:ValidationFixturePolicy.base_thickness_mm": {
