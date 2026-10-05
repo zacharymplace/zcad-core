@@ -25,6 +25,7 @@ from zcad_core.features.lid_hinge import (
     SWING_DEGREES,
     add_hinge,
     hinge_edges,
+    hinge_web_depth_mm,
 )
 from zcad_core.features.mounts import FLEXURE_STRAIN_LIMIT
 from zcad_core.geometry.intersection import intersection_volume
@@ -99,6 +100,15 @@ def frame(enclosure: Enclosure) -> dict[str, float]:
         "axis_z": top + enclosure.design.lid_mm / 2,
         "depth": spec.inner_depth_mm + 2 * wall,
     }
+
+
+def test_a_larger_pin_hangs_its_web_lower_and_the_least_is_kept() -> None:
+    # The barrel round a 4.5 mm hole is 4.05 mm in radius, from an axis 1 mm above
+    # a 2 mm lid's seat, so it reaches 3.05 mm below; an M3's reaches 2.5 mm, the
+    # least the builders take, and a thicker lid never makes it less.
+    assert hinge_web_depth_mm(get_fastener("M4"), 2.0) == pytest.approx(3.05)
+    assert hinge_web_depth_mm(get_fastener("M3"), 2.0) == pytest.approx(2.5)
+    assert hinge_web_depth_mm(get_fastener("M3"), 3.0) == pytest.approx(2.5)
 
 
 def test_hinged_lid_has_no_screws_bosses_or_skirt() -> None:

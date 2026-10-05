@@ -938,6 +938,9 @@
     "features/lid_slide.py:_SLIT_MM": {
       "status": "unstated"
     },
+    "features/mount_rack.py:FrontPads.flange_margin_mm": {
+      "status": "unstated"
+    },
     "features/mount_rack.py:PAD_HEIGHT_OFFSET_MM": {
       "status": "unstated"
     },
@@ -970,6 +973,9 @@
       "status": "unstated"
     },
     "features/mount_rack.py:_FLANGE_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/mount_rack.py:_FLANGE_MARGIN_STEP_MM": {
       "status": "unstated"
     },
     "features/mount_rack.py:_HEIGHT_MARGIN_MM": {

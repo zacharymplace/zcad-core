@@ -173,7 +173,7 @@ def test_a_hinges_knuckles_count_against_the_rack_unit() -> None:
 
 
 def test_an_enclosure_wider_than_the_rack_is_refused() -> None:
-    base = cq.Workplane("XY").box(460.0, 96.0, 25.4, centered=False)
+    base = cq.Workplane("XY").box(RACK_OPENING_MM + 10.0, 96.0, 25.4, centered=False)
     pads = front_pads(
         base,
         outer_size_mm=(RACK_OPENING_MM + 10.0, 96.0, 25.4),
@@ -196,6 +196,36 @@ def test_pads_over_an_opening_in_the_front_wall_are_refused() -> None:
     )
 
     with pytest.raises(ValueError, match="cover an opening"):
+        front_pads(
+            base.cut(slot),
+            outer_size_mm=(176.0, 96.0, 25.4),
+            enclosure_height_mm=28.4,
+            wall_mm=2.0,
+            fastener=M3,
+        )
+
+
+def test_an_ear_stops_short_of_an_opening_beside_its_pads() -> None:
+    # The pair's last Pi has its cable exit from x = 150.0 to 165.3 on the front wall;
+    # a full 2 mm flange from the right pads (edge at 165.8) would cover 1.5 mm of it.
+    ears, pads = pair().mount, pair().mount_pads
+    assert ears is not None and isinstance(pads, FrontPads)
+    right = solid(ears.parts["mount-right"]).BoundingBox()
+
+    assert right.xmin == pytest.approx(165.3, abs=0.01)
+    assert pads.flange_margin_mm == pytest.approx(0.5)
+
+
+def test_an_ear_that_would_cover_an_opening_even_flush_is_refused() -> None:
+    base = cq.Workplane("XY").box(176.0, 96.0, 25.4, centered=False)
+    # A slot through the wall under the right pads, which the flange covers.
+    slot = (
+        cq.Workplane("XY")
+        .box(3.0, 4.0, 2.5, centered=False)
+        .translate((170.0, -1.0, 1.2))
+    )
+
+    with pytest.raises(ValueError, match="flush with its pads, would cover an opening"):
         front_pads(
             base.cut(slot),
             outer_size_mm=(176.0, 96.0, 25.4),

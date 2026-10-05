@@ -261,7 +261,8 @@ than any M3 screw (the summary gives the length, 175 mm for two bays). Two
 things to know:
 
 - The knuckles stand on the back wall's top edge, so the Ethernet and USB
-  opening must stop 2.5 mm below it. The default headroom puts it 1.4 mm below,
+  opening must stop below the knuckles' webs: 2.5 mm below it with the default
+  M3 pin, farther with a larger pin, whose barrel hangs lower. The default headroom puts it 1.4 mm below,
   and the build says so and by how much; `--headroom-mm 20` clears it.
 - The catch goes in the widest stretch of front wall clear of the microSD and
   cable-exit openings, so it never sits over one.
@@ -416,10 +417,12 @@ pads stacked at each end of the front wall, and two flat flanges, exported as
 rack's rails. The flanges are a 1U panel (43.66 mm tall) with three EIA-310
 holes each, 465.1 mm apart, and the enclosure sits centred in the rack, 8 mm
 behind its face. The pads stand out of the front, so the base is no wider
-than before. A pair of bays (176 mm) gives 165 mm ears, which fit the A1
-mini's bed. The build refuses an enclosure that is taller than 1U (41.7 mm
-with the lid) or wider than the rack's 450.85 mm opening, a pad that would
-cover an opening in the front wall, and ears longer than the printer's bed;
+than before. A pair of bays (176 mm) gives 164 mm ears, which fit the A1
+mini's bed. A flange runs 2 mm past its pads toward the middle, or less where an
+opening in the front wall is near: on a pair, the right ear stops at the last Pi's
+cable exit instead of covering 1.5 mm of it. The build refuses an enclosure that is taller than 1U (41.7 mm
+with the lid) or wider than the rack's 450.85 mm opening, a pad, or a flange
+even flush with its pads, that would cover an opening in the front wall, and ears longer than the printer's bed;
 one bay is about 88 mm wide and its ears would be about 197 mm, so it needs
 a bigger printer. Print each ear flat. No strength is modelled: the two pads
 at each end hold the enclosure's weight, and a trial has to show that they

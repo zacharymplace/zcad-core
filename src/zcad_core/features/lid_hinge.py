@@ -34,6 +34,8 @@ from zcad_core.features.mounts import (
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware import FastenerSpec
 
+# The least depth below the cavity's top that a hinge's web is taken to reach; a
+# larger pin's barrel, or a thinner lid, reaches farther (see hinge_web_depth_mm).
 HINGE_WEB_DEPTH_MM = 2.5
 # The lid swings this far; the sweep checks every step of it.
 SWING_DEGREES = 100.0
@@ -53,6 +55,18 @@ _PIN_LENGTHS_MM = (8, 10, 12, 16, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80)
 # Past the longest screw, a pin is a threaded rod cut to length, to the next 5 mm.
 _ROD_STEP_MM = 5
 _LONGEST_ROD_MM = 250
+
+
+def hinge_web_depth_mm(pin: FastenerSpec, lid_mm: float) -> float:
+    """How far below the cavity's top the base's knuckle webs reach: the barrel
+    round the pin's hole hangs from an axis half the lid's thickness above the top.
+    Never less than ``HINGE_WEB_DEPTH_MM``, which is what an M3 pin under a 2 mm
+    lid reaches."""
+
+    barrel = pin.clearance_hole_mm / 2 + _BARREL_WALL_MM
+
+    return max(barrel - lid_mm / 2, HINGE_WEB_DEPTH_MM)
+
 
 # The catch: a tongue outside the closure wall, a hook on its end, and a bump
 # on the wall that the hook snaps under.
