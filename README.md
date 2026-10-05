@@ -15,6 +15,10 @@ Responsibilities:
 - Board-retention strategies and the Validation Lab
 - Printable enclosures built around catalogued hardware, including one box
   for a row of Raspberry Pi 5 boards
+- Boards of your own from a board file, and the guides, test fixtures,
+  holding nests, insert jigs and stackable items built round them
+- Wearables: caliper captures of sealed devices, the cradles and cases that
+  hold them, and snap shells for the Dexcom G7 and Tandem Mobi
 - Slicing and print-trial records
 - An interactive 3D viewer of the enclosures
 
@@ -34,6 +38,33 @@ This repository intentionally contains no product-specific models.
   enclosure with the core engine from Python.
 - `docs/guides/validation-lab-workflow.md` takes a board from its vendor STEP
   model to a promoted, validated fixture candidate.
+- `zcad-validation wearable template` starts a caliper capture of a sealed
+  device, and `zcad-validation housing build` builds something to wear it in;
+  see `docs/guides/wearable-capture.md` and `docs/guides/wearable-housing.md`.
+
+## Developing
+
+```bash
+pip install -e ".[dev]"
+git config core.hooksPath .githooks
+scripts/check.sh
+```
+
+GitHub Actions is disabled for this account, so `scripts/check.sh` is the
+gate: ruff format, ruff check, mypy over `src`, `scripts`, `tests` and
+`examples`, and the full test suite. The pre-push hook runs it and blocks a
+push that fails; `scripts/check.sh --fast` skips the slow tests for a quicker
+loop. The full gate takes five to eight minutes.
+
+`evidence/` holds the Validation Lab's records, trials and vendor models. It
+is ignored here and backed up to its own private repository with
+`scripts/backup-evidence.sh`, which refuses a file that still has its
+template's `needs_review` line. The tests that read it skip without it, so in
+a linked worktree, link it before running the suite:
+
+```bash
+ln -s "$(git rev-parse --path-format=absolute --git-common-dir)/../evidence" evidence
+```
 
 ## Documentation
 
@@ -44,4 +75,3 @@ Generated API reference and architecture docs live in `docs/` (built with
 pip install -e ".[docs]"
 mkdocs serve
 ```
-
