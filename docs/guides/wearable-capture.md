@@ -147,7 +147,8 @@ A valid capture prints the sizes the candidate will use and its SHA-256.
   `automated-validation.json`.
 - **Fit:** the shell is measured against the captured envelope. No shell
   material may be inside it or within the clearance of its sides and top face,
-  each clip's lip must reach `overhang_mm` in over the top face, the frame
+  each clip's lip must reach `overhang_mm` in over the top face, no shell
+  material may be over a face feature or within 0.5 mm of one, the frame
   and clips must be one solid, and a clip bending out to let the device past
   must strain no more than the engine's provisional 1.5 per cent limit. A
   Mobi clip is a post bending up the device's side, 0.5 per cent. The G7 is

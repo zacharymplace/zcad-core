@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from itertools import combinations
 from math import hypot
 
-from zcad_core.hardware.wearables.capture import EdgeFeature
+from zcad_core.hardware.wearables.capture import EdgeFeature, FaceFeature
 
 _MINIMUM_LOCATION_SEPARATION_MM = 1e-6
 # A tab's beam, from its root to its free end: long enough that a 1 mm wall
@@ -120,7 +120,8 @@ class SnapShellParameters:
     ``device_width_mm`` along Y, centred, its underside at ``z == 0``, its
     corners rounded to ``device_corner_radius_mm`` (0 for square ones).
     ``edge_features`` are what its edges carry that the frame's rim must
-    leave open.
+    leave open, and ``face_features`` what its top face carries that no hook
+    may cover.
     """
 
     device_thickness_mm: float
@@ -139,6 +140,7 @@ class SnapShellParameters:
     tab_length_mm: float | None = None
     tab_slit_mm: float = 0.8
     device_corner_radius_mm: float = 0.0
+    face_features: tuple[FaceFeature, ...] = ()
 
     def __post_init__(self) -> None:
         if not (
@@ -210,6 +212,7 @@ def derive_snap_shell_parameters(
     policy: SnapShellPolicy,
     edge_features: tuple[EdgeFeature, ...] = (),
     device_corner_radius_mm: float = 0.0,
+    face_features: tuple[FaceFeature, ...] = (),
 ) -> SnapShellParameters:
     """Derive a validated snap-shell geometry artifact."""
 
@@ -219,6 +222,7 @@ def derive_snap_shell_parameters(
         device_width_mm=device_width_mm,
         edge_features=edge_features,
         device_corner_radius_mm=device_corner_radius_mm,
+        face_features=face_features,
         locations=locations,
         clip_width_mm=policy.clip_width_mm,
         wall_mm=policy.wall_mm,

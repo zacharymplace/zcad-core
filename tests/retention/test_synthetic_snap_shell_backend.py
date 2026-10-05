@@ -7,7 +7,7 @@ import pytest
 
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.intersection import intersection_volume
-from zcad_core.hardware.wearables import EdgeFeature
+from zcad_core.hardware.wearables import EdgeFeature, FaceFeature
 from zcad_core.retention import (
     SnapShellBackend,
     SnapShellFitCheck,
@@ -537,3 +537,44 @@ def test_a_corner_radius_must_leave_a_straight_run() -> None:
         SyntheticSnapShellBackend().derive(
             replace(rounded_request(), device_corner_radius_mm=20.0)
         )
+
+
+def face_report(*features: FaceFeature) -> dict[SnapShellFitCheck, tuple[bool, str]]:
+    # Posts at the middle of three G7-sized edges, placed by hand: the check
+    # measures the built shell, whatever placement did.
+    backend = SyntheticSnapShellBackend()
+    request = replace(valid_request(), face_features=features)
+    report = backend.analyze_fit(backend.derive(request))
+
+    return {r.check: (r.passed, r.detail) for r in report.results}
+
+
+def test_a_hook_over_a_face_feature_fails_naming_it() -> None:
+    # Beside the north edge, under the north post's lip.
+    light = FaceFeature(
+        "light",
+        center_x_mm=0.0,
+        center_y_mm=WIDTH / 2 - 0.5,
+        width_mm=2.0,
+        depth_mm=1.0,
+    )
+
+    passed, detail = face_report(light)[SnapShellFitCheck.FACE_FEATURES_OPEN]
+
+    assert not passed
+    assert detail.startswith("The shell covers light on the top face")
+
+
+def test_a_face_feature_clear_of_every_hook_passes() -> None:
+    screen = FaceFeature(
+        "screen", center_x_mm=0.0, center_y_mm=0.0, width_mm=10.0, depth_mm=10.0
+    )
+
+    assert face_report(screen)[SnapShellFitCheck.FACE_FEATURES_OPEN] == (
+        True,
+        "No shell material is over a face feature or within 0.5 mm of one.",
+    )
+    assert face_report()[SnapShellFitCheck.FACE_FEATURES_OPEN] == (
+        True,
+        "No face features are listed.",
+    )

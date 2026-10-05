@@ -17,7 +17,10 @@ from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.intersection import intersection_volume, solid_intersection
 from zcad_core.geometry.outline_prism import outline_prism
 from zcad_core.hardware.electronics import board_outline
-from zcad_core.hardware.wearables.edge_placement import FEATURE_MARGIN_MM
+from zcad_core.hardware.wearables.edge_placement import (
+    FACE_MARGIN_MM,
+    FEATURE_MARGIN_MM,
+)
 from zcad_core.retention.snap_shell import (
     SnapShellLocation,
     SnapShellParameters,
@@ -84,6 +87,7 @@ class SyntheticSnapShellBackend:
             policy=request.policy,
             edge_features=request.edge_features,
             device_corner_radius_mm=request.device_corner_radius_mm,
+            face_features=request.face_features,
         )
 
     def apply(
@@ -167,6 +171,7 @@ class SyntheticSnapShellBackend:
         anchor_passed = self._anchor_separation_passed(parameters)
         flexure = clip_flexure(parameters)
         strain_passed = flexure.strain <= FLEXURE_STRAIN_LIMIT
+        covered = self._covered_face_features(parameters, shell_shape)
 
         return SnapShellFitReport(
             results=(
@@ -227,6 +232,21 @@ class SyntheticSnapShellBackend:
                     ),
                 ),
                 SnapShellFitResult(
+                    check=SnapShellFitCheck.FACE_FEATURES_OPEN,
+                    passed=not covered,
+                    detail=(
+                        "The shell covers "
+                        + ", ".join(covered)
+                        + f" on the top face, or comes within {FACE_MARGIN_MM:g} "
+                        "mm of it."
+                        if covered
+                        else f"No shell material is over a face feature or within "
+                        f"{FACE_MARGIN_MM:g} mm of one."
+                        if parameters.face_features
+                        else "No face features are listed."
+                    ),
+                ),
+                SnapShellFitResult(
                     check=(SnapShellFitCheck.MANUFACTURING_CLEARANCE),
                     passed=manufacturing_passed,
                     detail=(
@@ -248,6 +268,40 @@ class SyntheticSnapShellBackend:
         return outline_prism(
             _outline(parameters), 0.0, parameters.device_thickness_mm + grow, grow
         )
+
+    @staticmethod
+    def _covered_face_features(
+        parameters: SnapShellParameters, shell: cq.Shape
+    ) -> list[str]:
+        """Each face feature with shell material over it: the space above the
+        feature, ``FACE_MARGIN_MM`` wider all round, from the top face to the
+        top of the lips. Placement keeps hooks clear of face features; this
+        measures the built shell, so a placement mistake cannot pass."""
+
+        bottom = parameters.device_thickness_mm
+        top = bottom + parameters.clearance_mm + parameters.clip_height_mm + 0.01
+
+        return [
+            feature.identifier
+            for feature in parameters.face_features
+            if intersection_volume(
+                shell,
+                workplane_shape(
+                    _box(
+                        (
+                            feature.center_x_mm - feature.width_mm / 2 - FACE_MARGIN_MM,
+                            feature.center_x_mm + feature.width_mm / 2 + FACE_MARGIN_MM,
+                        ),
+                        (
+                            feature.center_y_mm - feature.depth_mm / 2 - FACE_MARGIN_MM,
+                            feature.center_y_mm + feature.depth_mm / 2 + FACE_MARGIN_MM,
+                        ),
+                        (bottom, top),
+                    )
+                ),
+            )
+            > _TOLERANCE_MM3
+        ]
 
     def _engagement_failures(
         self, parameters: SnapShellParameters, shell: cq.Shape
