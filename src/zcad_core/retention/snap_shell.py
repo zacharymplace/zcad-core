@@ -117,7 +117,8 @@ class SnapShellParameters:
     needed for the shell to resist rotation in every direction.
 
     The device is a box ``device_length_mm`` along X and
-    ``device_width_mm`` along Y, centred, its underside at ``z == 0``.
+    ``device_width_mm`` along Y, centred, its underside at ``z == 0``, its
+    corners rounded to ``device_corner_radius_mm`` (0 for square ones).
     ``edge_features`` are what its edges carry that the frame's rim must
     leave open.
     """
@@ -137,8 +138,19 @@ class SnapShellParameters:
     edge_features: tuple[EdgeFeature, ...] = ()
     tab_length_mm: float | None = None
     tab_slit_mm: float = 0.8
+    device_corner_radius_mm: float = 0.0
 
     def __post_init__(self) -> None:
+        if not (
+            0
+            <= self.device_corner_radius_mm
+            < min(self.device_length_mm, self.device_width_mm) / 2
+        ):
+            raise ValueError(
+                "device_corner_radius_mm must be at least zero and under half "
+                "the device's width"
+            )
+
         for name, value in {
             "device_thickness_mm": self.device_thickness_mm,
             "device_length_mm": self.device_length_mm,
@@ -197,6 +209,7 @@ def derive_snap_shell_parameters(
     locations: tuple[SnapShellLocation, ...],
     policy: SnapShellPolicy,
     edge_features: tuple[EdgeFeature, ...] = (),
+    device_corner_radius_mm: float = 0.0,
 ) -> SnapShellParameters:
     """Derive a validated snap-shell geometry artifact."""
 
@@ -205,6 +218,7 @@ def derive_snap_shell_parameters(
         device_length_mm=device_length_mm,
         device_width_mm=device_width_mm,
         edge_features=edge_features,
+        device_corner_radius_mm=device_corner_radius_mm,
         locations=locations,
         clip_width_mm=policy.clip_width_mm,
         wall_mm=policy.wall_mm,

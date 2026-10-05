@@ -460,3 +460,80 @@ def test_anchor_separation_is_measured_between_the_hooks() -> None:
     assert anchored(SnapShellPolicy())
     # As tabs, two hooks meet at (0, 6).
     assert not anchored(SnapShellPolicy(tab_length_mm=TAB_LENGTH_MM))
+
+
+# A Mobi-sized body with 8 mm corners, a clip at the middle of each edge.
+ROUNDED = (51.3, 37.3, 14.2, 8.0)
+
+
+def rounded_request(*locations: SnapShellLocation) -> SnapShellRequest:
+    length, width, thickness, radius = ROUNDED
+
+    return SnapShellRequest(
+        device_thickness_mm=thickness,
+        device_length_mm=length,
+        device_width_mm=width,
+        locations=locations
+        or (
+            SnapShellLocation("north", 0.0, width / 2, 270.0),
+            SnapShellLocation("south", 0.0, -width / 2, 90.0),
+            SnapShellLocation("east", length / 2, 0.0, 180.0),
+            SnapShellLocation("west", -length / 2, 0.0, 0.0),
+        ),
+        policy=SnapShellPolicy(),
+        device_corner_radius_mm=radius,
+    )
+
+
+def test_a_rounded_device_is_checked_against_its_rounded_outline() -> None:
+    backend = SyntheticSnapShellBackend()
+    parameters = backend.derive(rounded_request())
+    length, width, thickness, _ = ROUNDED
+    envelope = workplane_shape(backend.device_envelope(parameters))
+
+    # The corners are rounded off the box.
+    assert envelope.Volume() < length * width * thickness - 50
+    assert backend.analyze_fit(parameters).passed
+    assert backend.clips_into_device_mm3(parameters) == 0.0
+
+
+def test_a_rounded_device_gets_a_frame_rounded_round_it() -> None:
+    backend = SyntheticSnapShellBackend()
+    length, width, _, radius = ROUNDED
+    rounded = backend.derive(rounded_request())
+    square = replace(rounded, device_corner_radius_mm=0.0)
+    # Halfway through the rim's wall, out from the middle of the north-east
+    # corner's arc: inside the rectangle, outside the rounded device.
+    reach = radius + rounded.clearance_mm + rounded.wall_mm / 2
+    x = length / 2 - radius + reach * 0.5**0.5
+    y = width / 2 - radius + reach * 0.5**0.5
+    probe = cq.Solid.makeBox(0.2, 0.2, 0.2, pnt=cq.Vector(x - 0.1, y - 0.1, 0.4))
+
+    def rim_there(parameters: SnapShellParameters) -> bool:
+        shell = workplane_shape(backend.build_geometry(parameters))
+        return intersection_volume(shell, probe) > 0
+
+    assert rim_there(rounded)
+    assert not rim_there(square)
+
+
+def test_a_clip_on_a_rounded_corner_has_no_edge_to_hook() -> None:
+    length, width, _, _ = ROUNDED
+    # 4 mm from the corner, inside the 8 mm arc.
+    on_corner = SnapShellLocation("north", length / 2 - 4.0, width / 2, 270.0)
+    backend = SyntheticSnapShellBackend()
+    request = rounded_request(
+        on_corner,
+        SnapShellLocation("south", 0.0, -width / 2, 90.0),
+        SnapShellLocation("west", -length / 2, 0.0, 0.0),
+    )
+    report = backend.analyze_fit(backend.derive(request))
+
+    assert SnapShellFitCheck.SNAP_ENGAGEMENT in {r.check for r in report.failures}
+
+
+def test_a_corner_radius_must_leave_a_straight_run() -> None:
+    with pytest.raises(ValueError, match="device_corner_radius_mm"):
+        SyntheticSnapShellBackend().derive(
+            replace(rounded_request(), device_corner_radius_mm=20.0)
+        )

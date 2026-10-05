@@ -131,7 +131,11 @@ A valid capture prints the sizes the candidate will use and its SHA-256.
 
 ## What a candidate built from it records
 
-- **Size:** the envelope is the median of each dimension.
+- **Size:** the envelope is the median of each dimension, with the
+  capture's outline: a rounded rectangle when it gives a corner radius. The
+  shell's frame and its checks follow that outline, so a rounded device gets
+  a frame the same clearance from it all the way round, and no clip may hook
+  on a rounded corner.
 - **Clips:** each clip moves along its edge to the nearest place where its
   whole length, a G7 tab's included, clears every edge feature there by 1 mm,
   and where its hook, 0.6 mm in over the top face, stands 0.5 mm clear of every

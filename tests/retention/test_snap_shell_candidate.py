@@ -9,8 +9,10 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+import cadquery as cq
 import pytest
 
+from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.hardware.wearables import (
     EdgeFeature,
     FaceFeature,
@@ -184,9 +186,15 @@ def root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-def capture(path: Path, device: str, features: list[dict[str, Any]]) -> Path:
+def capture(
+    path: Path,
+    device: str,
+    features: list[dict[str, Any]],
+    **extra: Any,
+) -> Path:
     data = capture_template(device)
     del data["needs_review"]
+    data.update(extra)
     data.update(
         measured_by="A. Tester",
         measured_on="2026-10-01",
@@ -265,6 +273,48 @@ def test_a_capture_builds_a_verified_candidate_with_clips_clear_of_its_features(
     )
     north = next(l for l in report["snap_shell_locations"] if l["label"] == "north")
     assert north["x_mm"] == 5.0
+
+
+def test_a_rounded_capture_builds_a_rounded_envelope_and_shell(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = load("build-tandem-mobi-snap-shell-candidate", monkeypatch)
+    script.main([], root=root)
+    mobi = capture(
+        root / "mobi.json",
+        "tandem-mobi",
+        [
+            {
+                "identifier": name,
+                "edge": "south",
+                "center_offset_mm": offset,
+                "width_mm": 3.0,
+            }
+            for name, offset in (
+                ("fill-port", -12.0),
+                ("button", 0.0),
+                ("charging-contacts", 12.0),
+            )
+        ],
+        outline={"type": "rounded_rectangle", "radius_mm": 8.0},
+    )
+
+    script.main(
+        ["--revision", "r002", "--parent", "r001", "--reason", "Rounded capture"]
+        + ["--capture", str(mobi)],
+        root=root,
+    )
+
+    folder = root / "evidence/tandem-mobi-pump/validation-lab/candidates/r002"
+    report = json.loads((folder / "automated-validation.json").read_text("utf-8"))
+    assert report["decision"] == "verified_candidate"
+    assert report["device"]["body_corner_radius_mm"] == 8.0
+    assert report["clips_into_device_mm3"] == 0.0
+    # The source envelope is the rounded outline, not the box.
+    body = report["device"]
+    source = cq.importers.importStep(str(root / report["source"]["step_path"]))
+    box = body["body_length_mm"] * body["body_width_mm"] * body["body_thickness_mm"]
+    assert workplane_shape(source).Volume() < box - 100
 
 
 def test_a_capture_of_another_device_is_refused_before_anything_is_written(

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Register a Dexcom G7 snap-shell Validation Lab candidate.
 
-There is no manufacturer STEP file for the G7, so the body is a
-rectangular envelope. With no ``--capture`` it is sized from the
-manufacturer-published dimensions in
+There is no manufacturer STEP file for the G7, so the body is an
+envelope, rounded if a capture gives a corner radius. With no
+``--capture`` it is sized from the manufacturer-published dimensions in
 :mod:`zcad_core.hardware.wearables.dexcom`, not a device scan: the
 candidate is a ``provisional_synthetic_candidate`` that no trial may use.
 With a caliper capture (see docs/guides/wearable-capture.md) it is sized
