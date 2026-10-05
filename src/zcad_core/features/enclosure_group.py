@@ -52,7 +52,11 @@ from zcad_core.features.enclosure_group_checks import (
     _part_collisions,
     _require_stack_top_possible,
 )
-from zcad_core.features.enclosure_group_cooling import _add_vents, _cut_fans
+from zcad_core.features.enclosure_group_cooling import (
+    _add_vents,
+    _cut_fans,
+    _drawn_mm2,
+)
 from zcad_core.features.enclosure_group_dividers import build_divider
 from zcad_core.features.enclosure_group_envelope import single_shape
 from zcad_core.features.enclosure_group_join import cut_pass_through, joint_positions
@@ -379,7 +383,7 @@ def build_group_enclosure(
             plate_mm=design.lid_mm,
             screw=get_fastener(plan.fan.screw),
             openings=openings,
-            vent_free_mm2=slots_mm2 + (vents.outlet_mm2 if vents else 0.0),
+            vent_free_mm2=slots_mm2 + _drawn_mm2(vents, plan.direction),
         )
         for plan, guard in fan_cuts
     )

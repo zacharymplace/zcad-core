@@ -28,10 +28,13 @@ DEFAULT_AMBIENT_C = 25.0
 # Continuous air temperature for PETG: a design value, well under the 70 to 80
 # C at which it softens. The material profile's ``max_service_c`` overrides it.
 DEFAULT_SERVICE_LIMIT_C = 60.0
-# A warning above this fraction of the limit, in degrees C.
+# A warning once the rise uses this fraction of the headroom between the room
+# and the limit, so a warm room does not warn at any power at all.
 WARN_FRACTION = 0.85
 
-ThermalStatus = Literal["ok", "warn", "fail", "unavailable"]
+# "lower_bound": a part's figure is missing, so the temperature is at least
+# this. It can still fail, but it never says a box is cool enough.
+ThermalStatus = Literal["ok", "warn", "fail", "lower_bound", "unavailable"]
 
 
 @dataclass(frozen=True)
@@ -95,7 +98,10 @@ class ThermalEstimate:
         if temperature > self.limit_c:
             return "fail"
 
-        if temperature >= WARN_FRACTION * self.limit_c:
+        if not self.complete:
+            return "lower_bound"
+
+        if self.rise_peak_c >= WARN_FRACTION * (self.limit_c - self.ambient_c):
             return "warn"
 
         return "ok"

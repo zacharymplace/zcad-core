@@ -463,7 +463,8 @@ def test_the_review_shows_the_fan_in_the_model_and_the_air_path(
     assert review.passed
     assert cooling["fan"]["model"] == "Noctua NF-A4x10 5V"
     assert cooling["vents"]["pattern"] == "hex"
-    assert cooling["thermal"]["status"] in {"ok", "warn"}
+    # The Active Cooler's fan has no figure, so the estimate is a floor.
+    assert cooling["thermal"]["status"] == "lower_bound"
     assert any("inlets low" in step for step in cooling["air_path"])
     assert any("Noctua NF-A4x10 5V" in step for step in cooling["air_path"])
     assert review.glb_path.stat().st_size > 0

@@ -91,7 +91,20 @@ def test_the_pi_5_pair_estimate_is_the_documented_worked_example() -> None:
     assert estimate.typical_w == 6.0
     assert estimate.rise_typical_c == pytest.approx(15.2, abs=0.1)
     assert estimate.temperature_typical_c == pytest.approx(40.2, abs=0.1)
-    assert estimate.status == "ok"
+    # The Pi 5 has no peak figure, so 40 C is a floor, never "ok".
+    assert estimate.missing_peak == ("RASPBERRY_PI_5",)
+    assert estimate.status == "lower_bound"
+
+
+def test_an_incomplete_estimate_can_still_fail() -> None:
+    hot = estimate_thermal(
+        ["ADAFRUIT_FEATHER_RP2040"], outer_size_mm=BOX, declared_power_w=40.0
+    )
+
+    assert not hot.complete
+    assert hot.status == "fail"
+    with pytest.raises(ValueError, match="at least"):
+        require_not_too_hot(hot, allow_hot=False)
 
 
 def test_a_part_with_no_figure_is_unknown_not_zero() -> None:
@@ -130,17 +143,24 @@ def test_a_complete_estimate_does_not_say_at_least() -> None:
     assert "at least" not in estimate.message()
 
 
-def test_status_warns_above_85_percent_of_the_limit_and_fails_above_it() -> None:
+def test_status_warns_at_85_percent_of_the_headroom_and_fails_above_it() -> None:
     surface = surface_m2(BOX)
     limit = DEFAULT_SERVICE_LIMIT_C
 
-    def at(temperature: float):  # type: ignore[no-untyped-def]
-        watts = (temperature - 25.0) * 8.0 * surface
+    def at(temperature: float, ambient: float = 25.0):  # type: ignore[no-untyped-def]
+        watts = (temperature - ambient) * 8.0 * surface
 
-        return estimate_thermal([], outer_size_mm=BOX, declared_power_w=watts)
+        return estimate_thermal(
+            [], outer_size_mm=BOX, declared_power_w=watts, ambient_c=ambient
+        )
 
-    assert at(WARN_FRACTION * limit - 1).status == "ok"
-    assert at(WARN_FRACTION * limit + 1).status == "warn"
+    warn_at = 25.0 + WARN_FRACTION * (limit - 25.0)
+    assert warn_at == pytest.approx(54.75)
+    assert at(warn_at - 1).status == "ok"
+    assert at(warn_at + 1).status == "warn"
+    # A 55 C room warns only when the box nears the limit, not at any power.
+    assert at(56.0, ambient=55.0).status == "ok"
+    assert at(59.5, ambient=55.0).status == "warn"
     assert at(limit - 1).status == "warn"
     assert at(limit + 1).status == "fail"
 

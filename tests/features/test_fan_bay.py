@@ -540,7 +540,12 @@ def test_the_builder_adds_the_fan_and_reports_it() -> None:
     assert fan.model == "Noctua NF-A4x10 5V" and fan.position == "lid"
     assert fan.screws == "M3 x 10 mm, 4"
     assert fan.guard_cells > 10 and 0.3 < fan.open_ratio < 0.7
-    assert fan.air_path and fan.datasheet_read is True
+    assert fan.datasheet_read is True
+    # With no vents, only the connector cutouts are open, and a plug fills
+    # most of each, so the fan has no air path.
+    assert fan.connector_openings_mm2 > fan.guard_free_mm2
+    assert fan.other_openings_mm2 == 0.0 and not fan.air_path
+    assert "add vents" in fan.to_dict()["note"]
     assert len(enclosure.base.solids().vals()) == 1
     assert len(enclosure.lid.solids().vals()) == 1
 
@@ -620,7 +625,19 @@ def test_cli_builds_a_fan_bay_and_reports_and_records_it(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     exit_code, output, _ = run_build(
-        capsys, tmp_path, "--fan", FAN_40, "--top-clearance-mm", "12", "--review"
+        capsys,
+        tmp_path,
+        "--fan",
+        FAN_40,
+        "--top-clearance-mm",
+        "12",
+        # Wall inlets that pass more than the guard's 476 mm2; the most hex
+        # vents fit is 471, so slots.
+        "--vent-pattern",
+        "slots",
+        "--vent-area-mm2",
+        "500",
+        "--review",
     )
 
     assert exit_code == 0
