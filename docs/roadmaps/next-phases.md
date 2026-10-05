@@ -6,7 +6,7 @@ This roadmap sequences work after the completed Validation Lab phases and the
 September 2026 export-validation work. It builds on both tracks rather than
 adding new retention strategies or hardware families.
 
-## Current position (2026-09-29)
+## Current position (2026-10-05)
 
 | Phase | Status |
 |---|---|
@@ -29,6 +29,13 @@ Bambu Studio slice, and an open pending trial (see Phase 2):
 No candidate has been printed or promoted yet, and nothing is
 publication-eligible.
 
+The wearable snap shells, Dexcom G7 r002 and Tandem Mobi r003, are registered
+from published sizes and pass every fit check, including clip strain and
+clearance measured against the device. They stay provisional until a caliper
+capture of a real device replaces those sizes; see
+[Measuring a wearable](../guides/wearable-capture.md) and
+[Wearable housings](wearable-housings.md).
+
 ### Blockers and open items
 
 1. **No printer access.** Phase 2 needs a print and test fit of each
@@ -44,8 +51,8 @@ publication-eligible.
    skip wherever `evidence/` is absent, as it is in a linked worktree; they
    are marked `slow`, and
    `scripts/check.sh --fast` skips them for a quicker local loop. Tests run
-   in parallel with pytest-xdist: the full gate takes about four and a half
-   minutes (2026-10-03; the suite has grown since it took about a minute).
+   in parallel with pytest-xdist: the full gate takes five to eight minutes
+   (2026-10-05; it took about a minute when the suite was smaller).
    A slice that stalls is stopped after 900 s and a test that runs past 900 s
    fails (`pytest-timeout`), so a hang is a failure, not a wait.
 
