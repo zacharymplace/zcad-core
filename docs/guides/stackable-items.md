@@ -168,7 +168,7 @@ zcad-validation stack check-stack --upper my-stack.json:tub --lower exports/pico
   and the screws.
 
 **Vent windows.** A lid's openings (the outlets from `--vent-area-mm2`, the slots over a Pi's fan or a board part, a display's window) are found from the built lid: what it has cut away from a plain lid,
-right through its thickness, joined where the pieces are within 4 mm. The plate leaves a **window** over each, the opening and 2 mm more each way, cut through it.
+right through its thickness, joined where the pieces are within 4 mm. The plate leaves a **window** over each, the opening and 2 mm more each way, cut through it; windows that come within 4 mm of each other once grown are one window, so the plate leaves no thin fin between two.
 
 - **A vent cell has no pocket.** A pocket cannot sit over a window, so each cell a window touches is a **vent cell**: solid, with the window through it and no pocket for a foot. The record names them
   (`vent_cells`, `vent_windows_mm`) and the cells that are left (`cells_usable`). A bin that would stand over one is refused by `check-stack`, which names the vent cells.
@@ -269,12 +269,14 @@ An item's `holding` is `lip` (the default), `magnet` or `bolt`. The profile's `h
 | --- | --- | --- |
 | `lip` | nothing | Nothing at the points: the foot sits in the lip and gravity does the rest. |
 | `magnet` | `"magnet": "D6X2"` (any catalogued magnet) | A pocket for the magnet in the bottom of each cell's foot, and one in each baseplate pocket's floor, sunk into it from above. The pocket is the magnet's size plus the catalogue's allowance: 6.3 mm across and 2.1 deep for a D6X2. |
-| `bolt` | `"fastener": "M2"` (any catalogued fastener) | A heat-set insert pocket in the bottom of each foot, and a clearance hole through a baseplate's floor under it. The build reports the least length of screw that passes the floor and reaches the insert's depth. |
+| `bolt` | `"fastener": "M2"` (any catalogued fastener) | A heat-set insert pocket in the bottom of each foot, and a clearance hole through a baseplate's floor under it, with a recess for the screw's head in the plate's underside so the plate stands flat: twice the screw's size and 0.6 mm across, its size and 0.5 mm deep (4.6 by 2.5 mm for an M2). The build reports the least length of screw that passes the floor over the recess and reaches the insert's depth. |
 
 A holding is refused, with the figures, when it would break through or leave too little: a pocket deeper than the
 foot leaves the printer's minimum floor above it (an M3 insert is 5 mm deep in a 4.75 mm foot; an M2.5's 4 mm
 leaves 0.75), a magnet pocket in a baseplate whose floor is under the pocket's depth plus the minimum floor (a
-D6X2 needs a floor of 3.3 mm), or a pocket that comes within the minimum wall of the edge of the foot's bottom.
+D6X2 needs a floor of 3.3 mm), a bolted baseplate whose floor is under the head's recess plus the minimum floor (an
+M2 needs 3.7 mm), or a pocket, on a bin's or a frame's foot, that comes within the minimum wall of the edge of the
+foot's bottom.
 
 **The engine states no pull force and no holding force**, and which way a magnet faces is yours: it builds both
 pockets the same size at the same place.
@@ -378,7 +380,9 @@ engagement, and `check-stack` says which side is missing. An item with keepers a
 
 **The tongue** is a strip of the foot's skin, 1.2 mm thick (the printer's minimum wall), freed by a relief pocket cut up into the solid foot from its bottom, and
 bending outward along the side as the slide lid's detent does. Its reach is the least, to the next half millimetre, that keeps its strain under the provisional
-1.5 per cent limit: 7 mm for the default 0.4 mm engagement. The build reports the strain, and refuses a cell side too short for the reach it needs. A tongue is refused
+1.5 per cent limit: 7 mm for the default 0.4 mm engagement. It bends by the engagement, or farther when the profile's
+nest clearance is under the foot-to-lip gap: a baseplate's pocket wall then stands nearer the foot than the lip does, and
+the hook must clear it (0.55 mm at a 0.1 mm clearance). The build reports the strain, and refuses a cell side too short for the reach it needs. A tongue is refused
 near a magnet or bolt pocket.
 
 **The hook** is 6 mm wide and stands out of the foot by the gap across the wall (0.25 mm on the example profile) plus the engagement, with a 45 degree ramp each side. **The
@@ -399,9 +403,10 @@ The default engagement is 0.4 mm. A profile can state its own, with a source, on
 
 A source is needed and an `EXAMPLE` one is refused. A profile with a thicker lip or a taller vertical run, an edit to its sections, allows more.
 
-**The build lays real solids.** Each latched bin or frame gets four checks on top of the stack's own: each tongue's skin is solid and its relief void; each keeper's mouth
+**The build lays real solids.** Each latched bin or frame gets five checks on top of the stack's own: each tongue's skin is solid and its relief void; each keeper's mouth
 is void with the lip solid behind it; a hook seated in the lip overlaps what a plain lip would be, so it does engage; and a hook deflected by its tongue's travel passes
-the plain lip at every height from the lip's top down, so it goes on and comes off. The item laid on itself, and on a baseplate with keepers, has no overlap. The record
+the plain lip at every height from the lip's top down, so it goes on and comes off, and passes a plain baseplate's pocket
+wall the same way. The item laid on itself, and on a baseplate with keepers, has no overlap. The record
 carries each item's latch figures.
 
 ## A drawer that clicks shut

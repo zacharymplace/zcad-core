@@ -254,6 +254,12 @@
     "features/enclosure_group_join.py:STANDARD_JOINT_Z_MM": {
       "status": "unstated"
     },
+    "features/enclosure_group_join.py:_FACE_CONTACT_SHARE": {
+      "status": "unstated"
+    },
+    "features/enclosure_group_join.py:_FACE_SLICE_MM": {
+      "status": "unstated"
+    },
     "features/enclosure_group_join.py:_SLIDE_WALL_DROP_MM": {
       "status": "unstated"
     },
@@ -1377,6 +1383,12 @@
       "status": "unstated"
     },
     "features/stack_file.py:MINIMUM_COMPARTMENT_MM": {
+      "status": "unstated"
+    },
+    "features/stack_holding.py:HEAD_RECESS_EXTRA_MM": {
+      "status": "unstated"
+    },
+    "features/stack_holding.py:HEAD_RECESS_OVER_MM": {
       "status": "unstated"
     },
     "features/stack_latch.py:DEFAULT_ENGAGEMENT_MM": {

@@ -604,7 +604,10 @@ def test_magnet_pockets_are_cut_in_the_foot_and_the_baseplate_floor(
 def test_a_bolt_is_an_insert_pocket_in_the_foot_and_a_hole_through_the_floor(
     tmp_path: Path,
 ) -> None:
-    stack = build(tmp_path, holding_items(holding="bolt", fastener="M2"))
+    # An M2's head recess is 2.5 mm deep, so the floor keeps 1.2 mm over it at 3.7.
+    items = holding_items(holding="bolt", fastener="M2")
+    items[1]["floor_mm"] = 3.7
+    stack = build(tmp_path, items)
     bin_, plate = stack.parts["bin"], stack.parts["plate"]
     summary = stack.summary["items"]["plate"]
 
@@ -612,13 +615,57 @@ def test_a_bolt_is_an_insert_pocket_in_the_foot_and_a_hole_through_the_floor(
     assert summary["holding_part"] == "M2"
     assert summary["pocket_diameter_mm"] == pytest.approx(3.2)
     assert summary["pocket_depth_mm"] == pytest.approx(3.0)
-    # A screw passes the floor and reaches the insert's depth.
-    assert summary["screw_length_at_least_mm"] == pytest.approx(3.5 + 3.0)
+    # A screw passes the floor over its head's recess and reaches the insert's depth.
+    assert summary["screw_length_at_least_mm"] == pytest.approx(3.7 - 2.5 + 3.0)
     assert not inside(bin_, 13.0, 13.0, 1.5)
     assert inside(bin_, 13.0, 13.0, 3.5)
     assert not inside(plate, 13.0, 13.0, 0.5)
     assert not inside(plate, -13.0, -13.0, 3.0)
     assert inside(plate, 0.0, 0.0, 1.0)
+    # The head's recess, 4.6 mm across, is open in the underside and roofed above.
+    assert not inside(plate, 13.0 + 2.0, 13.0, 1.0)
+    assert inside(plate, 13.0 + 2.0, 13.0, 3.0)
+
+
+@pytest.mark.parametrize("kind", ["bin", "frame"])
+def test_a_magnet_pocket_too_near_the_feet_edge_is_refused_on_a_frame_too(
+    tmp_path: Path, kind: str
+) -> None:
+    # A 12 mm magnet's pocket at the 13 mm holding points breaks out of the foot's side.
+    item: dict[str, Any] = {
+        "kind": kind,
+        "name": "it",
+        "cells": [1, 1],
+        "units": 4,
+        "holding": "magnet",
+        "magnet": "D12X3",
+    }
+
+    if kind == "frame":
+        item["drawers"] = 1
+
+    path = write_stack(tmp_path, write_profile(tmp_path), [item])
+    report = check_stack_file(path, PRINTER)
+
+    assert any("D12X3 pocket at (13, 13) comes within" in e for e in report.errors), (
+        report.errors
+    )
+
+
+def test_a_bolted_baseplate_too_thin_for_the_head_recess_is_refused(
+    tmp_path: Path,
+) -> None:
+    upper, lower = two_files(
+        tmp_path,
+        {**BIN, "holding": "bolt", "fastener": "M2"},
+        {**PLATE, "holding": "bolt", "fastener": "M2"},
+    )
+    report = stackable(upper, lower, "up", "down")
+
+    assert any(
+        "head sits in a recess 2.5 mm" in e and "at least 3.7 mm" in e
+        for e in report.errors
+    ), report.errors
 
 
 # --- check-stack --------------------------------------------------------------------------------
@@ -670,7 +717,7 @@ def test_a_bin_and_a_baseplate_that_hold_differently_are_named(tmp_path: Path) -
     upper, lower = two_files(
         tmp_path,
         {**BIN, "holding": "magnet", "magnet": "D6X2"},
-        {**PLATE, "holding": "bolt", "fastener": "M2"},
+        {**PLATE, "holding": "bolt", "fastener": "M2", "floor_mm": 3.7},
     )
     report = stackable(upper, lower, "up", "down")
 

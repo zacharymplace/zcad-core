@@ -274,6 +274,8 @@ def _baseplate(
             else holding.hole_diameter_mm,
             holding.pocket_depth_mm,
             floor,
+            holding.head_diameter_mm,
+            holding.head_depth_mm,
         )
 
     if plan is not None:
@@ -708,6 +710,44 @@ def latch_checks(
     }
 
 
+def latch_passes_plate(
+    item: Item,
+    profile: StackProfile,
+    plan: LatchPlan,
+    plate: cq.Workplane,
+    floor: float,
+) -> bool:
+    """A hook deflected by its tongue's travel passes a plain baseplate's pocket wall all the
+    way down to the floor, as it passes a bin's lip: the pocket wall stands nearer the foot."""
+
+    centres = cell_centres(item.cells, profile.pitch_mm)
+
+    for side in item.latch_sides:
+        hooks = hook_solids(plan, centres, side)
+
+        if hooks is None:
+            continue
+
+        dx, dy = inward(side)
+        rise = profile.foot_height_mm
+
+        while rise >= 0.0:
+            moved = hooks.translate(
+                (
+                    dx * (plan.deflection_mm + 0.001),
+                    dy * (plan.deflection_mm + 0.001),
+                    floor + rise,
+                )
+            )
+
+            if overlap_mm3(moved, plate) > TOLERANCE_MM3:
+                return False
+
+            rise -= 0.25
+
+    return True
+
+
 def build_stack(spec: StackSpec, printer: Mapping[str, Any]) -> Stack:
     """The items a stack file lists, refused if one cannot be built."""
 
@@ -812,6 +852,9 @@ def build_stack(spec: StackSpec, printer: Mapping[str, Any]) -> Stack:
             latch = latch_plan_for(item, profile, printer)
 
             if latch is not None:
+                checks[f"{item.name}.latch_hook_passes_baseplate"] = latch_passes_plate(
+                    item, profile, latch, plate, floor
+                )
                 plate = cut_plate_keepers(
                     plate,
                     latch,

@@ -328,8 +328,8 @@ zcad-validation enclosure-group check-join --left-bays pi5 \
   slide's entry wall needs 5 mm more), meet the bolts' bosses, or meet the lid's
   corner bosses.
 - **`check-join` builds both units and puts the second against the first's right
-  wall.** It checks that they use the same screw, that the walls meet with no gap and
-  no overlap, that a screw goes through each of the first unit's holes and into a
+  wall.** It checks that they use the same screw, that the two join faces touch over
+  at least half the smaller one with no overlap, that a screw goes through each of the first unit's holes and into a
   boss of the second's, and that a pass-through, where both have one, is the same
   size. Every check is read from the geometry, so it can say a pair of original-face
   units of the same depth mates, and that a standard unit and an original one of

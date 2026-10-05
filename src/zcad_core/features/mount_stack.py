@@ -73,7 +73,8 @@ MAXIMUM_EXTRA_CELLS = 2
 TOP_RIM_MM = 1.2
 # A window over a lid's openings is the opening grown by this much each way, so the plate does not
 # narrow the way the air goes; openings closer than OPENING_MERGE_MM are one window, and a lid
-# whose openings make more than MAXIMUM_WINDOWS is refused.
+# whose openings make more than MAXIMUM_WINDOWS is refused. Grown windows that come closer than
+# OPENING_MERGE_MM are joined too, so the plate never leaves a thin fin between two of them.
 WINDOW_MARGIN_MM = 2.0
 OPENING_MERGE_MM = 4.0
 MAXIMUM_WINDOWS = 4
@@ -645,15 +646,18 @@ def build_stack_top(
             f"at most {MAXIMUM_WINDOWS}: its outlets are too scattered for a plate to leave open"
         )
 
-    windows = [
-        (
-            x0 - WINDOW_MARGIN_MM,
-            y0 - WINDOW_MARGIN_MM,
-            x1 + WINDOW_MARGIN_MM,
-            y1 + WINDOW_MARGIN_MM,
-        )
-        for x0, y0, x1, y1 in openings
-    ]
+    windows = _merge(
+        [
+            (
+                x0 - WINDOW_MARGIN_MM,
+                y0 - WINDOW_MARGIN_MM,
+                x1 + WINDOW_MARGIN_MM,
+                y1 + WINDOW_MARGIN_MM,
+            )
+            for x0, y0, x1, y1 in openings
+        ],
+        OPENING_MERGE_MM,
+    )
     cells, origin, relative, vents = _place(
         positions, centre, lid_size_mm, windows, least, profile, radius, fastener
     )

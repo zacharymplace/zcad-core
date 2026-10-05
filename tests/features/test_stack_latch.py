@@ -133,6 +133,39 @@ def test_the_default_latch_sizes_from_the_example_profile(tmp_path: Path) -> Non
     assert plan.relief_mm == pytest.approx(0.8)
 
 
+def test_a_tight_baseplate_fit_bends_the_tongue_far_enough_to_pass_its_wall(
+    tmp_path: Path,
+) -> None:
+    # The pocket wall stands 0.1 mm from the foot where the lip stands 0.25 mm, so the
+    # hook, 0.65 mm out, must bend 0.55 mm to pass it, not just its 0.4 mm engagement.
+    plan, errors = plan_for(tmp_path, min_nest_clearance_mm=0.1)
+
+    assert plan is not None and errors == []
+    assert plan.deflection_mm == pytest.approx(0.55)
+    assert plan.strain <= 0.015
+    stack = build_stack(
+        load_stack(
+            write_stack(
+                tmp_path,
+                [
+                    {
+                        "kind": "bin",
+                        "name": "b",
+                        "cells": [1, 1],
+                        "units": 3,
+                        "latch": SIDES,
+                    }
+                ],
+                min_nest_clearance_mm=0.1,
+            )
+        ),
+        PRINTER,
+    )
+
+    assert stack.checks["b.latch_hook_passes_baseplate"] is True
+    assert stack.passed, stack.checks
+
+
 @pytest.mark.parametrize(
     ("engagement", "message"),
     [

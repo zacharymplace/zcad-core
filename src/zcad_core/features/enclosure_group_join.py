@@ -55,6 +55,10 @@ FRACTION_JOINT_ABOVE_FLOOR_MM = 8.0
 _SLIDE_WALL_DROP_MM = 5.0
 _TOLERANCE_MM = 0.05
 _TOLERANCE_MM3 = 1e-3
+# The joint faces are measured in slices this thick either side of the joint, and must
+# touch over at least this share of the smaller face to count as meeting.
+_FACE_SLICE_MM = 0.2
+_FACE_CONTACT_SHARE = 0.5
 
 
 def joint_positions(
@@ -310,6 +314,28 @@ def check_join_records(left: dict[str, Any], right: dict[str, Any]) -> JoinRepor
     )
 
 
+def _face_contact_mm2(
+    left: cq.Shape, right: cq.Shape, joint_x: float
+) -> tuple[float, float, float]:
+    """The area over which two bases touch at the plane ``x == joint_x``, and the area of
+    each one's face there: a thin slice of each beside the plane, the right one's moved
+    over onto the left's, and their volumes over the slice's thickness."""
+
+    box = left.BoundingBox().add(right.BoundingBox())
+    span_y = (box.ymin - 1.0, box.ymax + 1.0)
+    span_z = (box.zmin - 1.0, box.zmax + 1.0)
+    before = make_box((joint_x - _FACE_SLICE_MM, joint_x), span_y, span_z)
+    after = make_box((joint_x, joint_x + _FACE_SLICE_MM), span_y, span_z)
+    left_face = left.intersect(before)
+    right_face = right.intersect(after).translate(cq.Vector(-_FACE_SLICE_MM, 0, 0))
+
+    return (
+        intersection_volume(left_face, right_face) / _FACE_SLICE_MM,
+        left_face.Volume() / _FACE_SLICE_MM,
+        right_face.Volume() / _FACE_SLICE_MM,
+    )
+
+
 def check_join(left: GroupEnclosure, right: GroupEnclosure) -> JoinReport:
     """Put ``right`` against ``left``'s right wall and check the joint."""
 
@@ -319,13 +345,15 @@ def check_join(left: GroupEnclosure, right: GroupEnclosure) -> JoinReport:
     notes: list[str] = []
     shared = min(left.outer_size_mm[1], right.outer_size_mm[1])
     overlap = intersection_volume(base_left, moved)
-    # The walls meet face to face where both stand: no overlap, and a gap of nothing.
-    gap = base_left.distance(moved)
+    # The units are placed touching, so a gap says nothing; what counts is how much of the
+    # two wall faces meet, over the depth and height they share.
+    contact, face_left, face_right = _face_contact_mm2(base_left, moved, shift)
+    smaller = min(face_left, face_right)
     through, seated = _bolts(left, right)
     checks = {
         "same_screw": left.fastener.identifier == right.fastener.identifier,
         "walls_do_not_overlap": overlap <= _TOLERANCE_MM3,
-        "walls_meet": gap <= _TOLERANCE_MM,
+        "walls_meet": smaller > 0 and contact >= _FACE_CONTACT_SHARE * smaller,
         "bolts_pass_through_the_holes": through,
         "bolts_reach_the_bosses": seated,
     }
@@ -360,7 +388,8 @@ def check_join(left: GroupEnclosure, right: GroupEnclosure) -> JoinReport:
             "left_joint": [list(p) for p in left.join_positions],
             "right_joint": [list(p) for p in right.join_positions],
             "overlap_mm3": round(overlap, 3),
-            "gap_mm": round(gap, 3),
+            "face_contact_mm2": round(contact, 1),
+            "face_contact_share": round(contact / smaller, 3) if smaller else 0.0,
         },
         notes=tuple(notes),
     )
