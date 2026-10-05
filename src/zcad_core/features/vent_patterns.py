@@ -21,6 +21,7 @@ are 60 degrees from level, so none overhangs by more than 45 degrees.
 
 from __future__ import annotations
 
+import functools
 import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
@@ -190,12 +191,64 @@ def cell_area(spec: CellSpec, *, wall: bool) -> float:
 # ------------------------------- the grids ---------------------------------
 
 
-def _pitch(spec: CellSpec) -> tuple[float, float, bool]:
+def _gap(a: Sequence[tuple[float, float]], b: Sequence[tuple[float, float]]) -> float:
+    """The least distance between two polygons that do not overlap: from each
+    one's vertices to the other's edges."""
+
+    def to_segment(
+        p: tuple[float, float], q: tuple[float, float], r: tuple[float, float]
+    ) -> float:
+        dx, dy = r[0] - q[0], r[1] - q[1]
+        length = dx * dx + dy * dy
+        t = (
+            0.0
+            if length == 0
+            else max(0.0, min(1.0, ((p[0] - q[0]) * dx + (p[1] - q[1]) * dy) / length))
+        )
+
+        return math.hypot(p[0] - q[0] - t * dx, p[1] - q[1] - t * dy)
+
+    def one_way(
+        c: Sequence[tuple[float, float]], d: Sequence[tuple[float, float]]
+    ) -> float:
+        return min(
+            to_segment(point, d[i], d[(i + 1) % len(d)])
+            for point in c
+            for i in range(len(d))
+        )
+
+    return min(one_way(a, b), one_way(b, a))
+
+
+@functools.cache
+def _teardrop_pitch(width_mm: float) -> float:
+    """The least pitch along a row of staggered teardrops that keeps the web to
+    every neighbour, the next in its row and the two in the row above, at least
+    ``MIN_WEB_MM``: a teardrop's point stands r * sqrt(2) above its centre, so a
+    circle's pitch leaves the web from a point to the cells beside it too thin."""
+
+    shape = _circle(width_mm / 2, teardrop=True)
+    pitch = width_mm + MIN_WEB_MM
+
+    while True:
+        rise = pitch * math.sqrt(3.0) / 2
+        neighbours = ((pitch, 0.0), (pitch / 2, rise), (-pitch / 2, rise))
+
+        if all(
+            _gap(shape, [(x + du, y + dv) for x, y in shape]) >= MIN_WEB_MM - 1e-9
+            for du, dv in neighbours
+        ):
+            return round(pitch, 3)
+
+        pitch += 0.01
+
+
+def _pitch(spec: CellSpec, *, wall: bool = False) -> tuple[float, float, bool]:
     """Centre-to-centre spacing along and across a zone, and whether
-    alternate rows are offset."""
+    alternate rows are offset. A round cell in a wall is a teardrop."""
 
     if spec.kind == "round":
-        pitch = spec.width_mm + MIN_WEB_MM
+        pitch = _teardrop_pitch(spec.width_mm) if wall else spec.width_mm + MIN_WEB_MM
 
         return pitch, pitch * math.sqrt(3.0) / 2, True
 
@@ -209,8 +262,13 @@ def _pitch(spec: CellSpec) -> tuple[float, float, bool]:
     return spec.width_mm + MIN_WEB_MM, spec.height_mm + MIN_WEB_MM, False
 
 
-def _extent(spec: CellSpec) -> tuple[float, float]:
-    """How far a cell reaches from its centre along and across the zone."""
+def _extent(spec: CellSpec, *, wall: bool = False) -> tuple[float, float]:
+    """How far a cell reaches from its centre along and across the zone. A
+    teardrop's point reaches r * sqrt(2) up; it is taken that far both ways, so
+    the band and the solid ring round it hold the point as well."""
+
+    if spec.kind == "round" and wall:
+        return spec.width_mm / 2, spec.width_mm / 2 * math.sqrt(2.0)
 
     if spec.kind == "hex":
         return spec.width_mm / math.sqrt(3.0), spec.width_mm / 2
@@ -222,7 +280,7 @@ def _extent(spec: CellSpec) -> tuple[float, float]:
 
 
 def grid(
-    spec: CellSpec, region: tuple[float, float, float, float]
+    spec: CellSpec, region: tuple[float, float, float, float], *, wall: bool = False
 ) -> list[tuple[float, float]]:
     """Cell centres that fit entirely inside ``region``, as
     ``(u0, u1, v0, v1)``, centred in it."""
@@ -231,8 +289,8 @@ def grid(
         return _honeycomb(spec, region)
 
     u0, u1, v0, v1 = region
-    pitch_u, pitch_v, stagger = _pitch(spec)
-    reach_u, reach_v = _extent(spec)
+    pitch_u, pitch_v, stagger = _pitch(spec, wall=wall)
+    reach_u, reach_v = _extent(spec, wall=wall)
     span_u = u1 - u0 - 2 * reach_u - (pitch_u / 2 if stagger else 0.0)
     span_v = v1 - v0 - 2 * reach_v
 
@@ -503,7 +561,7 @@ def _ring(zone: Zone, u: float, v: float, spec: CellSpec) -> list[tuple[float, f
     """The cell's centre and eight points on an ellipse a web's width outside
     it, which must all lie in solid plate."""
 
-    reach_u, reach_v = _extent(spec)
+    reach_u, reach_v = _extent(spec, wall=zone.wall)
     points = [(u, v)]
 
     for step in range(_CHECK_RING):
@@ -540,7 +598,7 @@ def cell_fits(
                 return False
 
     # Nothing behind the cell, out to a little past its edge all round.
-    reach_u, reach_v = (r + 0.3 for r in _extent(spec))
+    reach_u, reach_v = (r + 0.3 for r in _extent(spec, wall=zone.wall))
     behind = [(u, v)]
 
     for du, dv in (
@@ -598,7 +656,7 @@ def fill_zone(
 
         area = cell_area(spec, wall=zone.wall)
         candidates = sorted(
-            grid(spec, zone.region),
+            grid(spec, zone.region, wall=zone.wall),
             key=lambda c: (c[0] - middle[0]) ** 2 + (c[1] - middle[1]) ** 2,
         )
         chosen: list[tuple[float, float]] = []

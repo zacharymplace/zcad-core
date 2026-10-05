@@ -25,6 +25,7 @@ from zcad_core.features.vent_patterns import (
     CellSpec,
     LidZone,
     WallZone,
+    _gap,
     _profile,
     add_lid_outlets,
     add_wall_inlets,
@@ -150,6 +151,24 @@ def test_staggered_cells_are_a_web_apart_in_every_direction(
 
     assert len(centers) > 20
     assert nearest == pytest.approx(pitch)
+
+
+@pytest.mark.parametrize("width", [4.0, 5.0, 6.0, 8.0])
+def test_teardrops_in_a_wall_keep_a_web_and_their_points_stay_in_the_band(
+    width: float,
+) -> None:
+    # Spaced as circles, a teardrop's point left webs of 0.89 to 1.02 mm to the cells
+    # beside it and stood up to 1.7 mm above the band.
+    spec = CellSpec("round", width, width)
+    region = (-30.0, 30.0, -15.0, 15.0)
+    centers = grid(spec, region, wall=True)
+    cells = [[(u + x, v + y) for x, y in _profile(spec, wall=True)] for u, v in centers]
+
+    assert len(centers) > 4
+    for cell in cells:
+        assert all(region[2] <= v <= region[3] for _, v in cell)
+    webs = [_gap(a, b) for i, a in enumerate(cells) for b in cells[i + 1 :]]
+    assert min(webs) >= MIN_WEB_MM - 1e-6
 
 
 def test_cells_fit_inside_the_region_and_slots_keep_their_web() -> None:
