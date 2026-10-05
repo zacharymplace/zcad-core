@@ -223,6 +223,48 @@ def test_catch_is_a_tongue_with_a_hook_under_a_bump() -> None:
     )
 
 
+@pytest.mark.parametrize("pattern", ["slots", "hex"])
+def test_the_catch_keeps_off_the_wall_vents(pattern: str) -> None:
+    # Before, the catch's bump and hook stood over vent cells, 29 to 57 per cent
+    # of the wall behind them open. Now the vents leave its stretch whole.
+    enclosure = build_enclosure(
+        assembly(),
+        board=BOARD,
+        display=DISPLAY,
+        design=EnclosureDesign(
+            lid_attachment="hinge",
+            bottom_clearance_mm=6.0,
+            vent_area_mm2=150,
+            vent_pattern=pattern,
+        ),
+    )
+    hinge = enclosure.hinge
+    assert hinge is not None and enclosure.vents is not None
+    f = frame(enclosure)
+    x = f["closure_face"] + enclosure.design.wall_mm / 2
+    hook_top = f["top"] - hinge.catch.length_mm + CATCH_HOOK_HEIGHT_MM / 2
+
+    for step in range(-8, 9):
+        y = hinge.catch_center_mm + step * CATCH_WIDTH_MM / 16
+        for z in (hook_top - CATCH_HOOK_HEIGHT_MM, hook_top, hook_top + 1.2):
+            assert has_material(enclosure.base, x, y, z), (y, z)
+
+
+def test_vents_that_leave_no_room_for_the_catch_say_so() -> None:
+    with pytest.raises(ValueError, match="catch keeps a stretch of its closure wall"):
+        build_enclosure(
+            assembly(),
+            board=BOARD,
+            display=DISPLAY,
+            design=EnclosureDesign(
+                lid_attachment="hinge",
+                bottom_clearance_mm=6.0,
+                vent_area_mm2=150,
+                vent_pattern="louvers",
+            ),
+        )
+
+
 def test_catch_tongue_stays_within_the_strain_limit() -> None:
     hinge = hinged().hinge
     assert hinge is not None

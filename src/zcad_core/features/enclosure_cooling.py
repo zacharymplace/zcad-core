@@ -23,7 +23,7 @@ from zcad_core.features.fan_bay import (
     fan_report,
     plan_fan,
 )
-from zcad_core.features.lid_hinge import hinge_web_depth_mm
+from zcad_core.features.lid_hinge import catch_keepout, hinge_web_depth_mm
 from zcad_core.features.lid_slide import SLIDE_VENT_DROP_MM
 from zcad_core.features.vent_patterns import (
     VentFill,
@@ -185,18 +185,38 @@ def _plan_cooling(
             carried["fan"] = plan.body
 
     if design.vent_area_mm2:
-        base, cooling.inlets = add_wall_inlets(
-            base,
-            cavity,
-            kind=design.vent_pattern,
-            target_mm2=design.vent_area_mm2,
-            blocked_edges=[opening.edge for opening in cooling.feature_openings],
-            top_z_mm=_vent_top_z(cavity, design),
-            corner_keepout_mm=_vent_corner_keepout(fastener, design, positions),
-            obstruction=cooling.fan_plan.body
+        obstruction = (
+            cooling.fan_plan.body
             if cooling.fan_plan and cooling.fan_plan.opening
-            else None,
+            else None
         )
+
+        # A hinged lid's catch takes a stretch of the closure wall; the vents
+        # leave it whole, so the catch's bump does not bridge their slots.
+        if design.lid_attachment == "hinge":
+            keepout = catch_keepout(cavity, cooling.feature_openings)
+            obstruction = keepout if obstruction is None else obstruction.fuse(keepout)
+
+        try:
+            base, cooling.inlets = add_wall_inlets(
+                base,
+                cavity,
+                kind=design.vent_pattern,
+                target_mm2=design.vent_area_mm2,
+                blocked_edges=[opening.edge for opening in cooling.feature_openings],
+                top_z_mm=_vent_top_z(cavity, design),
+                corner_keepout_mm=_vent_corner_keepout(fastener, design, positions),
+                obstruction=obstruction,
+            )
+        except ValueError as error:
+            if design.lid_attachment != "hinge":
+                raise
+
+            raise ValueError(
+                f"{error}. A hinged lid's catch keeps a stretch of its closure wall "
+                "clear of vents: use a smaller vent pattern, a longer box, or a "
+                "screwed lid"
+            ) from error
 
     return base, cooling
 

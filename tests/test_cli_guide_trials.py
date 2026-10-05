@@ -66,6 +66,7 @@ def one_trial(
     capsys: pytest.CaptureFixture[str],
     record: str,
     offset: tuple[float, float] = (0.2, -0.1),
+    tolerance: float = 2.0,
 ) -> Path:
     code, started = run(capsys, "guide", "trial", "start", "--build-record", record)
     assert code == 0
@@ -82,6 +83,9 @@ def one_trial(
         entry["measured_x_mm"] = entry["nominal_x_mm"] + offset[0]
         entry["measured_y_mm"] = entry["nominal_y_mm"] + offset[1]
 
+    # What this user calls close enough, which may be more than the guide's
+    # predicted play: the accuracy profile then flags the difference.
+    measurements["position_tolerance_mm"] = tolerance
     (trial / "measurements.json").write_text(json.dumps(measurements))
     code, done = run(
         capsys,

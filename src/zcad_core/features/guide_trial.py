@@ -147,6 +147,7 @@ def start_guide_trial(build_record_path: Path) -> Path:
             "nominal_y_mm": bore["entry_mm"][1],
             "measured_x_mm": None,
             "measured_y_mm": None,
+            "predicted_play_mm": bore.get("worst_case_entry_play_mm"),
             "notes": "",
         }
 
@@ -165,6 +166,14 @@ def start_guide_trial(build_record_path: Path) -> Path:
         "gauge": (
             "measured_bore_mm and measured_seat_mm are the printed hole's diameter "
             "as a pin gauge finds it: the largest that enters. They are optional."
+        ),
+        "position_tolerance_mm": None,
+        "tolerance": (
+            "position_tolerance_mm: how far a drilled hole may land from where it "
+            "was meant to be and still be a pass for your use, in mm. A passing "
+            "trial needs it, and every bore within it. predicted_play_mm is the "
+            "build's bound from the clearances alone, not an accuracy: printing "
+            "adds to it."
         ),
         "bores": bores,
     }
@@ -319,6 +328,19 @@ def complete_guide_trial(
     bores = _bore_results(trial, build)
     failed = [entry["check"] for entry in observations if not entry["passed"]]
     measured = [b for b in bores if b["offset_mm"] is not None]
+    tolerance = _optional_number(
+        _read(trial / MEASUREMENTS), "position_tolerance_mm", "measurements.json"
+    )
+
+    if tolerance is not None and tolerance <= 0:
+        raise ValueError("measurements.json: position_tolerance_mm must be above zero")
+
+    for bore in measured:
+        bore["within_tolerance"] = (
+            None
+            if tolerance is None
+            else bore["offset_mm"]["radial"] <= tolerance + 1e-9
+        )
 
     if disposition is GuideTrialDisposition.PASS:
         if failed:
@@ -330,6 +352,26 @@ def complete_guide_trial(
             raise ValueError(
                 f"A passing trial measures every bore's position; not measured: "
                 f"{unmeasured}"
+            )
+
+        # Position is what a drill guide is for, so a pass says how close is
+        # close enough, and every hole must land that close.
+        if tolerance is None:
+            raise ValueError(
+                "A passing trial states position_tolerance_mm in measurements.json: "
+                "how far a hole may land from where it was meant to and still pass"
+            )
+
+        off = [
+            f"{b['identifier']} ({b['offset_mm']['radial']:g} mm)"
+            for b in measured
+            if not b["within_tolerance"]
+        ]
+
+        if off:
+            raise ValueError(
+                f"A passing trial lands every bore within {tolerance:g} mm; "
+                f"these are farther off: {', '.join(off)}"
             )
     elif disposition is GuideTrialDisposition.INCONCLUSIVE and not (measured or failed):
         raise ValueError(
@@ -351,6 +393,7 @@ def complete_guide_trial(
         "failed_checks": failed,
         "observations": observations,
         "bores": bores,
+        "position_tolerance_mm": tolerance,
         "summary": {
             "bores": len(bores),
             "bores_measured": len(measured),
@@ -382,6 +425,7 @@ def guide_verification(build_record_path: Path) -> dict[str, Any]:
                 "disposition": record["disposition"],
                 "of_this_build": record["build_record_sha256"] == digest,
                 "max_radial_mm": record["summary"]["max_radial_mm"],
+                "position_tolerance_mm": record.get("position_tolerance_mm"),
             }
         )
 

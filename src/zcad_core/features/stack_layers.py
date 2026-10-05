@@ -13,7 +13,8 @@ The engine places the plate and the spacers. It does not connect anything: a hea
 two boards, its alignment and what it carries are the user's.
 
 ``check-layers`` says whether two layers stack: their holes must be the same pattern, since one
-bolt passes through both, and the fastener must pass them. The air over a part, the margin round an
+bolt passes through both, the fastener must pass them, and the upper board must have nothing
+under it, since it rests on the lower layer's plate. The air over a part, the margin round an
 opening and the spacer's wall are the engine's own design choices.
 """
 
@@ -360,6 +361,21 @@ def _real_parts(board: BoardFileSpec) -> list[Any]:
     return [*parts, _connector(board)]
 
 
+def _deepest_underside(board: BoardFileSpec) -> tuple[float, str | None]:
+    """How far the deepest part reaches below the board's underside, and which
+    part it is: none (0, None) for a board with nothing under it."""
+
+    underside = -board.board_thickness_mm
+    depths = [
+        (underside - c.bottom_offset_from_board_top_mm, c.identifier)
+        for c in board.components
+        if c.identifier != ENVELOPE_IDENTIFIER
+        and c.bottom_offset_from_board_top_mm < underside - 1e-9
+    ]
+
+    return max(depths, default=(0.0, None), key=lambda depth: depth[0])
+
+
 def _tallest(board: BoardFileSpec) -> tuple[float, str]:
     """The highest top above the board's top face, and which part it is."""
 
@@ -507,6 +523,8 @@ def layer_summary(
         "plate_mm": spec.plate_mm,
         "stack_height_mm": round(plan.spacer_mm + spec.plate_mm, 3),
         "openings": [why for *_, why in _openings(board)],
+        "underside_mm": round(_deepest_underside(board)[0], 3),
+        "underside_part": _deepest_underside(board)[1],
     }
 
 
@@ -735,6 +753,19 @@ def check_layers(
     if upper["fastener"] != lower["fastener"]:
         errors.append(
             f"They use different fasteners: {upper['fastener']} and {lower['fastener']}"
+        )
+
+    # The upper board rests on the lower layer's plate, the board's own outline,
+    # so a part under it would stand in that plate. A record made before this was
+    # recorded cannot say; rebuild it to know.
+    depth = upper.get("underside_mm")
+    summary["upper_underside_checked"] = depth is not None
+
+    if depth:
+        errors.append(
+            f"The upper board has {upper.get('underside_part')} {depth:g} mm under "
+            "it, which would stand in the lower layer's plate: a layer stacks only "
+            "over a board with nothing on its underside"
         )
 
     return LayersReport(not errors, tuple(errors), summary)

@@ -71,7 +71,9 @@ pin header or flex cable. Turn either off with `display_retainer=False`
   on a long wall with no opening, the back one if both are free. The catch
   is a tongue hanging outside the front wall, with a hook that snaps under a
   bump; pull its lip to open it. Its strain is checked like the DIN clip's
-  latch. The catch needs a wall at least 11.7 mm tall (a hinged Pico 2 needs
+  latch. It stands in the widest stretch of that wall clear of openings, and
+  wall vents leave that stretch whole, so the bump never bridges vent slots; a
+  vent pattern that cannot fit beside it (louvers on a short wall) is refused. The catch needs a wall at least 11.7 mm tall (a hinged Pico 2 needs
   `--bottom-clearance-mm 6`), and the walls stand 3 mm off the hardware, not
   2, because a display's retainer swings toward the front wall as the lid
   opens. Before the build returns, the lid is swung open in 10 degree steps

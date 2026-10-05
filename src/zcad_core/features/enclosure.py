@@ -227,6 +227,12 @@ def build_enclosure(
             openings=cooling.feature_openings,
             hardware=cooling.shapes,
             carried=cooling.carried,
+            # The wall vents are cut already; the catch keeps off them too.
+            blocked_spans=[
+                (fill.edge, low, high)
+                for fill in cooling.inlets
+                for low, high in fill.spans_mm
+            ],
         )
 
     slide = None
