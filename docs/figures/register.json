@@ -1671,6 +1671,10 @@
     "hardware/electronics/board_import.py:SIMPLIFY_MM": {
       "status": "unstated"
     },
+    "hardware/electronics/board_import.py:STANDOFF_REACH_MM": {
+      "status": "design_default",
+      "note": "A standoff's 1.5 mm wall, up to 0.2 mm of hole clearance, and 0.3 mm to spare"
+    },
     "hardware/electronics/board_outline.py:CORNER_SEGMENTS": {
       "status": "unstated"
     },

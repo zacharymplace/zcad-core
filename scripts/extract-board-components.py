@@ -127,7 +127,10 @@ def extract(target: str) -> dict[str, Any]:
     above = [box for box in above if not _is_usb(box, board)]
     pattern = board_hole_pattern(board)
     holes = pattern.positions if pattern is not None else ()
-    boxes = merge_boxes(above, True, holes) + merge_boxes(below, False, holes)
+    diameter = pattern.hole_diameter_mm if pattern is not None else 0.0
+    boxes = merge_boxes(above, True, holes, hole_diameter_mm=diameter) + merge_boxes(
+        below, False, holes, hole_diameter_mm=diameter
+    )
 
     return {
         "schema_version": "1.0.0",

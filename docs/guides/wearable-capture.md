@@ -116,13 +116,14 @@ be used.
 Refused: a wrong `schema_version` or `units`, an unknown device or field, a
 dimension without three positive readings, a size more than 25% from the
 published one (usually a wrong unit or two dimensions swapped), a feature
-running off the end of its edge, `edge_features_checked` not `true`, no
+running off the end of its edge, a device's expected feature (the Mobi's
+`fill-port`, `button` and `charging-contacts`) missing from `edge_features`,
+which a cradle would otherwise wall over, `edge_features_checked` not `true`, no
 `measured_by`, `measured_on`, `caliper`, `orientation`, or `source`, and a file
 still carrying `needs_review`.
 
 Warned of: readings of one dimension more than 0.1 mm apart (measure it again),
-a size more than 2 mm from the published one (confirm it), and a Mobi capture
-with no edge features listed.
+and a size more than 2 mm from the published one (confirm it).
 
 A valid capture prints the sizes the candidate will use and its SHA-256.
 

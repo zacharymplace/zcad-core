@@ -573,7 +573,7 @@ centre, where Raspberry Pi's STEP model has them. An earlier version centred
 the pattern, which put every standoff 10 mm off its hole.
 
 The checks are: the base and lid do not touch, each Pi's envelope clears both
-parts, each of the Pi's 62 parts extracted from the vendor model clears both
+parts, each of the Pi's 66 parts extracted from the vendor model clears both
 (`parts_clear_of_base`, `parts_clear_of_lid`), and each part is one solid.
 The summary's `part_collisions` names any part that fails, as
 `bay-0 bottom-45 meets the base`. The parts are checked 0.1 mm smaller a side,

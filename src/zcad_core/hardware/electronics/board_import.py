@@ -11,8 +11,9 @@ model's solids it:
 - keeps every other part rising more than 0.5 mm above the board or reaching
   that far below it, splits a part through the board into a box above and a
   box below, merges parts of a similar height lying within 2 mm of each other
-  (never into a box over a mounting hole none of them covers, since a standoff
-  or screw stands there), and marks a part overhanging an edge as needing
+  (never into a box over a mounting hole none of them covers, nor one reaching
+  onto a standoff none of them reaches, since a standoff or screw stands
+  there), and marks a part overhanging an edge as needing
   access through it, like a barrel jack.
 
 The frame is the model's, centred on the PCB: +X to the right and +Y up the
@@ -49,6 +50,10 @@ HEIGHT_TIERS_MM = (1.5, 4.0)
 PCB_THICKNESS_MM = (0.4, 3.2)
 # A mounting hole is at least this wide; narrower ones are vias and pins.
 MINIMUM_HOLE_MM = 1.6
+# How far a standoff reaches beyond its hole's edge: its 1.5 mm wall, up to
+# 0.2 mm of hole clearance, and 0.3 mm to spare. A merged box must not come
+# this close to a hole unless one of its parts already does.
+STANDOFF_REACH_MM = 2.0
 # Below this share of its bounding box's volume, the PCB is not a plain rectangle.
 RECTANGULAR_SHARE = 0.9
 # A top outline filling this much of its bounding rectangle is written as one.
@@ -86,11 +91,40 @@ def _covers(box: Box, point: tuple[float, float]) -> bool:
     return box[0] <= point[0] <= box[1] and box[2] <= point[1] <= box[3]
 
 
-def merge_boxes(
-    boxes: Sequence[Box], same_tier: bool, holes: Sequence[tuple[float, float]]
-) -> list[Box]:
-    """Merge touching boxes, keeping parts either side of a hole apart."""
+def _reaches(box: Box, point: tuple[float, float], reach_mm: float) -> bool:
+    dx = max(box[0] - point[0], 0.0, point[0] - box[1])
+    dy = max(box[2] - point[1], 0.0, point[1] - box[3])
 
+    return math.hypot(dx, dy) < reach_mm
+
+
+def _blocked(
+    a: Box, b: Box, union: Box, hole: tuple[float, float], reach: float
+) -> bool:
+    """Whether merging ``a`` and ``b`` would put a box over the hole, or onto
+    its standoff, where neither part was."""
+
+    if _covers(union, hole) and not _covers(a, hole) and not _covers(b, hole):
+        return True
+
+    return (
+        _reaches(union, hole, reach)
+        and not _reaches(a, hole, reach)
+        and not _reaches(b, hole, reach)
+    )
+
+
+def merge_boxes(
+    boxes: Sequence[Box],
+    same_tier: bool,
+    holes: Sequence[tuple[float, float]],
+    *,
+    hole_diameter_mm: float,
+) -> list[Box]:
+    """Merge touching boxes, keeping parts either side of a hole apart and
+    off a standoff that none of them reaches."""
+
+    reach = hole_diameter_mm / 2 + STANDOFF_REACH_MM
     merged = list(boxes)
     changed = True
 
@@ -113,12 +147,7 @@ def merge_boxes(
                     max(a[5], b[5]),
                 )
 
-                if not any(
-                    _covers(union, hole)
-                    and not _covers(a, hole)
-                    and not _covers(b, hole)
-                    for hole in holes
-                ):
+                if not any(_blocked(a, b, union, hole, reach) for hole in holes):
                     merged[i] = union
                     del merged[j]
                     changed = True
@@ -527,7 +556,10 @@ def import_step(
         (hole.x_mm - centre_x, hole.y_mm - centre_y) for hole in mounting_holes
     ]
     above, below = part_boxes(solids, index, thickness)
-    boxes = merge_boxes(above, True, positions) + merge_boxes(below, False, positions)
+    diameter = mounting if mounting is not None else 0.0
+    boxes = merge_boxes(
+        above, True, positions, hole_diameter_mm=diameter
+    ) + merge_boxes(below, False, positions, hole_diameter_mm=diameter)
     candidates = _candidates(boxes, width, length)
     records = component_records(boxes, width, length)
     notes: list[str] = []

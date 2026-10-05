@@ -107,16 +107,47 @@ def test_merging_keeps_parts_either_side_of_a_hole_apart() -> None:
     near = (0.0, 2.0, 0.0, 2.0, 0.0, 3.0)
     other = (3.0, 5.0, 0.0, 2.0, 0.0, 3.0)
 
-    assert len(merge_boxes([near, other], True, [])) == 1
-    assert len(merge_boxes([near, other], True, [(2.5, 1.0)])) == 2
+    assert len(merge_boxes([near, other], True, [], hole_diameter_mm=2.7)) == 1
+    assert (
+        len(merge_boxes([near, other], True, [(2.5, 1.0)], hole_diameter_mm=2.7)) == 2
+    )
+
+
+def test_merging_never_reaches_onto_a_standoff_neither_part_reaches() -> None:
+    # Two parts in an L, each over 9 mm from the hole; their merged box's
+    # corner would come 0.7 mm from it, onto the standoff.
+    left = (-8.0, -1.0, 1.0, 8.0, -2.0, 0.0)
+    bottom = (1.0, 8.0, -8.0, -1.0, -2.0, 0.0)
+    hole = (8.5, 8.5)
+
+    assert merge_boxes([left, bottom], False, [hole], hole_diameter_mm=2.7) == sorted(
+        [left, bottom]
+    )
+    # Far enough off, the same parts merge.
+    assert (
+        len(merge_boxes([left, bottom], False, [(20.0, 20.0)], hole_diameter_mm=2.7))
+        == 1
+    )
+
+
+def test_a_part_already_by_a_hole_may_still_merge() -> None:
+    # The part already reaches the standoff, so a merge that stays as close
+    # does not put anything new there.
+    by_hole = (0.0, 2.0, 0.0, 2.0, 0.0, 3.0)
+    beside = (-3.0, -1.0, 0.0, 2.0, 0.0, 3.0)
+
+    assert (
+        len(merge_boxes([by_hole, beside], True, [(3.5, 1.0)], hole_diameter_mm=2.7))
+        == 1
+    )
 
 
 def test_merging_never_joins_different_height_tiers() -> None:
     low = (0.0, 2.0, 0.0, 2.0, 0.0, 1.0)
     tall = (2.0, 4.0, 0.0, 2.0, 0.0, 9.0)
 
-    assert len(merge_boxes([low, tall], True, [])) == 2
-    assert len(merge_boxes([low, tall], False, [])) == 1
+    assert len(merge_boxes([low, tall], True, [], hole_diameter_mm=2.7)) == 2
+    assert len(merge_boxes([low, tall], False, [], hole_diameter_mm=2.7)) == 1
 
 
 def test_an_overhang_names_its_edge() -> None:

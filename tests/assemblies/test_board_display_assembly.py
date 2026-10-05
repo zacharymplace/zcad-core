@@ -372,7 +372,7 @@ def test_analysis_finds_a_display_resting_on_a_tall_component() -> None:
         )
 
     # A header 8.5 mm tall on a 1.61 mm board reaches the display at 8 mm.
-    assert ("board_top-05", "display") in analysed(8.0)
+    assert ("board_top-06", "display") in analysed(8.0)
     assert analysed(12.0) == []
 
 

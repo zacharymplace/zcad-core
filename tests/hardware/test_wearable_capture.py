@@ -149,11 +149,26 @@ def test_what_cannot_be_right_is_refused(changes: dict[str, Any], message: str) 
     assert any(message in error for error in check.errors), check.errors
 
 
-def test_a_mobi_capture_with_no_edge_features_is_questioned() -> None:
+def test_a_mobi_capture_with_no_edge_features_is_refused() -> None:
     check = check_capture_data(filled(edge_features=[]))
 
-    assert check.valid
-    assert any("no edge features listed" in w for w in check.warnings)
+    assert not check.valid
+    assert any(
+        "leaves out fill-port, button, charging-contacts" in e for e in check.errors
+    ), check.errors
+
+
+def test_a_mobi_capture_missing_one_expected_feature_is_refused() -> None:
+    # A cradle notches only what is listed, so it would wall over the port.
+    features = [
+        feature
+        for feature in filled()["edge_features"]
+        if feature["identifier"] != "fill-port"
+    ]
+    check = check_capture_data(filled(edge_features=features))
+
+    assert not check.valid
+    assert any("leaves out fill-port:" in e for e in check.errors), check.errors
 
 
 def test_the_cli_writes_a_template_and_checks_a_capture(
