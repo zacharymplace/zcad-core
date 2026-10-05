@@ -43,8 +43,11 @@ choice:
 1. Pads sit at the corners of a rectangle inset from the outer footprint by
    the wall thickness plus the pad radius.
 2. A pad must not sit under a clearance hole, cable opening, or vent slot
-   on the floor. The builder moves it along the diagonal or refuses, naming
-   the conflict.
+   on the floor. **Not built:** no builder cuts an opening in the floor today
+   (vents are in the walls and the lid, fans in the lid or a long wall), so
+   `mount_pads` takes no floor features and checks none. A floor opening, if
+   one is ever added, must come with this check: move the pad along the
+   diagonal or refuse, naming the conflict.
 3. The pattern is recorded in the build record as `mount_pad_positions`, so
    a mount is built from the record and needs no access to the enclosure's
    CAD.

@@ -52,6 +52,7 @@ RACK_HOLE_DIAMETER_MM = 7.0
 PAD_HEIGHT_OFFSET_MM = 6.0
 _PAD_WALL_MARGIN_MM = 1.0
 _FLANGE_MARGIN_MM = 2.0
+_FLANGE_MARGIN_STEP_MM = 0.25
 _HEIGHT_MARGIN_MM = 1.0
 _MINIMUM_REACH_MM = 10.0
 # A pad's footprint on the wall must be solid to within this fraction.
@@ -69,6 +70,9 @@ class FrontPads:
     pocket_diameter_mm: float
     pocket_depth_mm: float
     outer_width_mm: float
+    # How far each ear's flange runs past its pads' inner edge: the full margin,
+    # or less where an opening in the wall would otherwise be covered.
+    flange_margin_mm: float = 2.0
 
     @property
     def positions(self) -> tuple[tuple[float, float], ...]:
@@ -131,6 +135,15 @@ def front_pads(
                 "an opening in it"
             )
 
+    margin = _flange_margin(shape, x0 + radius, width, base_height, wall_mm)
+
+    if margin is None:
+        raise ValueError(
+            "A rack ear's flange, even flush with its pads, would cover an opening "
+            f"within {x0 + radius:.1f} mm of an end of the front wall: move the "
+            "opening in, or use another mount"
+        )
+
     return FrontPads(
         left=left,
         right=right,
@@ -139,6 +152,7 @@ def front_pads(
         pocket_diameter_mm=insert_diameter + hole_compensation_mm,
         pocket_depth_mm=pocket_depth,
         outer_width_mm=width,
+        flange_margin_mm=margin,
     )
 
 
@@ -164,6 +178,45 @@ def _solids(model: cq.Workplane) -> cq.Shape:
             for solid in item.Solids()
         ]
     )
+
+
+def _flange_margin(
+    shape: cq.Shape, pad_edge: float, width: float, height: float, wall_mm: float
+) -> float | None:
+    """How far past the pads' inner edge both ears' flanges may run: each stands
+    the full panel height in front of the wall, so the wall behind it must be
+    whole, or a port there would be closed off. The full margin if the wall
+    allows, less if an opening is near, ``None`` if even a flange flush with the
+    pads would cover one."""
+
+    margin = _FLANGE_MARGIN_MM
+
+    while margin >= -1e-9:
+        reach = pad_edge + margin
+
+        if _strip_solid(shape, 0.0, reach, height, wall_mm) and _strip_solid(
+            shape, width - reach, width, height, wall_mm
+        ):
+            return round(max(margin, 0.0), 3)
+
+        margin -= _FLANGE_MARGIN_STEP_MM
+
+    return None
+
+
+def _strip_solid(
+    shape: cq.Shape, x_lo: float, x_hi: float, height: float, wall_mm: float
+) -> bool:
+    """Whether the front wall between ``x_lo`` and ``x_hi`` is whole, below its top
+    margin: no opening through it where a rack ear's flange would stand."""
+
+    z_lo, z_hi = _PAD_WALL_MARGIN_MM, height - _PAD_WALL_MARGIN_MM
+    slab = cq.Solid.makeBox(
+        x_hi - x_lo, wall_mm, z_hi - z_lo, pnt=cq.Vector(x_lo, 0.0, z_lo)
+    )
+    covered = intersection_volume(shape, slab) / slab.Volume()
+
+    return covered >= 1.0 - _COVERED_OPENING_TOLERANCE
 
 
 def _on_solid_wall(
@@ -238,7 +291,7 @@ def build_rack_ears(
     head = fastener.nominal_diameter_mm * HEAD_DIAMETER_FACTOR
     cone_depth = countersink_depth(fastener, plate_mm)
     reach = (RACK_PANEL_WIDTH_MM - width) / 2
-    margin = pads.diameter_mm / 2 + _FLANGE_MARGIN_MM
+    margin = pads.diameter_mm / 2 + pads.flange_margin_mm
     rail = (RACK_PANEL_WIDTH_MM - RACK_HOLE_SPACING_MM) / 2
 
     if reach < _MINIMUM_REACH_MM:

@@ -23,7 +23,7 @@ from zcad_core.features.fan_bay import (
     fan_report,
     plan_fan,
 )
-from zcad_core.features.lid_hinge import HINGE_WEB_DEPTH_MM
+from zcad_core.features.lid_hinge import hinge_web_depth_mm
 from zcad_core.features.lid_slide import SLIDE_VENT_DROP_MM
 from zcad_core.features.vent_patterns import (
     VentFill,
@@ -360,7 +360,11 @@ def _vent_top_z(cavity: Cavity, design: EnclosureDesign) -> float:
         skirt + 1.0
         if skirt is not None
         else VENT_RIM_MM
-        + (HINGE_WEB_DEPTH_MM if design.lid_attachment == "hinge" else 0.0)
+        + (
+            hinge_web_depth_mm(get_fastener(design.hinge_pin), design.lid_mm)
+            if design.lid_attachment == "hinge"
+            else 0.0
+        )
         + (SLIDE_VENT_DROP_MM if design.lid_attachment == "slide" else 0.0)
     )
 

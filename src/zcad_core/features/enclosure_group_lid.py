@@ -11,7 +11,7 @@ from zcad_core.features.enclosure_group_envelope import make_box
 from zcad_core.features.enclosure_group_model import BayLayout, GroupDesign
 from zcad_core.features.enclosure_group_modules import BayModule
 from zcad_core.features.enclosure_lid import Cavity
-from zcad_core.features.lid_hinge import HINGE_WEB_DEPTH_MM, HingeReport, add_hinge
+from zcad_core.features.lid_hinge import HingeReport, add_hinge, hinge_web_depth_mm
 from zcad_core.features.lid_slide import SlideReport, add_slide
 from zcad_core.hardware import FastenerSpec, RaspberryPi5Spec, get_fastener
 
@@ -57,7 +57,11 @@ def _attach_lid(
     )
 
     if design.lid_attachment == "hinge":
-        _require_openings_clear_of_knuckles(openings, cavity_top)
+        _require_openings_clear_of_knuckles(
+            openings,
+            cavity_top
+            - hinge_web_depth_mm(get_fastener(design.hinge_pin), design.lid_mm),
+        )
         front = [opening for opening in openings if opening.edge == "negative_y"]
         base, lid, hinge = add_hinge(
             base,
@@ -97,12 +101,10 @@ def _attach_lid(
 
 
 def _require_openings_clear_of_knuckles(
-    openings: list[ConnectorCutoutParameters], cavity_top: float
+    openings: list[ConnectorCutoutParameters], limit: float
 ) -> None:
     """The hinge's knuckles stand on the back wall's top edge, so no back-wall
     opening may reach it."""
-
-    limit = cavity_top - HINGE_WEB_DEPTH_MM
 
     for opening in openings:
         top = opening.bottom_z_mm + opening.opening_height_mm
