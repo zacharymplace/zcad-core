@@ -114,8 +114,12 @@ All heights are above the board's top face.
   farthest apart, locating the board and the plate together.
 
 The build then checks that the board drops into the nest and lifts straight out,
-that the plate clears the board and rests on the nest without touching it, and
-that every pin's barrel clears the plate and the parts. It also refuses a part
+that the plate rests on the nest without touching it, and that every pin's barrel
+clears the plate and the parts. A hinged plate is also checked against the board,
+since its catch hangs below it; a screwed plate is refused at the build if its
+underside would come lower than the tallest part and a margin, so it is not. The
+screws' preload and the catch's load are refused at the build when over a limit
+you give, and recorded in the plan. It also refuses a part
 that will not lie on the printer's bed.
 
 ## Will the pins land?

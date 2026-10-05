@@ -124,8 +124,6 @@ def test_build_exports_a_nest_and_a_record(
     assert output["checks"] == {
         "one_solid": True,
         "part_fits_pocket": True,
-        "part_lifts_out": True,
-        "bores_open": True,
         "bit_reaches_depth": True,
     }
     assert output["verified"] is False

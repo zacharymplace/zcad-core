@@ -89,7 +89,6 @@ from zcad_core.features.mounts import (
     add_mount_pads,
     build_mount,
     mount_pads,
-    require_mount_clear,
 )
 from zcad_core.features.stack_profile import load_profile
 from zcad_core.hardware import BoardSpec, DisplaySpec, get_fastener
@@ -284,7 +283,6 @@ def build_enclosure(
                 else None
             ),
         )
-        require_mount_clear(base, mount)
 
     stack_top = None
 

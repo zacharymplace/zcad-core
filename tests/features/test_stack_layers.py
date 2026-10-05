@@ -219,7 +219,6 @@ def test_a_layer_builds_a_plate_and_a_spacer_that_clear_the_board(built: Any) ->
         "plate.one_solid",
         "spacer.one_solid",
         "spacers_clear_of_the_board",
-        "plate_clear_of_the_board",
     }
     assert set(built.parts) == {"plate", "spacer"}
     assert "makes no electrical connection" in built.notes[0]

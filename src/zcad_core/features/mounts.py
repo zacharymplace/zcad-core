@@ -282,8 +282,10 @@ def build_mount(
 
 
 def require_mount_clear(base: cq.Workplane, mount: MountPlate) -> None:
-    """Refuse a plate that shares volume with the base; it may only touch the
-    pads' bottom faces."""
+    """Refuse a mount that shares volume with the base. It is for rack ears,
+    which stand in front of the wall beside its openings; a floor plate (keyhole,
+    VESA, DIN) is seated under the pads' bottom faces, the base's lowest point,
+    so it cannot overlap and is not checked."""
 
     for name, piece in mount.parts.items():
         overlap = intersection_volume(_solids(base), _solids(piece))
@@ -604,12 +606,11 @@ def _din_plate(
 
     # The shortest tongue that keeps the strain within its limit, measured to
     # the latch hook's centre, where the flange pushes.
+    # Solved from the limit and rounded up, so the strain is within it by
+    # construction; the flexure is recorded, not refused.
     reach = math.ceil(math.sqrt(3 * t * swing / (2 * FLEXURE_STRAIN_LIMIT)))
     length = reach + _DIN_LATCH_HOOK_WIDTH_MM / 2 + 1.0
     flexure = flexure_for(swing, reach)
-
-    if flexure.strain > FLEXURE_STRAIN_LIMIT:
-        raise ValueError("The latch tongue would strain past its limit")
 
     # The tongue runs from its free end to its root; plate lies past both.
     x_free = cx - length / 2

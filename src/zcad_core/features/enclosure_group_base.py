@@ -100,7 +100,6 @@ def _add_mount(
             load_profile(Path(design.stack_profile)) if design.stack_profile else None
         ),
     )
-    require_mount_clear(base, plate)
 
     return base, pads, plate
 

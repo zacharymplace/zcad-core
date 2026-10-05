@@ -99,8 +99,8 @@ pocket in the part. Four things set it:
   not fit the bore, whose shoulder would drop into it, or whose length makes a plate thinner than the printer's floor, and a pocket too shallow for the
   insert's length at that depth.
 
-The jig then runs the guide's checks: it fits the part and lifts straight off it, every bore is open, the bores keep a wall between them, and the iron's
-tip reaches the insert's top.
+The jig then checks that it fits the part, and refuses bores that leave no wall between them. It does not check that it lifts off the part, that a bore is open, or that the iron's
+tip reaches the insert's top: each holds by how the jig is built.
 
 ## The files and the commands
 
@@ -187,7 +187,7 @@ See [A holding nest for your part](../guides/holding-nest.md).
 - **The lip takes the part's whole height.** The wall must reach the part's top for a hook to overhang it, so `nest.depth_mm` is refused alongside a lip, and `pocket_depth_mm` gives the part's height.
 - **A hook is a wedge on a raised tab.** Each tab rises 1.3 mm above the wall (a 0.3 mm gap over the part, a 1.0 mm hook), is 10 mm wide with a 0.8 mm slit each side, and keeps 2 mm of wall root below the slits. These
   are the engine's own sizes. The tab's strain is the cantilever's from `mounts.flexure_for`, over the wall's reach to the hook, against the provisional 1.5% limit.
-- **The part is lifted out of the nest without its hooks.** They give way as the part goes by, so `part_lifts_out` is run on the body with the tab extensions but not the wedges. `lip_over_part` checks that the
+- **The part lifts out of the nest by construction.** The wall, notches and slits are the same all the way up, and a lip's hooks give way as the part goes by, so there is no geometry check for it; the trial's observation asks it of the print. `lip_over_part` checks that the
   part's top lies under each hook.
 - **Tabs take stretches the notches have not.** `stretch_sites` finds the straight stretches; notches take the longest, tabs the next.
 - **Strap slots sit on the flange at the ends of the longer side**, on the X ends when the part is longer in X; `strap_slots_in_flange` checks them against the real solid. The strap's width, thickness and `source` are the user's.
@@ -202,7 +202,7 @@ See [An insert jig for your part](../guides/insert-jig.md).
   It runs on `nest_core` (`pocketed`, `clear`, `lifts_off`) as the guide does, and reads the part with the guide's `load_part_file`. The guide and the nest are unchanged.
 - **The bore is the catalogued insert's diameter** plus the sliding clearance each side and the hole oversize, the guide's own rule for a printed hole. The catalogue's insert size is
   taken as the insert's outside diameter.
-- **The plate is the stop.** Its thickness is `tip_length_mm - depth_below_face_mm`; `iron_reaches_insert` is that identity checked on the built plate.
+- **The plate is the stop.** Its thickness is `tip_length_mm - depth_below_face_mm`, so the tip stops at the insert by definition, and there is no check for it.
 - **The iron's fit has two engine choices.** The tip must be at least one sliding clearance narrower than the bore, and the shoulder wider than the bore by a minimum wall each side. Neither is a
   figure from a source, so the guide names them as the engine's.
 - **The iron's source is refused when it starts with EXAMPLE**, as the housing's and the stack's sources are, so the template does not build until the figures are measured.

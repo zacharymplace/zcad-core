@@ -120,7 +120,6 @@ def test_the_fixture_passes_its_checks_either_way_it_is_located(
         "plate_one_solid": True,
         "board_fits_nest": True,
         "board_lifts_out": True,
-        "plate_clear_of_board": True,
         "plate_clear_of_nest": True,
         "pins_clear": True,
     }
@@ -397,7 +396,9 @@ def test_a_screw_limit_the_user_gives_is_checked_and_recorded(
         tmp_path, screw={"tensile_limit_n": 500, "source": "my own pull test"}
     )
 
-    assert fixture.checks["preload_within_screw_limit"] is True
+    # Over the limit is refused at the build, so it is recorded, not a check.
+    assert fixture.closure.limit_checked and fixture.closure.within_limit
+    assert "preload_within_screw_limit" not in fixture.checks
     assert fixture.passed
 
     record = fixture_record(fixture, {})["closure_plan"]
@@ -530,7 +531,8 @@ def test_a_catch_limit_the_user_gives_is_checked_and_recorded(tmp_path: Path) ->
         hinge={"catch_load_limit_n": 10, "source": "my own pull test"},
     )
 
-    assert fixture.checks["catch_load_within_limit"] is True
+    assert fixture.closure.limit_checked and fixture.closure.within_limit
+    assert "catch_load_within_limit" not in fixture.checks
 
     record = fixture_record(fixture, {})
 

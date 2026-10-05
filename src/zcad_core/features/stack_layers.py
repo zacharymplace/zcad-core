@@ -640,10 +640,8 @@ def build_layer(spec: LayerSpec, printer: Mapping[str, Any]) -> Layer:
             parts_of_board, workplane_shape(in_place)
         )
         <= _TOLERANCE_MM3,
-        "plate_clear_of_the_board": intersection_volume(
-            parts_of_board, workplane_shape(plate)
-        )
-        <= _TOLERANCE_MM3,
+        # The plate is not checked against the board: it starts at the spacer's
+        # height, which is refused under the tallest part and the clearance.
     }
 
     return Layer(

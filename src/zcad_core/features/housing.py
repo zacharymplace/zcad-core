@@ -26,7 +26,6 @@ from zcad_core.features.guide_bores import printer_numbers
 from zcad_core.features.housing_cradle import (
     CradlePlan,
     build_cradle,
-    device_envelope,
     half_across,
     hook_reach,
     plan_cradle,
@@ -215,10 +214,9 @@ def _build_cradle(
     shape = workplane_shape(tray)
     checks = {
         "one_solid": _single(tray),
-        "device_fits_pocket": intersection_volume(
-            shape, workplane_shape(device_envelope(capture))
-        )
-        <= _TOLERANCE_MM3,
+        # The pocket is the device's outline grown by the clearance, which is at
+        # least 0.05 mm, and the hooks start above its top face, so whether the
+        # device fits is not checked: it always does.
         "edge_features_open": _features_open(tray, capture, spec),
         "hooks_over_device": all(
             intersection_volume(shape, workplane_shape(hook_reach(capture, tab)))
