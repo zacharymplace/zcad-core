@@ -2123,6 +2123,9 @@
     "retention/production_execution.py:ProductionCornerExecutionRequest.vertical_margin_mm": {
       "status": "unstated"
     },
+    "retention/snap_shell.py:SnapShellParameters.tab_slit_mm": {
+      "status": "unstated"
+    },
     "retention/snap_shell.py:SnapShellPolicy.clearance_mm": {
       "status": "unstated"
     },
@@ -2144,7 +2147,13 @@
     "retention/snap_shell.py:SnapShellPolicy.rim_height_mm": {
       "status": "unstated"
     },
+    "retention/snap_shell.py:SnapShellPolicy.tab_slit_mm": {
+      "status": "unstated"
+    },
     "retention/snap_shell.py:SnapShellPolicy.wall_mm": {
+      "status": "unstated"
+    },
+    "retention/snap_shell.py:TAB_LENGTH_MM": {
       "status": "unstated"
     },
     "retention/snap_shell.py:_MINIMUM_LOCATION_SEPARATION_MM": {

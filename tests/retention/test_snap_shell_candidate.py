@@ -90,6 +90,19 @@ def test_a_clip_keeps_off_a_rounded_corner_as_the_cradle_tab_does() -> None:
         clip_locations(rounded, ("east",), SnapShellPolicy())
 
 
+def test_a_tab_needs_its_whole_span_clear_of_a_feature() -> None:
+    # A post 3 mm wide clears a 5 mm port 4.5 mm off the middle; a tab's
+    # post and beam, 15 mm, must slide past it to 11 mm.
+    port = EdgeFeature("port", "north", center_offset_mm=0.0, width_mm=5.0)
+    tabs = SnapShellPolicy(tab_length_mm=12.0)
+
+    (post,) = clip_locations(body(port), ("north",), SnapShellPolicy())
+    (tab,) = clip_locations(body(port), ("north",), tabs)
+
+    assert post.x_mm == 5.0
+    assert tab.x_mm == 11.0
+
+
 def load(name: str, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     spec = importlib.util.spec_from_file_location(
         name.replace("-", "_"), SCRIPTS / f"{name}.py"
@@ -209,12 +222,10 @@ def test_the_dexcom_script_now_refuses_to_overwrite_its_pinned_files(
     root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     script = load("build-dexcom-g7-snap-shell-candidate", monkeypatch)
+    script.main([], root=root)
 
-    # A vertical clip on the 4.7 mm G7 strains over the limit: the candidate
-    # is registered, rejected, and says why.
-    with pytest.raises(SystemExit, match="verification failed: clip_strain"):
-        script.main([], root=root)
-
+    # A post on the 4.7 mm G7 would strain over the limit; its tabs bend
+    # along the edge and pass, so the placeholder build is only provisional.
     report = json.loads(
         (
             root
@@ -222,8 +233,13 @@ def test_the_dexcom_script_now_refuses_to_overwrite_its_pinned_files(
             / "automated-validation.json"
         ).read_text("utf-8")
     )
-    assert report["decision"] == "rejected"
-    assert not report["fit_checks"]["clip_strain"]["passed"]
+    assert report["decision"] == "provisional_synthetic_candidate"
+    assert all(check["passed"] for check in report["fit_checks"].values())
+    assert (
+        "1 mm tab bending over 9.00 mm"
+        in (report["fit_checks"]["clip_strain"]["detail"])
+    )
+    assert report["policy"]["tab_length_mm"] == 12.0
     assert report["clips_into_device_mm3"] == 0.0
     envelope = (
         root / "evidence/dexcom-g7-sensor/step/dexcom-g7-placeholder-envelope.step"

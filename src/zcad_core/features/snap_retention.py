@@ -24,6 +24,9 @@ class SnapRetentionClipParameters:
 
     base_z_mm: float = 0.0
     rotation_degrees: float = 0.0
+    # A tab: a beam this long, its underside this far above base_z_mm.
+    tab_length_mm: float | None = None
+    tab_underside_mm: float = 0.0
 
     def validate(self) -> None:
         """Validate snap-retention clip geometry."""
@@ -47,6 +50,19 @@ class SnapRetentionClipParameters:
         if self.overhang_mm >= self.compliant_span_mm:
             raise ValueError("overhang_mm must be less than compliant_span_mm")
 
+        if self.tab_length_mm is not None:
+            if self.tab_length_mm <= self.width_mm:
+                raise ValueError("tab_length_mm must be longer than width_mm")
+
+            lip_above_base = (
+                self.base_height_mm + self.compliant_span_mm + self.clearance_mm
+            )
+
+            if not 0 < self.tab_underside_mm < lip_above_base:
+                raise ValueError(
+                    "tab_underside_mm must be above base_z_mm and below the lip"
+                )
+
 
 def add_snap_retention_clip(
     model: cq.Workplane,
@@ -64,6 +80,13 @@ def add_snap_retention_clip(
     the part's top edge, measured from the edge so the clearance never eats
     into it, with a flat underside ``clearance_mm`` above the top face and
     a sloped top that lets the part push the clip aside as it is pressed in.
+
+    Without ``tab_length_mm`` the clip is a post ``width_mm`` wide, centred
+    on ``(x, y)``, bending up its height. With it, the clip is a tab centred
+    there: a post at its -Y end and a beam ``tab_length_mm`` long running
+    along the edge from it, its underside ``tab_underside_mm`` above
+    ``base_z_mm``, free of everything but the post. The lip is at the beam's
+    free end, so the beam bends along the edge.
     """
     parameters.validate()
 
@@ -77,15 +100,31 @@ def add_snap_retention_clip(
         + clearance
     )
     top = lip_bottom + parameters.height_mm
+    width = parameters.width_mm
+    half_span = (width + (parameters.tab_length_mm or 0.0)) / 2
 
     stem = cq.Workplane("XY").add(
         cq.Solid.makeBox(
             inner - outer,
-            parameters.width_mm,
+            width,
             top - parameters.base_z_mm,
-            pnt=cq.Vector(outer, -parameters.width_mm / 2, parameters.base_z_mm),
+            pnt=cq.Vector(outer, -half_span, parameters.base_z_mm),
         )
     )
+
+    if parameters.tab_length_mm is not None:
+        underside = parameters.base_z_mm + parameters.tab_underside_mm
+        stem = stem.union(
+            cq.Workplane("XY").add(
+                cq.Solid.makeBox(
+                    inner - outer,
+                    parameters.tab_length_mm,
+                    top - underside,
+                    pnt=cq.Vector(outer, -half_span + width, underside),
+                )
+            )
+        )
+
     lip = (
         cq.Workplane("XZ")
         .polyline(
@@ -96,7 +135,8 @@ def add_snap_retention_clip(
             ]
         )
         .close()
-        .extrude(parameters.width_mm / 2, both=True)
+        .extrude(width / 2, both=True)
+        .translate((0.0, half_span - width / 2, 0.0))
     )
     clip = stem.union(lip)
 

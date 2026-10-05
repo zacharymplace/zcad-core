@@ -9,11 +9,13 @@ standing the clearance out from the edge and hooking 0.6 mm over the top edge, t
 clearance above the top face. Its checks measure that against the device's envelope.
 It is built from published sizes, or from a caliper capture that raises it to a
 `verified_candidate` when those checks pass, and it goes through the Validation Lab's
-retention pipeline. One check is the clips' strain as they bend to let the device in:
-on the 4.7 mm G7 the stem is too short and strains about 6 per cent against the 1.5 per
-cent limit, so the G7's shell is rejected, as phase 2 found for the cradle (below). The ledge covers the rim of the skin side, so it is a holder, not
-something to wear. It does not house anything, and
-nothing about it attaches to a body.
+retention pipeline. One check is the clips' strain as they bend to let the device in.
+On the 14.2 mm Mobi a clip is a post bending up its side. The 4.7 mm G7 is too thin for
+that, as phase 2 found for the cradle (below): a post there strains about 6 per cent
+against the 1.5 per cent limit. So the G7's clips are tabs, a beam 12 mm long running
+along the edge from a post, with the hook at its free end, which strain 1.1 per cent.
+The ledge covers the rim of the skin side, so it is a holder, not something to wear. It
+does not house anything, and nothing about it attaches to a body.
 
 A wearable housing is the rest of that: something you can wear. It has two kinds of
 input: a **sealed device** you cannot open (a sensor, a pump, a tracker), and a
