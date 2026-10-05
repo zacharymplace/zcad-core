@@ -7,7 +7,10 @@ manufacturer-published dimensions in
 :mod:`zcad_core.hardware.wearables.dexcom`, not a device scan: the
 candidate is a ``provisional_synthetic_candidate`` that no trial may use.
 With a caliper capture (see docs/guides/wearable-capture.md) it is sized
-from the measurements and the candidate is verified.
+from the measurements and the candidate is verified when the shell's fit
+checks, measured against that envelope, pass. Today they do not: a clip on
+the 4.7 mm G7 strains over the limit as it bends, so the candidate is
+registered as ``rejected``.
 
 With no arguments it registers the target and r001. A later revision names
 its parent and why:

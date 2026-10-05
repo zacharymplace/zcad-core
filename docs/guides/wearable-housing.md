@@ -174,6 +174,6 @@ overwritten, and a passing one cannot have a failed check.
 ## What is not built yet
 
 The snap shell is not a
-housing style: it is clips alone, with nothing to hang a strap from, and a cradle is the form
+housing style: it is a frame and clips, with nothing to hang a strap from, and a cradle is the form
 of it that can be worn. A cradle for a catalog device without a caliper capture is not offered:
 the capture is what the cradle is built round.

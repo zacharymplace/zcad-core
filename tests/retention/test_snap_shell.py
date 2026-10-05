@@ -37,6 +37,8 @@ def test_default_policy_is_valid() -> None:
         "clip_height_mm",
         "overhang_mm",
         "compliant_span_mm",
+        "ledge_mm",
+        "rim_height_mm",
     ),
 )
 def test_positive_policy_dimensions_are_required(
@@ -49,6 +51,8 @@ def test_positive_policy_dimensions_are_required(
         "overhang_mm": 0.6,
         "clearance_mm": 0.15,
         "compliant_span_mm": 2.0,
+        "ledge_mm": 1.5,
+        "rim_height_mm": 1.0,
     }
     values[field] = 0.0
 
@@ -78,6 +82,22 @@ def test_overhang_must_be_less_than_compliant_span() -> None:
         )
 
 
+def test_the_rim_must_stand_taller_than_the_lips_let_the_device_lift() -> None:
+    with pytest.raises(ValueError, match="rim_height_mm must be greater"):
+        SnapShellPolicy(clearance_mm=1.0, rim_height_mm=1.0)
+
+
+def test_the_ledge_must_leave_the_underside_open() -> None:
+    with pytest.raises(ValueError, match="no opening under the device"):
+        derive_snap_shell_parameters(
+            device_thickness_mm=4.7,
+            device_length_mm=26.0,
+            device_width_mm=24.0,
+            locations=spaced_locations(),
+            policy=SnapShellPolicy(ledge_mm=12.0),
+        )
+
+
 def test_derivation_preserves_validated_policy() -> None:
     policy = SnapShellPolicy(
         clip_width_mm=3.5,
@@ -86,10 +106,14 @@ def test_derivation_preserves_validated_policy() -> None:
         overhang_mm=0.5,
         clearance_mm=0.2,
         compliant_span_mm=2.2,
+        ledge_mm=2.0,
+        rim_height_mm=1.2,
     )
 
     result = derive_snap_shell_parameters(
         device_thickness_mm=4.7,
+        device_length_mm=26.0,
+        device_width_mm=24.0,
         locations=spaced_locations(),
         policy=policy,
     )
@@ -102,6 +126,9 @@ def test_derivation_preserves_validated_policy() -> None:
     assert result.overhang_mm == pytest.approx(0.5)
     assert result.clearance_mm == pytest.approx(0.2)
     assert result.compliant_span_mm == pytest.approx(2.2)
+    assert (result.device_length_mm, result.device_width_mm) == (26.0, 24.0)
+    assert result.ledge_mm == pytest.approx(2.0)
+    assert result.rim_height_mm == pytest.approx(1.2)
 
 
 def test_two_locations_are_rejected() -> None:
@@ -118,6 +145,10 @@ def test_two_locations_are_rejected() -> None:
             overhang_mm=0.6,
             clearance_mm=0.15,
             compliant_span_mm=2.0,
+            device_length_mm=26.0,
+            device_width_mm=24.0,
+            ledge_mm=1.5,
+            rim_height_mm=1.0,
         )
 
 
@@ -134,6 +165,8 @@ def test_duplicate_labels_are_rejected() -> None:
     ):
         derive_snap_shell_parameters(
             device_thickness_mm=4.7,
+            device_length_mm=26.0,
+            device_width_mm=24.0,
             locations=locations,
             policy=SnapShellPolicy(),
         )
@@ -153,6 +186,8 @@ def test_overlapping_locations_are_rejected() -> None:
     ):
         derive_snap_shell_parameters(
             device_thickness_mm=4.7,
+            device_length_mm=26.0,
+            device_width_mm=24.0,
             locations=(
                 location,
                 other,
@@ -181,6 +216,8 @@ def test_as_snap_shell_parameters_rejects_wrong_type() -> None:
 def test_as_snap_shell_parameters_returns_matching_instance() -> None:
     parameters = derive_snap_shell_parameters(
         device_thickness_mm=4.7,
+        device_length_mm=26.0,
+        device_width_mm=24.0,
         locations=spaced_locations(),
         policy=SnapShellPolicy(),
     )

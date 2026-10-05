@@ -8,7 +8,8 @@ port, buttons, or charging contacts, whose places are unknown: the
 candidate is a ``provisional_synthetic_candidate`` that no trial may use.
 With a caliper capture (see docs/guides/wearable-capture.md) it is sized
 from the measurements, its clips stand clear of every feature the capture
-locates, and the candidate is verified.
+locates, and the candidate is verified when the shell's fit checks,
+measured against that envelope, pass.
 
 With no arguments it registers the target and r001. A later revision names
 its parent and why:

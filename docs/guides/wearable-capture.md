@@ -3,10 +3,7 @@
 The Dexcom G7 and Tandem Mobi snap shells start from published sizes, so their
 candidates are `provisional_synthetic_candidate` and no trial may use them. A
 caliper capture replaces those sizes with your measurements of the real device.
-A candidate built from it is a `provisional_measured_candidate`: its size is
-yours, but its clips are still the synthetic backend's, whose device clearance
-and shell continuity are unverified placeholders, so it is not yet one to print
-or trial. See **Status** below.
+A candidate built from it is a `verified_candidate`, ready for a printed trial.
 
 ```bash
 zcad-validation wearable template --device tandem-mobi --output mobi.json
@@ -75,9 +72,10 @@ port, buttons, and charging contacts, and anything else you find. Each gets:
 
 Then set `edge_features_checked` to `true`, to say you looked at all four edges.
 An empty list with `true` means there was nothing there. Features on the top or
-bottom face are not listed: the candidate is the clips alone, each standing at
-its edge and hooking `overhang_mm` (0.6 mm) over the top edge, so it touches
-neither face.
+bottom face are not listed: the shell's clips each stand `clearance_mm` out
+from their edge and hook `overhang_mm` (0.6 mm) over the top edge, clear of the
+top face, and its frame holds the device by a ledge under its rim. The rim of the
+frame, 1 mm up the device's sides, is notched at each edge feature.
 
 ## A device of your own
 
@@ -139,12 +137,18 @@ A valid capture prints the sizes the candidate will use and its SHA-256.
 - **Provenance:** the capture file is copied into the candidate's folder as
   `capture.json`. Its SHA-256, who measured, when, and with what go into
   `automated-validation.json`.
-- **Status:** the decision is `provisional_measured_candidate` and the
-  geometry is `caliper-verified`. It is not a `verified_candidate` and not
-  approved for publication: the snap-shell backend places its clips for
-  synthetic fixtures, and on a measured device they reach into its envelope.
-  The record says how far (`clips_into_device_mm3`). Until the clips are
-  designed against the device, do not print one for a trial.
+- **Fit:** the shell is measured against the captured envelope. No shell
+  material may be inside it or within the clearance of its sides and top face,
+  each clip's lip must reach `overhang_mm` in over the top face, the frame
+  and clips must be one solid, and a clip bending out to let the device past
+  must strain no more than the engine's provisional 1.5 per cent limit. A
+  clip bends over its stem between the rim and the lip, so a thin device
+  fails: on the 4.7 mm G7 it strains about 6 per cent, and the G7's shell is
+  `rejected` until its clips are redesigned. The Mobi's, 14.2 mm, passes. `automated-validation.json` records each check
+  and how much shell material is inside the envelope (`clips_into_device_mm3`).
+- **Status:** when every check passes the decision is `verified_candidate` and
+  the geometry is `caliper-verified`. A failed check makes it `rejected`. A
+  printed trial on the real device is still what proves it.
 
 The capture names whoever measured. It lives in `evidence/`, which is backed up
 privately, not in the public repository.

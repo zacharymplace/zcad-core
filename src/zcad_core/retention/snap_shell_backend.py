@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol, runtime_checkable
 
+from zcad_core.hardware.wearables.capture import EdgeFeature
 from zcad_core.retention.snap_shell import (
     SnapShellLocation,
     SnapShellParameters,
@@ -13,15 +14,25 @@ from zcad_core.retention.snap_shell import (
 
 @dataclass(frozen=True)
 class SnapShellRequest:
-    """Validated input required to derive snap-shell geometry."""
+    """Validated input required to derive snap-shell geometry: the device's
+    size, the points on its edges where clips hold it, and the features on
+    its edges the shell must leave open."""
 
     device_thickness_mm: float
+    device_length_mm: float
+    device_width_mm: float
     locations: tuple[SnapShellLocation, ...]
     policy: SnapShellPolicy
+    edge_features: tuple[EdgeFeature, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.device_thickness_mm <= 0:
-            raise ValueError("device_thickness_mm must be positive")
+        for name, value in {
+            "device_thickness_mm": self.device_thickness_mm,
+            "device_length_mm": self.device_length_mm,
+            "device_width_mm": self.device_width_mm,
+        }.items():
+            if value <= 0:
+                raise ValueError(f"{name} must be positive")
 
         if len(self.locations) < 3:
             raise ValueError("Snap shell requires at least three locations")
@@ -42,6 +53,7 @@ class SnapShellFitCheck(str, Enum):
     ANCHOR_SEPARATION = "anchor_separation"
     DEVICE_CLEARANCE = "device_clearance"
     MANUFACTURING_CLEARANCE = "manufacturing_clearance"
+    CLIP_STRAIN = "clip_strain"
 
 
 @dataclass(frozen=True)
