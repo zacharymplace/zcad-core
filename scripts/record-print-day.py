@@ -11,7 +11,9 @@ each finished one:
   printer, material, and slicer from the pending record;
 - an enclosure build under ``evidence/enclosures/``: writes the same two
   files in the enclosure trial's form and runs
-  ``zcad-validation enclosure trial complete``.
+  ``zcad-validation enclosure trial complete``, or, for a group of boards
+  in one enclosure (an ``enclosure-group.json`` build),
+  ``zcad-validation enclosure-group trial complete``.
 
 An answer that is not finished (a check unanswered, no disposition, or no
 measurement where one is needed) is skipped with the reason, and a trial
@@ -105,12 +107,16 @@ def read_answers(directory: Path) -> list[Answer]:
 
 
 def find_print(evidence_root: Path, candidate_id: str) -> tuple[str, Path]:
-    """Whether a candidate id names an enclosure or a fixture, and where."""
+    """Whether a candidate id names an enclosure, a group enclosure, or a
+    fixture, and where."""
 
     enclosure = evidence_root / "enclosures" / candidate_id
 
     if (enclosure / "enclosure.json").is_file():
         return "enclosure", enclosure
+
+    if (enclosure / "enclosure-group.json").is_file():
+        return "group", enclosure
 
     for manifest in evidence_root.glob("*/validation-lab/candidates/*/candidate.json"):
         if json.loads(manifest.read_text(encoding="utf-8")).get("candidate_id") == (
@@ -190,7 +196,12 @@ def record_fixture(answer: Answer, candidate: Path) -> dict[str, Any]:
     return {"passed": completed["passed"], "manifest": registered["manifest"]}
 
 
-def record_enclosure(answer: Answer, build: Path) -> dict[str, Any]:
+def record_enclosure(
+    answer: Answer, build: Path, command: str = "enclosure"
+) -> dict[str, Any]:
+    """Record an enclosure trial; ``command`` is ``enclosure-group`` for a group,
+    whose trial takes the same observations and measurements."""
+
     trial = build / "trials" / "trial-001"
     _write(
         trial / "observations.json",
@@ -205,7 +216,7 @@ def record_enclosure(answer: Answer, build: Path) -> dict[str, Any]:
     _write(trial / "measurements.json", answer.measured)
     completed = _run(
         [
-            "enclosure",
+            command,
             "trial",
             "complete",
             "--trial-directory",
@@ -225,6 +236,9 @@ def recorded(kind: str, location: Path) -> bool:
 
     if kind == "enclosure":
         return (trial / "enclosure-trial.json").is_file()
+
+    if kind == "group":
+        return (trial / "enclosure-group-trial.json").is_file()
 
     return (trial / "trial.json").is_file()
 
@@ -259,8 +273,14 @@ def main() -> int:
         }
 
         if action == "record" and not args.dry_run and location is not None:
-            recorder = record_enclosure if kind == "enclosure" else record_fixture
-            entry["result"] = recorder(answer, location)
+            if kind == "fixture":
+                entry["result"] = record_fixture(answer, location)
+            else:
+                entry["result"] = record_enclosure(
+                    answer,
+                    location,
+                    "enclosure-group" if kind == "group" else "enclosure",
+                )
 
         report.append(entry)
 

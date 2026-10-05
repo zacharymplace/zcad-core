@@ -95,5 +95,48 @@ def test_prints_are_found_by_id(tmp_path: Path) -> None:
         candidate,
     )
     assert module.find_print(tmp_path, "case") == ("enclosure", enclosure)
+    group = tmp_path / "enclosures" / "pair"
+    group.mkdir(parents=True)
+    (group / "enclosure-group.json").write_text("{}", encoding="utf-8")
+    assert module.find_print(tmp_path, "pair") == ("group", group)
     with pytest.raises(FileNotFoundError, match="No fixture candidate or enclosure"):
         module.find_print(tmp_path, "nothing")
+
+
+def test_a_group_enclosure_is_completed_as_a_group(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = recorder()
+    build = tmp_path / "enclosures" / "pair"
+    trial = build / "trials" / "trial-001"
+    trial.mkdir(parents=True)
+    (build / "enclosure-group.json").write_text("{}", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def run(arguments: list[str]) -> dict[str, object]:
+        calls.append(arguments)
+        return {"trial_record": str(trial / "enclosure-group-trial.json")}
+
+    monkeypatch.setattr(module, "_run", run)
+    answers = tmp_path / "answers"
+    answers.mkdir()
+    finished = read(
+        answers,
+        {
+            "candidate_id": "pair",
+            "observations": {"bay_1_board_seats": {"passed": True, "notes": ""}},
+            "measurements": {"base_height_mm": {"value_mm": 25.3, "nominal_mm": 25.4}},
+            "disposition": "pass",
+            "operator_notes": "",
+        },
+    )
+
+    assert module.plan(finished, tmp_path) == ("group", "record", build)
+    module.record_enclosure(finished, build, "enclosure-group")
+
+    assert calls[0][:3] == ["enclosure-group", "trial", "complete"]
+    written = json.loads((trial / "observations.json").read_text(encoding="utf-8"))
+    assert written == {"bay_1_board_seats": {"result": "pass", "notes": ""}}
+    # Once its record exists, the group is never recorded again.
+    (trial / "enclosure-group-trial.json").write_text("{}", encoding="utf-8")
+    assert module.plan(finished, tmp_path)[1] == "already recorded"
