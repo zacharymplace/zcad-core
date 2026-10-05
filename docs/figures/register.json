@@ -649,13 +649,7 @@
     "features/housing.py:_TOLERANCE_MM3": {
       "status": "unstated"
     },
-    "features/housing_cradle.py:CORNER_KEEPOUT_MM": {
-      "status": "unstated"
-    },
     "features/housing_cradle.py:FACE_MARGIN_MM": {
-      "status": "unstated"
-    },
-    "features/housing_cradle.py:FEATURE_MARGIN_MM": {
       "status": "unstated"
     },
     "features/housing_cradle.py:HOOK_HEIGHT_MM": {
@@ -677,9 +671,6 @@
       "status": "unstated"
     },
     "features/housing_cradle.py:TOP_GAP_MM": {
-      "status": "unstated"
-    },
-    "features/housing_cradle.py:_STEP_MM": {
       "status": "unstated"
     },
     "features/housing_cradle.py:_TOLERANCE_MM3": {
@@ -1911,6 +1902,15 @@
       "status": "sourced",
       "source": "Dexcom G7 Technical Specifications Sheet (LBL-1002469 Rev001, Jan 2023), as cited in hardware/wearables/dexcom.py: a published sheet, not a caliper capture"
     },
+    "hardware/wearables/edge_placement.py:CORNER_KEEPOUT_MM": {
+      "status": "unstated"
+    },
+    "hardware/wearables/edge_placement.py:FEATURE_MARGIN_MM": {
+      "status": "unstated"
+    },
+    "hardware/wearables/edge_placement.py:_SLIDE_STEP_MM": {
+      "status": "unstated"
+    },
     "hardware/wearables/tandem.py:TandemMobiSpec.body_length_mm": {
       "status": "sourced",
       "source": "The peer-reviewed Mobi overview PMC13089864, as cited in hardware/wearables/tandem.py; not a caliper capture, and the code notes another source differs on width by about 12 mm"
@@ -2118,15 +2118,6 @@
       "status": "unstated"
     },
     "retention/snap_shell.py:_MINIMUM_LOCATION_SEPARATION_MM": {
-      "status": "unstated"
-    },
-    "retention/snap_shell_candidate.py:CORNER_KEEPOUT_MM": {
-      "status": "unstated"
-    },
-    "retention/snap_shell_candidate.py:FEATURE_MARGIN_MM": {
-      "status": "unstated"
-    },
-    "retention/snap_shell_candidate.py:_SLIDE_STEP_MM": {
       "status": "unstated"
     },
     "retention/validation_fixture.py:ValidationFixturePolicy.base_thickness_mm": {

@@ -1,13 +1,15 @@
 """A cradle for a sealed wearable device: a tray it snaps into.
 
 The device lies in a pocket on a floor, face away from the body up; the skin side is
-closed by the floor. A wall rises round the pocket to the device's top face, and the
+closed by the floor, so a device whose skin side must stay open, such as the
+Dexcom G7, can sit in one but not be worn in one. A wall rises round the pocket to the device's top face, and the
 face is left open. A snap **tab** on each of the chosen edges holds the device in.
 
 A tab is the top strip of the wall, cut free from the wall below it by a slit along
 its underside and from the wall beside it by a slit at its free end, so it is a beam
 fixed at one end that bends outward, in the plane of the wall. A hook on its free
-end stands in over the device's top edge by ``OVERHANG_MM``, with a flat underside
+end stands in over the device's top edge by ``OVERHANG_MM``, measured from the
+device's edge so that the clearance round the device never eats into it, with a flat underside
 that holds the device down and a sloped top that lets the device push the tab aside
 as it is pressed in. Because the tab bends along the wall and not up it, a thin
 device (the Dexcom G7 is 4.7 mm) has the length a tab needs, and the tab's strain is
@@ -34,7 +36,12 @@ import cadquery as cq
 from zcad_core.features.mounts import FLEXURE_STRAIN_LIMIT, Flexure, flexure_for
 from zcad_core.geometry.outline_prism import outline_prism
 from zcad_core.hardware.electronics import board_outline
-from zcad_core.hardware.wearables import EdgeFeature, FaceFeature, WearableCapture
+from zcad_core.hardware.wearables import FaceFeature, WearableCapture
+from zcad_core.hardware.wearables.edge_placement import (
+    FEATURE_MARGIN_MM,
+    clear_offset,
+    edge_reach_mm,
+)
 
 # The tab: its length along the wall, the slit round it, and the strip's height.
 TAB_LENGTH_MM = 12.0
@@ -46,12 +53,8 @@ OVERHANG_MM = 0.6
 HOOK_HEIGHT_MM = 1.0
 HOOK_WIDTH_MM = 4.0
 TOP_GAP_MM = 0.1
-# A tab keeps this far from a corner, and this much clear of a feature's notch.
-CORNER_KEEPOUT_MM = 2.0
-FEATURE_MARGIN_MM = 1.0
 # A face feature must stand this far clear of a hook.
 FACE_MARGIN_MM = 0.5
-_STEP_MM = 0.5
 _ROTATION = {"north": 0.0, "west": 90.0, "south": 180.0, "east": 270.0}
 # A feature's offset on these edges runs against the tab's own along-the-wall axis.
 _FLIPPED = ("south", "east")
@@ -107,27 +110,6 @@ def half_across(capture: WearableCapture, edge: str) -> float:
     return capture.width_mm / 2 if edge in ("north", "south") else capture.length_mm / 2
 
 
-def _clear_offset(
-    features: Sequence[EdgeFeature], reach: float, span: float
-) -> float | None:
-    """The offset nearest the middle, within ``reach``, where a tab ``span`` long
-    clears every feature's notch by the margin; ``None`` if there is none."""
-
-    def clear(offset: float) -> bool:
-        return all(
-            abs(offset - feature.center_offset_mm)
-            >= (span + feature.width_mm) / 2 + FEATURE_MARGIN_MM
-            for feature in features
-        )
-
-    for step in range(int(max(reach, 0.0) / _STEP_MM) + 1):
-        for offset in (step * _STEP_MM, -step * _STEP_MM):
-            if clear(offset):
-                return offset
-
-    return None
-
-
 def _hook_box(capture: WearableCapture, tab: Tab) -> tuple[float, float, float, float]:
     """The hook's footprint over the device's face, as ``(x0, x1, y0, y1)`` in the
     capture's frame: a strip along the tab's free end, ``OVERHANG_MM`` deep."""
@@ -181,8 +163,8 @@ def plan_cradle(
 
     for edge in edges:
         blocked = [f for f in capture.edge_features if f.edge == edge]
-        reach = _edge_length(capture, edge) / 2 - radius - CORNER_KEEPOUT_MM - span / 2
-        offset = _clear_offset(blocked, reach, span)
+        reach = edge_reach_mm(_edge_length(capture, edge), span, radius)
+        offset = clear_offset(blocked, reach, span)
 
         if offset is None:
             names = ", ".join(f.identifier for f in blocked) or "the corners"
@@ -255,7 +237,8 @@ def _tab_cuts(
 
     sign = -1.0 if tab.edge in _FLIPPED else 1.0
     thickness = capture.thickness_mm
-    inner = half_across(capture, tab.edge) + clearance_mm
+    edge = half_across(capture, tab.edge)
+    inner = edge + clearance_mm
     outer = inner + wall_mm
     x0 = sign * tab.offset_mm - TAB_LENGTH_MM / 2
     x1 = x0 + TAB_LENGTH_MM
@@ -269,7 +252,7 @@ def _tab_cuts(
         .polyline(
             [
                 (inner, thickness + TOP_GAP_MM),
-                (inner - OVERHANG_MM, thickness + TOP_GAP_MM),
+                (edge - OVERHANG_MM, thickness + TOP_GAP_MM),
                 (inner, top),
             ]
         )
@@ -289,6 +272,24 @@ def _tab_cuts(
     )
 
     return extension.union(hook), under, end
+
+
+def hook_reach(capture: WearableCapture, tab: Tab) -> cq.Workplane:
+    """The space a tab's hook should fill over the device: its width at the
+    tab's free end, ``OVERHANG_MM`` in from the device's edge, between the device's
+    top face and the hook's top."""
+
+    sign = -1.0 if tab.edge in _FLIPPED else 1.0
+    x1 = sign * tab.offset_mm + TAB_LENGTH_MM / 2
+    edge = half_across(capture, tab.edge)
+    top = capture.thickness_mm + TOP_GAP_MM + HOOK_HEIGHT_MM
+    reach = _box(
+        (x1 - HOOK_WIDTH_MM, x1),
+        (edge - OVERHANG_MM, edge),
+        (capture.thickness_mm, top),
+    )
+
+    return _turn(reach, tab.edge)
 
 
 def _turn(model: cq.Workplane, edge: str) -> cq.Workplane:

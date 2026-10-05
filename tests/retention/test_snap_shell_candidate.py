@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from zcad_core.hardware.wearables import EdgeFeature, capture_template
+from zcad_core.hardware.wearables import EdgeFeature, WearableCapture, capture_template
 from zcad_core.retention import SnapShellPolicy
 from zcad_core.retention.snap_shell_candidate import Body, clip_locations
 
@@ -54,6 +54,40 @@ def test_an_edge_with_no_clear_place_is_refused() -> None:
         ValueError, match="No place on the east edge clears charging-contacts"
     ):
         clip_locations(body(contacts), ("east",), SnapShellPolicy())
+
+
+def test_a_clip_keeps_off_a_rounded_corner_as_the_cradle_tab_does() -> None:
+    # 1.5 mm off the middle of the 37.3 mm east edge would clear this button, and
+    # a square corner allows it; a 10 mm corner leaves the clip 5.15 mm to slide.
+    button = EdgeFeature("button", "east", center_offset_mm=0.0, width_mm=10.0)
+    square = body(button)
+    rounded = Body(
+        51.3,
+        37.3,
+        14.2,
+        "caliper-verified",
+        "test",
+        features=(button,),
+        capture=WearableCapture(
+            device="tandem-mobi",
+            length_mm=51.3,
+            width_mm=37.3,
+            thickness_mm=14.2,
+            edge_features=(button,),
+            measured_by="A. Tester",
+            measured_on="2026-10-01",
+            caliper="digital caliper",
+            source="test",
+            sha256="0" * 64,
+            path=Path("mobi.json"),
+            outline_radius_mm=10.0,
+        ),
+    )
+
+    (east,) = clip_locations(square, ("east",), SnapShellPolicy())
+    assert east.y_mm == 7.5
+    with pytest.raises(ValueError, match="No place on the east edge clears button"):
+        clip_locations(rounded, ("east",), SnapShellPolicy())
 
 
 def load(name: str, monkeypatch: pytest.MonkeyPatch) -> ModuleType:

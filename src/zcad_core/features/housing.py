@@ -28,6 +28,7 @@ from zcad_core.features.housing_cradle import (
     build_cradle,
     device_envelope,
     half_across,
+    hook_reach,
     plan_cradle,
 )
 from zcad_core.features.housing_file import HousingSpec, load_housing_input
@@ -42,7 +43,7 @@ from zcad_core.features.housing_wear import add_wear, body_of
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware.electronics.board_file import BoardFileSpec
-from zcad_core.hardware.wearables import WearableCapture
+from zcad_core.hardware.wearables import DEVICES, WearableCapture
 
 _TOLERANCE_MM3 = 1e-6
 # A rounded skin edge is this much smaller than the outer corner it turns: equal
@@ -192,6 +193,16 @@ def _build_cradle(
     if plan.errors:
         raise ValueError("The housing cannot be built:\n- " + "\n- ".join(plan.errors))
 
+    covers_skin = _skin_side_open(capture)
+
+    if covers_skin and spec.wear:
+        raise ValueError(
+            f"A cradle's floor covers the skin side of a {capture.name}, which "
+            "must stay open against the body, so it cannot be worn: take out "
+            f"wear ({', '.join(w.kind for w in spec.wear)}) and use the cradle "
+            "as a holder"
+        )
+
     tray = build_cradle(
         capture,
         plan,
@@ -209,6 +220,11 @@ def _build_cradle(
         )
         <= _TOLERANCE_MM3,
         "edge_features_open": _features_open(tray, capture, spec),
+        "hooks_over_device": all(
+            intersection_volume(shape, workplane_shape(hook_reach(capture, tab)))
+            > _TOLERANCE_MM3
+            for tab in plan.tabs
+        ),
         **_skin_checks(tray, spec, worn, proud),
     }
 
@@ -220,10 +236,20 @@ def _build_cradle(
             **_cradle_summary(capture, plan, spec),
             "wear": worn,
             "skin_side": skin,
+            "skin_side_covered": covers_skin,
         },
         profile_id=str(profile.get("profile_id", "")),
         notes=_notes(spec),
     )
+
+
+def _skin_side_open(capture: WearableCapture) -> bool:
+    """Whether the captured device's skin side must stay open, which a cradle's
+    floor covers."""
+
+    device = DEVICES.get(capture.device)
+
+    return device is not None and device.skin_side_open
 
 
 def _features_open(

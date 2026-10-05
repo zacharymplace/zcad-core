@@ -44,8 +44,10 @@ CLIP = {"kind": "clip", "belt_thickness_mm": 4.0, "source": "my belt, measured"}
 ADHESIVE = {"kind": "adhesive", "patch_mm": [60.0, 45.0], "source": "my patch"}
 LANYARD = {"kind": "lanyard", "cord_diameter_mm": 3.0, "source": "my cord"}
 
-# The G7's cradle: a 27.4 x 24.1 x 4.7 mm device, a 4 mm radius, 0.3 mm of clearance
-# and a 1.2 mm wall, so a body 30.4 x 27.1 mm, from z = -1.2 to 5.8.
+# A cradle for a device the G7's size, 27.4 x 24.1 x 4.7 mm, with a 4 mm radius, 0.3 mm
+# of clearance and a 1.2 mm wall, so a body 30.4 x 27.1 mm, from z = -1.2 to 5.8. A
+# G7 itself cannot be worn in a cradle, whose floor covers its skin side, so the
+# capture is of a custom device of its size.
 XMAX, YMAX, ZMIN, ZMAX = 15.2, 13.55, -1.2, 5.8
 MID_Z = (ZMIN + ZMAX) / 2
 
@@ -54,6 +56,8 @@ def write_capture(directory: Path, **changes: Any) -> Path:
     data = capture_template("dexcom-g7")
     del data["needs_review"]
     data.update(
+        device="custom",
+        name="a G7-sized puck",
         measured_by="A. Tester",
         measured_on="2026-10-01",
         caliper="digital caliper, 0.01 mm",

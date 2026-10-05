@@ -97,6 +97,9 @@ class WearableDevice:
     published_mm: tuple[float, float, float]
     # Features a capture of this device should say it located.
     expected_features: tuple[str, ...]
+    # Whether the side against the body must stay open, as a sensor's adhesive
+    # patch and filament must, so nothing that covers it may be worn.
+    skin_side_open: bool = False
 
 
 DEVICES = {
@@ -109,6 +112,7 @@ DEVICES = {
             get_dexcom_g7().body_thickness_mm,
         ),
         expected_features=(),
+        skin_side_open=True,
     ),
     "tandem-mobi": WearableDevice(
         key="tandem-mobi",

@@ -46,23 +46,30 @@ The device lies in a pocket, face away from the body up, on a floor that closes 
 skin side. A wall rises round it to the device's top face, and **the face is left
 open**.
 
+Because the floor covers the skin side, a device whose skin side must stay open
+against the body, such as the Dexcom G7 with its adhesive patch and sensor filament,
+can sit in a cradle as a holder but cannot be worn in one: a G7 cradle with any `wear`
+is refused, and the build record says `skin_side_covered: true`.
+
 - **Tabs.** A snap tab on each chosen edge holds the device in. It is the top strip of
   the wall, cut free from the wall below by a slit along its underside and from the
   wall beside it by a slit at its free end, so it bends outward in the plane of the
-  wall, like a diving board. Its hook stands 0.6 mm in over the device's top edge. A
+  wall, like a diving board. Its hook stands 0.6 mm in over the device's top edge,
+  measured from the device's edge, so a wider `clearance_mm` never shortens it. A
   tab bending along the wall has the length it needs even on a thin device. The tab's
   strain, `3 t d / (2 L^2)`, is checked against the same provisional 1.5 per cent
   limit as the snap clips and the lid catch: the default 12 mm tab of a 1.2 mm wall
   strains 0.75 per cent. A thicker wall is refused, with the tab length it would need.
 - **Edge features.** Each feature the capture lists on an edge (a port, a button, a
   contact) gets a notch through the wall, and a tab stands off it by 1 mm. Every tab is
-  slid along its edge to the nearest place clear of its edge's features and of the
-  corners; an edge with no clear place is refused, naming it, and you take it out of
+  slid along its edge to the nearest place clear of its edge's features and 2 mm short
+  of where a rounded corner begins, as the snap shell's clips are; an edge with no clear place is refused, naming it, and you take it out of
   `retention_edges`.
 - **Face features.** A button or a screen on the face is left open. The build refuses a
   tab whose hook would cover one, naming it and the edge.
 - **Checks.** The tray is one solid, the device fits the pocket with nothing meeting
-  it, and every edge feature's notch is open.
+  it, every edge feature's notch is open, and every tab's hook reaches over the
+  device's top face.
 
 ## The case
 
@@ -101,7 +108,8 @@ examples to replace; a file whose `source` still says `EXAMPLE` is refused.
 ```
 
 - **Each is checked against the housing.** A strap needs lugs `strap + 4 mm` across, so it
-  is refused if wider than the housing's width less 4 mm (23.1 mm on the G7's cradle); the
+  is refused if wider than the housing's width less 4 mm (23.1 mm on the cradle of a
+  device the G7's size); the
   lugs must also be shorter than the housing is tall. A band needs ears `band + 3 mm` wide.
   An adhesive patch must hold the housing with 2 mm to spare. A belt clip's arm is as long as
   the housing allows, up to 18 mm, and is refused, with the length it would need, if its
