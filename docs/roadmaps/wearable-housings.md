@@ -5,7 +5,8 @@
 The engine has one wearable product: a snap shell for two sealed medical devices,
 the Dexcom G7 and the Tandem Mobi. It is a set of clips at the device's edges, each
 hooking 0.6 mm over the top edge, touching neither face. It is built from published
-sizes, or from a caliper capture that raises it to a `verified_candidate`, and it
+sizes, or from a caliper capture that makes it a `provisional_measured_candidate`
+(its clips are not yet designed against the device, so never a `verified_candidate`), and it
 goes through the Validation Lab's retention pipeline. It does not house anything, and
 nothing about it attaches to a body.
 

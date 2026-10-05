@@ -37,6 +37,7 @@ from zcad_core.retention import (
     sha256_file,
     write_immutable_manifest,
 )
+from zcad_core.retention.promotion import physical_trial_check
 
 
 def _candidate_create(args: argparse.Namespace) -> int:
@@ -337,7 +338,11 @@ def _candidate_promote(args: argparse.Namespace) -> int:
         automated_validation_passed=(
             candidate.automated_decision == "verified_candidate"
         ),
-        physical_validation_passed=args.physical_validation_passed,
+        # Read from the trial record, as the automated decision is; the
+        # --physical-validation-passed flag is no longer what decides it.
+        physical_validation_passed=not physical_trial_check(
+            Path(args.physical_trial_path), Path(args.candidate_manifest)
+        ),
         candidate_manifest_path=str(args.candidate_manifest),
         relationship_path=(
             str(args.relationship_path) if args.relationship_path is not None else None
@@ -519,7 +524,14 @@ def register(
         type=Path,
         help="Passing visual-review record from 'review complete'.",
     )
-    candidate_promote.add_argument("--physical-validation-passed", action="store_true")
+    candidate_promote.add_argument(
+        "--physical-validation-passed",
+        action="store_true",
+        help=(
+            "Ignored, and kept so older commands still run: whether the trial "
+            "passed is read from --physical-trial-path."
+        ),
+    )
     candidate_promote.add_argument(
         "--supersedes-candidate-id",
         help=(

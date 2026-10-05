@@ -4,9 +4,14 @@ The Dexcom G7 and Tandem Mobi scripts share this. A candidate's body is a
 rectangular envelope: from the device's published dimensions, which makes
 it a ``provisional_synthetic_candidate`` that no trial may use, or from a
 caliper capture (:mod:`zcad_core.hardware.wearables.capture`), which makes
-it a ``verified_candidate``. A capture's file is copied beside the candidate
-and its SHA-256 recorded, and each clip slides along its edge to stand
-clear of every feature the capture lists.
+it a ``provisional_measured_candidate``: its size is measured, but its clips
+are still the synthetic backend's, whose device clearance and shell
+continuity are placeholders, so it is never a ``verified_candidate`` and
+never approved for publication. The record measures how far the clips reach
+into the device's envelope (``clips_into_device_mm3``), so that is in the
+evidence. A capture's file is copied beside the candidate and its SHA-256
+recorded, and each clip slides along its edge to stand clear of every
+feature the capture lists.
 
 The first revision registers the target as well. A later one names its
 parent and why, writes its own envelope beside the earlier ones so their
@@ -24,9 +29,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 import cadquery as cq
 
+from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware.wearables import EdgeFeature, WearableCapture, load_capture
 from zcad_core.hardware.wearables.edge_placement import clear_offset, edge_reach_mm
 from zcad_core.retention.engine import RetentionEngine, RetentionStrategy
@@ -36,7 +43,11 @@ from zcad_core.retention.revision_registration import (
     load_candidate_revision,
     persist_candidate_revision,
 )
-from zcad_core.retention.snap_shell import SnapShellLocation, SnapShellPolicy
+from zcad_core.retention.snap_shell import (
+    SnapShellLocation,
+    SnapShellParameters,
+    SnapShellPolicy,
+)
 from zcad_core.retention.snap_shell_backend import (
     SnapShellRequest,
     as_snap_shell_fit_report,
@@ -301,10 +312,23 @@ def register_snap_shell_candidate(
     source_sha256 = sha256_file(paths.source_step)
     output_sha256 = sha256_file(paths.retention_step)
 
+    # The clips as built, against the envelope they are meant to hold: the
+    # synthetic backend checks neither, so the overlap is measured here.
+    if not isinstance(execution.parameters, SnapShellParameters):
+        raise TypeError("Retention execution did not produce snap-shell parameters")
+
+    clips_into_device = intersection_volume(
+        cast(
+            cq.Shape,
+            SyntheticSnapShellBackend().build_geometry(execution.parameters).val(),
+        ),
+        cast(cq.Shape, envelope.val()),
+    )
+
     if not execution.passed:
         decision = "rejected"
     elif from_capture:
-        decision = "verified_candidate"
+        decision = "provisional_measured_candidate"
     else:
         decision = "provisional_synthetic_candidate"
 
@@ -331,6 +355,7 @@ def register_snap_shell_candidate(
         created_at=created_at,
         source_sha256=source_sha256,
         output_sha256=output_sha256,
+        clips_into_device_mm3=clips_into_device,
     )
     paths.automated_report.parent.mkdir(parents=True, exist_ok=True)
     paths.automated_report.write_text(
@@ -484,6 +509,7 @@ def _report(
     created_at: str,
     source_sha256: str,
     output_sha256: str,
+    clips_into_device_mm3: float = 0.0,
 ) -> dict[str, object]:
     report: dict[str, object] = {
         "schema_version": "1.0.0",
@@ -517,12 +543,17 @@ def _report(
         ],
         "policy": retention_policy,
         "fit_checks": fit_results,
+        "clips_into_device_mm3": round(clips_into_device_mm3, 3),
         "metadata_publication": (
             {
                 "approved": decision == "verified_candidate",
                 "reason": (
-                    f"Built from caliper capture {paths.relative(paths.capture_copy)}; "
-                    "a printed trial on the real device is still required."
+                    f"Sized from caliper capture {paths.relative(paths.capture_copy)}, "
+                    "but the clips are the synthetic backend's: its device clearance "
+                    "and shell continuity are unverified placeholders, and the clips "
+                    f"reach {clips_into_device_mm3:.1f} mm3 into the device's "
+                    "envelope. Not for publication or a trial until the clips are "
+                    "designed against the device."
                 ),
             }
             if body.capture is not None

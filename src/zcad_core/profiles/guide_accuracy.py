@@ -34,6 +34,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from zcad_core.profiles.trial_records import distinct_trial_records
+
 GUIDE_ACCURACY_SCHEMA_VERSION = "1.0.0"
 # One trial is a data point; a profile pools several.
 DEFAULT_MINIMUM_TRIALS = 2
@@ -56,9 +58,10 @@ def collect_guide_trials(
 
     trials = []
 
-    for path in sorted(evidence_root.rglob("trials/*/guide-trial.json")):
-        record = _read(path)
-
+    # Each record once: a copy in a second folder is the same trial.
+    for path, record in distinct_trial_records(
+        evidence_root, "trials/*/guide-trial.json"
+    ):
         if (
             record.get("passed")
             and record.get("printer_profile_id") == printer_profile_id

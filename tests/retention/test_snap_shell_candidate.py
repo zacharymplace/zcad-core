@@ -126,7 +126,7 @@ def capture(path: Path, device: str, features: list[dict[str, Any]]) -> Path:
     return path
 
 
-def test_a_capture_builds_a_verified_candidate_with_clips_clear_of_its_features(
+def test_a_capture_builds_a_measured_but_unverified_candidate(
     root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     script = load("build-tandem-mobi-snap-shell-candidate", monkeypatch)
@@ -171,9 +171,14 @@ def test_a_capture_builds_a_verified_candidate_with_clips_clear_of_its_features(
     folder = root / "evidence/tandem-mobi-pump/validation-lab/candidates/r002"
     report = json.loads((folder / "automated-validation.json").read_text("utf-8"))
     candidate = json.loads((folder / "candidate.json").read_text("utf-8"))
-    assert candidate["automated_decision"] == "verified_candidate"
+    # Its size is measured, but the synthetic clips' device clearance and shell
+    # continuity are placeholders, so it is neither verified nor approved, and
+    # how far the clips reach into the device is in the record.
+    assert candidate["automated_decision"] == "provisional_measured_candidate"
     assert report["geometry_evidence_status"] == "caliper-verified"
-    assert report["metadata_publication"]["approved"]
+    assert not report["metadata_publication"]["approved"]
+    assert report["clips_into_device_mm3"] > 0
+    assert "unverified placeholders" in report["metadata_publication"]["reason"]
     assert report["capture"]["measured_by"] == "A. Tester"
     assert (folder / "capture.json").read_bytes() == mobi.read_bytes()
     assert report["source"]["step_path"].endswith(

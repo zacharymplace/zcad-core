@@ -39,6 +39,8 @@ def trial(
         json.dumps(
             {
                 "trial_id": "trial-001",
+                # Each guide is its own build, as a real record names.
+                "build_record_path": str(root / name / "guide.json"),
                 "passed": passed,
                 "printer_profile_id": printer,
                 "material_profile_id": material,

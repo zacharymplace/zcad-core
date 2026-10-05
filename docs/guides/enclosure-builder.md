@@ -398,9 +398,26 @@ For each slice the quick check calls stale or unknown, it runs the build
 again with today's code into a temporary folder, using the command line the
 slice recorded (less its output folder, `--slice`, `--slicer-profile`, and
 `--review`). It then compares the new part STLs with those the slice was built
-from. A part exports byte for byte the same from the same geometry, so
-identical parts mean `current`, and a different part means `stale`, naming
-the part. Each design takes about a minute. Only `enclosure build --slice`
+from, and the print-oriented copies (`print/`, the lid turned as the slicer was
+given it) with those the slice summary records. A part exports byte for byte
+the same from the same geometry, so identical files mean `current`, and a
+different one means `stale`, naming it. Each design takes about a minute.
+
+Three things no rebuild can clear, so they keep a slice `stale` whatever the
+parts say (`checked_by: files` for the first two):
+
+- the `plate_1.gcode` beside the summary is missing or is not the G-code it
+  records;
+- a file the build's command line named, such as a `--board-file` or a bay's
+  `file=`, has changed since (slices made before this was recorded cannot
+  tell); and
+- the slicing code (`src/zcad_core/printing/bambu.py`) or a slicer profile
+  (`profiles/slicers/`) has changed since, because the same parts then slice
+  to different G-code.
+
+A completed trial also checks the slice it was printed from, when there is one:
+the G-code and the print copies must still be the files the summary records, and
+the trial records their hashes under `printed_from`. Only `enclosure build --slice`
 and `enclosure-group build --slice` record a command line. A slice made
 before they did, or by `enclosure revise`, stays `unknown` until it is sliced
 again. Each entry says whether the commit or a rebuild decided it.

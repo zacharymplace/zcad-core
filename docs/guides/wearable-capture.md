@@ -3,7 +3,10 @@
 The Dexcom G7 and Tandem Mobi snap shells start from published sizes, so their
 candidates are `provisional_synthetic_candidate` and no trial may use them. A
 caliper capture replaces those sizes with your measurements of the real device.
-A candidate built from it is a `verified_candidate`, ready for a printed trial.
+A candidate built from it is a `provisional_measured_candidate`: its size is
+yours, but its clips are still the synthetic backend's, whose device clearance
+and shell continuity are unverified placeholders, so it is not yet one to print
+or trial. See **Status** below.
 
 ```bash
 zcad-validation wearable template --device tandem-mobi --output mobi.json
@@ -136,9 +139,12 @@ A valid capture prints the sizes the candidate will use and its SHA-256.
 - **Provenance:** the capture file is copied into the candidate's folder as
   `capture.json`. Its SHA-256, who measured, when, and with what go into
   `automated-validation.json`.
-- **Status:** the decision is `verified_candidate` and the geometry is
-  `caliper-verified`. A printed trial on the real device is still what proves
-  it.
+- **Status:** the decision is `provisional_measured_candidate` and the
+  geometry is `caliper-verified`. It is not a `verified_candidate` and not
+  approved for publication: the snap-shell backend places its clips for
+  synthetic fixtures, and on a measured device they reach into its envelope.
+  The record says how far (`clips_into_device_mm3`). Until the clips are
+  designed against the device, do not print one for a trial.
 
 The capture names whoever measured. It lives in `evidence/`, which is backed up
 privately, not in the public repository.

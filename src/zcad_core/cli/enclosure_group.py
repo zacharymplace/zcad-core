@@ -33,7 +33,7 @@ from zcad_core.cli.enclosure_group_thermal import (
     _trial_complete,
     _trial_start,
 )
-from zcad_core.cli.slice_check import rebuild_recipe
+from zcad_core.cli.slice_check import rebuild_recipe, write_print_copies
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.connector_cutouts import MINIMUM_OPENING_WEB_MM
 from zcad_core.features.enclosure_group import (
@@ -195,6 +195,13 @@ def _group_build(args: argparse.Namespace) -> int:
         if args.slice and group.passed
         else None
     )
+    print_copies = (
+        write_print_copies(
+            args.output_directory / "print", name, print_oriented_parts(group)
+        )
+        if args.print_copies and not args.slice
+        else None
+    )
     emit(
         {
             "design_name": name,
@@ -248,6 +255,7 @@ def _group_build(args: argparse.Namespace) -> int:
             "review_step": str(review_path),
             "review_lid": review_lid,
             "print": printed,
+            "print_copies": print_copies,
             "parts": {
                 part.part_name: {
                     "step": str(part.step_path),
@@ -450,6 +458,15 @@ def register(
         ),
     )
     build.add_argument("--slicer-profile", type=Path, default=DEFAULT_SLICER_PROFILE)
+    build.add_argument(
+        "--print-copies",
+        action="store_true",
+        help=(
+            "write the print-oriented STLs the slicer would be given, in "
+            "<output-directory>/print, without slicing; slice check --rebuild "
+            "uses it to compare what was printed"
+        ),
+    )
     build.set_defaults(handler=_group_build)
 
     trial = commands.add_parser("trial", help="record a print of a built group")

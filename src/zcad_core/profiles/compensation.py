@@ -34,6 +34,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from zcad_core.profiles.trial_records import distinct_trial_records
+
 COMPENSATION_SCHEMA_VERSION = "1.0.0"
 FIGURES = ("hole_shortfall_mm", "side_gap_shortfall_mm", "vertical_play_shortfall_mm")
 # One trial is a revision's job; a profile pools several.
@@ -107,8 +109,10 @@ def collect_samples(
 
     samples: list[Sample] = []
 
-    for path in sorted(evidence_root.rglob("trials/*/physical-validation.json")):
-        record = _read(path)
+    # Each record once: a copy in a second folder is the same trial.
+    for path, record in distinct_trial_records(
+        evidence_root, "trials/*/physical-validation.json"
+    ):
         pending = (
             record.get("disposition") == "pending"
             or not record.get("completed_at_utc", "").strip()
@@ -121,9 +125,9 @@ def collect_samples(
         ):
             samples.extend(_fixture_samples(path, record))
 
-    for path in sorted(evidence_root.rglob("trials/*/enclosure-trial.json")):
-        record = _read(path)
-
+    for path, record in distinct_trial_records(
+        evidence_root, "trials/*/enclosure-trial.json"
+    ):
         if (
             record.get("printer_profile_id") == printer_profile_id
             and record.get("material_profile_id") == material_profile_id
