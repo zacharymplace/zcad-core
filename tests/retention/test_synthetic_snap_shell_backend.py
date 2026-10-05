@@ -435,3 +435,28 @@ def test_a_tab_turned_so_its_hook_runs_off_the_edge_does_not_engage() -> None:
             locations=(near_corner, south, east),
         )
     )
+
+
+def test_anchor_separation_is_measured_between_the_hooks() -> None:
+    # Three tabs whose middles are well spread, two turned so their hooks,
+    # half a tab along from each middle, land on the same point.
+    locations = (
+        SnapShellLocation(label="a", x_mm=0.0, y_mm=0.0, rotation_degrees=0.0),
+        SnapShellLocation(label="b", x_mm=0.0, y_mm=12.0, rotation_degrees=180.0),
+        SnapShellLocation(label="c", x_mm=10.0, y_mm=0.0, rotation_degrees=0.0),
+    )
+
+    def anchored(policy: SnapShellPolicy) -> bool:
+        backend = SyntheticSnapShellBackend()
+        report = backend.analyze_fit(
+            backend.derive(valid_request(policy, locations=locations))
+        )
+
+        return SnapShellFitCheck.ANCHOR_SEPARATION not in {
+            result.check for result in report.failures
+        }
+
+    # As posts, the hooks are the middles: spread.
+    assert anchored(SnapShellPolicy())
+    # As tabs, two hooks meet at (0, 6).
+    assert not anchored(SnapShellPolicy(tab_length_mm=TAB_LENGTH_MM))

@@ -195,10 +195,10 @@ class SyntheticSnapShellBackend:
                     check=(SnapShellFitCheck.ANCHOR_SEPARATION),
                     passed=anchor_passed,
                     detail=(
-                        "Clip locations are spread apart enough to "
+                        "The clips' hooks are spread apart enough to "
                         "resist rotation in every direction."
                         if anchor_passed
-                        else "Clip locations must be spread apart by at "
+                        else "The clips' hooks must be spread apart by at "
                         "least one clip width, and not collinear."
                     ),
                 ),
@@ -312,7 +312,12 @@ class SyntheticSnapShellBackend:
     def _anchor_separation_passed(
         parameters: SnapShellParameters,
     ) -> bool:
-        locations = parameters.locations
+        # The hooks are what hold the device, so their spread is what resists
+        # rocking: a post's is at its location, a tab's half a tab along the
+        # edge from it.
+        locations = tuple(
+            _hook_point(parameters, location) for location in parameters.locations
+        )
 
         distances = tuple(
             hypot(first.x_mm - second.x_mm, first.y_mm - second.y_mm)
