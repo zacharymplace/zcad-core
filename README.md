@@ -45,10 +45,16 @@ This repository intentionally contains no product-specific models.
 ## Developing
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,docs]" -c constraints.txt
 git config core.hooksPath .githooks
 scripts/check.sh
 ```
+
+`constraints.txt` pins every package at the version the tests pass with, so
+the environment the evidence was made with can be rebuilt; the test suite
+fails if the installed versions drift from it. After upgrading a package on
+purpose, run `scripts/lock-dependencies.py` and commit the new pins with
+whatever the upgrade changed.
 
 GitHub Actions is disabled for this account, so `scripts/check.sh` is the
 gate: ruff format, ruff check, mypy over `src`, `scripts`, `tests` and
@@ -72,6 +78,5 @@ Generated API reference and architecture docs live in `docs/` (built with
 [MkDocs](https://www.mkdocs.org/) + [mkdocstrings](https://mkdocstrings.github.io/)):
 
 ```bash
-pip install -e ".[docs]"
 mkdocs serve
 ```
