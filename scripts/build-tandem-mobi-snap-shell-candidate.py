@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Register a Tandem Mobi snap-shell Validation Lab candidate.
 
-There is no manufacturer STEP file for the Mobi, so the body is a
-rectangular envelope. With no ``--capture`` it is sized from the published
-dimensions in :mod:`zcad_core.hardware.wearables.tandem`, without the fill
-port, buttons, or charging contacts, whose places are unknown: the
+There is no manufacturer STEP file for the Mobi, so the body is an
+envelope, rounded if a capture gives a corner radius. With no
+``--capture`` it is sized from the published dimensions in
+:mod:`zcad_core.hardware.wearables.tandem`, without the fill port,
+buttons, or charging contacts, whose places are unknown: the
 candidate is a ``provisional_synthetic_candidate`` that no trial may use.
 With a caliper capture (see docs/guides/wearable-capture.md) it is sized
 from the measurements, its clips stand clear of every feature the capture

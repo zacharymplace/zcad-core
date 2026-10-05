@@ -1,7 +1,7 @@
 """Register a wearable device's snap-shell Validation Lab candidate.
 
-The Dexcom G7 and Tandem Mobi scripts share this. A candidate's body is a
-rectangular envelope: from the device's published dimensions, which makes
+The Dexcom G7 and Tandem Mobi scripts share this. A candidate's body is an
+envelope, a rectangle or the rounded rectangle a capture gives: from the device's published dimensions, which makes
 it a ``provisional_synthetic_candidate`` that no trial may use, or from a
 caliper capture (:mod:`zcad_core.hardware.wearables.capture`), which makes
 it a ``verified_candidate`` when the shell's fit checks pass. A capture's
@@ -322,27 +322,29 @@ def register_snap_shell_candidate(
 
     _require_new(paths, parent)
 
-    envelope = (
-        cq.Workplane("XY")
-        .box(body.length_mm, body.width_mm, body.thickness_mm)
-        .translate((0.0, 0.0, body.thickness_mm / 2.0))
+    backend = SyntheticSnapShellBackend()
+    request = SnapShellRequest(
+        device_thickness_mm=body.thickness_mm,
+        device_length_mm=body.length_mm,
+        device_width_mm=body.width_mm,
+        locations=locations,
+        policy=policy,
+        edge_features=body.features,
+        device_corner_radius_mm=(
+            body.capture.outline_radius_mm if body.capture else None
+        )
+        or 0.0,
     )
+    # The envelope the shell is built and checked against, as its source.
+    envelope = backend.device_envelope(backend.derive(request))
     paths.source_step.parent.mkdir(parents=True, exist_ok=True)
     cq.exporters.export(envelope, str(paths.source_step))
 
-    backend = SyntheticSnapShellBackend()
     engine = RetentionEngine()
     engine.register(RetentionStrategy.SNAP_SHELL, backend)
     execution = engine.execute(
         strategy=RetentionStrategy.SNAP_SHELL,
-        request=SnapShellRequest(
-            device_thickness_mm=body.thickness_mm,
-            device_length_mm=body.length_mm,
-            device_width_mm=body.width_mm,
-            locations=locations,
-            policy=policy,
-            edge_features=body.features,
-        ),
+        request=request,
         model=envelope,
     )
 
@@ -576,6 +578,10 @@ def _report(
             "body_length_mm": body.length_mm,
             "body_width_mm": body.width_mm,
             "body_thickness_mm": body.thickness_mm,
+            "body_corner_radius_mm": (
+                body.capture.outline_radius_mm if body.capture else None
+            )
+            or 0.0,
         },
         "selected_corners": [location.label for location in locations],
         "snap_shell_locations": [

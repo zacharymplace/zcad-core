@@ -15,8 +15,8 @@ from zcad_core.retention.snap_shell import (
 @dataclass(frozen=True)
 class SnapShellRequest:
     """Validated input required to derive snap-shell geometry: the device's
-    size, the points on its edges where clips hold it, and the features on
-    its edges the shell must leave open."""
+    size and corner radius, the points on its edges where clips hold it, and
+    the features on its edges the shell must leave open."""
 
     device_thickness_mm: float
     device_length_mm: float
@@ -24,6 +24,7 @@ class SnapShellRequest:
     locations: tuple[SnapShellLocation, ...]
     policy: SnapShellPolicy
     edge_features: tuple[EdgeFeature, ...] = ()
+    device_corner_radius_mm: float = 0.0
 
     def __post_init__(self) -> None:
         for name, value in {

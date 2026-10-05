@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import replace
 from itertools import combinations
 from math import hypot
@@ -14,6 +15,8 @@ from zcad_core.features.snap_retention import (
 )
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.intersection import intersection_volume, solid_intersection
+from zcad_core.geometry.outline_prism import outline_prism
+from zcad_core.hardware.electronics import board_outline
 from zcad_core.hardware.wearables.edge_placement import FEATURE_MARGIN_MM
 from zcad_core.retention.snap_shell import (
     SnapShellLocation,
@@ -40,7 +43,8 @@ class SyntheticSnapShellBackend:
     """CadQuery backend for a snap shell around a box-shaped device.
 
     The device is the box its parameters give: ``device_length_mm`` along
-    X, ``device_width_mm`` along Y, centred, its underside at ``z == 0``.
+    X, ``device_width_mm`` along Y, centred, its underside at ``z == 0``,
+    its corners rounded to ``device_corner_radius_mm``.
     The shell is a frame and a clip at each
     :class:`~zcad_core.retention.snap_shell.SnapShellLocation`:
 
@@ -79,6 +83,7 @@ class SyntheticSnapShellBackend:
             locations=request.locations,
             policy=request.policy,
             edge_features=request.edge_features,
+            device_corner_radius_mm=request.device_corner_radius_mm,
         )
 
     def apply(
@@ -114,13 +119,10 @@ class SyntheticSnapShellBackend:
         return shell
 
     def device_envelope(self, parameters: SnapShellParameters) -> cq.Workplane:
-        """The device as the shell must clear it."""
+        """The device as the shell must clear it: its outline, square or
+        rounded, from its underside to its top face."""
 
-        return _box(
-            (-parameters.device_length_mm / 2, parameters.device_length_mm / 2),
-            (-parameters.device_width_mm / 2, parameters.device_width_mm / 2),
-            (0.0, parameters.device_thickness_mm),
-        )
+        return outline_prism(_outline(parameters), 0.0, parameters.device_thickness_mm)
 
     def clips_into_device_mm3(self, parameters: SnapShellParameters) -> float:
         """How much shell material is inside the device's envelope."""
@@ -242,13 +244,9 @@ class SyntheticSnapShellBackend:
         not below it, where it rests on the frame's ledge."""
 
         grow = max(parameters.clearance_mm - _CLEARANCE_SLACK_MM, 0.0)
-        half_x = parameters.device_length_mm / 2 + grow
-        half_y = parameters.device_width_mm / 2 + grow
 
-        return _box(
-            (-half_x, half_x),
-            (-half_y, half_y),
-            (0.0, parameters.device_thickness_mm + grow),
+        return outline_prism(
+            _outline(parameters), 0.0, parameters.device_thickness_mm + grow, grow
         )
 
     def _engagement_failures(
@@ -354,32 +352,23 @@ class SyntheticSnapShellBackend:
     @staticmethod
     def _build_frame(parameters: SnapShellParameters) -> cq.Workplane:
         """The plate under the device's rim and the rim up its sides, with a
-        notch through the rim at each edge feature."""
+        notch through the rim at each edge feature. All three follow the
+        device's outline, so a rounded device has a rounded frame the same
+        clearance from it all the way round."""
 
         half_x = parameters.device_length_mm / 2
         half_y = parameters.device_width_mm / 2
         reach = parameters.clearance_mm + parameters.wall_mm
         rim_inner = parameters.clearance_mm
         floor = -parameters.wall_mm
+        outline = _outline(parameters)
 
-        frame = _box(
-            (-half_x - reach, half_x + reach),
-            (-half_y - reach, half_y + reach),
-            (floor, parameters.rim_height_mm),
+        frame = outline_prism(outline, floor, parameters.rim_height_mm, reach)
+        frame = frame.cut(
+            outline_prism(outline, 0.0, parameters.rim_height_mm + 1.0, rim_inner)
         )
         frame = frame.cut(
-            _box(
-                (-half_x - rim_inner, half_x + rim_inner),
-                (-half_y - rim_inner, half_y + rim_inner),
-                (0.0, parameters.rim_height_mm + 1.0),
-            )
-        )
-        frame = frame.cut(
-            _box(
-                (-half_x + parameters.ledge_mm, half_x - parameters.ledge_mm),
-                (-half_y + parameters.ledge_mm, half_y - parameters.ledge_mm),
-                (floor - 1.0, 1.0),
-            )
+            outline_prism(outline, floor - 1.0, 1.0, -parameters.ledge_mm)
         )
 
         for feature in parameters.edge_features:
@@ -520,20 +509,40 @@ def _hook_point(
 def _inward(
     parameters: SnapShellParameters, location: SnapShellLocation
 ) -> tuple[float, float] | None:
-    """The way into the device from a location on its edge, ``None`` if the
-    location is on no edge."""
+    """The way into the device from a location on an edge's straight run,
+    ``None`` if the location is on none: off the edges, or on a rounded
+    corner, where a lip has no edge to hook."""
 
+    radius = parameters.device_corner_radius_mm
     half_x = parameters.device_length_mm / 2
     half_y = parameters.device_width_mm / 2
     x, y = location.x_mm, location.y_mm
 
-    if abs(abs(y) - half_y) <= _ON_EDGE_MM and abs(x) <= half_x:
+    if abs(abs(y) - half_y) <= _ON_EDGE_MM and abs(x) <= half_x - radius:
         return (0.0, -1.0 if y > 0 else 1.0)
 
-    if abs(abs(x) - half_x) <= _ON_EDGE_MM and abs(y) <= half_y:
+    if abs(abs(x) - half_x) <= _ON_EDGE_MM and abs(y) <= half_y - radius:
         return (-1.0 if x > 0 else 1.0, 0.0)
 
     return None
+
+
+def _outline(parameters: SnapShellParameters) -> Sequence[tuple[float, float]]:
+    """The device's outline from above: a rectangle, or a rounded one."""
+
+    length, width = parameters.device_length_mm, parameters.device_width_mm
+
+    if parameters.device_corner_radius_mm:
+        return board_outline.rounded_rectangle_points(
+            length, width, parameters.device_corner_radius_mm
+        )
+
+    return (
+        (-length / 2, -width / 2),
+        (length / 2, -width / 2),
+        (length / 2, width / 2),
+        (-length / 2, width / 2),
+    )
 
 
 def _box(
