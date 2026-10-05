@@ -11,7 +11,12 @@ from typing import Any
 
 import pytest
 
-from zcad_core.hardware.wearables import EdgeFeature, WearableCapture, capture_template
+from zcad_core.hardware.wearables import (
+    EdgeFeature,
+    FaceFeature,
+    WearableCapture,
+    capture_template,
+)
 from zcad_core.retention import SnapShellPolicy
 from zcad_core.retention.snap_shell_candidate import Body, clip_locations
 
@@ -101,6 +106,62 @@ def test_a_tab_needs_its_whole_span_clear_of_a_feature() -> None:
 
     assert post.x_mm == 5.0
     assert tab.x_mm == 11.0
+
+
+def test_a_clip_slides_until_its_hook_clears_a_face_feature() -> None:
+    # A button 2 mm deep beside the north edge (18.65 mm out), its side
+    # 0.15 mm in: the hook, 0.6 mm in, would cover it. Half the hook (1.5),
+    # half the button (2) and the 0.5 mm face margin apart.
+    button = FaceFeature(
+        "button", center_x_mm=0.0, center_y_mm=17.5, width_mm=4.0, depth_mm=2.0
+    )
+    held = Body(51.3, 37.3, 14.2, "caliper-verified", "test", face_features=(button,))
+
+    (north, south) = clip_locations(held, ("north", "south"), SnapShellPolicy())
+
+    assert (north.x_mm, north.y_mm) == (4.0, 18.65)
+    # The south hook is nowhere near it.
+    assert south.x_mm == 0.0
+
+
+def test_a_face_feature_further_in_than_the_hook_reaches_is_left_alone() -> None:
+    # Its side 1.15 mm in from the edge: past the hook's 0.6 mm and the margin.
+    screen = FaceFeature(
+        "screen", center_x_mm=0.0, center_y_mm=16.5, width_mm=4.0, depth_mm=2.0
+    )
+    held = Body(51.3, 37.3, 14.2, "caliper-verified", "test", face_features=(screen,))
+
+    (north,) = clip_locations(held, ("north",), SnapShellPolicy())
+
+    assert north.x_mm == 0.0
+
+
+def test_a_tab_is_judged_by_its_hook_not_its_post() -> None:
+    # A G7-sized body; a north tab's hook stands 6 mm +X of its middle.
+    tabs = SnapShellPolicy(tab_length_mm=12.0)
+
+    def north_x(center_x: float) -> float:
+        light = FaceFeature(
+            "light", center_x_mm=center_x, center_y_mm=11.5, width_mm=2.0, depth_mm=1.0
+        )
+        held = Body(27.4, 24.1, 4.7, "caliper-verified", "test", face_features=(light,))
+        (north,) = clip_locations(held, ("north",), tabs)
+        return north.x_mm
+
+    # Under the post end, the beam stands outside the device: nothing moves.
+    assert north_x(-6.0) == 0.0
+    # Under the hook: the tab slides until the hook clears it by the margin.
+    assert north_x(6.0) == 3.0
+
+
+def test_an_edge_whose_hook_cannot_clear_a_face_feature_is_refused() -> None:
+    strip = FaceFeature(
+        "light-bar", center_x_mm=0.0, center_y_mm=17.5, width_mm=48.0, depth_mm=2.0
+    )
+    held = Body(51.3, 37.3, 14.2, "caliper-verified", "test", face_features=(strip,))
+
+    with pytest.raises(ValueError, match="No place on the north edge clears light-bar"):
+        clip_locations(held, ("north",), SnapShellPolicy())
 
 
 def load(name: str, monkeypatch: pytest.MonkeyPatch) -> ModuleType:
@@ -197,6 +258,7 @@ def test_a_capture_builds_a_verified_candidate_with_clips_clear_of_its_features(
     assert report["geometry_evidence_status"] == "caliper-verified"
     assert report["metadata_publication"]["approved"]
     assert report["capture"]["measured_by"] == "A. Tester"
+    assert report["capture"]["face_features"] == []
     assert (folder / "capture.json").read_bytes() == mobi.read_bytes()
     assert report["source"]["step_path"].endswith(
         "tandem-mobi-caliper-envelope-r002.step"

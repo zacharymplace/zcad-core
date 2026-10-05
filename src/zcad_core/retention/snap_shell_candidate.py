@@ -6,7 +6,8 @@ it a ``provisional_synthetic_candidate`` that no trial may use, or from a
 caliper capture (:mod:`zcad_core.hardware.wearables.capture`), which makes
 it a ``verified_candidate`` when the shell's fit checks pass. A capture's
 file is copied beside the candidate and its SHA-256 recorded, and each clip
-slides along its edge to stand clear of every feature the capture lists.
+slides along its edge to stand clear of every edge feature the capture
+lists, with its hook clear of every face feature.
 
 The shell (see :class:`SyntheticSnapShellBackend`) is a frame the device
 rests on and a clip on each chosen edge, built against the envelope: each
@@ -38,8 +39,17 @@ from pathlib import Path
 
 import cadquery as cq
 
-from zcad_core.hardware.wearables import EdgeFeature, WearableCapture, load_capture
-from zcad_core.hardware.wearables.edge_placement import clear_offset, edge_reach_mm
+from zcad_core.hardware.wearables import (
+    EdgeFeature,
+    FaceFeature,
+    WearableCapture,
+    load_capture,
+)
+from zcad_core.hardware.wearables.edge_placement import (
+    clear_offset,
+    edge_reach_mm,
+    face_keepouts,
+)
 from zcad_core.retention.engine import RetentionEngine, RetentionStrategy
 from zcad_core.retention.export_validation import run_candidate_export_validation
 from zcad_core.retention.revision_history import RevisionRelationshipType
@@ -108,6 +118,7 @@ class Body:
     source: str
     features: tuple[EdgeFeature, ...] = ()
     capture: WearableCapture | None = None
+    face_features: tuple[FaceFeature, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -225,6 +236,7 @@ def body_from(
         ),
         features=capture.edge_features,
         capture=capture,
+        face_features=capture.face_features,
     )
 
 
@@ -233,26 +245,44 @@ def clip_locations(
 ) -> tuple[SnapShellLocation, ...]:
     """A clip at the middle of each edge, slid along it to the nearest place
     clear of every feature there and off a rounded corner, as the cradle's tabs
-    are. Raises ``ValueError`` naming the edge when no place along it is
-    clear."""
+    are, and where its hook covers no face feature. Raises ``ValueError``
+    naming the edge and what blocks it when no place along it is clear."""
 
     locations = []
     radius = (body.capture.outline_radius_mm if body.capture else None) or 0.0
+    half_length, half_width = body.length_mm / 2, body.width_mm / 2
 
     for edge in edges:
         along = body.length_mm if edge in ("north", "south") else body.width_mm
         reach = edge_reach_mm(along, policy.span_mm, radius)
         blocked = [feature for feature in body.features if feature.edge == edge]
-        offset = clear_offset(blocked, reach, policy.span_mm)
+        # A tab's hook is at its free end, half a tab along the edge from its
+        # middle: +X on the north edge, +Y on the west, back the other way on
+        # the south and east (see SnapShellPolicy and _EDGE_ROTATION).
+        hook_offset = (policy.tab_length_mm or 0.0) / 2
+        covered = face_keepouts(
+            body.face_features,
+            edge,
+            half_length_mm=half_length,
+            half_width_mm=half_width,
+            overhang_mm=policy.overhang_mm,
+            hook_width_mm=policy.clip_width_mm,
+            hook_offset_mm=hook_offset if edge in ("north", "west") else -hook_offset,
+        )
+        offset = clear_offset(
+            blocked, reach, policy.span_mm, [keepout for _, keepout in covered]
+        )
 
         if offset is None:
-            names = ", ".join(feature.identifier for feature in blocked)
+            names = ", ".join(
+                [feature.identifier for feature in blocked]
+                + [feature.identifier for feature, _ in covered]
+            )
             raise ValueError(
                 f"No place on the {edge} edge clears {names} for a "
                 f"{policy.span_mm:g} mm clip; the shell cannot hold there"
             )
 
-        half_length, half_width = body.length_mm / 2, body.width_mm / 2
         x, y = {
             "north": (offset, half_width),
             "south": (offset, -half_width),
@@ -592,6 +622,16 @@ def _report(
                     "width_mm": feature.width_mm,
                 }
                 for feature in body.features
+            ],
+            "face_features": [
+                {
+                    "identifier": feature.identifier,
+                    "center_x_mm": feature.center_x_mm,
+                    "center_y_mm": feature.center_y_mm,
+                    "width_mm": feature.width_mm,
+                    "depth_mm": feature.depth_mm,
+                }
+                for feature in body.face_features
             ],
         }
 

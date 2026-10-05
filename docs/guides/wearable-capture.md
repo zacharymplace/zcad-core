@@ -71,11 +71,12 @@ port, buttons, and charging contacts, and anything else you find. Each gets:
 - `notes`: how you measured it.
 
 Then set `edge_features_checked` to `true`, to say you looked at all four edges.
-An empty list with `true` means there was nothing there. Features on the top or
-bottom face are not listed: the shell's clips each stand `clearance_mm` out
-from their edge and hook `overhang_mm` (0.6 mm) over the top edge, clear of the
-top face, and its frame holds the device by a ledge under its rim. The rim of the
-frame, 1 mm up the device's sides, is notched at each edge feature.
+An empty list with `true` means there was nothing there. Features on the top
+face go in `face_features` (below), not here. The shell's clips each stand
+`clearance_mm` out from their edge and hook `overhang_mm` (0.6 mm) over the top
+edge, clear of the top face, and its frame holds the device by a ledge under its
+rim. The rim of the frame, 1 mm up the device's sides, is notched at each edge
+feature.
 
 ## A device of your own
 
@@ -132,8 +133,11 @@ A valid capture prints the sizes the candidate will use and its SHA-256.
 
 - **Size:** the envelope is the median of each dimension.
 - **Clips:** each clip moves along its edge to the nearest place where its
-  whole length, a G7 tab's included, clears every feature there by 1 mm. It stays 2 mm from the corners. If no place on an
-  edge is clear, nothing is written and the script names the edge.
+  whole length, a G7 tab's included, clears every edge feature there by 1 mm,
+  and where its hook, 0.6 mm in over the top face, stands 0.5 mm clear of every
+  face feature. It stays 2 mm from the corners. If no place on an edge is clear,
+  nothing is written and the script names the edge and what blocks it. The
+  face features go into `automated-validation.json` beside the edge features.
 - **Provenance:** the capture file is copied into the candidate's folder as
   `capture.json`. Its SHA-256, who measured, when, and with what go into
   `automated-validation.json`.

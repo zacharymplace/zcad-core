@@ -38,6 +38,7 @@ from zcad_core.geometry.outline_prism import outline_prism
 from zcad_core.hardware.electronics import board_outline
 from zcad_core.hardware.wearables import FaceFeature, WearableCapture
 from zcad_core.hardware.wearables.edge_placement import (
+    FACE_MARGIN_MM,
     FEATURE_MARGIN_MM,
     clear_offset,
     edge_reach_mm,
@@ -53,8 +54,6 @@ OVERHANG_MM = 0.6
 HOOK_HEIGHT_MM = 1.0
 HOOK_WIDTH_MM = 4.0
 TOP_GAP_MM = 0.1
-# A face feature must stand this far clear of a hook.
-FACE_MARGIN_MM = 0.5
 _ROTATION = {"north": 0.0, "west": 90.0, "south": 180.0, "east": 270.0}
 # A feature's offset on these edges runs against the tab's own along-the-wall axis.
 _FLIPPED = ("south", "east")
