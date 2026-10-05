@@ -12,7 +12,8 @@ import pytest
 
 from zcad_core.cli import main
 from zcad_core.features.enclosure_group import Bay, GroupDesign, build_group_enclosure
-from zcad_core.features.enclosure_group_join import check_join
+from zcad_core.features.enclosure_group_envelope import make_box
+from zcad_core.features.enclosure_group_join import _face_contact_mm2, check_join
 from zcad_core.hardware import board_template, load_board
 from zcad_core.hardware.electronics.board_file import BoardFileSpec
 
@@ -183,7 +184,8 @@ def test_units_of_different_depth_on_the_standard_face_bolt_together(
         report = check_join(left, right)
 
         assert report.passed, report.checks
-        assert report.details["gap_mm"] == 0.0 and report.details["overlap_mm3"] == 0.0
+        assert report.details["overlap_mm3"] == 0.0
+        assert report.details["face_contact_share"] >= 0.5
         assert report.notes == ()
 
     assert check_join(deep, shallow).details["shared_depth_mm"] == pytest.approx(
@@ -316,3 +318,18 @@ def test_the_build_reports_its_joint_and_takes_a_pass_through(
         "bolts_y_z_mm": [[20.0, 10.0], [38.0, 10.0]],
         "pass_through_mm": [16.0, 6.0],
     }
+
+
+def test_walls_meet_only_where_their_faces_touch() -> None:
+    # Two walls side by side touch over their whole face; raised by most of their
+    # height, they still touch along a strip, which is not meeting.
+    left = make_box((0.0, 2.0), (0.0, 40.0), (0.0, 20.0))
+    level = make_box((2.0, 4.0), (0.0, 40.0), (0.0, 20.0))
+    raised = make_box((2.0, 4.0), (0.0, 40.0), (15.0, 35.0))
+
+    contact, face, _ = _face_contact_mm2(left, level, 2.0)
+    assert contact == pytest.approx(800.0, rel=1e-3)
+    assert face == pytest.approx(800.0, rel=1e-3)
+    contact, face, _ = _face_contact_mm2(left, raised, 2.0)
+    assert contact == pytest.approx(200.0, rel=1e-3)
+    assert contact < 0.5 * face

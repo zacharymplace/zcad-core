@@ -234,7 +234,10 @@ def plan_latch(
             f"printer's {least_wall:g} mm minimum wall: the most engagement is {most:.2f} mm"
         )
 
-    deflection = engagement_mm
+    # The tongue bends far enough to pass the lip below, by the engagement, and far enough
+    # to pass a baseplate's pocket wall, which stands only the nest clearance from the foot
+    # where the lip stands the full gap from it: the hook must clear whichever is nearer.
+    deflection = max(engagement_mm, protrusion - profile.min_nest_clearance_mm)
     reach = math.sqrt(3 * least_wall * deflection / (2 * FLEXURE_STRAIN_LIMIT))
     reach = math.ceil(reach * 2) / 2
     strain = flexure_for(deflection, reach, least_wall).strain

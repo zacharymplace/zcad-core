@@ -6,7 +6,9 @@ A profile lists points in a cell, from its centre. An item says what it holds wi
 - ``magnet``: a pocket for a catalogued round magnet, in the bottom of each cell's foot
   and in the floor of each of a baseplate's pockets, so the two meet; or
 - ``bolt``: a heat-set insert pocket in the bottom of each foot, and a clearance hole
-  through a baseplate's floor under it, so a screw from below draws the bin down.
+  through a baseplate's floor under it, so a screw from below draws the bin down. The
+  screw's head sits in a recess in the plate's underside, so the plate stands flat on a
+  bench; the recess is sized as a stack top's is.
 
 The engine records the size of a magnet or an insert and builds the pocket; it states
 no pull force and no holding force. Which way a magnet faces is the user's: the engine
@@ -23,11 +25,16 @@ from dataclasses import dataclass
 from typing import Any
 
 from zcad_core.features.guide_common import Findings
+from zcad_core.features.mounts import HEAD_DIAMETER_FACTOR
 from zcad_core.features.stack_profile import StackProfile
 from zcad_core.hardware.fasteners import get_fastener, list_fasteners
 from zcad_core.hardware.magnets import get_magnet, list_magnets
 
 HOLDING = ("lip", "magnet", "bolt")
+# A screw's head is about its nominal diameter tall and twice it across; the recess for it in
+# a baseplate's underside is this much deeper and this much wider, as a stack top's is.
+HEAD_RECESS_EXTRA_MM = 0.5
+HEAD_RECESS_OVER_MM = 0.6
 # What a stack top can hold by: a bolt would go through the closed lid.
 HOLDING_TOP = ("lip", "magnet")
 
@@ -42,6 +49,9 @@ class Holding:
     pocket_diameter_mm: float = 0.0
     pocket_depth_mm: float = 0.0
     hole_diameter_mm: float = 0.0
+    # The recess for a bolt's head in a baseplate's underside.
+    head_diameter_mm: float = 0.0
+    head_depth_mm: float = 0.0
 
     @property
     def holds(self) -> bool:
@@ -70,6 +80,8 @@ def holding_for(kind: str, magnet: str, fastener: str) -> Holding:
             float(screw.heat_set_insert_diameter_mm or 0.0),
             float(screw.heat_set_insert_depth_mm or 0.0),
             screw.clearance_hole_mm,
+            screw.nominal_diameter_mm * HEAD_DIAMETER_FACTOR + HEAD_RECESS_OVER_MM,
+            screw.nominal_diameter_mm + HEAD_RECESS_EXTRA_MM,
         )
 
     return LIP
@@ -136,6 +148,17 @@ def check_holding_fits(
 
         return
 
+    if kind == "baseplate" and holding.kind == "bolt":
+        need = holding.head_depth_mm + least_floor
+
+        if floor_mm < need:
+            errors.append(
+                f"{name}: a {holding.identifier} screw's head sits in a recess "
+                f"{holding.head_depth_mm:g} mm up into the plate's underside, so floor_mm "
+                f"must be at least {need:g} mm to keep the printer's {least_floor:g} mm "
+                f"over it; it is {floor_mm:g}"
+            )
+
     if kind == "baseplate" and holding.kind == "magnet":
         need = holding.pocket_depth_mm + least_floor
 
@@ -146,7 +169,8 @@ def check_holding_fits(
                 f"{least_floor:g} mm under it; it is {floor_mm:g}"
             )
 
-    if kind == "bin":
+    # A frame stands on the same feet as a bin, with the same pockets in them.
+    if kind in ("bin", "frame"):
         _check_foot(name, holding, profile, least_wall, least_floor, errors)
 
 
@@ -182,9 +206,10 @@ def _check_foot(
 
 
 def screw_length_mm(holding: Holding, floor_mm: float) -> float:
-    """The least a screw must be to pass a baseplate's floor and reach the insert's
-    depth, or ``0`` for a holding that takes no screw."""
+    """The least a screw must be to pass the floor over its head's recess and reach the
+    insert's depth, or ``0`` for a holding that takes no screw."""
 
-    return (
-        round(floor_mm + holding.pocket_depth_mm, 3) if holding.kind == "bolt" else 0.0
-    )
+    if holding.kind != "bolt":
+        return 0.0
+
+    return round(floor_mm - holding.head_depth_mm + holding.pocket_depth_mm, 3)

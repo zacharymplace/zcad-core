@@ -363,16 +363,24 @@ def cut_plate_holding(
     diameter: float,
     depth: float,
     floor_mm: float,
+    head_diameter: float = 0.0,
+    head_depth: float = 0.0,
 ) -> cq.Workplane:
     """A baseplate's holding under each cell's pocket floor: a magnet pocket sunk into
-    the floor from above, or a clearance hole through it."""
+    the floor from above, or a clearance hole through it with a recess for the screw's
+    head in the underside."""
 
     centres = holding_centres(profile, cells)
 
     if holding_kind == "magnet":
         return _drill(model, centres, diameter, floor_mm - depth, floor_mm + 0.5)
 
-    return _drill(model, centres, diameter, -0.5, floor_mm + 0.5)
+    model = _drill(model, centres, diameter, -0.5, floor_mm + 0.5)
+
+    if head_depth > 0:
+        model = _drill(model, centres, head_diameter, -0.5, head_depth)
+
+    return model
 
 
 def solid_count(model: cq.Workplane) -> int:

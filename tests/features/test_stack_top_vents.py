@@ -152,6 +152,17 @@ def test_a_vent_cell_has_a_window_through_it_and_no_pocket(tmp_path: Path) -> No
     assert (x0, y0, x1, y1) == (-12.0, -10.0, 12.0, 10.0)
 
 
+def test_openings_whose_windows_would_leave_a_fin_are_one_window(
+    tmp_path: Path,
+) -> None:
+    # 4.5 mm apart, they are two openings; grown 2 mm each way they would leave a 0.5 mm fin
+    # of plate the full height between them, so they are one window.
+    top = top_for(tmp_path, [(-10.0, -5.0, -2.25, 5.0), (2.25, -5.0, 10.0, 5.0)])
+
+    assert top.windows == ((-12.0, -7.0, 12.0, 7.0),)
+    assert not inside(top.plate, 0.0, 0.0, LID_TOP + 0.5)
+
+
 def test_a_top_with_no_openings_has_no_vent_cells(tmp_path: Path) -> None:
     top = top_for(tmp_path, [])
 
