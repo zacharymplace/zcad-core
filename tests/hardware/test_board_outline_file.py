@@ -94,7 +94,7 @@ def _points(*points: Any) -> dict[str, Any]:
         (_points([-15, -22.5], [15, -22.5], "x"), "pair of numbers"),
         (
             _points([-15, -22.5], [15, 22.5], [15, -22.5], [-15, 22.5]),
-            "cross themselves",
+            "cross or touch themselves",
         ),
         (_points([0, 0], [1, 0], [2, 0]), "enclose no area"),
         (

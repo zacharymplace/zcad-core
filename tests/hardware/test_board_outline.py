@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Any
 
 import pytest
 
@@ -44,6 +45,29 @@ def test_area_is_signed_by_winding() -> None:
 def test_a_bow_tie_is_not_simple() -> None:
     assert not outline.is_simple(((0, 0), (4, 4), (4, 0), (0, 4)))
     assert outline.is_simple(NOTCHED)
+
+
+@pytest.mark.parametrize(
+    "points",
+    [
+        # Two lobes joined at one vertex, with opposite winding.
+        ((-15, -22.5), (-15, 22.5), (0, 0), (15, 5), (15, -5), (0, 0)),
+        # A vertex resting on another edge.
+        ((0, 0), (10, 0), (10, 10), (5, 0), (0, 10)),
+        # Two edges that are not neighbours lying along each other.
+        ((0, 0), (10, 0), (10, 5), (6, 5), (6, 0.0), (4, 0.0), (4, 5), (0, 5)),
+        # An edge that folds back along its neighbour, a spike.
+        ((0, 0), (10, 0), (10, 10), (10, 5), (0, 10)),
+        # A vertex given twice in a row.
+        ((0, 0), (10, 0), (10, 0), (10, 10), (0, 10)),
+    ],
+)
+def test_a_pinched_or_touching_loop_is_not_simple(points: tuple[Any, ...]) -> None:
+    assert not outline.is_simple(points)
+
+
+def test_points_in_a_straight_line_along_an_edge_are_still_simple() -> None:
+    assert outline.is_simple(((0, 0), (5, 0), (10, 0), (10, 10), (0, 10)))
 
 
 def test_containment_and_depth() -> None:

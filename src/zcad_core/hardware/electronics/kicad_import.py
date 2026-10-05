@@ -175,11 +175,30 @@ def _points(form: Node) -> list[Point]:
     if pts is None:
         raise ValueError(f"({kicad_sexp.name(form)}) has no pts")
 
-    found = []
+    found: list[Point] = []
 
-    for xy in kicad_sexp.children(pts, "xy"):
-        x, y = kicad_sexp.numbers(xy, 2)
-        found.append((x, y))
+    # KiCad 7 and later may write an arc among a polygon's points; it is sampled
+    # in order, and anything else is refused rather than dropped, since a point
+    # left out cuts across the outline.
+    for item in pts[1:]:
+        token = kicad_sexp.name(item) if isinstance(item, list) else ""
+
+        if token == "xy":
+            x, y = kicad_sexp.numbers(item, 2)
+            found.append((x, y))
+        elif token == "arc":
+            arc = _arc(_pair(item, "start"), _pair(item, "mid"), _pair(item, "end"))
+            points = list(arc.points)
+
+            if found and math.dist(found[-1], points[0]) < 1e-9:
+                points = points[1:]
+
+            found.extend(points)
+        else:
+            raise ValueError(
+                f"({kicad_sexp.name(form)}) has a ({token or item}) among its "
+                "points, which the importer does not read"
+            )
 
     return found
 

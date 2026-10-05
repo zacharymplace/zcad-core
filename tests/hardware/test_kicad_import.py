@@ -253,6 +253,37 @@ def test_a_cut_corner_is_a_polygon_inside_its_bounding_box(tmp_path: Path) -> No
     ).valid
 
 
+def test_an_arc_among_a_polygons_points_is_followed(tmp_path: Path) -> None:
+    # KiCad 7+ can write an arc inside a gr_poly's pts; dropping it would cut a
+    # 10 x 40 mm triangle off the board.
+    body = (
+        "(gr_poly (pts (xy 100 100) (xy 150 100) "
+        "(arc (start 150 100) (mid 157.0711 102.9289) (end 160 110)) "
+        '(xy 160 140) (xy 100 140)) (layer "Edge.Cuts") (width 0.1))'
+    )
+    imported = read(tmp_path, body)
+    points = imported.data["outline"]["points_mm"]
+
+    assert imported.data["outline"]["type"] == "polygon"
+    # Centred on (130, 120) with Y flipped: the arc's end is at (30, 10).
+    assert [30.0, 10.0] in points
+    assert max(x for x, _ in points) == 30.0
+    # The arc is sampled, not cut across: a point near its middle is on it.
+    assert any(
+        abs(math.hypot(x - 20.0, y - 10.0) - 10.0) < 0.05 and x > 25 for x, y in points
+    )
+
+
+def test_anything_else_among_a_polygons_points_is_refused(tmp_path: Path) -> None:
+    body = (
+        "(gr_poly (pts (xy 100 100) (xy 150 100) (bezier (xy 1 2)) "
+        '(xy 160 140) (xy 100 140)) (layer "Edge.Cuts") (width 0.1))'
+    )
+
+    with pytest.raises(ValueError, match="bezier.*does not read"):
+        read(tmp_path, body)
+
+
 def test_a_round_board_is_a_polygon_of_its_circle(tmp_path: Path) -> None:
     body = '(gr_circle (center 120 80) (end 140 80) (layer "Edge.Cuts"))'
     data = read(tmp_path, body).data

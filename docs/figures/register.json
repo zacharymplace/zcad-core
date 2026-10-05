@@ -1675,6 +1675,9 @@
     "hardware/electronics/board_outline.py:SIZE_TOLERANCE_MM": {
       "status": "unstated"
     },
+    "hardware/electronics/board_outline.py:_TOUCH": {
+      "status": "unstated"
+    },
     "hardware/electronics/board_test_points.py:MAXIMUM_TEST_POINTS": {
       "status": "unstated"
     },

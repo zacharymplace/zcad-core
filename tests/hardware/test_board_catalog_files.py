@@ -290,8 +290,20 @@ def test_one_trial_is_not_enough(trials: Trials, tmp_path: Path) -> None:
 def test_the_same_trial_twice_is_one_trial(trials: Trials, tmp_path: Path) -> None:
     record = trials.record("trial-001")
 
-    with pytest.raises(ValueError, match="1 given"):
+    with pytest.raises(ValueError, match="1 distinct given"):
         promote_board(trials.board, [record, record], tmp_path)
+
+
+def test_a_trial_copied_to_another_folder_is_one_trial(
+    trials: Trials, tmp_path: Path
+) -> None:
+    # The same record under a second path: same build, id and time.
+    first = trials.record("trial-001")
+    copy = trials.record("copy-of-trial-001", trial_id="trial-001")
+
+    assert first.resolve() != copy.resolve()
+    with pytest.raises(ValueError, match="1 distinct given"):
+        promote_board(trials.board, [first, copy], tmp_path)
 
 
 def test_a_failed_trial_does_not_count(trials: Trials, tmp_path: Path) -> None:
