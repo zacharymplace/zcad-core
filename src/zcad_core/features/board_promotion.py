@@ -7,6 +7,10 @@ exact file. Each trial record names its build record, whose ``board_source``
 carries the file's SHA-256, so a file edited since its trials is refused. The
 promoted file is the board file with one field added, ``verified_by``, which
 says which trials verified it and what file they were of.
+
+Trials are counted by what they record, not where they lie: two records with
+the same build record, trial id and completion time are one trial copied, and
+count once.
 """
 
 from __future__ import annotations
@@ -36,9 +40,12 @@ def _read(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _trial_summary(record_path: Path, board_sha: str, identifier: str) -> str:
-    """A passing trial of this exact file, as a sentence for ``verified_by``;
-    refuses anything else."""
+def _trial_summary(
+    record_path: Path, board_sha: str, identifier: str
+) -> tuple[tuple[str, str, str], str]:
+    """A passing trial of this exact file: what makes it one trial (its build
+    record's SHA-256, its id and when it was completed), and a sentence for
+    ``verified_by``. Refuses anything else."""
 
     trial = _read(record_path)
 
@@ -68,7 +75,13 @@ def _trial_summary(record_path: Path, board_sha: str, identifier: str) -> str:
             f"SHA-256 was {source.get('sha256')}, this file's is {board_sha}"
         )
 
-    return (
+    key = (
+        str(trial.get("build_record_sha256")),
+        str(trial["trial_id"]),
+        str(trial["completed_at_utc"]),
+    )
+
+    return key, (
         f"{trial['design_name']} {trial['trial_id']} "
         f"({trial['printer_profile_id']}, {trial['material_profile_id']}, "
         f"{str(trial['completed_at_utc'])[:10]})"
@@ -109,15 +122,20 @@ def promote_board(
     else:
         raise ValueError(f"{identifier} is already in the board catalog")
 
-    distinct = sorted({path.resolve() for path in trial_records})
+    found: dict[tuple[str, str, str], str] = {}
 
-    if len(distinct) < MINIMUM_TRIALS:
+    for path in sorted({path.resolve() for path in trial_records}):
+        key, summary = _trial_summary(path, origin.sha256, identifier)
+        found.setdefault(key, summary)
+
+    if len(found) < MINIMUM_TRIALS:
         raise ValueError(
             f"A board needs {MINIMUM_TRIALS} passing trials of its file to join "
-            f"the catalog; {len(distinct)} given"
+            f"the catalog; {len(found)} distinct given (a trial copied to "
+            "another folder counts once)"
         )
 
-    trials = [_trial_summary(path, origin.sha256, identifier) for path in distinct]
+    trials = list(found.values())
     target = directory / catalog_filename(identifier)
 
     if target.exists():

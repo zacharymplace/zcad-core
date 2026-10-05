@@ -62,7 +62,7 @@ zcad-validation board import --kicad board.kicad_pcb --output my-board.json \
   --default-height 6 --default-height-source "tallest part, measured"
 ```
 
-The import reads the board's `Edge.Cuts` outline (a rectangle, a rounded rectangle, or a polygon), the thickness the file gives, and the mounting holes (round non-plated drills and `MountingHole`
+The import reads the board's `Edge.Cuts` outline (a rectangle, a rounded rectangle, or a polygon, following any arc KiCad 7 or later writes among a polygon's points and refusing anything else there), the thickness the file gives, and the mounting holes (round non-plated drills and `MountingHole`
 footprints; the commonest size is taken and others are listed). It does not read the parts yet, so two things stay open and the file is written with `needs_review`: the **cable connector**, which you set by hand,
 and the **heights**, which a KiCad file does not hold. `--default-height` with `--default-height-source` gives one height for every part, which is written as the board's `envelope` with where it came from;
 give both or neither. A file with no thickness gets a placeholder you must replace.
@@ -169,15 +169,16 @@ Without a power figure the estimate says the board's power is unknown.
 ## What the check refuses and warns about
 
 Refused (errors): wrong `schema_version` or `units`, an outline that is not
-one of the forms below or whose polygon crosses itself or does not fill the
-board's stated size, unknown fields, holes outside the board's outline or given
-two ways, a connector running off its edge or hanging off a rounded corner, a part through the board, an envelope with a
+one of the forms below or whose polygon crosses or touches itself (a vertex
+repeated, a vertex on another edge, an edge folding back, or two lobes joined at
+one point) or does not fill the board's stated size, unknown fields, holes
+outside the board's outline or given two ways, holes closer than a standoff is
+wide, a connector running off its edge or hanging off a rounded corner, a part through the board, an envelope with a
 bottom, power without a source, and any file still carrying a `needs_review`
 note. All problems are listed at once.
 
 Warned of: a board over 150 mm or a thickness outside 0.4 to 3.2 mm (usually
-the wrong unit), a hole near the edge, holes closer than a standoff is wide, no
-holes, a part overhanging an edge that is not marked `access_edge`, and a file
+the wrong unit), a hole near the edge, no holes, a part overhanging an edge that is not marked `access_edge`, and a file
 with no `source`.
 
 ## Adding a board to the catalog
@@ -193,7 +194,9 @@ zcad-validation board promote my-board.json \
 ```
 
 It refuses a file with errors **or warnings**, an identifier the catalog already
-holds, fewer than two distinct passing trials, and any trial of another version
+holds, fewer than two distinct passing trials (a trial record copied to another
+folder, with the same build record, trial id and completion time, counts once),
+and any trial of another version
 of the file: each trial's build record carries the file's SHA-256, so a file
 edited since its trials needs new trials. It writes
 `src/zcad_core/hardware/data/boards/<identifier, lower case, dashes>.json`, the

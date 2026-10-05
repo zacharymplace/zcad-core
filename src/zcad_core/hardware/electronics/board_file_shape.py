@@ -124,6 +124,21 @@ def _rounded_outline(
     return board_outline.rounded_rectangle_points(size[0], size[1], radius)
 
 
+def _in_a_line(points: Sequence[Point]) -> bool:
+    """Whether every point lies on the line through the first and the one
+    farthest from it."""
+
+    first = points[0]
+    far = max(points, key=lambda p: (p[0] - first[0]) ** 2 + (p[1] - first[1]) ** 2)
+    dx, dy = far[0] - first[0], far[1] - first[1]
+    length = (dx * dx + dy * dy) ** 0.5
+
+    return length == 0 or all(
+        abs(dx * (p[1] - first[1]) - dy * (p[0] - first[0])) / length < 1e-6
+        for p in points
+    )
+
+
 def _polygon_outline(
     outline: Mapping[str, Any],
     size: tuple[float, float, float] | None,
@@ -152,12 +167,16 @@ def _polygon_outline(
     if len(ready) != len(points):
         return None
 
-    if not board_outline.is_simple(ready):
-        findings.error("outline.points_mm cross themselves: it must be one loop")
+    area = board_outline.signed_area(ready)
+
+    # Points all in one line fold back on themselves too, and saying they
+    # enclose nothing is the clearer answer for them.
+    if not board_outline.is_simple(ready) and not _in_a_line(ready):
+        findings.error(
+            "outline.points_mm cross or touch themselves: it must be one loop"
+        )
 
         return None
-
-    area = board_outline.signed_area(ready)
 
     if abs(area) < 1.0:
         findings.error("outline.points_mm enclose no area")

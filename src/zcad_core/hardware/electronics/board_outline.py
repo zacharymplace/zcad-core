@@ -91,18 +91,64 @@ def _segments_cross(a: Point, b: Point, c: Point, d: Point) -> bool:
     )
 
 
+_TOUCH = 1e-9
+
+
+def _on_segment(a: Point, b: Point, p: Point) -> bool:
+    """Whether ``p`` lies on the segment ``a``-``b``, ends included."""
+
+    return (
+        abs(_cross(a, b, p)) <= _TOUCH
+        and min(a[0], b[0]) - _TOUCH <= p[0] <= max(a[0], b[0]) + _TOUCH
+        and min(a[1], b[1]) - _TOUCH <= p[1] <= max(a[1], b[1]) + _TOUCH
+    )
+
+
+def _segments_meet(a: Point, b: Point, c: Point, d: Point) -> bool:
+    """Whether two segments share any point: a crossing, a touch, or an overlap."""
+
+    return (
+        _segments_cross(a, b, c, d)
+        or _on_segment(a, b, c)
+        or _on_segment(a, b, d)
+        or _on_segment(c, d, a)
+        or _on_segment(c, d, b)
+    )
+
+
 def is_simple(points: Sequence[Point]) -> bool:
-    """Whether no two edges of the polygon cross."""
+    """Whether the polygon is one clean loop: no vertex repeated, no two edges
+    that are not neighbours meeting at all (crossing, touching, or overlapping),
+    and no edge folding back along its neighbour. A loop pinched to a point, two
+    lobes joined at one vertex, is not simple."""
 
     count = len(points)
+
+    if count < 3:
+        return False
+
+    for i in range(count):
+        for j in range(i + 1, count):
+            if math.dist(points[i], points[j]) <= _TOUCH:
+                return False
+
     edges = [(points[i], points[(i + 1) % count]) for i in range(count)]
 
     for i in range(count):
+        # A neighbour shares one end; it may not run back over this edge.
+        a, b = edges[i]
+        _, c = edges[(i + 1) % count]
+
+        if abs(_cross(a, b, c)) <= _TOUCH and (
+            (b[0] - a[0]) * (c[0] - b[0]) + (b[1] - a[1]) * (c[1] - b[1]) < 0
+        ):
+            return False
+
         for j in range(i + 2, count):
             if i == 0 and j == count - 1:
                 continue
 
-            if _segments_cross(*edges[i], *edges[j]):
+            if _segments_meet(*edges[i], *edges[j]):
                 return False
 
     return True
