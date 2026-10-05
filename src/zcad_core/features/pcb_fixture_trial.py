@@ -413,7 +413,11 @@ def complete_fixture_trial(
 
 def fixture_verification(build_record_path: Path) -> dict[str, Any]:
     """Whether a build is verified: at least two passing trials of this exact
-    build record. A rebuilt fixture has a new record and starts with none."""
+    build record, each with every measured tip within its pad's slack. A tip
+    past it is not wholly on its pad, so its contact was luck; such a trial
+    still passes, and its offsets still pool into an accuracy profile, but it
+    does not vouch for the fixture. A rebuilt fixture has a new record and
+    starts with none."""
 
     digest = sha256(build_record_path)
     found = []
@@ -428,15 +432,18 @@ def fixture_verification(build_record_path: Path) -> dict[str, Any]:
                 "points_in_contact": record["summary"]["points_in_contact"],
                 "points": record["summary"]["points"],
                 "max_radial_mm": record["summary"]["max_radial_mm"],
+                "offsets_over_slack": record["summary"].get("offsets_over_slack", 0),
             }
         )
 
     passing = [t for t in found if t["disposition"] == "pass" and t["of_this_build"]]
+    within = [t for t in passing if not t["offsets_over_slack"]]
 
     return {
         "build_record": str(build_record_path),
-        "verified": len(passing) >= MINIMUM_TRIALS_TO_VERIFY,
+        "verified": len(within) >= MINIMUM_TRIALS_TO_VERIFY,
         "passing_trials": len(passing),
+        "passing_within_slack": len(within),
         "needed": MINIMUM_TRIALS_TO_VERIFY,
         "trials": found,
     }

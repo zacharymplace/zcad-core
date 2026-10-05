@@ -226,6 +226,24 @@ def _local_outline_cradle(
 
     slot = half_clip + p.clip_slot_mm
     edges = {-1: min(c[0] for c in chords), 1: max(c[1] for c in chords)}
+    # The lip reaches this far in from the outermost edge; where the edge falls
+    # back that far anywhere across the clip, the lip holds nothing there, as on
+    # a hexagon's corner or a small round board.
+    lip_reach = p.clip_overhang_mm - p.clearance_mm
+    recess = {
+        -1: max(c[0] for c in chords) - edges[-1],
+        1: edges[1] - min(c[1] for c in chords),
+    }
+
+    for side, moved in recess.items():
+        if moved >= lip_reach - 1e-9:
+            raise ValueError(
+                f"the board's edge under the {'left' if side < 0 else 'right'} clip "
+                f"falls back {moved:.2f} mm across the clip's "
+                f"{p.clip_width_mm:g} mm width, and the lip reaches only "
+                f"{lip_reach:.2f} mm over it: the clip would barely hold the board "
+                "there; use standoffs, or a board edge straight where the clips stand"
+            )
 
     for side, edge in edges.items():
         # Free each clip from the ledge so it can flex; start well inside the

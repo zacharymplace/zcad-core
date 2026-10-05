@@ -364,6 +364,28 @@ def test_an_offset_beyond_the_slack_is_counted(tmp_path: Path) -> None:
     assert record["summary"]["max_radial_mm"] == 1.5
 
 
+def test_trials_past_the_slack_pass_but_do_not_verify_the_fixture(
+    tmp_path: Path,
+) -> None:
+    # A tip past its pad's slack made contact by luck: the trial passes and its
+    # offsets pool, but it does not vouch for the fixture.
+    built, trial = fresh(tmp_path)
+    fill(trial, offsets={"TP1": (1.5, 0.0)})
+    complete_fixture_trial(
+        trial, disposition=FixtureTrialDisposition.PASS, material_profile_id="petg"
+    )
+    second = start_fixture_trial(built)
+    fill(second, offsets={"TP1": (1.5, 0.0)})
+    complete_fixture_trial(
+        second, disposition=FixtureTrialDisposition.PASS, material_profile_id="petg"
+    )
+    status = fixture_verification(built)
+
+    assert status["passing_trials"] == 2
+    assert status["passing_within_slack"] == 0
+    assert status["verified"] is False
+
+
 def test_a_part_changed_since_it_was_built_is_refused(tmp_path: Path) -> None:
     record, trial = fresh(tmp_path)
     stl = Path(record_of(record)["parts"]["plate"]["stl_path"])

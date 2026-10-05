@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 from typing import cast
 
@@ -143,3 +144,43 @@ def test_a_cradle_needs_a_board_long_enough_for_its_clips_and_stop() -> None:
 def test_an_outline_needs_three_points() -> None:
     with pytest.raises(ValueError, match="three points"):
         parameters(((0.0, 0.0), (1.0, 1.0)), "negative_y").validate()
+
+
+@pytest.mark.parametrize(
+    ("points", "width", "depth", "fall_back"),
+    [
+        # A hexagon with a corner at each clip: the edge falls 1.73 mm away.
+        (
+            tuple(
+                (15.0 * math.cos(math.radians(a)), 15.0 * math.sin(math.radians(a)))
+                for a in range(0, 360, 60)
+            ),
+            30.0,
+            30.0 * math.sin(math.radians(60)),
+            "1.73",
+        ),
+        # A 16 mm round board: 0.59 mm, past the lip's 0.5 mm reach.
+        (
+            tuple(
+                (
+                    8.0 * math.cos(2 * math.pi * i / 64),
+                    8.0 * math.sin(2 * math.pi * i / 64),
+                )
+                for i in range(64)
+            ),
+            16.0,
+            16.0,
+            "0.59",
+        ),
+    ],
+)
+def test_a_clip_on_an_edge_too_curved_for_its_lip_is_refused(
+    points: tuple[tuple[float, float], ...], width: float, depth: float, fall_back: str
+) -> None:
+    # Before, these built, and the lips held 14% and 61% of a straight edge.
+    p = replace(
+        parameters(points, "negative_y"), board_width_mm=width, board_depth_mm=depth
+    )
+
+    with pytest.raises(ValueError, match=f"falls back {fall_back} mm"):
+        cradle_of(p)

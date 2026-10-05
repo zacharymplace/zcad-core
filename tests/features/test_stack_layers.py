@@ -336,6 +336,36 @@ def test_layers_on_different_fasteners_do_not_stack(tmp_path: Path) -> None:
     assert any("different fasteners" in e for e in report.errors)
 
 
+def test_an_upper_board_with_a_part_underneath_does_not_stack(tmp_path: Path) -> None:
+    # It rests on the lower layer's plate; a 6 mm part under it, its bottom 9 mm
+    # below the board's top, would stand 7.4 mm into that plate and below.
+    (tmp_path / "lo").mkdir()
+    (tmp_path / "up").mkdir()
+    lower_board = real_parts_board(tmp_path / "lo", [part("U1", 0, 0)])
+    upper_board = real_parts_board(
+        tmp_path / "up",
+        [
+            part("U1", 0, 0),
+            part(
+                "BOT",
+                0,
+                0,
+                width_mm=10,
+                depth_mm=10,
+                bottom_offset_from_board_top_mm=-9.0,
+                height_mm=6.0,
+            ),
+        ],
+    )
+    lower = write_layer(tmp_path / "lo", lower_board, "lower.json")
+    upper = write_layer(tmp_path / "up", upper_board, "upper.json")
+    report = check_layers(upper, lower, PRINTER)
+
+    assert not report.stacks
+    assert any("BOT 7.4 mm under it" in e for e in report.errors), report.errors
+    assert report.summary["upper_underside_checked"] is True
+
+
 # --- the commands -------------------------------------------------------------------------------
 
 

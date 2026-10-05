@@ -129,7 +129,10 @@ What follows the outline:
 - a **cradle** (a board with no holes): its ledge and stop wall follow the
   outline, and each clip stands outside the outermost edge across its width, so
   a castellated or notched edge does not put a clip inside the board. The
-  outline must be roughly straight where the clips stand, or the build says so;
+  outline must be straight enough where the clips stand for the lip to hold: the
+  edge may fall back across a clip's width by less than the lip reaches over it
+  (0.5 mm by default), or the build refuses it, saying how far. A hexagon with a
+  corner at a clip, or a small round board, is refused;
 - **standoffs** stand under the holes as ever, since a hole is a point.
 
 A board with no holes and an `envelope` is held in a cradle, so the envelope

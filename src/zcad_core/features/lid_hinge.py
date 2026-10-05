@@ -21,6 +21,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import cast
 
 import cadquery as cq
 
@@ -280,9 +281,11 @@ def _catch_center(
     cavity: Cavity,
     edge: str,
     openings: Sequence[ConnectorCutoutParameters],
+    blocked_spans: Sequence[tuple[str, float, float]] = (),
 ) -> float:
     """Where along the closure wall the catch goes: the middle of the widest
-    stretch clear of openings."""
+    stretch clear of openings and of ``blocked_spans``, such as the wall's vent
+    cells, which would leave its bump bridging slots."""
 
     center = _along_center(cavity, edge)
     half = _outer_length(cavity, edge) / 2 - _CATCH_END_MARGIN_MM
@@ -297,6 +300,16 @@ def _catch_center(
         )
         for opening in openings
         if opening.edge == edge
+    )
+    blocked = sorted(
+        [
+            *blocked,
+            *(
+                (low - _CATCH_OPENING_MARGIN_MM, high + _CATCH_OPENING_MARGIN_MM)
+                for span_edge, low, high in blocked_spans
+                if span_edge == edge
+            ),
+        ]
     )
     free: list[tuple[float, float]] = []
     cursor = center - half
@@ -315,10 +328,49 @@ def _catch_center(
     if wide[1] - wide[0] < CATCH_WIDTH_MM:
         raise ValueError(
             f"No {CATCH_WIDTH_MM:.0f} mm of the closure wall is clear of "
-            "openings for the catch"
+            "openings and vents for the catch"
         )
 
     return (wide[0] + wide[1]) / 2
+
+
+def catch_keepout(
+    cavity: Cavity, openings: Sequence[ConnectorCutoutParameters]
+) -> cq.Shape:
+    """The stretch of the closure wall the catch will take, as a block just
+    inside it: wall vents, which are cut before the hinge, keep off it, so the
+    catch's bump never bridges vent slots."""
+
+    _, closure = hinge_edges(cavity, openings)
+    center = _catch_center(cavity, closure, openings)
+    # Room for the catch and its margin from the vents on both sides, and a
+    # millimetre to spare for cells that reach a little way past the block.
+    half = CATCH_WIDTH_MM / 2 + 2 * _CATCH_OPENING_MARGIN_MM + 1.0
+    depth = 10.0
+    z = (cavity.floor_z_mm, cavity.top_z_mm)
+
+    if closure.endswith("_y"):
+        inner = cavity.center_y_mm + (1 if closure == "positive_y" else -1) * (
+            cavity.depth_mm / 2
+        )
+        y = (
+            (inner - depth, inner)
+            if closure == "positive_y"
+            else (inner, inner + depth)
+        )
+        block = _box((center - half, center + half), y, z)
+    else:
+        inner = cavity.center_x_mm + (1 if closure == "positive_x" else -1) * (
+            cavity.width_mm / 2
+        )
+        x = (
+            (inner - depth, inner)
+            if closure == "positive_x"
+            else (inner, inner + depth)
+        )
+        block = _box(x, (center - half, center + half), z)
+
+    return cast(cq.Shape, block.val())
 
 
 def add_hinge(
@@ -333,6 +385,7 @@ def add_hinge(
     hardware: Mapping[str, cq.Shape],
     carried: Mapping[str, cq.Shape] | None = None,
     hinge_edge: str | None = None,
+    blocked_spans: Sequence[tuple[str, float, float]] = (),
 ) -> tuple[cq.Workplane, cq.Workplane, HingeReport]:
     """Add the hinge and the catch, refusing a lid that cannot swing clear.
 
@@ -429,7 +482,7 @@ def add_hinge(
     point, direction, sign = _swing_axis(lid, cavity, hinge_edge, axis_u, axis_z)
     _require_free_swing(base, lid, (point, direction, sign), hardware, carried or {})
 
-    catch_center = _catch_center(cavity, closure_edge, openings)
+    catch_center = _catch_center(cavity, closure_edge, openings, blocked_spans)
     local_center = EDGE_SIGN[closure_edge] * (
         catch_center - _along_center(cavity, closure_edge)
     )

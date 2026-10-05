@@ -242,7 +242,10 @@ holes, each part's STL hash, and the checks and dimensions a trial asks. `check-
 one whose board has changed since the build.
 
 `check-layers` says whether two layers stack: **their holes must be the same pattern** to within 0.1 mm, since one bolt
-passes through both boards, and they must use the same fastener. It reports the worst offset and the height of the lower layer.
+passes through both boards, and they must use the same fastener. **The upper board must have nothing on its underside**: it rests
+on the lower layer's plate, which is the board's own outline, so a part under it would stand in that plate; the refusal names the
+part and how far it reaches. It reports the worst offset and the height of the lower layer. A record built before layers recorded
+their underside says `upper_underside_checked: false`; build it again to have it checked.
 
 A layer's trial records one print fitted to a real board:
 

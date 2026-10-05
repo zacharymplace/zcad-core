@@ -94,9 +94,11 @@ def fill(
     *,
     result: str = "pass",
     offsets: dict[str, tuple[float, float]] | None = None,
+    tolerance: float | None = 0.5,
 ) -> None:
-    """Fill a trial's templates: every check ``result``, and each bore found
-    ``offsets`` from where it was meant to be (a quarter millimetre by default)."""
+    """Fill a trial's templates: every check ``result``, each bore found
+    ``offsets`` from where it was meant to be (a quarter millimetre by default),
+    and the position tolerance a pass is judged by."""
 
     observations = json.loads((trial / "observations.json").read_text())
 
@@ -111,6 +113,7 @@ def fill(
         entry["measured_x_mm"] = entry["nominal_x_mm"] + dx
         entry["measured_y_mm"] = entry["nominal_y_mm"] + dy
 
+    measurements["position_tolerance_mm"] = tolerance
     (trial / "measurements.json").write_text(json.dumps(measurements))
 
 
@@ -436,3 +439,43 @@ def test_trials_of_an_earlier_build_do_not_verify_a_changed_record(
 
     assert status["verified"] is False
     assert not any(t["of_this_build"] for t in status["trials"])
+
+
+def test_a_pass_needs_a_stated_tolerance_and_every_bore_within_it(
+    slab: Path, tmp_path: Path
+) -> None:
+    # Before, both bores 5 mm off still passed and verified the guide.
+    (tmp_path / "a").mkdir()
+    printed = build(tmp_path / "a", slab)
+    trial = start_guide_trial(printed)
+    template = json.loads((trial / "measurements.json").read_text())
+
+    assert template["position_tolerance_mm"] is None
+    assert all(
+        bore["predicted_play_mm"] is not None for bore in template["bores"].values()
+    )
+
+    fill(trial, offsets={"B1": (5.0, 0.0), "B2": (0.0, 5.0)})
+
+    with pytest.raises(ValueError, match=r"within 0.5 mm; these are farther off: B1"):
+        complete_guide_trial(
+            trial, disposition=GuideTrialDisposition.PASS, material_profile_id="petg"
+        )
+
+    fill(trial, tolerance=None)
+
+    with pytest.raises(ValueError, match="states position_tolerance_mm"):
+        complete_guide_trial(
+            trial, disposition=GuideTrialDisposition.PASS, material_profile_id="petg"
+        )
+
+    # A failed trial records how far off it was, with no tolerance needed.
+    fill(trial, result="fail", offsets={"B1": (5.0, 0.0)}, tolerance=None)
+    record = json.loads(
+        complete_guide_trial(
+            trial, disposition=GuideTrialDisposition.FAIL, material_profile_id="petg"
+        ).read_text()
+    )
+
+    assert record["passed"] is False
+    assert record["summary"]["max_radial_mm"] == pytest.approx(5.0)

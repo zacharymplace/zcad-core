@@ -80,6 +80,11 @@ class VentFill:
     spec: CellSpec
     centers: tuple[tuple[float, float], ...]
     area_mm2: float
+    # For a wall's fill: which wall, and the stretches along it its cells take,
+    # in the coordinate an opening's centre_offset_mm uses (x on the walls at
+    # either end of Y, y on the others), so a catch can keep off them.
+    edge: str = ""
+    spans_mm: tuple[tuple[float, float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -770,9 +775,36 @@ def add_wall_inlets(
 
             raise
         base = cut_fill(base, zone, fill)
-        fills.append(fill)
+        fills.append(replace(fill, edge=edge, spans_mm=_spans_along(zone, fill)))
 
     return base, fills
+
+
+def _spans_along(zone: WallZone, fill: VentFill) -> tuple[tuple[float, float], ...]:
+    """The stretches along its wall a fill's cells take, in absolute
+    coordinates: each cell's, with those that touch or overlap joined, so a gap
+    left between runs of cells stays a gap."""
+
+    reach_u, _ = _extent(fill.spec, wall=True)
+    along = 0 if zone.edge.endswith("_y") else 1
+    cells = sorted(
+        tuple(
+            sorted(
+                zone.point(u + du, v, 0.0).toTuple()[along]
+                for du in (-reach_u, reach_u)
+            )
+        )
+        for u, v in fill.centers
+    )
+    joined: list[tuple[float, float]] = []
+
+    for low, high in cells:
+        if joined and low <= joined[-1][1] + MIN_WEB_MM:
+            joined[-1] = (joined[-1][0], max(joined[-1][1], high))
+        else:
+            joined.append((low, high))
+
+    return tuple(joined)
 
 
 def add_lid_outlets(
