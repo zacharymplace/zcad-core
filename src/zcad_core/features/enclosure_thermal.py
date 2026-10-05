@@ -3,7 +3,15 @@
 The heat a box sheds is its outer surface times a combined convection and
 radiation coefficient times the rise over ambient, so the rise is the power
 over that product. For still air around a plastic box the coefficient is
-roughly 8 to 10 W/m2K; the estimate uses 8, the pessimistic end.
+roughly 8 to 10 W/m2K, and the estimate uses 8.
+
+**With that default it is the box's wall temperature, not the air inside.**
+The 8 is the outside film alone. Still air inside has a film of its own,
+roughly 3 to 5 W/m2K, so the air a board breathes rises perhaps two to three
+times as far as the wall; the default is the low end of the inside air, not a
+pessimistic figure for it. A coefficient pooled from thermal trials is
+measured from the inside air, so it takes the inner film in, and an estimate
+with one is of the air.
 
 **This is an estimate, not a simulation.** It ignores conduction into the
 plastic and into whatever the box stands on, hot spots, and air moving past
@@ -23,6 +31,7 @@ from typing import Any, Literal
 
 from zcad_core.hardware.thermal import PowerFigure, get_power_figure
 
+# The outside film alone, so an estimate with it is the wall's temperature.
 CONVECTION_W_M2K = 8.0
 DEFAULT_AMBIENT_C = 25.0
 # Continuous air temperature for PETG: a design value, well under the 70 to 80
@@ -106,13 +115,28 @@ class ThermalEstimate:
 
         return "ok"
 
+    @property
+    def measured(self) -> bool:
+        """Whether the coefficient came from trials, which measure the inside
+        air, rather than the default, which gives the wall."""
+
+        return not self.coefficient_source.startswith("the default")
+
+    @property
+    def estimates(self) -> str:
+        return "inside air" if self.measured else "wall"
+
     def message(self) -> str:
         bound = "" if self.complete else "at least "
         text = (
-            f"estimated air temperature {bound}{self.temperature_peak_c:.0f} C "
-            f"({bound}{self.rise_peak_c:.0f} C over a {self.ambient_c:.0f} C "
-            f"room) against a {self.limit_c:.0f} C limit"
+            f"estimated {self.estimates} temperature {bound}"
+            f"{self.temperature_peak_c:.0f} C ({bound}{self.rise_peak_c:.0f} C "
+            f"over a {self.ambient_c:.0f} C room) against a {self.limit_c:.0f} C "
+            "limit"
         )
+
+        if not self.measured:
+            text += "; the air inside runs hotter, perhaps two to three times the rise"
 
         if self.missing:
             text += f"; no power figure for {', '.join(self.missing)}"
@@ -129,6 +153,7 @@ class ThermalEstimate:
         return {
             "status": self.status,
             "complete": self.complete,
+            "estimates": self.estimates,
             "ambient_c": self.ambient_c,
             "limit_c": self.limit_c,
             "typical_w": round(self.typical_w, 3),
@@ -148,10 +173,13 @@ class ThermalEstimate:
                 "An estimate from a lumped balance, not a simulation; it counts "
                 "no vents or fan airflow, and "
                 + (
-                    "is off by half either way."
-                    if self.coefficient_source.startswith("the default")
-                    else "uses a coefficient measured on printed boxes, which "
-                    "covers this box only if it is like theirs."
+                    "uses a coefficient measured on printed boxes, which covers "
+                    "this box only if it is like theirs."
+                    if self.measured
+                    else "is off by half either way. With the default coefficient "
+                    "it is the wall's temperature: the air inside runs hotter, "
+                    "perhaps two to three times the rise, so it is no proof a "
+                    "box is cool enough inside."
                 )
             ),
         }

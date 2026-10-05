@@ -36,7 +36,9 @@ all. It adds the data and the arithmetic.
 - **The estimate.** A lumped steady-state balance: the heat a box sheds is its
   outer surface times a combined convection-and-radiation coefficient times
   the rise over ambient. For still air around a plastic box that coefficient
-  is roughly 8 to 10 W/m2K, and the engine uses 8, the pessimistic end.
+  is roughly 8 to 10 W/m2K, and the engine uses 8. That is the outside film
+  alone, so the estimate is the wall's temperature; the air inside runs
+  hotter by its own film, and a coefficient measured in trials takes it in.
   Venting adds a chimney term from the free area and the height between inlet
   and outlet. The output is a rise in degrees C with the assumptions printed
   beside it, and `--ambient-c` (25 by default) turns it into a temperature.
@@ -228,7 +230,7 @@ A fan is hardware, so it goes in the catalog beside the boards:
   times listed current) is added to the estimate, like any part. Its airflow
   is a free-air figure that a box cuts by a large and unknown amount, and
   crediting it would make the estimate optimistic where it matters, so it is
-  reported and never used. The estimate stays pessimistic with a fan fitted.
+  reported and never used. The estimate credits nothing for a fan.
 - **The air path is a report, not a refusal.** A box always has its
   connector openings, so "no other opening" is never the case; the report
   says whether the other openings pass at least what the guard does.

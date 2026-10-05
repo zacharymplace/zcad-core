@@ -443,7 +443,7 @@ Pi's fan, so the group is never a closed box for a trial's purposes.
 
 ## Temperature estimate
 
-The build prints an estimate of the closed row's air temperature under
+The build prints a temperature estimate for the closed row under
 `thermal`, counting 3.0 W for each fitted Pi 5 (an idle figure from community
 measurements; Raspberry Pi publishes none, and no load figure was found), each
 [board bay](#board-bays)'s own figure from the `power` section of its board
@@ -452,11 +452,12 @@ file (the user's, with the source it states), each fan's draw, and nothing for a
 listed under `missing` and the row's status is `lower_bound` unless it fails. A board file with no `power` section is counted as
 unknown, never as zero: the estimate lists it under `missing` and is then a lower
 bound. The pair, at 176 x 96 x 28.4 mm, is
-about 0.049 m2, so its two Pis at idle raise the air by about 15 degrees: 40
+about 0.049 m2, so its two Pis at idle raise the wall by about 15 degrees: 40
 degrees C from a 25 degree room, which is a minimum, because a loaded Pi
-gives off more. Declare what you know with `--power-w` (an SSD, a switch) and
-the room with `--ambient-c`. The estimate credits no vents and is off by half
-either way; see the [builder guide](enclosure-builder.md#temperature-estimate).
+gives off more, and the air inside runs hotter than the wall. Declare what you know with `--power-w` (an SSD, a switch) and
+the room with `--ambient-c`. The estimate credits no vents, is of the wall unless your trials set the
+coefficient, and is off by half either way; see the
+[builder guide](enclosure-builder.md#temperature-estimate).
 A row estimated past PETG's 60 degree limit is refused unless `--allow-hot`.
 
 ## Viewing in 3D

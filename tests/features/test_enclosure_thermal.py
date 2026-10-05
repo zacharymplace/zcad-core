@@ -136,6 +136,26 @@ def test_a_part_with_no_peak_lends_its_typical_figure_and_says_so() -> None:
     assert estimate.to_dict()["peak_uses_typical_for"] == ["RASPBERRY_PI_5"]
 
 
+def test_the_default_estimate_says_it_is_the_wall_and_a_measured_one_the_air() -> None:
+    # The default 8 W/m2K is the outside film alone; a coefficient measured from the
+    # inside air in trials takes the inner film in.
+    default = estimate_thermal(["RASPBERRY_PI_PICO_2"], outer_size_mm=BOX)
+    measured = estimate_thermal(
+        ["RASPBERRY_PI_PICO_2"],
+        outer_size_mm=BOX,
+        coefficient_w_m2k=3.1,
+        coefficient_source="pooled from 3 trials",
+    )
+
+    assert default.estimates == "wall" and default.to_dict()["estimates"] == "wall"
+    assert "estimated wall temperature" in default.message()
+    assert "the air inside runs hotter" in default.message()
+    assert "wall's temperature" in default.to_dict()["note"]
+    assert measured.estimates == "inside air"
+    assert "estimated inside air temperature" in measured.message()
+    assert "runs hotter" not in measured.message()
+
+
 def test_a_complete_estimate_does_not_say_at_least() -> None:
     estimate = estimate_thermal(["RASPBERRY_PI_PICO_2"], outer_size_mm=BOX)
 
@@ -217,7 +237,7 @@ def test_the_builder_attaches_an_estimate_from_the_boxs_real_size() -> None:
 
 
 def test_a_declared_load_that_overheats_a_box_stops_the_build() -> None:
-    with pytest.raises(ValueError, match="estimated air temperature"):
+    with pytest.raises(ValueError, match="estimated wall temperature"):
         pico_enclosure(declared_power_w=30.0)
 
     hot = pico_enclosure(declared_power_w=30.0, allow_hot=True)
@@ -311,7 +331,7 @@ def test_cli_takes_power_ambient_and_allow_hot(
     exit_code, _, err = run(capsys, "enclosure", tmp_path / "a", *hot_args)
 
     assert exit_code == 1
-    assert "estimated air temperature" in err and "--allow-hot" in err
+    assert "estimated wall temperature" in err and "--allow-hot" in err
 
     exit_code, output, _ = run(
         capsys, "enclosure", tmp_path / "b", *hot_args, "--allow-hot"

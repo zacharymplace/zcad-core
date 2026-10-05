@@ -235,12 +235,20 @@ assumption.
 
 ## Temperature estimate
 
-Every build prints an estimate of the air temperature inside the closed box,
-under `thermal`, and records it in `enclosure.json`. It is a lumped balance:
-the power the parts give off, divided by the box's outer surface times 8
-W/m2K (still air, the pessimistic end), added to the room's temperature. It
+Every build prints a temperature estimate for the closed box, under
+`thermal`, and records it in `enclosure.json`. It is a lumped balance: the
+power the parts give off, divided by the box's outer surface times 8 W/m2K
+(the film of still air outside it), added to the room's temperature. It
 credits no vents, ignores conduction and hot spots, and is off by half either
 way; a thermocouple on a printed box is the only real answer.
+
+**With the default coefficient it is the box's wall temperature, not the air
+inside** (`estimates: wall`). Still air inside has a film of its own, so the
+air a board breathes rises perhaps two to three times as far as the wall; the
+estimate is the low end of the inside air, and a box that passes is not shown
+to be cool enough inside. A coefficient pooled from your own thermal trials
+(below) is measured from the inside air, so it takes that in, and the estimate
+then says `estimates: inside air`.
 
 The power comes from the catalog, each figure with its source. Only two parts
 have one: the Pico 2 (62.1 mW typical, 71.3 mW peak, from its datasheet) and
