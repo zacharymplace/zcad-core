@@ -14,9 +14,10 @@ clip stands the clearance out from the device's edge and hooks over its top
 edge. The checks measure that against the envelope: no shell material
 inside it or within the clearance of its sides and top face, each lip over
 the top face, the clips joined to the frame, and each clip's strain as it
-bends to let the device in (too much on a device as thin as the G7, whose
-shell is rejected). The record keeps how much
-shell material is inside the envelope (``clips_into_device_mm3``).
+bends to let the device in. A device as thin as the G7 has no height for a
+post to bend over, so its target asks for tabs, which bend along the edge.
+The record keeps how much shell material is inside the envelope
+(``clips_into_device_mm3``).
 
 The first revision registers the target as well. A later one names its
 parent and why, writes its own envelope beside the earlier ones so their
@@ -47,6 +48,7 @@ from zcad_core.retention.revision_registration import (
     persist_candidate_revision,
 )
 from zcad_core.retention.snap_shell import (
+    TAB_LENGTH_MM,
     SnapShellLocation,
     SnapShellParameters,
     SnapShellPolicy,
@@ -84,6 +86,15 @@ class WearableTarget:
     clip_edges: tuple[str, ...]
     heading: str
     placeholder_reason: str
+    # Tabs that bend along the edge, for a device too thin for posts to bend
+    # up its sides (see SnapShellPolicy).
+    tabs: bool = False
+
+    @property
+    def policy(self) -> SnapShellPolicy:
+        """The shell's policy: the defaults, with tabs if the target has them."""
+
+        return SnapShellPolicy(tab_length_mm=TAB_LENGTH_MM if self.tabs else None)
 
 
 @dataclass(frozen=True)
@@ -230,15 +241,15 @@ def clip_locations(
 
     for edge in edges:
         along = body.length_mm if edge in ("north", "south") else body.width_mm
-        reach = edge_reach_mm(along, policy.clip_width_mm, radius)
+        reach = edge_reach_mm(along, policy.span_mm, radius)
         blocked = [feature for feature in body.features if feature.edge == edge]
-        offset = clear_offset(blocked, reach, policy.clip_width_mm)
+        offset = clear_offset(blocked, reach, policy.span_mm)
 
         if offset is None:
             names = ", ".join(feature.identifier for feature in blocked)
             raise ValueError(
                 f"No place on the {edge} edge clears {names} for a "
-                f"{policy.clip_width_mm:g} mm clip; the shell cannot hold there"
+                f"{policy.span_mm:g} mm clip; the shell cannot hold there"
             )
 
         half_length, half_width = body.length_mm / 2, body.width_mm / 2
@@ -272,7 +283,7 @@ def register_snap_shell_candidate(
     parent = (
         RevisionPaths(root, target, args.parent, from_capture) if args.parent else None
     )
-    policy = SnapShellPolicy()
+    policy = target.policy
 
     try:
         locations = clip_locations(body, target.clip_edges, policy)
@@ -341,6 +352,10 @@ def register_snap_shell_candidate(
         "ledge_mm": policy.ledge_mm,
         "rim_height_mm": policy.rim_height_mm,
     }
+
+    if policy.tab_length_mm is not None:
+        retention_policy["tab_length_mm"] = policy.tab_length_mm
+        retention_policy["tab_slit_mm"] = policy.tab_slit_mm
     fit_results = {
         result.check.value: {"passed": result.passed, "detail": result.detail}
         for result in fit_report.results

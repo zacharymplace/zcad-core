@@ -8,9 +8,8 @@ manufacturer-published dimensions in
 candidate is a ``provisional_synthetic_candidate`` that no trial may use.
 With a caliper capture (see docs/guides/wearable-capture.md) it is sized
 from the measurements and the candidate is verified when the shell's fit
-checks, measured against that envelope, pass. Today they do not: a clip on
-the 4.7 mm G7 strains over the limit as it bends, so the candidate is
-registered as ``rejected``.
+checks, measured against that envelope, pass. Its clips are tabs bending
+along the edge: a post on the 4.7 mm G7 would strain over the limit.
 
 With no arguments it registers the target and r001. A later revision names
 its parent and why:
@@ -47,6 +46,9 @@ TARGET = WearableTarget(
     # Three clips, as r001 was registered: the minimum that stops rocking.
     clip_edges=("north", "south", "east"),
     heading="DEXCOM G7",
+    # At 4.7 mm the G7 is too thin for a post to bend up its side within the
+    # strain limit, so each clip is a tab bending along the edge.
+    tabs=True,
     placeholder_reason=(
         "Source geometry is a placeholder envelope, not a "
         "caliper-verified capture; not eligible for promotion "

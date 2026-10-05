@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from itertools import combinations
 from math import hypot
 
@@ -217,7 +218,11 @@ class SyntheticSnapShellBackend:
                 SnapShellFitResult(
                     check=SnapShellFitCheck.CLIP_STRAIN,
                     passed=strain_passed,
-                    detail=_strain_detail(flexure, strain_passed),
+                    detail=_strain_detail(
+                        flexure,
+                        strain_passed,
+                        tab=parameters.tab_length_mm is not None,
+                    ),
                 ),
                 SnapShellFitResult(
                     check=(SnapShellFitCheck.MANUFACTURING_CLEARANCE),
@@ -249,15 +254,16 @@ class SyntheticSnapShellBackend:
     def _engagement_failures(
         self, parameters: SnapShellParameters, shell: cq.Shape
     ) -> list[str]:
-        """Each clip whose location is not on the device's edge, or whose lip
-        does not reach ``overhang_mm`` in over the top face there."""
+        """Each clip whose lip is not on the device's edge, or does not reach
+        ``overhang_mm`` in over the top face there."""
 
         failures = []
         thickness = parameters.device_thickness_mm
         top = thickness + parameters.clearance_mm + parameters.clip_height_mm
         half = parameters.clip_width_mm / 2
 
-        for location in parameters.locations:
+        for clip in parameters.locations:
+            location = _hook_point(parameters, clip)
             inward = _inward(parameters, location)
 
             if inward is None:
@@ -408,6 +414,11 @@ class SyntheticSnapShellBackend:
             clearance_mm=parameters.clearance_mm,
             base_z_mm=-parameters.wall_mm,
             rotation_degrees=location.rotation_degrees,
+            tab_length_mm=parameters.tab_length_mm,
+            # From the frame's underside, through the rim, to the slit's top.
+            tab_underside_mm=(
+                parameters.wall_mm + parameters.rim_height_mm + parameters.tab_slit_mm
+            ),
         )
 
         return add_snap_retention_clip(
@@ -417,10 +428,20 @@ class SyntheticSnapShellBackend:
 
 
 def clip_flexure(parameters: SnapShellParameters) -> Flexure:
-    """A clip's stem as a cantilever: ``wall_mm`` thick, fixed at the rim's
-    top, swinging ``overhang_mm`` at the lip's underside to let the device
-    past. A stem the rim reaches to the lip has no length to bend and
-    fails."""
+    """A clip as a cantilever, ``wall_mm`` thick, swinging ``overhang_mm`` to
+    let the device past.
+
+    A post is fixed at the rim's top and loaded at the lip's underside; a
+    post the rim reaches to the lip has no length to bend and fails. A tab
+    is fixed at its post and loaded where its hook starts, a hook's width
+    short of its free end."""
+
+    if parameters.tab_length_mm is not None:
+        return flexure_for(
+            parameters.overhang_mm,
+            parameters.tab_length_mm - parameters.clip_width_mm,
+            parameters.wall_mm,
+        )
 
     length = (
         parameters.device_thickness_mm
@@ -440,9 +461,10 @@ def clip_flexure(parameters: SnapShellParameters) -> Flexure:
     return flexure_for(parameters.overhang_mm, length, parameters.wall_mm)
 
 
-def _strain_detail(flexure: Flexure, passed: bool) -> str:
+def _strain_detail(flexure: Flexure, passed: bool, *, tab: bool) -> str:
+    noun = "tab" if tab else "stem"
     strain = (
-        f"A {flexure.thickness_mm:g} mm stem bending over "
+        f"A {flexure.thickness_mm:g} mm {noun} bending over "
         f"{flexure.length_mm:.2f} mm to swing {flexure.deflection_mm:g} mm "
         f"strains {100 * flexure.strain:.1f} per cent"
     )
@@ -466,7 +488,27 @@ def _strain_detail(flexure: Flexure, passed: bool) -> str:
 
     return (
         f"{strain}, over {limit}: it needs {needed:.1f} mm to bend over, a "
-        f"stem {thinnest:.2f} mm thick, or less overhang."
+        f"{noun} {thinnest:.2f} mm thick, or less overhang."
+    )
+
+
+def _hook_point(
+    parameters: SnapShellParameters, location: SnapShellLocation
+) -> SnapShellLocation:
+    """Where on the edge a clip's lip is: at the location for a post, half a
+    tab's length along the edge from it for a tab (see
+    :func:`~zcad_core.features.snap_retention.add_snap_retention_clip`)."""
+
+    if parameters.tab_length_mm is None:
+        return location
+
+    angle = math.radians(location.rotation_degrees)
+    along = parameters.tab_length_mm / 2
+
+    return replace(
+        location,
+        x_mm=location.x_mm - along * math.sin(angle),
+        y_mm=location.y_mm + along * math.cos(angle),
     )
 
 

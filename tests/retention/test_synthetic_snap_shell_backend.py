@@ -17,6 +17,7 @@ from zcad_core.retention import (
     SnapShellRequest,
     SyntheticSnapShellBackend,
 )
+from zcad_core.retention.snap_shell import TAB_LENGTH_MM
 
 # A G7-sized body, 27.4 x 24.1 x 4.7 mm, with a clip at the middle of three
 # edges, each turned to reach into the device.
@@ -383,3 +384,54 @@ def test_manufacturing_gate_fails_closed() -> None:
     assert SnapShellFitCheck.MANUFACTURING_CLEARANCE in {
         result.check for result in report.failures
     }
+
+
+def tab_request() -> SnapShellRequest:
+    return valid_request(SnapShellPolicy(tab_length_mm=TAB_LENGTH_MM))
+
+
+def test_a_g7_sized_shell_with_tabs_passes_every_check() -> None:
+    backend = SyntheticSnapShellBackend()
+    parameters = backend.derive(tab_request())
+    report = backend.analyze_fit(parameters)
+
+    assert report.passed
+    assert backend.clips_into_device_mm3(parameters) == 0.0
+    strain = next(r for r in report.results if r.check is SnapShellFitCheck.CLIP_STRAIN)
+    # Fixed at its post, loaded a hook's width short of its 12 mm end.
+    assert strain.detail.startswith(
+        "A 1 mm tab bending over 9.00 mm to swing 0.6 mm strains 1.1 per cent"
+    )
+
+
+def test_a_tab_beam_is_free_of_the_rim_and_holds_by_its_post() -> None:
+    backend = SyntheticSnapShellBackend()
+    parameters = backend.derive(tab_request())
+    shell = workplane_shape(backend.build_geometry(parameters))
+    # The north tab: its post at -X, its beam running +X to the hook.
+    outside = WIDTH / 2 + parameters.clearance_mm + 0.5
+    slit_z = parameters.rim_height_mm + parameters.tab_slit_mm / 2
+
+    def solid(x: float, z: float) -> bool:
+        probe = cq.Solid.makeBox(0.2, 0.2, 0.2, pnt=cq.Vector(x, outside, z))
+        return intersection_volume(shell, probe) > 0
+
+    # Under the beam, the slit is open; under the post, it is solid.
+    assert not solid(2.0, slit_z)
+    assert solid(-6.5, slit_z)
+    # The beam stands above the slit, and the rim below it.
+    assert solid(2.0, slit_z + parameters.tab_slit_mm)
+    assert solid(2.0, 0.3)
+
+
+def test_a_tab_turned_so_its_hook_runs_off_the_edge_does_not_engage() -> None:
+    north, south, east = spaced_locations()
+    # 2 mm from the north-east corner, the hook half a tab along lands past it.
+    near_corner = replace(north, x_mm=LENGTH / 2 - 2.0)
+
+    assert SnapShellFitCheck.SNAP_ENGAGEMENT in failed(
+        valid_request(
+            SnapShellPolicy(tab_length_mm=TAB_LENGTH_MM),
+            locations=(near_corner, south, east),
+        )
+    )

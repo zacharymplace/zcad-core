@@ -39,7 +39,7 @@ longer side. The edges are named like a map:
 Write in `orientation` how you laid it ("buttons up, fill port at the east
 end"), so the next capture lays it the same way. The shell's clips stand at the
 middle of each edge it uses: north, south, and east on the G7, all four on the
-Mobi.
+Mobi. A G7 clip is a tab 15 mm along its edge, its hook at one end.
 
 ## Body: three readings each
 
@@ -131,8 +131,8 @@ A valid capture prints the sizes the candidate will use and its SHA-256.
 ## What a candidate built from it records
 
 - **Size:** the envelope is the median of each dimension.
-- **Clips:** each clip moves along its edge to the nearest place that clears
-  every feature there by 1 mm. It stays 2 mm from the corners. If no place on an
+- **Clips:** each clip moves along its edge to the nearest place where its
+  whole length, a G7 tab's included, clears every feature there by 1 mm. It stays 2 mm from the corners. If no place on an
   edge is clear, nothing is written and the script names the edge.
 - **Provenance:** the capture file is copied into the candidate's folder as
   `capture.json`. Its SHA-256, who measured, when, and with what go into
@@ -142,10 +142,10 @@ A valid capture prints the sizes the candidate will use and its SHA-256.
   each clip's lip must reach `overhang_mm` in over the top face, the frame
   and clips must be one solid, and a clip bending out to let the device past
   must strain no more than the engine's provisional 1.5 per cent limit. A
-  clip bends over its stem between the rim and the lip, so a thin device
-  fails: on the 4.7 mm G7 it strains about 6 per cent, and the G7's shell is
-  `rejected` until its clips are redesigned. The Mobi's, 14.2 mm, passes. `automated-validation.json` records each check
-  and how much shell material is inside the envelope (`clips_into_device_mm3`).
+  Mobi clip is a post bending up the device's side, 0.5 per cent. The G7 is
+  too thin for a post (about 6 per cent), so its clips are tabs bending along
+  the edge, 1.1 per cent. `automated-validation.json` records each check and
+  how much shell material is inside the envelope (`clips_into_device_mm3`).
 - **Status:** when every check passes the decision is `verified_candidate` and
   the geometry is `caliper-verified`. A failed check makes it `rejected`. A
   printed trial on the real device is still what proves it.

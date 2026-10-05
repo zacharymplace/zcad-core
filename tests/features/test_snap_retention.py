@@ -137,3 +137,26 @@ def test_the_clip_stands_outside_the_edge_and_hooks_over_the_top() -> None:
     # The lip's flat underside, the clearance above the part's top face.
     over = cq.Solid.makeBox(0.6, 6.0, 4.0 + 0.25, pnt=cq.Vector(4.0, -6.0, part_top))
     assert clip.intersect(over).BoundingBox().zmin == pytest.approx(part_top + 0.25)
+
+
+def test_a_tab_runs_along_the_edge_with_its_lip_at_the_free_end() -> None:
+    parameters = _parameters(tab_length_mm=12.0, tab_underside_mm=5.0)
+    clip = workplane_shape(
+        add_snap_retention_clip(cq.Workplane("XY"), parameters=parameters)
+    )
+    box = clip.BoundingBox()
+
+    # Post and beam, 6 + 12 mm, centred on y = -3.
+    assert (box.ymin, box.ymax) == (pytest.approx(-12.0), pytest.approx(6.0))
+    # The lip reaches in only at the free end.
+    lip = cq.Solid.makeBox(0.5, 18.0, 20.0, pnt=cq.Vector(4.05, -12.0, -10.0))
+    reach = clip.intersect(lip).BoundingBox()
+    assert reach.ymin == pytest.approx(0.0)
+    # Under the beam, between the base and its underside, there is nothing.
+    under = cq.Solid.makeBox(3.0, 10.0, 4.5, pnt=cq.Vector(1.0, -5.5, -9.0))
+    assert clip.intersect(under).Volume() == pytest.approx(0.0, abs=1e-9)
+
+
+def test_a_tab_underside_must_be_between_the_base_and_the_lip() -> None:
+    with pytest.raises(ValueError, match="tab_underside_mm"):
+        _parameters(tab_length_mm=12.0, tab_underside_mm=0.0).validate()

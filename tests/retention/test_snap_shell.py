@@ -87,6 +87,25 @@ def test_the_rim_must_stand_taller_than_the_lips_let_the_device_lift() -> None:
         SnapShellPolicy(clearance_mm=1.0, rim_height_mm=1.0)
 
 
+def test_a_tab_must_be_longer_than_its_hook() -> None:
+    with pytest.raises(ValueError, match="tab_length_mm must be longer"):
+        SnapShellPolicy(tab_length_mm=3.0)
+
+    assert SnapShellPolicy(tab_length_mm=12.0).span_mm == pytest.approx(15.0)
+    assert SnapShellPolicy().span_mm == pytest.approx(3.0)
+
+
+def test_a_tab_needs_a_device_thick_enough_to_stand_its_beam_on() -> None:
+    with pytest.raises(ValueError, match="too thin for a tab"):
+        derive_snap_shell_parameters(
+            device_thickness_mm=1.5,
+            device_length_mm=26.0,
+            device_width_mm=24.0,
+            locations=spaced_locations(),
+            policy=SnapShellPolicy(tab_length_mm=12.0),
+        )
+
+
 def test_the_ledge_must_leave_the_underside_open() -> None:
     with pytest.raises(ValueError, match="no opening under the device"):
         derive_snap_shell_parameters(
