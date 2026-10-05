@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol, runtime_checkable
 
-from zcad_core.hardware.wearables.capture import EdgeFeature
+from zcad_core.hardware.wearables.capture import EdgeFeature, FaceFeature
 from zcad_core.retention.snap_shell import (
     SnapShellLocation,
     SnapShellParameters,
@@ -25,6 +25,7 @@ class SnapShellRequest:
     policy: SnapShellPolicy
     edge_features: tuple[EdgeFeature, ...] = ()
     device_corner_radius_mm: float = 0.0
+    face_features: tuple[FaceFeature, ...] = ()
 
     def __post_init__(self) -> None:
         for name, value in {
@@ -55,6 +56,7 @@ class SnapShellFitCheck(str, Enum):
     DEVICE_CLEARANCE = "device_clearance"
     MANUFACTURING_CLEARANCE = "manufacturing_clearance"
     CLIP_STRAIN = "clip_strain"
+    FACE_FEATURES_OPEN = "face_features_open"
 
 
 @dataclass(frozen=True)

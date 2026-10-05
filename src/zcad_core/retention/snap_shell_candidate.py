@@ -330,6 +330,7 @@ def register_snap_shell_candidate(
         locations=locations,
         policy=policy,
         edge_features=body.features,
+        face_features=body.face_features,
         device_corner_radius_mm=(
             body.capture.outline_radius_mm if body.capture else None
         )

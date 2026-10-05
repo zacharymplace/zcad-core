@@ -297,6 +297,15 @@ def test_a_rounded_capture_builds_a_rounded_envelope_and_shell(
             )
         ],
         outline={"type": "rounded_rectangle", "radius_mm": 8.0},
+        face_features=[
+            {
+                "identifier": "light",
+                "center_x_mm": 0.0,
+                "center_y_mm": 17.5,
+                "width_mm": 4.0,
+                "depth_mm": 2.0,
+            }
+        ],
     )
 
     script.main(
@@ -309,6 +318,9 @@ def test_a_rounded_capture_builds_a_rounded_envelope_and_shell(
     report = json.loads((folder / "automated-validation.json").read_text("utf-8"))
     assert report["decision"] == "verified_candidate"
     assert report["device"]["body_corner_radius_mm"] == 8.0
+    # Placement slid the north clip off the light; the measured check agrees.
+    assert report["fit_checks"]["face_features_open"]["passed"]
+    assert report["capture"]["face_features"][0]["identifier"] == "light"
     assert report["clips_into_device_mm3"] == 0.0
     # The source envelope is the rounded outline, not the box.
     body = report["device"]
