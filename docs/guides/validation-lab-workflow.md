@@ -192,10 +192,13 @@ python scripts/record-print-day.py <answers>
 scripts/backup-evidence.sh
 ```
 
-It records each finished fixture (`trial complete` and `trial register`)
-and enclosure (`enclosure trial complete`), skips an unfinished answer with
-the reason, and never touches a trial already recorded. A completed trial is never overwritten: record another
-attempt as `trial-002`.
+It records each finished fixture (`trial complete` and `trial register`),
+enclosure (`enclosure trial complete`) and group enclosure
+(`enclosure-group trial complete`), skips an unfinished answer with the
+reason, and never touches a trial already recorded. An enclosure is found by
+its folder name under `evidence/enclosures/`, so build one to print there,
+not in `exports/`, and its trial is recorded and backed up with the rest. A
+completed trial is never overwritten: record another attempt as `trial-002`.
 
 ## 6. Promote, or revise
 
