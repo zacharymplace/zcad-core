@@ -272,7 +272,8 @@ longer than a 250 mm rod (three bays) is refused.
 **Slide.** The lid slides along the row in grooves in the front and back walls,
 out over one end wall (`--slide-entry positive_x`, the right, by default, or
 `negative_x`), and a detent on each edge holds it shut. The long walls are
-raised 3.4 mm and thickened 1.6 mm. Know that:
+raised 4.4 mm (the 3 mm lid, its clearance, and 1.2 mm over it) and thickened
+1.6 mm. Know that:
 
 - A row must be at least as wide as it is deep, so a lone bay cannot slide:
   add a bay, or hinge it.

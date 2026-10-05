@@ -1060,6 +1060,10 @@
     "features/mounts.py:POCKET_ROOF_MM": {
       "status": "unstated"
     },
+    "features/mounts.py:VESA_DRIVER_CLEARANCE_MM": {
+      "status": "design_default",
+      "note": "A margin past the head, since a driver comes down the screw's axis and is no wider than its head"
+    },
     "features/mounts.py:VESA_ENGAGEMENT_MM": {
       "status": "unstated"
     },

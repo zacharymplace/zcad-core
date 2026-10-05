@@ -6,13 +6,13 @@ The engine states no strength, holding force or load claim, and a figure it did 
 
 **Scope.** Module-level numeric constants, and the non-zero numeric defaults of dataclass fields and function parameters. A default of zero (no offset, none) is not a figure and is not listed. Not covered: a number inside a function body, a default given by `field(...)` or a factory, a keyword argument at a call (so a module-level instance such as a display's is not listed), and a number in a data file. A status is only as good as what the code says: a `sourced` figure is as the code cites it and has not been re-checked against the standard. An `unstated` figure is not wrong; it has no basis written down. Adding a figure without recording it fails the test suite.
 
-## The 688 figures
+## The 689 figures
 
 | Status | Count | Meaning |
 | --- | ---: | --- |
 | `sourced` | 31 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
 | `estimated` | 9 | Read off a drawing's scale or a stated rough estimate: the source does not state it outright |
-| `design_default` | 24 | The engine's own choice, which the code says is a default, a design value or a guess |
+| `design_default` | 25 | The engine's own choice, which the code says is a default, a design value or a guess |
 | `example` | 3 | An illustrative figure, not claimed right for any real part |
 | `unstated` | 621 | No basis is stated in the code |
 
@@ -79,6 +79,7 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | `features/housing_file.py:DEFAULT_SKIN_EDGE_RADIUS_MM` | `0.8` | A comfort setting, not a medical figure |
 | `features/mount_stack.py:TOP_RIM_MM` | `1.2` | The engine's own choice, and a baseplate's default |
 | `features/mounts.py:FLEXURE_STRAIN_LIMIT` | `0.015` | A design strain limit for a printed PETG tongue, well under the material's yield; provisional until a print trial measures it |
+| `features/mounts.py:VESA_DRIVER_CLEARANCE_MM` | `0.5` | A margin past the head, since a driver comes down the screw's axis and is no wider than its head |
 | `features/stack_profile.py:MAXIMUM_LEAN` | `1.0` | 45 degrees, the printer's limit without support, as the code states |
 | `hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.recommended_clearance_mm` | `0.5` | The spec's own recommendation (the engine's choice); no basis is written down |
 | `hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.recommended_standoff_height_mm` | `3.0` | The spec's own recommendation (the engine's choice); no basis is written down |

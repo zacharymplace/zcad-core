@@ -262,6 +262,8 @@ def build_enclosure(
             wall_mm=design.wall_mm,
             fastener=fastener,
             hole_compensation_mm=design.hole_compensation_mm,
+            # The corner bosses' pilot holes start this far into the floor.
+            holes_into_floor_mm=_FLOOR_EMBED_MM,
         )
         base = add_mount_pads(base, pads)
         mount = build_mount(

@@ -87,6 +87,8 @@ def _add_mount(
         floor_mm=design.floor_mm,
         wall_mm=design.wall_mm,
         fastener=fastener,
+        # The corner bosses' pilot holes start this far into the floor.
+        holes_into_floor_mm=FLOOR_EMBED_MM,
     )
     base = add_mount_pads(base, pads)
     plate = build_mount(

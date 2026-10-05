@@ -117,12 +117,17 @@ def test_keyhole_plate_follows_the_published_dimensions() -> None:
     cx = (bounds.xmin + bounds.xmax) / 2
     cy = (bounds.ymin + bounds.ymax) / 2
     offset = min((pads.positions[1][0] - pads.positions[0][0]) / 2, 40.0) * 0.6
-    below = KEYHOLE_TRAVEL_MM + KEYHOLE_SLOT_WIDTH_MM / 2
-    hole_y = cy - (KEYHOLE_HEAD_DIAMETER_MM / 2 - below) / 2
+    above = KEYHOLE_TRAVEL_MM + KEYHOLE_SLOT_WIDTH_MM / 2
+    hole_y = cy - (above - KEYHOLE_HEAD_DIAMETER_MM / 2) / 2
 
     assert not has_material(plate, cx - offset, hole_y, mid)  # large hole
-    assert not has_material(plate, cx - offset, hole_y - KEYHOLE_TRAVEL_MM, mid)
-    assert has_material(plate, cx - offset + 4.0, hole_y - 6.0, mid)  # beside slot
+    # The slot runs up from it, toward +Y: hung with +Y up, the plate drops
+    # onto the screws and each rides up the slot. Below the hole is solid.
+    assert not has_material(plate, cx - offset, hole_y + KEYHOLE_TRAVEL_MM, mid)
+    assert has_material(
+        plate, cx - offset, hole_y - KEYHOLE_HEAD_DIAMETER_MM / 2 - 1.0, mid
+    )
+    assert has_material(plate, cx - offset + 4.0, hole_y + 6.0, mid)  # beside slot
     # Each pad's screw hole goes through, with a countersink on the outer face.
     x, y = pads.positions[0]
     assert not has_material(plate, x, y, mid)
@@ -272,9 +277,36 @@ def test_keyhole_plate_has_no_device_screws() -> None:
     assert build_mount("keyhole", pads_for(), fastener=M3).device_screws is None
 
 
-def test_group_with_a_vesa_mount_keeps_every_check() -> None:
-    group = build_group_enclosure(design=GroupDesign(mount="vesa75"))
+def test_a_vesa_pattern_under_the_enclosure_is_refused() -> None:
+    # The pair is 176 x 96 mm: every screw of either pattern would sit under
+    # it, where no driver reaches once the plate is bolted on.
+    for kind in ("vesa75", "vesa100"):
+        with pytest.raises(ValueError, match="screws under the 176 x 96 mm enclosure"):
+            build_group_enclosure(design=GroupDesign(mount=kind))
 
-    assert group.passed
-    assert group.mount is not None
-    assert group.mount.device_screws is not None
+
+def test_a_vesa_pattern_wider_than_the_enclosure_is_built() -> None:
+    # 90 mm square: the 100 mm pattern's screws stand just outside it.
+    pads = pads_for(width=90.0, depth=90.0)
+    plate = build_mount("vesa100", pads, fastener=M3)
+
+    assert plate.device_screws is not None
+    assert pads.footprint_mm == (0.0, 90.0, 0.0, 90.0)
+
+
+def test_a_pad_pocket_keeps_a_millimetre_under_the_corner_boss() -> None:
+    # The corner boss's pilot hole starts 0.5 mm down inside the floor, right
+    # over the pad: the pocket must stop a full millimetre below that.
+    group = build_group_enclosure(design=GroupDesign(mount="keyhole"))
+    (base,) = group.base.solids().vals()
+    assert isinstance(base, cq.Solid)
+    pads = group.mount_pads
+    assert isinstance(pads, MountPads)
+    x, y = pads.positions[0]
+    pocket_top = pads.mating_z_mm + pads.pocket_depth_mm
+    hole_bottom = group.design.floor_mm - 0.5
+
+    assert hole_bottom - pocket_top == pytest.approx(1.0)
+    assert not base.isInside(cq.Vector(x, y, pocket_top - 0.05))
+    assert base.isInside(cq.Vector(x, y, pocket_top + 0.5))
+    assert not base.isInside(cq.Vector(x, y, hole_bottom + 0.05))

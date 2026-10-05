@@ -125,14 +125,15 @@ a wall holds, or vents on walls too low to fit them under a skirt.
 `--mount vesa100`, or `--mount din` adds four pads under
 the floor, one at each corner of the footprint, and a third part, the
 **mount plate**, that bolts to them. Each pad carries a heat-set insert
-pocket (the pocket leaves 1 mm of floor above it, so it never opens into the
-cavity), and the pads stand 4 mm off the floor for an M3. The plate takes
+pocket. The pocket leaves 1 mm of plastic above it, under the corner boss's
+pilot hole as well as the floor, so it never opens into the cavity or the
+boss, and the pads stand 4.5 mm off the floor for an M3. The plate takes
 the enclosure's fastener, countersunk from its outer face, so it sits flat
 against a wall; `--mount-plate-mm` (4 by default) must be thick enough for
 the countersink. The keyhole plate has two keyholes on its centreline: a
-9 mm hole for a wall screw's head and a 4.5 mm slot running 10 mm toward the
-plate's -Y edge, so the enclosure hangs with +Y up and slides down onto the
-screws. A wall screw's head sits in the gap between the plate and the floor.
+9 mm hole for a wall screw's head and a 4.5 mm slot running 10 mm up from it,
+toward the plate's +Y edge, so the enclosure hangs with +Y up: put the heads
+through the holes and let it drop, and each screw rides up its slot. A wall screw's head sits in the gap between the plate and the floor.
 The build prints the screw for the plate (M3 x 8 mm by default).
 
 The VESA plates follow VESA MIS-D: four holes on a 75 x 75 or 100 x 100 mm
@@ -143,7 +144,12 @@ enclosure it is larger than the enclosure (87 x 87 mm for VESA 75 on a Pico
 2). The build prints the M4 screw (plate thickness plus 8 mm of thread, 12
 mm for a 4 mm plate) and is refused if a screw head would come within 2 mm
 of a pad, which a footprint near the pattern's size cannot avoid; try the
-other pattern.
+other pattern. It is also refused if any screw would sit under the
+enclosure: the plate's own screws face the device, so it is bolted to the
+enclosure first, and then a driver can reach an M4 only beside the
+enclosure. So a VESA pattern must be wider than the enclosure, with each
+head at least 0.5 mm clear of its outline (100 mm suits a Pico 2's case, not
+a Raspberry Pi 5's).
 
 `--mount stack --stack-profile profile.json` makes the plate a **stack plate**: a flat plate on a
 [stack profile](stackable-items.md)'s foot, in whole cells, that stands on a baseplate or a bin of the

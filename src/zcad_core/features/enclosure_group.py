@@ -388,7 +388,12 @@ def build_group_enclosure(
         design=design,
         fastener=fastener,
         outer=outer,
-        height_mm=cavity_top + design.lid_mm,
+        # The real top, so a hinge's knuckles or a slide's raised walls count
+        # against a rack unit, not just the lid's plate.
+        height_mm=max(
+            single_shape(base).BoundingBox().zmax,
+            single_shape(lid).BoundingBox().zmax,
+        ),
     )
     stack_top = None
 
