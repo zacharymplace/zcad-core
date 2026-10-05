@@ -23,7 +23,7 @@ import cadquery as cq
 
 from zcad_core.features.guide_bores import printer_numbers
 from zcad_core.features.guide_file import GuidePart
-from zcad_core.features.nest_core import clear, lifts_out, pocketed
+from zcad_core.features.nest_core import clear, pocketed
 from zcad_core.features.nest_features import (
     DEFAULT_EMBOSS_MM,
     DEFAULT_TEXT_SIZE_MM,
@@ -314,9 +314,8 @@ def _nest_checks(
     checks = {
         "one_solid": len(body.solids().vals()) == 1,
         "part_fits_pocket": clear(solid, part.shape),
-        # A lip's hooks give way as the part is lifted, so the part lifts out of the nest as it
-        # is without them.
-        "part_lifts_out": lifts_out(part.shape, plain.val(), depth),
+        # Whether the part lifts out is not checked: the nest's wall, notches and slits are the
+        # same all the way up, so a part that fits lifts out. A lip's hooks give way as it does.
         "notches_open": _notches_open(
             solid, notches, clearance, spec.wall_mm, floor_top, wall_top
         ),

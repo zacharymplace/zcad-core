@@ -383,14 +383,18 @@ def build_fixture(
         "board_lifts_out": _lifts_out(
             nest_shape, assembly, board.board_thickness_mm + plan.tallest_part_mm
         ),
-        "plate_clear_of_board": intersection_volume(plate_shape, assembly)
-        <= _TOLERANCE_MM3,
         "plate_clear_of_nest": intersection_volume(plate_shape, nest_shape)
         <= _TOLERANCE_MM3,
         "pins_clear": _pins_clear(plate_shape, plan, parts),
     }
 
+    # A screwed plate is a prism whose underside is refused below the tallest
+    # part and a margin, so it clears the board by construction; a hinged one
+    # carries a catch that hangs below it, so it is checked.
     if hinge is not None:
+        checks["plate_clear_of_board"] = (
+            intersection_volume(plate_shape, assembly) <= _TOLERANCE_MM3
+        )
         checks["board_lifts_out_plate_open"] = _plate_open_clears_board(
             nest_shape,
             plate_shape,
@@ -400,12 +404,9 @@ def build_fixture(
             board.board_thickness_mm + plan.tallest_part_mm,
         )
 
-    if closure.limit_checked:
-        checks[
-            "catch_load_within_limit"
-            if closure.hinge is not None
-            else "preload_within_screw_limit"
-        ] = closure.within_limit
+    # The preload and the catch's load are refused at the build when over the
+    # limit (closure_for), so a built fixture always meets them; they are in
+    # the plan's record, not repeated here as checks.
 
     return PcbFixture(
         spec=spec,

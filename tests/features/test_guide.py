@@ -276,8 +276,6 @@ def test_the_guide_passes_its_checks(built: Any) -> None:
     assert guide.checks == {
         "one_solid": True,
         "part_fits_pocket": True,
-        "part_lifts_out": True,
-        "bores_open": True,
         "bit_reaches_depth": True,
     }
 
@@ -317,7 +315,9 @@ def test_an_undercut_part_still_lifts_out() -> None:
     assert spec is not None and part is not None
     guide = build_guide(spec, part, PROFILE)
 
-    assert guide.checks["part_lifts_out"]
+    # A top-bearing pocket is a prism of the part's widest outline, so even an
+    # undercut part lifts out; there is nothing to check, and nothing is listed.
+    assert "part_lifts_out" not in guide.checks
     assert guide.passed
 
 

@@ -33,9 +33,8 @@ from zcad_core.features.jig_file import (
     pocket_depth_mm,
     resolved_sites,
 )
-from zcad_core.features.nest_core import TOLERANCE_MM3, clear, lifts_off, pocketed
+from zcad_core.features.nest_core import clear, pocketed
 from zcad_core.features.nest_trial import jig_checks
-from zcad_core.geometry.intersection import intersection_volume
 
 JIG_RECORD_SCHEMA_VERSION = "1.1.0"
 JIG_RECORD = "jig.json"
@@ -261,19 +260,15 @@ def build_jig(spec: JigSpec, part: GuidePart, profile: dict[str, Any]) -> Jig:
         )
 
     solid = body.val()
+    # Only checks that can fail. Three things hold by construction and are not
+    # listed: each bore is cut through the plate by a wider cylinder on its own
+    # axis, so it is open; the pocket is a straight prism of the part's
+    # silhouette, so a part that fits lifts out; and the plate is
+    # ``tip_length_mm - depth_below_face_mm`` thick, so the iron's tip stops at
+    # the insert's top by definition.
     checks = {
         "one_solid": len(body.solids().vals()) == 1,
         "part_fits_pocket": clear(solid, part.shape),
-        "part_lifts_out": lifts_off(solid, part.shape, part.height_mm),
-        "bores_open": _bores_open(solid, bores, thickness),
-        # Measured on the built plate: with the iron's shoulder on its top, the tip's
-        # end is where the insert's top must be, depth_below_face_mm under the part's.
-        "iron_reaches_insert": abs(
-            body.val().BoundingBox().zmax  # type: ignore[union-attr]
-            - spec.iron.tip_length_mm
-            + spec.depth_below_face_mm
-        )
-        < 1e-3,
     }
 
     return Jig(
@@ -289,26 +284,6 @@ def build_jig(spec: JigSpec, part: GuidePart, profile: dict[str, Any]) -> Jig:
         checks=checks,
         warnings=(),
     )
-
-
-def _bores_open(body: object, bores: tuple[Bore, ...], thickness: float) -> bool:
-    """Each bore, as a cylinder through the plate, meets no material."""
-
-    if not isinstance(body, cq.Shape):
-        raise TypeError("Expected a shape")
-
-    for bore in bores:
-        cylinder = cq.Solid.makeCylinder(
-            bore.diameter_mm / 2,
-            thickness,
-            pnt=cq.Vector(bore.centre[0], bore.centre[1], 0.0),
-            dir=cq.Vector(0, 0, 1),
-        )
-
-        if intersection_volume(body, cylinder) > TOLERANCE_MM3:
-            return False
-
-    return True
 
 
 def print_oriented(jig: Jig) -> cq.Workplane:

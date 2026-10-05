@@ -67,8 +67,10 @@ refused (the insert could not be started), a pocket 0.3 mm or more **off** the c
 
 ## What is checked
 
-The jig is **one solid**. The part is put in its pocket and shares no volume with it, and the jig lifts straight off the part. Every bore is open through the plate.
-The iron's tip reaches the insert's top when the shoulder rests on the plate. The jig must fit the printer's bed, and is printed plate down.
+The jig is **one solid**, and the part is put in its pocket and shares no volume with it. Those are its checks. Three things hold by how
+it is built, so they are not checked: the pocket is a straight prism of the part's outline, so a part that fits lifts straight out;
+each bore is cut through the plate by a cylinder on its own axis, so it is open; and the plate is the iron's tip length less how far
+below the face the insert goes, so the tip stops at the insert's top. The jig must fit the printer's bed, and is printed plate down.
 
 **The engine states no temperature, time or force for installing an insert, and nothing about whether an insert holds or a part survives the heat.** It says where
 each insert is and how far the iron can go. A jig is unverified until a printed trial has passed.

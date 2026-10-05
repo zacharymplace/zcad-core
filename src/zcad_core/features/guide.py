@@ -45,7 +45,6 @@ from zcad_core.features.nest_core import (
     lifts_off,
     pocketed,
 )
-from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.profiles.guide_accuracy import GuideAccuracyProfile
 
 GUIDE_RECORD_SCHEMA_VERSION = "4.0.0"
@@ -192,9 +191,14 @@ def build_guide(spec: GuideSpec, part: GuidePart, profile: dict[str, Any]) -> Gu
     checks = {
         "one_solid": len(body.solids().vals()) == 1,
         "part_fits_pocket": clear(solid, part.shape),
-        "part_lifts_out": lifts_off(solid, part.shape, part.height_mm),
-        "bores_open": _bores_open(solid, plan.bores, top_z),
     }
+
+    # A top-bearing pocket is a straight prism of the part's silhouette, so a
+    # part that fits lifts out; a ledge nest stops at the part's shoulder, where
+    # it may not. A bore is cut by a cylinder wider than the drill and as tall
+    # as the plate, so it is always open, and is not checked.
+    if spec.bearing == "ledge":
+        checks["part_lifts_out"] = lifts_off(solid, part.shape, part.height_mm)
     reached, problems = _reach(body, plan.bores, sections, thickness, base_z)
     checks["bit_reaches_depth"] = not problems
     play = {
@@ -263,29 +267,6 @@ def _reach(
             )
 
     return tuple(reached), problems
-
-
-def _bores_open(body: object, planned: tuple[PlannedBore, ...], top_z: float) -> bool:
-    """Each bore's drill, as a cylinder through the plate, meets no material."""
-
-    if not isinstance(body, cq.Shape):
-        raise TypeError("Expected a shape")
-
-    for item in planned:
-        cosine = -item.axis[2]
-        top = top_z + 1.0
-        origin = axis_point(item, top)
-        drill = cq.Solid.makeCylinder(
-            item.bore.diameter_mm / 2,
-            top / cosine,
-            pnt=cq.Vector(origin[0], origin[1], top),
-            dir=cq.Vector(*item.axis),
-        )
-
-        if intersection_volume(body, drill) > _TOLERANCE_MM3:
-            return False
-
-    return True
 
 
 def print_oriented(guide: Guide) -> cq.Workplane:

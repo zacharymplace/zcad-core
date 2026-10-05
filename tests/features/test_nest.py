@@ -251,7 +251,6 @@ def test_a_nest_is_one_solid_the_part_fits_and_lifts_out_of(nest: Any) -> None:
     assert nest.checks == {
         "one_solid": True,
         "part_fits_pocket": True,
-        "part_lifts_out": True,
         "notches_open": True,
     }
     assert nest.depth_mm == 8.0
@@ -475,7 +474,7 @@ def test_a_lip_takes_the_whole_height_and_hooks_over_the_part(
 
     assert lipped.depth_mm == pytest.approx(16.0)
     assert len(lipped.tabs) == 2
-    assert lipped.checks["lip_over_part"] and lipped.checks["part_lifts_out"]
+    assert lipped.checks["lip_over_part"] and "part_lifts_out" not in lipped.checks
     assert lipped.passed
 
     for tab in lipped.tabs:

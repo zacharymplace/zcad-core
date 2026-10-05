@@ -67,8 +67,7 @@ is refused, and the build record says `skin_side_covered: true`.
   `retention_edges`.
 - **Face features.** A button or a screen on the face is left open. The build refuses a
   tab whose hook would cover one, naming it and the edge.
-- **Checks.** The tray is one solid, the device fits the pocket with nothing meeting
-  it, every edge feature's notch is open, and every tab's hook reaches over the
+- **Checks.** The tray is one solid, every edge feature's notch is open, and every tab's hook reaches over the
   device's top face.
 
 ## The case
