@@ -803,6 +803,9 @@
     "features/jig_file.py:WALL_RANGE_MM": {
       "status": "unstated"
     },
+    "features/jig_holes.py:FULL_TURN_TOLERANCE": {
+      "status": "unstated"
+    },
     "features/jig_holes.py:MINIMUM_HOLE_MM": {
       "status": "unstated"
     },

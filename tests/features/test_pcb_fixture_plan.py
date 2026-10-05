@@ -301,8 +301,9 @@ def test_the_budget_adds_the_links_and_tilt_follows_the_bore(tmp_path: Path) -> 
     assert worst is not None
     assert worst.board_play_mm == pytest.approx(0.2)
     assert worst.bore_play_mm == pytest.approx(0.05)
-    # Turned by two press-fit clearances over a 2 mm bore, from 11 mm up.
-    assert worst.tilt_mm == pytest.approx((2 * 0.05 / 2.0) * (12.0 - 1.0))
+    # Turned by two press-fit clearances over a 2 mm bore, over the 10 mm from the
+    # plate's underside to the tip; the bore's own play is its offset there, counted once.
+    assert worst.tilt_mm == pytest.approx((2 * 0.05 / 2.0) * (12.0 - 2.0))
     assert worst.total_mm == pytest.approx(
         worst.board_play_mm + worst.plate_play_mm + worst.bore_play_mm + worst.tilt_mm
     )

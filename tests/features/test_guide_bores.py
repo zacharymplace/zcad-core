@@ -13,7 +13,13 @@ import cadquery as cq
 import pytest
 
 from zcad_core.features.guide import build_guide, guide_record
-from zcad_core.features.guide_bores import MAXIMUM_BORES
+from zcad_core.features.guide_bores import (
+    MAXIMUM_BORES,
+    Bore,
+    Sections,
+    plan_bores,
+    play_bounds,
+)
 from zcad_core.features.guide_file import (
     check_guide_data,
     guide_template,
@@ -241,7 +247,9 @@ def test_a_bushing_pocket_is_sized_for_a_press_fit(slab: Path, tmp_path: Path) -
     placed = report.part["bores"][0]
 
     assert placed["pocket_diameter_mm"] == pytest.approx(8.0 + 2 * 0.05 + 0.2)
-    assert placed["hole_diameter_mm"] == pytest.approx(4.2 + 0.2)
+    # The hole under the bushing lets the drill run: two sliding clearances and the
+    # oversize over the bushing's bore, as a printed bore has.
+    assert placed["hole_diameter_mm"] == pytest.approx(4.2 + 2 * 0.2 + 0.2)
 
 
 def test_the_plate_is_sized_to_the_bores_when_the_file_leaves_it_out(
@@ -528,7 +536,7 @@ def test_a_catalogued_bushing_stands_in_for_the_users_figures(
     # DIN 179 type A, bore 4 mm, 7 mm outside, 12 mm long: the pocket is the outside plus
     # the press fit's clearance each side and the printer's allowance.
     assert placed["pocket_diameter_mm"] == pytest.approx(7.0 + 2 * 0.05 + 0.2)
-    assert placed["hole_diameter_mm"] == pytest.approx(4.0 + 0.2)
+    assert placed["hole_diameter_mm"] == pytest.approx(4.0 + 2 * 0.2 + 0.2)
 
 
 def test_the_record_says_a_catalogued_bushing_came_from_the_catalogue(
@@ -565,3 +573,34 @@ def test_a_catalogued_bushing_that_cannot_be_used_is_refused(
     report = check_guide_data(data)
 
     assert any(message in error for error in report.errors), report.errors
+
+
+@pytest.mark.parametrize(
+    ("gap", "entry", "tip"), [(0.0, 0.4, 0.933), (1.0, 0.489, 1.022), (3.0, 0.667, 1.2)]
+)
+def test_a_plate_on_a_ledge_adds_the_drills_tilt_across_the_gap(
+    gap: float, entry: float, tip: float
+) -> None:
+    # A printed 3 mm bore, 4.5 mm long and 6 mm deep, with 0.2 mm of play each side and
+    # 0.2 mm in the nest: the drill tilts 0.4 / 4.5 per mm, across the gap as well.
+    fits = {
+        "sliding_clearance_per_side": 0.2,
+        "press_fit_clearance_per_side": 0.05,
+        "hole_oversize": 0.2,
+    }
+    bore = Bore("P1", 0, 0, "printed", 3.0, 6.0, None, 0.0, False)
+    sections = Sections(drill=None, bushing=None, bores=(bore,))
+    planned = plan_bores(
+        sections,
+        height_mm=10,
+        shadow=[(-10, -10), (10, -10), (10, 10), (-10, 10)],
+        tolerances=fits,
+        minimum_wall_mm=1.2,
+        nest_wall_mm=2,
+        plate_thickness_mm=None,
+        default_plate_mm=3,
+        plate_base_mm=gap,
+    ).bores[0]
+
+    assert planned.guide_length_mm == pytest.approx(4.5)
+    assert play_bounds(planned, sections, fits, 0.2, gap) == (entry, tip)

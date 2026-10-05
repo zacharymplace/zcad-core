@@ -555,7 +555,14 @@ def _hole_sizes(
             + oversize
         )
 
-        return bushing.inner_diameter_mm + oversize, pocket
+        # The bushing guides the drill; the printed hole under it, where the plate is
+        # thicker than the bushing, must let the drill run free, as a printed bore does.
+        return (
+            bushing.inner_diameter_mm
+            + 2 * tolerances["sliding_clearance_per_side"]
+            + oversize,
+            pocket,
+        )
 
     return (
         bore.diameter_mm + 2 * tolerances["sliding_clearance_per_side"] + oversize,
@@ -827,11 +834,14 @@ def play_bounds(
     sections: Sections,
     tolerances: Mapping[str, float],
     nest_clearance_mm: float,
+    gap_mm: float = 0.0,
 ) -> tuple[float, float]:
     """The most a drill can sit off its bore's axis, from the clearances alone:
     at the part's surface, and at the bottom of the hole, where the drill's
-    tilt in the bore adds to it. It is a bound from the printer profile's
-    provisional tolerances, and it is not a measured accuracy."""
+    tilt in the bore adds to it. A plate on a ledge stands ``gap_mm`` above the
+    part, and the tilt grows across that gap before the drill meets the part.
+    It is a bound from the printer profile's provisional tolerances, and it is
+    not a measured accuracy."""
 
     bushing = sections.bushing
 
@@ -842,8 +852,9 @@ def play_bounds(
         bore_play = tolerances["sliding_clearance_per_side"]
         seat = 0.0
 
-    entry = nest_clearance_mm + seat + bore_play
-    tip = entry + planned.bore.depth_mm * 2 * bore_play / planned.guide_length_mm
+    tilt = 2 * bore_play / planned.guide_length_mm
+    entry = nest_clearance_mm + seat + bore_play + gap_mm * tilt
+    tip = entry + planned.bore.depth_mm * tilt
 
     return round(entry, 3), round(tip, 3)
 

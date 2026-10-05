@@ -266,10 +266,14 @@ def build_jig(spec: JigSpec, part: GuidePart, profile: dict[str, Any]) -> Jig:
         "part_fits_pocket": clear(solid, part.shape),
         "part_lifts_out": lifts_off(solid, part.shape, part.height_mm),
         "bores_open": _bores_open(solid, bores, thickness),
+        # Measured on the built plate: with the iron's shoulder on its top, the tip's
+        # end is where the insert's top must be, depth_below_face_mm under the part's.
         "iron_reaches_insert": abs(
-            (thickness - spec.iron.tip_length_mm) + spec.depth_below_face_mm
+            body.val().BoundingBox().zmax  # type: ignore[union-attr]
+            - spec.iron.tip_length_mm
+            + spec.depth_below_face_mm
         )
-        < 1e-9,
+        < 1e-3,
     }
 
     return Jig(
