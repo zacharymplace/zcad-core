@@ -28,6 +28,7 @@ from pathlib import Path
 import cadquery as cq
 
 from zcad_core.hardware.wearables import EdgeFeature, WearableCapture, load_capture
+from zcad_core.hardware.wearables.edge_placement import clear_offset, edge_reach_mm
 from zcad_core.retention.engine import RetentionEngine, RetentionStrategy
 from zcad_core.retention.export_validation import run_candidate_export_validation
 from zcad_core.retention.revision_history import RevisionRelationshipType
@@ -53,11 +54,6 @@ from zcad_core.retention.validation_lab import (
 FIRST_REVISION = "r001"
 STRATEGY = "snap-shell"
 PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
-# A clip keeps this far from a feature, and its middle this far from an
-# edge's ends, where the corner would leave it nothing to hook.
-FEATURE_MARGIN_MM = 1.0
-CORNER_KEEPOUT_MM = 2.0
-_SLIDE_STEP_MM = 0.5
 _EDGE_ROTATION = {"north": 270.0, "south": 90.0, "east": 180.0, "west": 0.0}
 
 
@@ -211,16 +207,18 @@ def clip_locations(
     body: Body, edges: Sequence[str], policy: SnapShellPolicy
 ) -> tuple[SnapShellLocation, ...]:
     """A clip at the middle of each edge, slid along it to the nearest place
-    clear of every feature there. Raises ``ValueError`` naming the edge when
-    no place along it is clear."""
+    clear of every feature there and off a rounded corner, as the cradle's tabs
+    are. Raises ``ValueError`` naming the edge when no place along it is
+    clear."""
 
     locations = []
+    radius = (body.capture.outline_radius_mm if body.capture else None) or 0.0
 
     for edge in edges:
         along = body.length_mm if edge in ("north", "south") else body.width_mm
-        reach = along / 2 - CORNER_KEEPOUT_MM - policy.clip_width_mm / 2
+        reach = edge_reach_mm(along, policy.clip_width_mm, radius)
         blocked = [feature for feature in body.features if feature.edge == edge]
-        offset = _clear_offset(blocked, reach, policy.clip_width_mm)
+        offset = clear_offset(blocked, reach, policy.clip_width_mm)
 
         if offset is None:
             names = ", ".join(feature.identifier for feature in blocked)
@@ -243,30 +241,6 @@ def clip_locations(
         )
 
     return tuple(locations)
-
-
-def _clear_offset(
-    features: Sequence[EdgeFeature], reach: float, clip_width: float
-) -> float | None:
-    """The offset nearest the middle, within ``reach`` of it, where a clip
-    clears every feature by the margin; the middle when nothing is there."""
-
-    def clear(offset: float) -> bool:
-        return all(
-            abs(offset - feature.center_offset_mm)
-            >= (clip_width + feature.width_mm) / 2 + FEATURE_MARGIN_MM
-            for feature in features
-        )
-
-    steps = int(max(reach, 0.0) / _SLIDE_STEP_MM)
-
-    # Nearest first, and the +X or +Y side first at equal distance.
-    for step in range(steps + 1):
-        for offset in (step * _SLIDE_STEP_MM, -step * _SLIDE_STEP_MM):
-            if clear(offset):
-                return offset
-
-    return None
 
 
 def register_snap_shell_candidate(

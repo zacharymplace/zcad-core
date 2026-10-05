@@ -223,10 +223,50 @@ def test_a_cradle_is_one_solid_that_leaves_room_for_the_device(g7: Any) -> None:
         "one_solid": True,
         "device_fits_pocket": True,
         "edge_features_open": True,
+        "hooks_over_device": True,
         "nothing_proud_of_the_skin_face_unreported": True,
         "skin_edge_rounded": True,
     }
     assert set(g7.parts) == {"housing"}
+    # A holder, not something worn: the floor covers the G7's skin side.
+    assert g7.summary["skin_side_covered"] is True
+
+
+@pytest.mark.parametrize("clearance", [0.8, 1.5])
+def test_the_hook_holds_the_device_however_wide_the_clearance(
+    tmp_path: Path, clearance: float
+) -> None:
+    # The hook is measured from the device's edge, so the clearance round the
+    # device never eats into the 0.6 mm it stands in over the top face.
+    capture = write_capture(tmp_path)
+    housing = build_housing(
+        load_housing(
+            write_housing(tmp_path, "cradle", capture, clearance_mm=clearance)
+        ),
+        PROFILE,
+    )
+
+    assert housing.passed, housing.checks
+    assert housing.checks["hooks_over_device"] is True
+    # Just inside the device's north edge, under the hook's slope: solid.
+    tab = next(t for t in housing.summary["tabs"] if t["edge"] == "north")
+    tip_x = tab["offset_mm"] + 12.0 / 2 - 4.0 / 2
+    assert inside(housing.parts["housing"], tip_x, 24.1 / 2 - 0.1, 4.7 + 0.15)
+
+
+def test_a_device_whose_skin_side_must_stay_open_cannot_be_worn_in_a_cradle(
+    tmp_path: Path,
+) -> None:
+    capture = write_capture(tmp_path)
+    path = write_housing(
+        tmp_path,
+        "cradle",
+        capture,
+        wear=[{"kind": "lanyard", "cord_diameter_mm": 3.0, "source": "my cord"}],
+    )
+
+    with pytest.raises(ValueError, match="covers the skin side of a Dexcom G7"):
+        build_housing(load_housing(path), PROFILE)
 
 
 def test_the_skin_side_is_a_floor_and_the_face_is_left_open(g7: Any) -> None:

@@ -33,9 +33,13 @@ LANYARD = {"kind": "lanyard", "cord_diameter_mm": 3.0, "source": "my cord"}
 
 
 def write_capture(directory: Path, **changes: Any) -> Path:
+    # A device the G7's size: a G7 itself cannot be worn in a cradle, whose floor
+    # covers its skin side, and the trials wear their housings.
     data = capture_template("dexcom-g7")
     del data["needs_review"]
     data.update(
+        device="custom",
+        name="a G7-sized puck",
         measured_by="A. Tester",
         measured_on="2026-10-01",
         caliper="digital caliper, 0.01 mm",
