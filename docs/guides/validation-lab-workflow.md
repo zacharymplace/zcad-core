@@ -34,7 +34,9 @@ Records are append-only. Writers refuse to replace an existing record with
 different content; the one exception is completing a pending trial record in
 place. `evidence/` is ignored by this repository and backed up to its own
 private repository with `scripts/backup-evidence.sh`; run it after every
-step that writes evidence.
+step that writes evidence. It backs up nothing while a new or changed file
+still has the `needs_review` line its template came with, naming each one:
+fill it in and delete the line, or move it out of `evidence/`.
 
 ## 1. Register the target
 
