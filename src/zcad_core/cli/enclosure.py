@@ -18,7 +18,7 @@ from zcad_core.assemblies import (
     lowest_display_height_mm,
 )
 from zcad_core.cli._common import emit
-from zcad_core.cli.slice_check import rebuild_recipe
+from zcad_core.cli.slice_check import rebuild_recipe, write_print_copies
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features import (
     Enclosure,
@@ -487,6 +487,11 @@ def _build(
         passed = review.passed
         payload["review"] = _review_payload(enclosure, review)
 
+    if getattr(args, "print_copies", False) and not args.slice:
+        payload["print_copies"] = write_print_copies(
+            args.output_directory / "print", name, print_oriented_parts(enclosure)
+        )
+
     if args.slice:
         payload["print"] = _slice(
             args,
@@ -928,6 +933,15 @@ def register(
         help=(
             "also slice both parts onto one plate with Bambu Studio, in "
             "<output-directory>/slice, and open the first trial"
+        ),
+    )
+    build.add_argument(
+        "--print-copies",
+        action="store_true",
+        help=(
+            "write the print-oriented STLs the slicer would be given, in "
+            "<output-directory>/print, without slicing; slice check --rebuild "
+            "uses it to compare what was printed"
         ),
     )
     build.add_argument(

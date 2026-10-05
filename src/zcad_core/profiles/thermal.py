@@ -35,6 +35,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from zcad_core.profiles.trial_records import distinct_trial_records
+
 THERMAL_SCHEMA_VERSION = "1.0.0"
 # One trial is a data point; a profile pools several.
 DEFAULT_MINIMUM_TRIALS = 2
@@ -56,8 +58,10 @@ def collect_thermal_trials(
 
     trials = []
 
-    for path in sorted(evidence_root.rglob("trials/*/enclosure-trial.json")):
-        record = _read(path)
+    # Each record once: a copy in a second folder is the same trial.
+    for path, record in distinct_trial_records(
+        evidence_root, "trials/*/enclosure-trial.json"
+    ):
         thermal = record.get("thermal")
 
         if record.get("material_profile_id") == material_profile_id and thermal:

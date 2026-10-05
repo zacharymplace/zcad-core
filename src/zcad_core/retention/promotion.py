@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .export_validation import load_export_validation_record, verify_export_validation
+from .physical_validation import load_physical_validation_record
 from .revision_registration import load_candidate_revision
 from .visual_review import VISUAL_REVIEW_SCHEMA_VERSION, load_visual_review_record
 
@@ -102,6 +103,7 @@ def evaluate_publication_eligibility(
     relationship_exists: bool,
     parameter_delta_exists: bool,
     physical_trial_exists: bool,
+    physical_trial_failures: Sequence[str] = (),
 ) -> PublicationEligibility:
     failures: list[str] = []
 
@@ -110,6 +112,7 @@ def evaluate_publication_eligibility(
 
     failures.extend(export_validation_failures)
     failures.extend(visual_review_failures)
+    failures.extend(physical_trial_failures)
 
     if not physical_validation_passed:
         failures.append("physical_validation_not_passed")
@@ -212,6 +215,64 @@ def visual_review_failures(record: PromotionRecord) -> tuple[str, ...]:
     return ()
 
 
+def physical_trial_check(
+    trial_path: Path, candidate_manifest_path: Path
+) -> tuple[str, ...]:
+    """Why a physical trial does not support promoting this candidate: it is
+    unreadable, it is of another candidate, or it did not pass. Empty when it
+    does. The operator's word is never enough; the trial itself is read, as
+    the export validation and visual review are.
+
+    ``trial_path`` is a registered trial manifest (``trial register``), whose
+    physical-validation record is then read, or that record itself."""
+
+    try:
+        candidate = load_candidate_revision(candidate_manifest_path)
+        payload = json.loads(trial_path.read_text(encoding="utf-8"))
+
+        if not isinstance(payload, dict):
+            raise TypeError("A trial must be a JSON object")
+
+        if "physical_validation_path" in payload:
+            if payload.get("candidate_id") != candidate.candidate_id:
+                return ("physical_trial_candidate_mismatch",)
+
+            physical = load_physical_validation_record(
+                Path(str(payload["physical_validation_path"]))
+            )
+        else:
+            physical = load_physical_validation_record(trial_path)
+    except (FileNotFoundError, KeyError, TypeError, ValueError):
+        return ("physical_trial_unverifiable",)
+
+    # A trial names its candidate by the candidate's automated report or by
+    # its manifest; either must be this candidate's.
+    if not any(
+        _same_path(physical.candidate_report_path, own)
+        for own in (candidate.automated_evidence_path, str(candidate_manifest_path))
+    ):
+        return ("physical_trial_candidate_mismatch",)
+
+    if not physical.passed:
+        return ("physical_trial_not_passed",)
+
+    return ()
+
+
+def _same_path(first: str, second: str) -> bool:
+    """Whether two recorded paths name the same file, however each is spelled."""
+
+    return Path(first).resolve() == Path(second).resolve()
+
+
+def physical_trial_failures(record: PromotionRecord) -> tuple[str, ...]:
+    """Verify the physical trial a promotion record cites."""
+
+    return physical_trial_check(
+        Path(record.physical_trial_path), Path(record.candidate_manifest_path)
+    )
+
+
 def register_candidate_promotion(
     *,
     record: PromotionRecord,
@@ -244,6 +305,7 @@ def register_candidate_promotion(
             relationship_exists=relationship_exists,
             parameter_delta_exists=parameter_delta_exists,
             physical_trial_exists=Path(record.physical_trial_path).is_file(),
+            physical_trial_failures=physical_trial_failures(record),
         )
 
         if not eligibility.eligible:

@@ -109,6 +109,23 @@ def slice_freshness(
     )
 
 
+def changed_since(
+    summary: dict[str, Any], paths: tuple[str, ...], repository: Path | None = None
+) -> tuple[str, ...] | None:
+    """The files under ``paths`` that changed since the commit a slice
+    records; None when that cannot be told."""
+
+    commit = (summary.get("source") or {}).get("git_commit")
+    root = repository or repository_root()
+
+    if not commit or root is None:
+        return None
+
+    changed = _git(root, "diff", "--name-only", commit, "--", *paths)
+
+    return None if changed is None else tuple(changed.splitlines())
+
+
 def _commits_since(root: Path, commit: str) -> tuple[str, ...]:
     """The commits touching the sources since ``commit``, when it is an
     ancestor of HEAD; empty otherwise, such as after a rebase."""

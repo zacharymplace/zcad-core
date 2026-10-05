@@ -874,6 +874,52 @@ def _measurements(trial: Path) -> list[PhysicalMeasurement]:
     ]
 
 
+def _printed_slice(build_directory: Path) -> dict[str, Any] | None:
+    """The slice a trial was printed from, checked: its G-code and the
+    print-oriented copies the slicer was given, each still the file the slice
+    summary records. The build's own STLs are not what was printed (the lid is
+    printed turned), so this is what ties the trial to the plate. None for a
+    build that was never sliced."""
+
+    summary_path = build_directory / "slice" / "slice-summary.json"
+
+    if not summary_path.is_file():
+        return None
+
+    summary = _read(summary_path)
+    files = {
+        "plate_1.gcode": (
+            summary_path.parent / "plate_1.gcode",
+            summary.get("gcode_sha256"),
+        )
+    }
+
+    for model in summary.get("models") or ():
+        path = Path(str(model["path"]))
+        files[f"print/{path.name}"] = (path, model.get("sha256"))
+
+    changed = [
+        name
+        for name, (path, digest) in files.items()
+        if not path.is_file() or sha256(path) != digest
+    ]
+
+    if changed:
+        raise ValueError(
+            "The slice this trial was printed from no longer matches its summary: "
+            f"{changed}; slice again and print that"
+        )
+
+    return {
+        "slice_summary_sha256": sha256(summary_path),
+        "gcode_sha256": summary.get("gcode_sha256"),
+        "models": [
+            {"path": str(model["path"]), "sha256": model.get("sha256")}
+            for model in summary.get("models") or ()
+        ],
+    }
+
+
 def complete_enclosure_trial(
     trial: Path,
     *,
@@ -905,6 +951,7 @@ def complete_enclosure_trial(
             f"The printed parts no longer match the build record: {changed}"
         )
 
+    printed_from = _printed_slice(trial.parent.parent)
     observations = _observations(trial, build["checks"])
     measurements = _measurements(trial)
     thermal = _thermal(trial, build)
@@ -933,6 +980,7 @@ def complete_enclosure_trial(
         "design_name": build["design_name"],
         "build_record_path": str(build_path),
         "build_record_sha256": sha256(build_path),
+        "printed_from": printed_from,
         "printer_profile_id": build["printer_profile_id"],
         "material_profile_id": material_profile_id,
         "disposition": disposition.value,

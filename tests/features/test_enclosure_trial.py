@@ -451,3 +451,56 @@ def test_the_trial_start_command_names_the_lid_file(
 
     assert code == 0
     assert output["lid"].endswith("lid.json") and Path(output["lid"]).is_file()
+
+
+def _sliced_build(directory: Path) -> Path:
+    """A build folder with a slice beside it: a G-code and one print copy,
+    each recorded in the summary."""
+
+    import hashlib
+
+    slice_directory = directory / "slice"
+    slice_directory.mkdir(parents=True)
+    (directory / "print").mkdir()
+    gcode = slice_directory / "plate_1.gcode"
+    gcode.write_text("; plate\n", encoding="utf-8")
+    model = directory / "print" / "case-lid.stl"
+    model.write_text("solid lid\n", encoding="utf-8")
+    summary = {
+        "gcode_sha256": hashlib.sha256(gcode.read_bytes()).hexdigest(),
+        "models": [
+            {
+                "path": str(model),
+                "sha256": hashlib.sha256(model.read_bytes()).hexdigest(),
+            }
+        ],
+    }
+    (slice_directory / "slice-summary.json").write_text(
+        json.dumps(summary), encoding="utf-8"
+    )
+
+    return model
+
+
+def test_a_trial_records_the_slice_it_was_printed_from(tmp_path: Path) -> None:
+    from zcad_core.features.enclosure_trial import _printed_slice
+
+    _sliced_build(tmp_path)
+    printed = _printed_slice(tmp_path)
+
+    assert printed is not None
+    assert len(printed["gcode_sha256"]) == 64
+    assert printed["models"][0]["path"].endswith("case-lid.stl")
+    assert _printed_slice(tmp_path / "never-sliced") is None
+
+
+def test_a_trial_refuses_a_slice_that_no_longer_matches_its_summary(
+    tmp_path: Path,
+) -> None:
+    from zcad_core.features.enclosure_trial import _printed_slice
+
+    model = _sliced_build(tmp_path)
+    model.write_text("solid another lid\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="print/case-lid.stl"):
+        _printed_slice(tmp_path)

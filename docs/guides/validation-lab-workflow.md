@@ -208,13 +208,19 @@ zcad-validation candidate promote \
   --physical-trial-path <candidate>/trials/trial-001/trial.json \
   --export-validation <candidate>/export-validation/v001/export-validation.json \
   --visual-review <candidate>/visual-review.json \
-  --physical-validation-passed \
   --target-root <target> --reviewer "Z$" --reason "..." \
   --output <candidate>/promotion.json
 ```
 
 Omit the relationship and parameter-delta paths for a root candidate. When
 another candidate is already preferred, add `--supersedes-candidate-id`.
+
+Whether the trial passed is read from the trial, never taken on your word: the
+trial manifest must name this candidate, and its physical-validation record
+must be this candidate's (by its automated report or its manifest) and must
+pass. A failed or pending trial, another candidate's, or any other file is
+refused. `--physical-validation-passed` is still accepted, so older commands
+run, and ignored.
 
 A `revise` becomes a new revision with geometry rebuilt from the measured
 change. Let the trial's measurements set it:

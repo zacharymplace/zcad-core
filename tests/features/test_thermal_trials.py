@@ -274,6 +274,19 @@ def test_a_profile_needs_closed_trials_and_vented_ones_do_not_count(
         derive_thermal_profile(tmp_path, material_profile_id="petg")
 
 
+def test_a_closed_trial_copied_to_another_folder_counts_once(tmp_path: Path) -> None:
+    # One closed box, its completed record copied: one trial, not the two a
+    # measured coefficient needs.
+    closed_trial(tmp_path / "a", 6.0)
+    (record,) = (tmp_path / "a").rglob("enclosure-trial.json")
+    copy = tmp_path / "copy" / "trials" / "trial-001" / record.name
+    copy.parent.mkdir(parents=True)
+    copy.write_bytes(record.read_bytes())
+
+    with pytest.raises(ValueError, match="1 closed-box thermal trial"):
+        derive_thermal_profile(tmp_path, material_profile_id="petg")
+
+
 def test_vented_trials_are_listed_beside_the_passive_figure_not_pooled(
     tmp_path: Path,
 ) -> None:

@@ -4,8 +4,14 @@ The quick check compares the commit a slice records with the current tree,
 so any change to the geometry sources calls every slice stale, even one
 whose part the change never touched. ``--rebuild`` settles those: for a
 slice that recorded how it was built, it builds the part again with today's
-code and compares the part STLs, which export byte for byte the same from
-the same geometry.
+code and compares the print-oriented STLs the slicer was given, and the part
+STLs, which export byte for byte the same from the same geometry.
+
+Some things no rebuild can clear, so they keep a slice stale whatever the
+geometry says: the G-code beside the summary no longer being the one it
+records, an input file named on the build's command line (a board file, say)
+having changed, and the slicing code or the slicer profiles having changed,
+since the same parts then slice to different G-code.
 """
 
 from __future__ import annotations
@@ -21,8 +27,11 @@ from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+import cadquery as cq
+
 from zcad_core.cli._common import emit
 from zcad_core.printing import SliceFreshness, slice_freshness
+from zcad_core.printing.provenance import changed_since
 
 SUMMARY_NAME = "slice-summary.json"
 RECIPE_SCHEMA_VERSION = "1.0.0"
@@ -31,6 +40,59 @@ _BUILD_COMMANDS = (("enclosure", "build"), ("enclosure-group", "build"))
 # What the rebuild leaves out: where it writes, and the work it does not need.
 _DROPPED_FLAGS = frozenset({"--slice", "--review"})
 _DROPPED_OPTIONS = frozenset({"--output-directory", "--slicer-profile"})
+# Changes here alter the G-code from the same parts, so a rebuild cannot clear them.
+SLICER_PATHS = ("src/zcad_core/printing/bambu.py", "profiles/slicers")
+GCODE_NAME = "plate_1.gcode"
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def write_print_copies(
+    directory: Path, name: str, shapes: Mapping[str, cq.Shape]
+) -> dict[str, str]:
+    """Write each part as the slicer is given it, named as a slice names it."""
+
+    directory.mkdir(parents=True, exist_ok=True)
+    written: dict[str, str] = {}
+
+    for part, shape in shapes.items():
+        model = directory / f"{name}-{part}.stl"
+        cq.exporters.export(shape, str(model))
+        written[part] = str(model)
+
+    return written
+
+
+def _input_files(argv: Sequence[str], working: Path) -> dict[str, str]:
+    """The SHA-256 of every file the command line names, such as a board
+    file or a bay's ``file=``: they shape the part from outside the sources."""
+
+    found: dict[str, str] = {}
+
+    for argument in argv:
+        candidates = []
+
+        if argument.startswith("--"):
+            if "=" in argument:
+                candidates.append(argument.split("=", 1)[1])
+        else:
+            candidates.append(argument)
+            candidates.extend(
+                piece.removeprefix("file=")
+                for piece in argument.replace(",", ":").split(":")
+                if piece.startswith("file=")
+            )
+
+        for candidate in candidates:
+            path = Path(candidate)
+            full = path if path.is_absolute() else working / path
+
+            if candidate and full.is_file():
+                found[candidate] = _sha256(full)
+
+    return found
 
 
 def rebuild_recipe(
@@ -66,11 +128,60 @@ def rebuild_recipe(
         "schema_version": RECIPE_SCHEMA_VERSION,
         "argv": kept,
         "working_directory": str(Path.cwd()),
-        "parts": {
-            part: hashlib.sha256(path.read_bytes()).hexdigest()
-            for part, path in sorted(part_stls.items())
-        },
+        "parts": {part: _sha256(path) for part, path in sorted(part_stls.items())},
+        "inputs": _input_files(kept, Path.cwd()),
     }
+
+
+def gcode_freshness(
+    summary_path: Path, summary: Mapping[str, Any]
+) -> SliceFreshness | None:
+    """Stale when the G-code beside the summary is missing or is not the one
+    it records; None when it is, or the summary records none."""
+
+    recorded = summary.get("gcode_sha256")
+
+    if not recorded:
+        return None
+
+    gcode = summary_path.parent / GCODE_NAME
+
+    if not gcode.is_file() or _sha256(gcode) != recorded:
+        return SliceFreshness(
+            "stale",
+            f"{GCODE_NAME} beside it is missing or is not the G-code this summary "
+            "records; slice again",
+        )
+
+    return None
+
+
+def inputs_freshness(summary: Mapping[str, Any]) -> SliceFreshness | None:
+    """Stale when a file the build's command line named has changed or gone;
+    None when none has, or the slice records none."""
+
+    recipe = summary.get("rebuild")
+
+    if not isinstance(recipe, dict) or not isinstance(recipe.get("inputs"), dict):
+        return None
+
+    working = Path(str(recipe.get("working_directory", ".")))
+    changed = []
+
+    for name, digest in sorted(recipe["inputs"].items()):
+        path = Path(name) if Path(name).is_absolute() else working / name
+
+        if not path.is_file() or _sha256(path) != digest:
+            changed.append(name)
+
+    if changed:
+        return SliceFreshness(
+            "stale",
+            "a file the build was made from has changed since; build and slice again",
+            tuple(changed),
+        )
+
+    return None
 
 
 def rebuild_freshness(summary: Mapping[str, Any]) -> SliceFreshness:
@@ -90,20 +201,25 @@ def rebuild_freshness(summary: Mapping[str, Any]) -> SliceFreshness:
 
     with tempfile.TemporaryDirectory() as scratch:
         try:
-            parts = _rebuilt_parts(recipe, Path(scratch) / "rebuild")
+            parts, printed = _rebuilt_parts(recipe, Path(scratch) / "rebuild")
         except (ValueError, OSError) as error:
             return SliceFreshness("unknown", f"the rebuild failed: {error}")
 
     expected = recipe["parts"]
-    changed = tuple(
-        sorted(part for part in expected if parts.get(part) != expected[part])
-    )
+    changed = sorted(part for part in expected if parts.get(part) != expected[part])
+
+    # What the slicer was given: the print-oriented copies, by file name.
+    for model in summary.get("models") or ():
+        name = Path(str(model.get("path", ""))).name
+
+        if printed.get(name) != model.get("sha256"):
+            changed.append(f"print/{name}")
 
     if changed:
         return SliceFreshness(
             "stale",
             "rebuilt with today's code, the parts differ; build and slice again",
-            changed,
+            tuple(changed),
         )
 
     return SliceFreshness(
@@ -111,14 +227,17 @@ def rebuild_freshness(summary: Mapping[str, Any]) -> SliceFreshness:
     )
 
 
-def _rebuilt_parts(recipe: Mapping[str, Any], output: Path) -> dict[str, str]:
-    """Run the recorded build into ``output``; each part's STL SHA-256."""
+def _rebuilt_parts(
+    recipe: Mapping[str, Any], output: Path
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Run the recorded build into ``output``: each part's STL SHA-256, and
+    each print-oriented copy's, by file name."""
 
     from zcad_core.cli import main  # the parser lives there; imported late
 
     stdout = io.StringIO()
     stderr = io.StringIO()
-    argv = [*recipe["argv"], "--output-directory", str(output)]
+    argv = [*recipe["argv"], "--output-directory", str(output), "--print-copies"]
 
     with _working_directory(Path(recipe["working_directory"])):
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
@@ -129,11 +248,15 @@ def _rebuilt_parts(recipe: Mapping[str, Any], output: Path) -> dict[str, str]:
             raise ValueError(message.removeprefix("error: "))
 
         built = json.loads(stdout.getvalue())
-
-        return {
-            part: hashlib.sha256(Path(files["stl"]).read_bytes()).hexdigest()
-            for part, files in built["parts"].items()
+        parts = {
+            part: _sha256(Path(files["stl"])) for part, files in built["parts"].items()
         }
+        printed = {
+            Path(path).name: _sha256(Path(path))
+            for path in (built.get("print_copies") or {}).values()
+        }
+
+        return parts, printed
 
 
 @contextlib.contextmanager
@@ -180,15 +303,30 @@ def _slice_check(args: argparse.Namespace) -> int:
         summary = json.loads(path.read_text(encoding="utf-8"))
         freshness = slice_freshness(summary)
         checked_by = "commit"
+        # These no rebuild can clear.
+        fixed = gcode_freshness(path, summary) or inputs_freshness(summary)
 
-        if args.rebuild and freshness.status != "current":
-            key = json.dumps(summary.get("rebuild"), sort_keys=True)
+        if fixed is not None:
+            freshness, checked_by = fixed, "files"
+        elif args.rebuild and freshness.status != "current":
+            key = json.dumps(
+                [summary.get("rebuild"), summary.get("models")], sort_keys=True
+            )
 
             if key not in rebuilt:
                 rebuilt[key] = rebuild_freshness(summary)
 
             freshness = rebuilt[key]
             checked_by = "rebuild"
+            slicer = changed_since(summary, SLICER_PATHS)
+
+            if freshness.status == "current" and slicer:
+                freshness = SliceFreshness(
+                    "stale",
+                    "the parts are the same, but the slicing code or the slicer "
+                    "profiles changed since; slice again",
+                    slicer,
+                )
 
         slices.append(
             {"summary": str(path), "checked_by": checked_by, **freshness.as_dict()}

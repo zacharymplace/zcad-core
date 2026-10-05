@@ -25,7 +25,16 @@ from zcad_core.retention import (
     write_promotion_record,
     write_visual_review_record,
 )
+from zcad_core.retention.physical_validation import (
+    PhysicalValidationCheck,
+    PhysicalValidationDisposition,
+    PhysicalValidationObservation,
+    complete_physical_validation_record,
+    write_physical_validation_record,
+)
+from zcad_core.retention.promotion import physical_trial_check
 from zcad_core.retention.validation_lab import sha256_file, write_immutable_manifest
+from zcad_core.validation.measurements import PhysicalMeasurement
 
 
 def valid_promotion_record(
@@ -105,6 +114,36 @@ def write_verified_candidate(
     record_path.write_text(json.dumps(asdict(record)), encoding="utf-8")
 
     return candidate_path, record_path
+
+
+def write_physical_trial(
+    path: Path, candidate_manifest: Path, *, passed: bool = True
+) -> Path:
+    """A completed physical-validation record of ``candidate_manifest``: every
+    check observed, passing or failing together."""
+
+    record = complete_physical_validation_record(
+        candidate_report_path=candidate_manifest,
+        fixture_stl_path=Path("fixture.stl"),
+        printer_profile="bambu-lab-a1-mini",
+        material_profile="petg",
+        slicer_profile="bambu-studio-a1-mini-petg-validation",
+        observations=tuple(
+            PhysicalValidationObservation(check=check, passed=passed, notes="seen")
+            for check in PhysicalValidationCheck
+        ),
+        disposition=(
+            PhysicalValidationDisposition.PASS
+            if passed
+            else PhysicalValidationDisposition.REJECT
+        ),
+        operator_notes="printed and fitted",
+        measurements=(PhysicalMeasurement("vertical_play", 0.2, 0.25),),
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_physical_validation_record(record, output_path=path)
+
+    return path
 
 
 def write_visual_review(
@@ -291,12 +330,11 @@ def test_register_candidate_promotion_is_idempotent(
     candidate, export_validation = write_verified_candidate(tmp_path, revision="r002")
     relationship = tmp_path / "relationship.json"
     delta = tmp_path / "parameter-delta.json"
-    trial = tmp_path / "trial.json"
+    trial = write_physical_trial(tmp_path / "trial.json", candidate)
 
     for path in (
         relationship,
         delta,
-        trial,
     ):
         path.write_text(
             "{}\n",
@@ -342,8 +380,7 @@ def test_register_candidate_promotion_accepts_root_candidate_without_lineage(
     )
 
     candidate, export_validation = write_verified_candidate(tmp_path, revision="r001")
-    trial = tmp_path / "trial.json"
-    trial.write_text("{}\n", encoding="utf-8")
+    trial = write_physical_trial(tmp_path / "trial.json", candidate)
 
     promotion_path = tmp_path / "promotion.json"
 
@@ -631,7 +668,7 @@ def _write_promotion_artifacts(
 
     trial_directory = directory / "trials" / "trial-001"
     trial_directory.mkdir(parents=True)
-    (trial_directory / "trial.json").write_text("{}\n", encoding="utf-8")
+    write_physical_trial(trial_directory / "trial.json", directory / "candidate.json")
 
     return PromotionRecord(
         **{
@@ -1019,3 +1056,62 @@ def test_register_candidate_promotion_rejects_unreadable_visual_review(
             record=record,
             output_path=tmp_path / "promotion.json",
         )
+
+
+def test_a_failed_trial_does_not_support_promotion(tmp_path: Path) -> None:
+    candidate, _ = write_verified_candidate(tmp_path, revision="r002")
+    failed = write_physical_trial(tmp_path / "trial.json", candidate, passed=False)
+
+    assert physical_trial_check(failed, candidate) == ("physical_trial_not_passed",)
+
+
+def test_a_trial_of_another_candidate_does_not_support_promotion(
+    tmp_path: Path,
+) -> None:
+    candidate, _ = write_verified_candidate(tmp_path / "r002", revision="r002")
+    other, _ = write_verified_candidate(tmp_path / "r001", revision="r001")
+    theirs = write_physical_trial(tmp_path / "trial.json", other)
+
+    assert physical_trial_check(theirs, candidate) == (
+        "physical_trial_candidate_mismatch",
+    )
+
+
+@pytest.mark.parametrize("content", ["{}\n", None])
+def test_any_other_file_does_not_support_promotion(
+    tmp_path: Path, content: str | None
+) -> None:
+    # Before, any existing file passed: an empty object, or the candidate itself.
+    candidate, _ = write_verified_candidate(tmp_path, revision="r002")
+    trial = tmp_path / "trial.json"
+
+    if content is None:
+        trial = candidate
+    else:
+        trial.write_text(content, encoding="utf-8")
+
+    assert physical_trial_check(trial, candidate) == ("physical_trial_unverifiable",)
+
+
+def test_promotion_refuses_a_failed_trial_whatever_the_record_says(
+    tmp_path: Path,
+) -> None:
+    from zcad_core.retention import register_candidate_promotion
+
+    candidate, export_validation = write_verified_candidate(tmp_path, revision="r001")
+    failed = write_physical_trial(tmp_path / "trial.json", candidate, passed=False)
+    record = PromotionRecord(
+        **{
+            **valid_promotion_record(revision="r001").__dict__,
+            "candidate_manifest_path": str(candidate),
+            "relationship_path": None,
+            "parameter_delta_path": None,
+            "physical_trial_path": str(failed),
+            "export_validation_path": str(export_validation),
+            "visual_review_path": str(write_visual_review(tmp_path, revision="r001")),
+        }
+    )
+
+    assert record.physical_validation_passed is True
+    with pytest.raises(ValueError, match="physical_trial_not_passed"):
+        register_candidate_promotion(record=record, output_path=tmp_path / "p.json")

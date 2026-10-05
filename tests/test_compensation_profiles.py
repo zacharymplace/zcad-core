@@ -117,6 +117,19 @@ def test_profile_needs_several_trials(tmp_path: Path) -> None:
         )
 
 
+def test_a_trial_copied_to_another_folder_counts_once(tmp_path: Path) -> None:
+    # One print, its record copied: still one trial, not the two a profile needs.
+    original = fixture_trial(tmp_path, "a", {"board_clearance": (0.25, 0.15)})
+    copy = tmp_path / "copy" / "trials" / "trial-001" / original.name
+    copy.parent.mkdir(parents=True)
+    copy.write_bytes(original.read_bytes())
+
+    with pytest.raises(ValueError, match="1 recorded trial"):
+        derive_compensation_profile(
+            tmp_path, printer_profile_id=PRINTER, material_profile_id=MATERIAL
+        )
+
+
 def test_profiles_only_move_forward(evidence: Path, tmp_path: Path) -> None:
     path = tmp_path / "profile.json"
     first = derive_compensation_profile(
