@@ -129,13 +129,13 @@ provisional tolerances:
 | The board in its nest | The sliding clearance each side, or the post in its hole. |
 | The plate on its dowels | A clearance at each dowel, which can also turn the plate: a pad far from the line between the dowels swings more. |
 | The pin in its bore | The press-fit clearance. |
-| The pin tilting in its bore | The pin turning by two clearances over the bore's length, with the tip a long way below: the thicker the plate, the less. |
+| The pin tilting in its bore | The pin turning by two clearances over the bore's length, over the depth from the plate's underside to the tip: the thicker the plate, the less. |
 
 A pin **can miss** if the total is more than its pad's **slack**, the pad's radius
 less the tip's. The check then refuses the fixture and names the largest link,
 and what to do: a larger pad or a finer tip, a thicker plate or a longer pin, or
 locating by the mounting holes. For a 3 mm pad and a 0.6 mm tip the slack is
-1.2 mm; the example fixture's worst point totals 1.06 mm, mostly the pin tilting
+1.2 mm; the example fixture's worst point totals 1.01 mm, mostly the pin tilting
 in its bore. With 1.5 mm pads it would total the same against 0.45 mm of slack,
 and be refused.
 

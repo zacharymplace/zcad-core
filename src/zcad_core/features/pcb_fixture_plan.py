@@ -566,9 +566,11 @@ def _budgets(
     for point in points:
         plate, spacing = _plate_play(point.position, anchors, slide)
         # The pin turns in its bore by up to two clearances over the bore's
-        # length, and the tip is the whole depth from the bore's middle below it.
+        # length, touching opposite walls at its top and bottom. The bore's own
+        # play, counted once below, is the offset at the bore's bottom; the tilt
+        # adds to it over the depth from the plate's underside to the tip.
         tilt = (
-            (2 * press / thickness) * (plate_top - thickness / 2)
+            (2 * press / thickness) * max(plate_top - thickness, 0.0)
             if thickness > 0
             else 0.0
         )

@@ -51,7 +51,7 @@ below the face, is more than the part's height is refused.
 ## Positions from the part's own holes
 
 With `insert_holes.from_part` the jig reads the part's model for **round holes open at its top face**, blind pockets and through-holes alike: a cylinder about the
-vertical axis, at least 1 mm across, whose upper end is at the top face and whose axis is in the void. A hole in the part's side, or a boss, is not one. They are named
+vertical axis, at least 1 mm across, whose upper end is at the top face, whose axis is in the void, and whose faces go all the way round it. A hole in the part's side, a boss, a pocket's rounded corner, or a slot's rounded end is not one. They are named
 `H01`, `H02` and so on in order of place (lowest Y first, then X), the same naming and order the drill-guide import uses, and `jig check` lists them in its errors when you
 name one the part does not have. A part with none is refused.
 

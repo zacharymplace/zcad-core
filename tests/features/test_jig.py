@@ -429,6 +429,30 @@ def test_the_part_holes_open_at_the_top_face_are_found(drilled: Path) -> None:
     assert through.through and through.diameter_mm == pytest.approx(3.4)
 
 
+def test_a_pockets_rounded_corners_and_a_slots_ends_are_not_holes() -> None:
+    # A 40 x 30 x 10 block, top at z == 0, with a 20 x 10 pocket rounded 2 mm at its
+    # corners, a 12 x 4 slot, and one 4 mm hole: each corner and slot end is an arc of a
+    # cylinder about a point in the void, but only the hole goes all the way round.
+    block = cq.Workplane("XY").box(40, 30, 10).translate((0, 0, -5))
+    pocket = (
+        cq.Workplane("XY")
+        .rect(20, 10)
+        .extrude(5)
+        .edges("|Z")
+        .fillet(2.0)
+        .translate((0, 5, -5))
+    )
+    slot = cq.Workplane("XY").slot2D(12, 4).extrude(5).translate((0, -8, -5))
+    hole = cq.Workplane("XY").circle(2.0).extrude(12).translate((-15, -10, -11))
+    shape = cast(cq.Shape, block.cut(pocket).cut(slot).cut(hole).val())
+
+    found = part_holes(shape, 10.0)
+
+    assert [(h.x_mm, h.y_mm, h.diameter_mm) for h in found] == [
+        (pytest.approx(-15.0), pytest.approx(-10.0), pytest.approx(4.0))
+    ]
+
+
 def test_the_picked_holes_become_bores_over_the_pockets(
     drilled: Path, tmp_path: Path
 ) -> None:

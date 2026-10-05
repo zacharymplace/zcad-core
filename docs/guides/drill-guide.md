@@ -152,7 +152,9 @@ size room. Headed bushings (DIN 172) are not catalogued, so a flange takes your 
 The build record's `figures_from` says the figures came from the catalogue, and its `source` names the
 entry. The pocket
 is the outer diameter plus the press-fit clearance each side (and the
-`hole_oversize`). A flange sits on the plate's top face.
+`hole_oversize`). Where the plate is thicker than the bushing, the hole under it is
+the bushing's bore plus the sliding clearance each side and the `hole_oversize`, as a
+printed bore is, so the drill runs free of the plastic. A flange sits on the plate's top face.
 
 **A tilt** leans the drill. `tilt_about` is `x` or `y` and `tilt_deg` is up to 45
 either way. Tilting about X for a positive angle leans the drill's **lower end
@@ -202,7 +204,8 @@ standoff, bit needed), and the exported files with their STL hashes. It says
 For each bore it gives `worst_case_entry_play_mm` and `worst_case_tip_play_mm`:
 how far the drill can sit off the bore's axis from the clearances alone, at the
 part's surface and at the bottom of the hole (where the drill's tilt in the bore
-adds to it). This is a **bound from the printer profile's provisional
+adds to it). A guide on a `ledge` counts the tilt across its `gap_mm` too, before the
+drill reaches the part. This is a **bound from the printer profile's provisional
 tolerances. It is not an accuracy.** A printed guide's accuracy is something a
 trial measures: see [Trying a guide](#trying-a-guide). Until you have trials,
 check the first holes on scrap.

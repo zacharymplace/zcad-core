@@ -3,12 +3,14 @@
 An insert jig can take its insert positions from the part's own model instead of from typed
 numbers. A hole counts when it is a cylinder about the vertical axis whose upper end is at the
 part's top face and whose axis lies in the void, whether it runs through the part or stops short
-as a blind pocket. Each comes with its diameter and depth, so the jig can check it against the
+as a blind pocket, and whose faces go all the way round it: a pocket's rounded corner or a slot's
+rounded end is part of a cylinder too, but only an arc of one, and is not a hole. Each comes with its diameter and depth, so the jig can check it against the
 catalogued insert. The shape is in the part's frame, with its top at ``z == 0``.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import cast
 
@@ -21,6 +23,8 @@ TOP_TOLERANCE_MM = 0.05
 MINIMUM_HOLE_MM = 1.0
 # A hole this share of the part's height, or more, runs through it.
 THROUGH_SHARE = 0.9
+# A hole's faces must go round its axis to within this much of a full turn, in radians.
+FULL_TURN_TOLERANCE = 1e-3
 
 
 @dataclass(frozen=True)
@@ -43,6 +47,8 @@ def part_holes(
 
     bounds = shape.BoundingBox()
     found: dict[tuple[float, float, float], tuple[float, float, float, float]] = {}
+    # How far round its axis each candidate's faces go, in radians.
+    turned: dict[tuple[float, float, float], float] = {}
 
     for face in shape.Faces():
         if face.geomType() != "CYLINDER":
@@ -59,7 +65,8 @@ def part_holes(
         if top < -TOP_TOLERANCE_MM:
             continue
 
-        cylinder = BRepAdaptor_Surface(face.wrapped).Cylinder()
+        surface = BRepAdaptor_Surface(face.wrapped)
+        cylinder = surface.Cylinder()
         axis = cylinder.Axis()
 
         if abs(axis.Direction().Z()) < 0.999:
@@ -81,8 +88,18 @@ def part_holes(
         key = (round(x, 2), round(y, 2), round(2 * radius, 2))
         depth = max(top - bottom, found[key][3] if key in found else 0.0)
         found[key] = (x, y, 2 * radius, depth)
+        turned[key] = turned.get(key, 0.0) + (
+            surface.LastUParameter() - surface.FirstUParameter()
+        )
 
-    ordered = sorted(found.values(), key=lambda hole: (hole[1], hole[0]))
+    ordered = sorted(
+        (
+            hole
+            for key, hole in found.items()
+            if turned[key] >= 2 * math.pi - FULL_TURN_TOLERANCE
+        ),
+        key=lambda hole: (hole[1], hole[0]),
+    )
 
     return [
         PartHole(

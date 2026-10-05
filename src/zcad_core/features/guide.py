@@ -198,7 +198,7 @@ def build_guide(spec: GuideSpec, part: GuidePart, profile: dict[str, Any]) -> Gu
     reached, problems = _reach(body, plan.bores, sections, thickness, base_z)
     checks["bit_reaches_depth"] = not problems
     play = {
-        item.bore.identifier: play_bounds(item, sections, fits, clearance)
+        item.bore.identifier: play_bounds(item, sections, fits, clearance, base_z)
         for item in plan.bores
     }
 
