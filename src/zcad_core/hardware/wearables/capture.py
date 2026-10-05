@@ -704,8 +704,19 @@ def _check_features(
             if abs(offset) + width / 2 > half:
                 errors.append(f"{label} runs off the end of the {edge} edge")
 
-    if device is not None and device.expected_features and not features:
-        warnings.append(
-            f"no edge features listed: a {device.name} has "
-            f"{', '.join(device.expected_features)}; list those on an edge"
-        )
+    # Each one left out would be walled over by a cradle, which notches only
+    # the features listed, so a missing one is an error, not a warning.
+    if device is not None:
+        listed = {
+            str(feature.get("identifier", "")).strip()
+            for feature in features
+            if isinstance(feature, dict)
+        }
+        missing = [name for name in device.expected_features if name not in listed]
+
+        if missing:
+            errors.append(
+                f"a {device.name} has {', '.join(device.expected_features)}; "
+                f"edge_features leaves out {', '.join(missing)}: list each on "
+                "the edge where you found it"
+            )

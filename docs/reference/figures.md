@@ -6,13 +6,13 @@ The engine states no strength, holding force or load claim, and a figure it did 
 
 **Scope.** Module-level numeric constants, and the non-zero numeric defaults of dataclass fields and function parameters. A default of zero (no offset, none) is not a figure and is not listed. Not covered: a number inside a function body, a default given by `field(...)` or a factory, a keyword argument at a call (so a module-level instance such as a display's is not listed), and a number in a data file. A status is only as good as what the code says: a `sourced` figure is as the code cites it and has not been re-checked against the standard. An `unstated` figure is not wrong; it has no basis written down. Adding a figure without recording it fails the test suite.
 
-## The 689 figures
+## The 690 figures
 
 | Status | Count | Meaning |
 | --- | ---: | --- |
 | `sourced` | 31 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
 | `estimated` | 9 | Read off a drawing's scale or a stated rough estimate: the source does not state it outright |
-| `design_default` | 25 | The engine's own choice, which the code says is a default, a design value or a guess |
+| `design_default` | 26 | The engine's own choice, which the code says is a default, a design value or a guess |
 | `example` | 3 | An illustrative figure, not claimed right for any real part |
 | `unstated` | 621 | No basis is stated in the code |
 
@@ -85,6 +85,7 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | `hardware/electronics/adafruit.py:AdafruitFeatherRp2040Spec.recommended_standoff_height_mm` | `3.0` | The spec's own recommendation (the engine's choice); no basis is written down |
 | `hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.recommended_clearance_mm` | `0.5` | The spec's own recommendation (the engine's choice); no basis is written down |
 | `hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.recommended_standoff_height_mm` | `3.0` | The spec's own recommendation (the engine's choice); no basis is written down |
+| `hardware/electronics/board_import.py:STANDOFF_REACH_MM` | `2.0` | A standoff's 1.5 mm wall, up to 0.2 mm of hole clearance, and 0.3 mm to spare |
 | `hardware/electronics/displays.py:DisplaySpec.recommended_module_clearance_mm` | `0.5` | The spec's own recommendation (the engine's choice); no basis is written down |
 | `hardware/electronics/displays.py:DisplaySpec.recommended_window_clearance_mm` | `0.4` | The spec's own recommendation (the engine's choice); no basis is written down |
 | `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.recommended_standoff_height_mm` | `4.0` | The spec's own recommendation (the engine's choice); no basis is written down |

@@ -18,10 +18,10 @@
     },
     {
       "identifier": "top-02",
-      "center_x_mm": -1.292,
-      "center_y_mm": 0.555,
-      "width_mm": 65.496,
-      "depth_mm": 41.038,
+      "center_x_mm": -3.292,
+      "center_y_mm": -0.659,
+      "width_mm": 61.496,
+      "depth_mm": 38.61,
       "bottom_offset_from_board_top_mm": 0.0,
       "height_mm": 1.4,
       "access_edge": null
@@ -48,6 +48,16 @@
     },
     {
       "identifier": "top-05",
+      "center_x_mm": -21.924,
+      "center_y_mm": 20.574,
+      "width_mm": 0.5,
+      "depth_mm": 1.0,
+      "bottom_offset_from_board_top_mm": 0.0,
+      "height_mm": 0.5,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-06",
       "center_x_mm": -15.494,
       "center_y_mm": 15.274,
       "width_mm": 7.62,
@@ -57,7 +67,7 @@
       "access_edge": null
     },
     {
-      "identifier": "top-06",
+      "identifier": "top-07",
       "center_x_mm": -13.97,
       "center_y_mm": -24.13,
       "width_mm": 7.62,
@@ -67,7 +77,7 @@
       "access_edge": null
     },
     {
-      "identifier": "top-07",
+      "identifier": "top-08",
       "center_x_mm": 6.838,
       "center_y_mm": 24.13,
       "width_mm": 47.704,
@@ -77,7 +87,7 @@
       "access_edge": null
     },
     {
-      "identifier": "top-08",
+      "identifier": "top-09",
       "center_x_mm": -13.97,
       "center_y_mm": -24.13,
       "width_mm": 5.71,
@@ -87,7 +97,7 @@
       "access_edge": null
     },
     {
-      "identifier": "top-09",
+      "identifier": "top-10",
       "center_x_mm": -7.965,
       "center_y_mm": -16.464,
       "width_mm": 6.7,
@@ -97,7 +107,7 @@
       "access_edge": null
     },
     {
-      "identifier": "top-10",
+      "identifier": "top-11",
       "center_x_mm": 11.42,
       "center_y_mm": -24.129,
       "width_mm": 38.6,
@@ -107,7 +117,7 @@
       "access_edge": null
     },
     {
-      "identifier": "top-11",
+      "identifier": "top-12",
       "center_x_mm": -4.782,
       "center_y_mm": -9.422,
       "width_mm": 4.8,
@@ -117,7 +127,7 @@
       "access_edge": null
     },
     {
-      "identifier": "top-12",
+      "identifier": "top-13",
       "center_x_mm": 18.46,
       "center_y_mm": 9.183,
       "width_mm": 10.0,
@@ -127,7 +137,17 @@
       "access_edge": null
     },
     {
-      "identifier": "top-13",
+      "identifier": "top-14",
+      "center_x_mm": 30.68,
+      "center_y_mm": -6.636,
+      "width_mm": 6.4,
+      "depth_mm": 2.5,
+      "bottom_offset_from_board_top_mm": 0.0,
+      "height_mm": 1.1,
+      "access_edge": null
+    },
+    {
+      "identifier": "top-15",
       "center_x_mm": 30.627,
       "center_y_mm": 1.27,
       "width_mm": 5.04,
@@ -137,7 +157,7 @@
       "access_edge": null
     },
     {
-      "identifier": "top-14",
+      "identifier": "top-16",
       "center_x_mm": 31.45,
       "center_y_mm": -12.324,
       "width_mm": 4.95,
@@ -147,17 +167,17 @@
       "access_edge": null
     },
     {
-      "identifier": "top-15",
-      "center_x_mm": 32.38,
-      "center_y_mm": -6.636,
-      "width_mm": 3.0,
-      "depth_mm": 2.5,
+      "identifier": "top-17",
+      "center_x_mm": 30.607,
+      "center_y_mm": 12.883,
+      "width_mm": 1.697,
+      "depth_mm": 1.697,
       "bottom_offset_from_board_top_mm": 0.0,
-      "height_mm": 1.1,
+      "height_mm": 0.795,
       "access_edge": null
     },
     {
-      "identifier": "bottom-16",
+      "identifier": "bottom-18",
       "center_x_mm": -29.05,
       "center_y_mm": -18.314,
       "width_mm": 14.4,
@@ -167,7 +187,7 @@
       "access_edge": "negative_x"
     },
     {
-      "identifier": "bottom-17",
+      "identifier": "bottom-19",
       "center_x_mm": -15.494,
       "center_y_mm": 15.274,
       "width_mm": 7.62,
@@ -177,7 +197,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-18",
+      "identifier": "bottom-20",
       "center_x_mm": 6.838,
       "center_y_mm": 24.13,
       "width_mm": 47.704,
@@ -187,7 +207,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-19",
+      "identifier": "bottom-21",
       "center_x_mm": -13.97,
       "center_y_mm": -24.13,
       "width_mm": 5.71,
@@ -197,7 +217,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-20",
+      "identifier": "bottom-22",
       "center_x_mm": 2.53,
       "center_y_mm": -24.13,
       "width_mm": 20.82,
@@ -207,7 +227,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-21",
+      "identifier": "bottom-23",
       "center_x_mm": 22.85,
       "center_y_mm": -24.13,
       "width_mm": 15.74,
@@ -217,7 +237,7 @@
       "access_edge": null
     },
     {
-      "identifier": "bottom-22",
+      "identifier": "bottom-24",
       "center_x_mm": 30.627,
       "center_y_mm": 1.27,
       "width_mm": 5.04,

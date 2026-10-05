@@ -288,7 +288,18 @@ def test_an_edge_feature_gets_a_notch_and_the_tab_keeps_clear_of_it(
             "center_offset_mm": 0.0,
             "width_mm": 8.0,
             "notes": "measured",
-        }
+        },
+        # The others, which a Mobi capture must list, away from the north edge.
+        *(
+            {
+                "identifier": name,
+                "edge": "south",
+                "center_offset_mm": offset,
+                "width_mm": 5.0,
+                "notes": "measured",
+            }
+            for name, offset in (("button", -18.0), ("charging-contacts", 18.0))
+        ),
     ]
     path = tmp_path / "capture.json"
     path.write_text(json.dumps(mobi))
@@ -315,12 +326,19 @@ def test_an_edge_with_no_clear_place_for_a_tab_is_refused(tmp_path: Path) -> Non
             "width_mm": 6.0,
             "notes": "measured",
         }
-        for name, offset in (("a", -10.0), ("b", 0.0), ("c", 10.0))
+        for name, offset in (
+            ("fill-port", -10.0),
+            ("button", 0.0),
+            ("charging-contacts", 10.0),
+        )
     ]
     path = tmp_path / "capture.json"
     path.write_text(json.dumps(mobi))
 
-    with pytest.raises(ValueError, match="No place on the east edge clears a, b, c"):
+    with pytest.raises(
+        ValueError,
+        match="No place on the east edge clears fill-port, button, charging-contacts",
+    ):
         build_housing(load_housing(write_housing(tmp_path, "cradle", path)), PROFILE)
 
     # Three edges are enough, so the answer the message gives works.

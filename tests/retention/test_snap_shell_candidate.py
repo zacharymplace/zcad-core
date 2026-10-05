@@ -106,7 +106,17 @@ def test_a_capture_builds_a_verified_candidate_with_clips_clear_of_its_features(
                 "edge": "north",
                 "center_offset_mm": 0.0,
                 "width_mm": 5.0,
-            }
+            },
+            # The others a Mobi capture must list, away from the north edge.
+            *(
+                {
+                    "identifier": name,
+                    "edge": "south",
+                    "center_offset_mm": offset,
+                    "width_mm": 5.0,
+                }
+                for name, offset in (("button", -18.0), ("charging-contacts", 18.0))
+            ),
         ],
     )
 
