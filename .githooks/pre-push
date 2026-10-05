@@ -5,6 +5,7 @@
 # Bypass in an emergency with: git push --no-verify
 set -euo pipefail
 
+remote="${1:-}"
 pushes_commits=false
 head_sha="$(git rev-parse HEAD)"
 
@@ -14,8 +15,22 @@ while read -r local_ref local_sha _remote_ref _remote_sha; do
     continue
   fi
 
+  # An annotated tag arrives as the tag object's SHA; the commit it names is
+  # what the gates would check.
+  if ! commit_sha="$(git rev-parse --verify --quiet "${local_sha}^{commit}")"; then
+    echo "pre-push: $local_ref does not name a commit." >&2
+    exit 1
+  fi
+
+  # A tag on a commit the remote already has adds no code, so there is
+  # nothing to check: the release tag on main's merge commit, say.
+  if [[ "$local_ref" == refs/tags/* && -n "$remote" ]] &&
+    [[ -n "$(git branch --remotes --contains "$commit_sha" --list "$remote/*")" ]]; then
+    continue
+  fi
+
   # The gates check the working tree, so they only vouch for HEAD.
-  if [[ "$local_sha" != "$head_sha" ]]; then
+  if [[ "$commit_sha" != "$head_sha" ]]; then
     echo "pre-push: $local_ref is not the checked-out commit; check it out" >&2
     echo "and push again so the gates run against it." >&2
     exit 1

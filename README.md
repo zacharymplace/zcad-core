@@ -59,8 +59,10 @@ whatever the upgrade changed.
 GitHub Actions is disabled for this account, so `scripts/check.sh` is the
 gate: ruff format, ruff check, mypy over `src`, `scripts`, `tests` and
 `examples`, and the full test suite. The pre-push hook runs it and blocks a
-push that fails; `scripts/check.sh --fast` skips the slow tests for a quicker
-loop. The full gate takes five to eight minutes.
+push that fails, and a branch or tag must be the checked-out commit, so the
+gates test what is pushed; a tag on a commit already on GitHub, such as a
+release tag on main, needs no gates. `scripts/check.sh --fast` skips the slow
+tests for a quicker loop. The full gate takes five to eight minutes.
 
 `evidence/` holds the Validation Lab's records, trials and vendor models. It
 is ignored here and backed up to its own private repository with
