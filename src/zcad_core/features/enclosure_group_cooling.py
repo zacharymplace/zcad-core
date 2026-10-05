@@ -151,3 +151,13 @@ def _cut_fans(
         cuts.append((plan, guard))
 
     return lid, bodies, cuts
+
+
+def _drawn_mm2(vents: VentReport | None, direction: str) -> float:
+    """The vents on the far side of a lid fan's airflow: the lid outlets when
+    it blows in, the wall inlets when it draws out, as the single enclosure."""
+
+    if vents is None:
+        return 0.0
+
+    return vents.outlet_mm2 if direction == "in" else vents.inlet_mm2

@@ -36,7 +36,9 @@ def _heat_sources(
 
     for bay in bays:
         if bay.kind == "pi5":
-            parts.append("RASPBERRY_PI_5")
+            # Every Pi bay is built around the Active Cooler, whose fan the
+            # catalog has no figure for, as the single enclosure names it.
+            parts.extend(("RASPBERRY_PI_5", "RASPBERRY_PI_5:active-cooler-fan"))
         elif bay.kind == "board" and bay.board is not None:
             parts.append(bay.board.identifier)
 

@@ -218,7 +218,11 @@ def test_a_board_with_no_power_section_is_counted_as_unknown(
     output = build(capsys, tmp_path, f"pi5,board:file={board}:align=front")
 
     assert output["thermal"]["complete"] is False
-    assert output["thermal"]["missing"] == ["EXAMPLE_BOARD"]
+    assert output["thermal"]["missing"] == [
+        "RASPBERRY_PI_5:active-cooler-fan",
+        "EXAMPLE_BOARD",
+    ]
+    assert output["thermal"]["status"] == "lower_bound"
 
 
 def test_a_row_of_one_board_with_nothing_to_move_air_is_closed(

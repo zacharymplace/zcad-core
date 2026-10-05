@@ -445,7 +445,8 @@ The build prints an estimate of the closed row's air temperature under
 measurements; Raspberry Pi publishes none, and no load figure was found), each
 [board bay](#board-bays)'s own figure from the `power` section of its board
 file (the user's, with the source it states), each fan's draw, and nothing for a
-`reserved` or `open` bay. A board file with no `power` section is counted as
+`reserved` or `open` bay. Each Pi's Active Cooler fan has no figure, so it is
+listed under `missing` and the row's status is `lower_bound` unless it fails. A board file with no `power` section is counted as
 unknown, never as zero: the estimate lists it under `missing` and is then a lower
 bound. The pair, at 176 x 96 x 28.4 mm, is
 about 0.049 m2, so its two Pis at idle raise the air by about 15 degrees: 40

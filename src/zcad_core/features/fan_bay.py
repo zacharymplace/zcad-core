@@ -90,6 +90,8 @@ class FanReport:
     power_typical_w: float | None
     other_openings_mm2: float
     datasheet_read: bool
+    # Connector cutouts, which a plug mostly fills, so they count for nothing.
+    connector_openings_mm2: float = 0.0
     unverified: str = ""
 
     @property
@@ -98,8 +100,9 @@ class FanReport:
 
     @property
     def air_path(self) -> bool:
-        """Whether the other openings pass at least what the guard does, so
-        the fan has somewhere to draw from or push to."""
+        """Whether the vents on the far side of the airflow pass at least
+        what the guard does, so the fan has somewhere to draw from or push to.
+        Connector cutouts are not counted: a plug fills most of each."""
 
         return self.other_openings_mm2 >= self.guard_free_mm2
 
@@ -120,6 +123,7 @@ class FanReport:
                 None if self.power_typical_w is None else round(self.power_typical_w, 3)
             ),
             "other_openings_mm2": round(self.other_openings_mm2, 1),
+            "connector_openings_mm2": round(self.connector_openings_mm2, 1),
             "air_path": self.air_path,
             "datasheet_read": self.datasheet_read,
             "note": (
@@ -409,7 +413,7 @@ def fan_report(
     """What the bay came out as, once the vents are known too."""
 
     fan = plan.fan
-    others = sum(o.opening_width_mm * o.opening_height_mm for o in openings)
+    connectors = sum(o.opening_width_mm * o.opening_height_mm for o in openings)
 
     return FanReport(
         fan=fan.identifier,
@@ -424,7 +428,8 @@ def fan_report(
         screws=f"{screw.identifier} x {screw_length_mm(plate_mm, fan)} mm, 4",
         airflow_free_air_m3h=fan.airflow_m3h,
         power_typical_w=fan.typical_w,
-        other_openings_mm2=others + vent_free_mm2,
+        other_openings_mm2=vent_free_mm2,
+        connector_openings_mm2=connectors,
         datasheet_read=fan.source.read,
         unverified=fan.unverified_note,
     )

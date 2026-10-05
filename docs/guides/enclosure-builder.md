@@ -224,8 +224,11 @@ frame, and the wall a fan takes counts as having an opening.
 The fan's heat is added to the temperature estimate; its airflow is not,
 because the maker's free-air figure falls by a large and unknown amount in a
 box. The build reports the airflow beside the guard's free area, and whether
-the box's other openings pass at least as much, so the fan has somewhere to
-draw from or push to. **The Sunon fan's figures were read in the maker's catalog; the two Noctua fans'
+the vents on the far side of the airflow pass at least as much, so the fan has
+somewhere to draw from or push to: the lid outlets for a fan blowing in, the
+wall inlets for one drawing out. Connector cutouts are reported
+(`connector_openings_mm2`) but not counted, because a plug fills most of each,
+so a fan with no vents has no air path. **The Sunon fan's figures were read in the maker's catalog; the two Noctua fans'
 were checked against their information sheets, which give no hole pattern,** so the build
 says `datasheet_read: false` for them and names the figures that are still an excerpt or an
 assumption.
@@ -244,13 +247,16 @@ have one: the Pico 2 (62.1 mW typical, 71.3 mW peak, from its datasheet) and
 the Pi 5 (3.0 W idle, a community measurement on the Raspberry Pi forums, with
 no peak). Every other board, every display, and the Active Cooler's fan are
 unknown, never zero, and the build names them; the estimate is then "at
-least", a lower bound. Add what the catalog lacks with `--power-w`, such as a
+least", a lower bound, and its status is `lower_bound`, never `ok` or `warn`:
+it can show a box too hot, never that it is cool enough. A Pi 5 always
+brings its cooler's fan, so a Pi 5 build is a lower bound. Add what the catalog lacks with `--power-w`, such as a
 hat or an SSD, and the room with `--ambient-c` (25).
 
 The limit is the material profile's `max_service_c`: 60 degrees C for PETG, a
 provisional design value, well under the 70 to 80 at which it softens
-(`--material-profile` picks the profile). The status is `warn` from 85 per
-cent of the limit in degrees C and `fail` above it. A failing box is refused
+(`--material-profile` picks the profile). The status is `warn` once the rise
+uses 85 per cent of the headroom between the room and the limit (55 degrees C
+from a 25 degree room), and `fail` above the limit. A failing box is refused
 unless you pass `--allow-hot`, because you have measured and know better.
 
 ## Design settings
