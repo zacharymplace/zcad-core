@@ -23,6 +23,12 @@ from pathlib import Path
 from typing import Any
 
 from zcad_core.features.guide_common import IDENTIFIER, Findings, number, section
+from zcad_core.features.holder_model import (
+    AXES,
+    HolderModel,
+    load_holder_model,
+    perpendicular,
+)
 from zcad_core.hardware.wearables.capture import (
     CUSTOM,
     EDGES,
@@ -95,8 +101,11 @@ class HolderSpec:
 
     identifier: str
     name: str
-    capture_path: Path
-    capture_sha256: str
+    # The object's file, its hash, and whether it is a caliper capture or a STEP model.
+    object_path: Path
+    object_sha256: str
+    object_kind: str
+    # How a captured object stands; empty for a model.
     down_edge: str
     face: str
     # None: a third of the object's height, at least 10 mm.
@@ -118,6 +127,10 @@ class HolderSpec:
     file_sha256: str
     # Retaining tabs: None is none; else how far each hook reaches over the object's top.
     tab_overhang_mm: float | None = None
+    # A model's solid, and which of its axes point up and out to the room.
+    solid_index: int | None = None
+    up: str = "+z"
+    out: str = "+y"
 
 
 @dataclass(frozen=True)
@@ -126,25 +139,30 @@ class HolderCheck:
 
     errors: tuple[str, ...]
     warnings: tuple[str, ...]
-    # What reading the capture found, when it could be read.
-    capture: dict[str, Any] | None = None
+    # What reading the object (its capture or its model) found, when it could be read.
+    item: dict[str, Any] | None = None
 
     @property
     def valid(self) -> bool:
         return not self.errors
 
 
-def holder_template(capture: Path | None = None) -> dict[str, Any]:
-    """A valid example holder file to copy and edit; given a capture, it names that file and
-    its real hash."""
+def holder_template(
+    capture: Path | None = None, model: Path | None = None
+) -> dict[str, Any]:
+    """A valid example holder file to copy and edit; given a capture or a STEP model, it names
+    that file and its real hash."""
 
+    if capture is not None and model is not None:
+        raise ValueError("A holder's object is a capture or a model, not both")
+
+    named = capture or model
     digest = (
-        hashlib.sha256(capture.read_bytes()).hexdigest()
-        if capture is not None
+        hashlib.sha256(named.read_bytes()).hexdigest()
+        if named is not None
         else "0" * 64
     )
-
-    return {
+    template = {
         "schema_version": HOLDER_SCHEMA_VERSION,
         "file_kind": HOLDER_KIND,
         "identifier": "EXAMPLE_HOLDER",
@@ -170,6 +188,22 @@ def holder_template(capture: Path | None = None) -> dict[str, Any]:
             "source": "EXAMPLE ONLY: measure your screw's head and shank",
         },
     }
+
+    if model is not None:
+        template["object"] = {
+            "step": str(model),
+            "sha256": digest,
+            "up": "+z",
+            "out": "+y",
+        }
+        template["notes"] = (
+            "The object is a STEP model, turned so its up axis is the holder's +Z, the way "
+            "it comes out, and its out axis faces the room. Its pocket is its shadow from "
+            "above. The holder prints as it hangs, floor down."
+        )
+        del template["down_edge"], template["face"]
+
+    return template
 
 
 def _check_mount(data: Mapping[str, Any], findings: Findings) -> None:
@@ -344,15 +378,79 @@ def _check_header(data: Mapping[str, Any], findings: Findings) -> None:
         )
 
 
+def _check_model(obj: Mapping[str, Any], findings: Findings) -> None:
+    unknown = sorted(set(obj) - {"step", "sha256", "solid_index", "up", "out"})
+
+    if unknown:
+        findings.errors.append(f"object has no {', '.join(unknown)} for a model")
+
+    up, out = obj.get("up"), obj.get("out")
+
+    for name, axis in (("up", up), ("out", out)):
+        if axis not in AXES:
+            findings.errors.append(
+                f"object.{name} must be one of {tuple(AXES)}, not {axis!r}"
+            )
+
+    if up in AXES and out in AXES and not perpendicular(str(up), str(out)):
+        findings.errors.append(
+            f"object.up ({up}) and object.out ({out}) must be square to each other"
+        )
+
+    index = obj.get("solid_index")
+
+    if index is not None and (
+        isinstance(index, bool) or not isinstance(index, int) or index < 1
+    ):
+        findings.errors.append("object.solid_index must be a whole number from 1")
+
+
 def _check_object(data: Mapping[str, Any], findings: Findings) -> None:
     obj = section(data, "object", findings)
 
-    if obj is not None:
-        if not isinstance(obj.get("capture"), str) or not obj["capture"]:
-            findings.errors.append("object.capture must name the capture file")
+    if obj is None:
+        return
 
-        if not isinstance(obj.get("sha256"), str) or len(obj["sha256"]) != 64:
-            findings.errors.append("object.sha256 must be the capture's SHA-256")
+    kinds = [kind for kind in ("capture", "step") if kind in obj]
+
+    if len(kinds) != 1:
+        findings.errors.append(
+            "object must name a capture (object.capture) or a STEP model (object.step)"
+        )
+
+        return
+
+    (kind,) = kinds
+
+    if not isinstance(obj.get(kind), str) or not obj[kind]:
+        findings.errors.append(f"object.{kind} must name the file")
+
+    if not isinstance(obj.get("sha256"), str) or len(obj["sha256"]) != 64:
+        findings.errors.append("object.sha256 must be the file's SHA-256")
+
+    if kind == "step":
+        _check_model(obj, findings)
+
+        for name in ("down_edge", "face"):
+            if name in data:
+                findings.errors.append(
+                    f"{name} is for a captured object; a model says up and out in object"
+                )
+
+        return
+
+    unknown = sorted(set(obj) - {"capture", "sha256"})
+
+    if unknown:
+        findings.errors.append(f"object has no {', '.join(unknown)} for a capture")
+
+    if data.get("down_edge") not in EDGES:
+        findings.errors.append(
+            f"down_edge must be one of {EDGES}, not {data.get('down_edge')!r}"
+        )
+
+    if data.get("face") not in FACES:
+        findings.errors.append(f"face must be one of {FACES}, not {data.get('face')!r}")
 
 
 def check_holder_data(data: Any) -> HolderCheck:
@@ -365,15 +463,6 @@ def check_holder_data(data: Any) -> HolderCheck:
 
     _check_header(data, findings)
     _check_object(data, findings)
-
-    if data.get("down_edge") not in EDGES:
-        findings.errors.append(
-            f"down_edge must be one of {EDGES}, not {data.get('down_edge')!r}"
-        )
-
-    if data.get("face") not in FACES:
-        findings.errors.append(f"face must be one of {FACES}, not {data.get('face')!r}")
-
     _check_holder_section(data, findings)
     _check_fit(data, findings)
     _check_mount(data, findings)
@@ -388,8 +477,9 @@ def read_holder_file(path: Path) -> tuple[Any, str]:
     return json.loads(raw.decode("utf-8")), hashlib.sha256(raw).hexdigest()
 
 
-def _capture_path(data: Mapping[str, Any], path: Path) -> Path:
-    named = Path(str(data["object"]["capture"]))
+def _object_path(data: Mapping[str, Any], path: Path) -> Path:
+    obj = data["object"]
+    named = Path(str(obj.get("capture") or obj.get("step")))
 
     return named if named.is_absolute() else path.parent / named
 
@@ -408,14 +498,17 @@ def holder_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> Holder
     kind = str(mount["type"])
     default_back = DEFAULT_KEYHOLE_BACK_MM if kind == "keyhole" else DEFAULT_BACK_MM
     retention = data.get("retention")
+    obj = data["object"]
+    model = "step" in obj
 
     return HolderSpec(
         identifier=str(data["identifier"]),
         name=str(data["name"]),
-        capture_path=_capture_path(data, path),
-        capture_sha256=str(data["object"]["sha256"]),
-        down_edge=str(data["down_edge"]),
-        face=str(data["face"]),
+        object_path=_object_path(data, path),
+        object_sha256=str(obj["sha256"]),
+        object_kind="model" if model else "capture",
+        down_edge="" if model else str(data["down_edge"]),
+        face="" if model else str(data["face"]),
         front_mm=(
             float(holder["front_mm"]) if holder.get("front_mm") is not None else None
         ),
@@ -438,6 +531,9 @@ def holder_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> Holder
             if retention
             else None
         ),
+        solid_index=obj.get("solid_index") if model else None,
+        up=str(obj.get("up", "+z")),
+        out=str(obj.get("out", "+y")),
     )
 
 
@@ -451,17 +547,20 @@ def load_holder_capture(spec: HolderSpec) -> WearableCapture:
     """The capture a holder names, refused if it is missing, has changed since the holder
     file was written, is not a custom device's, or is not a valid capture."""
 
-    path = spec.capture_path
+    if spec.object_kind != "capture":
+        raise ValueError(f"{spec.file_path} names a model, not a capture")
+
+    path = spec.object_path
 
     if not path.is_file():
         raise ValueError(f"The capture is missing: {path}")
 
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
 
-    if digest != spec.capture_sha256:
+    if digest != spec.object_sha256:
         raise ValueError(
             f"The capture {path} has changed since the holder file named it: its SHA-256 "
-            f"is {digest}, not {spec.capture_sha256}"
+            f"is {digest}, not {spec.object_sha256}"
         )
 
     capture = load_capture(path)
@@ -474,11 +573,48 @@ def load_holder_capture(spec: HolderSpec) -> WearableCapture:
     return capture
 
 
+def load_holder_object(spec: HolderSpec) -> WearableCapture | HolderModel:
+    """The object a holder names: its capture, or its model turned to hang."""
+
+    if spec.object_kind == "model":
+        return load_holder_model(
+            spec.object_path, spec.object_sha256, spec.solid_index, spec.up, spec.out
+        )
+
+    return load_holder_capture(spec)
+
+
+def object_summary(item: WearableCapture | HolderModel) -> dict[str, Any]:
+    """What a check or a build reports of the object."""
+
+    if isinstance(item, HolderModel):
+        return {
+            "kind": "model",
+            "name": item.name,
+            "sha256": item.sha256,
+            "solids": item.solids,
+            "up": item.up,
+            "out": item.out,
+            "size_in_holder_mm": [round(v, 3) for v in item.size_mm],
+        }
+
+    return {
+        "kind": "capture",
+        "name": item.name,
+        "sha256": item.sha256,
+        "size_mm": [item.length_mm, item.width_mm, item.thickness_mm],
+        "outline_radius_mm": item.outline_radius_mm,
+        "edge_features": [f.identifier for f in item.edge_features],
+        "face_features": [f.identifier for f in item.face_features],
+        "mass_g": item.mass_g,
+    }
+
+
 def inspect_holder_file(
     path: Path,
-) -> tuple[HolderCheck, HolderSpec | None, WearableCapture | None]:
-    """Check a holder file and its capture, listing every problem at once; with them, the
-    spec and the capture when both can be used."""
+) -> tuple[HolderCheck, HolderSpec | None, WearableCapture | HolderModel | None]:
+    """Check a holder file and its object, listing every problem at once; with them, the
+    spec and the object when both can be used."""
 
     try:
         data, sha256 = read_holder_file(path)
@@ -491,7 +627,11 @@ def inspect_holder_file(
         return check, None, None
 
     spec = holder_from_data(data, path, sha256)
-    captured = check_capture(spec.capture_path) if spec.capture_path.is_file() else None
+    captured = (
+        check_capture(spec.object_path)
+        if spec.object_kind == "capture" and spec.object_path.is_file()
+        else None
+    )
 
     if captured is not None and not captured.valid:
         return (
@@ -504,7 +644,7 @@ def inspect_holder_file(
         )
 
     try:
-        capture = load_holder_capture(spec)
+        item = load_holder_object(spec)
     except ValueError as error:
         return HolderCheck((str(error),), check.warnings), spec, None
 
@@ -513,20 +653,4 @@ def inspect_holder_file(
         *(f"capture: {warning}" for warning in (captured.warnings if captured else ())),
     )
 
-    return (
-        HolderCheck(
-            (),
-            warnings,
-            {
-                "name": capture.name,
-                "sha256": capture.sha256,
-                "size_mm": [capture.length_mm, capture.width_mm, capture.thickness_mm],
-                "outline_radius_mm": capture.outline_radius_mm,
-                "edge_features": [f.identifier for f in capture.edge_features],
-                "face_features": [f.identifier for f in capture.face_features],
-                "mass_g": capture.mass_g,
-            },
-        ),
-        spec,
-        capture,
-    )
+    return HolderCheck((), warnings, object_summary(item)), spec, item

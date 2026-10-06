@@ -1,4 +1,5 @@
-"""Build an object holder: a cup on a back plate, for an object measured by a caliper capture.
+"""Build an object holder: a cup on a back plate, for an object measured by a caliper capture
+or given as a STEP model.
 
 The object stands in the cup on its ``down_edge``, its face toward the room or the wall. The pocket
 is the object's outline seen from the room, grown by a clearance on every side but the floor it
@@ -32,6 +33,7 @@ from zcad_core.features.holder_file import (
     MINIMUM_FRONT_MM,
     HolderSpec,
 )
+from zcad_core.features.holder_model import HolderModel
 from zcad_core.features.holder_mounts import (
     Fixing,
     MountPlan,
@@ -55,9 +57,10 @@ from zcad_core.features.holder_tabs import (
 )
 from zcad_core.features.nest_core import clear, lifts_out
 from zcad_core.geometry.intersection import intersection_volume
+from zcad_core.geometry.outline_prism import outline_prism
 from zcad_core.hardware.wearables.capture import WearableCapture
 
-HOLDER_RECORD_SCHEMA_VERSION = "1.1.0"
+HOLDER_RECORD_SCHEMA_VERSION = "1.2.0"
 HOLDER_RECORD = "holder.json"
 RECORD_KIND = "holder-build"
 NOT_CLAIMED = (
@@ -97,7 +100,8 @@ class Holder:
     """The built holder and what it was built from."""
 
     spec: HolderSpec
-    capture: WearableCapture
+    # The object: its capture, or its model turned to hang.
+    item: WearableCapture | HolderModel
     body: cq.Workplane
     placed: Placed
     clearance_mm: float
@@ -379,31 +383,90 @@ def _checks(
     return checks
 
 
-def build_holder(
+def _model_cup(
+    spec: HolderSpec,
+    model: HolderModel,
+    p: Placed,
+    clearance: float,
+    front: float,
+    plate_half: float,
+) -> cq.Workplane:
+    """The back plate, and a cup round the model's shadow seen from above, open at the top."""
+
+    shift = clearance + p.depth_mm / 2
+    points = [(x, y + shift) for x, y in model.shadow.points]
+    reach = plate_half + spec.wall_mm + 10.0
+    wall = outline_prism(points, -spec.floor_mm, front, clearance + spec.wall_mm).cut(
+        box(
+            -reach,
+            reach,
+            -reach - p.depth_mm,
+            -spec.back_mm,
+            -spec.floor_mm - 1.0,
+            front + 1.0,
+        )
+    )
+    body = box(
+        -plate_half, plate_half, -spec.back_mm, 0.0, -spec.floor_mm, p.height_mm
+    ).union(wall)
+
+    return body.cut(outline_prism(points, 0.0, p.height_mm + 1.0, clearance))
+
+
+@dataclass(frozen=True)
+class _Shaped:
+    """What the object asks of the holder before the mount and the finishing cuts."""
+
+    p: Placed
+    front: float
+    openings: list[Opening]
+    tabs: tuple[HolderTab, ...]
+    mount: MountPlan
+    body: cq.Workplane
+    item: cq.Shape
+    # The finger notch is cut from here forward, through the front.
+    notch_from_y: float
+
+
+def _shape_model(
+    spec: HolderSpec,
+    model: HolderModel,
+    clearance: float,
+    fits: dict[str, float],
+) -> _Shaped:
+    if spec.tab_overhang_mm is not None:
+        raise ValueError(
+            "Retaining tabs need a captured object, whose flat top the hooks hold; a model's "
+            "holder takes none yet"
+        )
+
+    width, depth, height = model.size_mm
+    p = Placed(width, depth, height, None)
+    front = front_height(spec, p)
+    # The shadow is drawn to a grid and can be a pixel wider than the model, so the plate is
+    # as wide as the cup round the shadow.
+    reach = max(abs(x) for x, _ in model.shadow.points)
+    mount = plan_mount(spec, p, clearance, reach + clearance + spec.wall_mm, fits)
+    shape = model.shape.moved(cq.Location(cq.Vector(0, clearance, 0)))
+
+    return _Shaped(
+        p=p,
+        front=front,
+        openings=[],
+        tabs=(),
+        mount=mount,
+        body=_model_cup(spec, model, p, clearance, front, mount.plate_half_width_mm),
+        item=shape,
+        notch_from_y=clearance + depth / 2,
+    )
+
+
+def _shape_capture(
     spec: HolderSpec,
     capture: WearableCapture,
-    profile: dict[str, Any],
-    *,
-    side_shortfall_mm: float | None = None,
-) -> Holder:
-    """The holder for a captured object; refused if a wall or the floor is under the printer's
-    minimum, a feature cannot be left open, the mount does not fit, or a tab cannot be made."""
-
-    fits, least_wall, least_floor = printer_numbers(profile)
-
-    if spec.wall_mm < least_wall:
-        raise ValueError(
-            f"holder.wall_mm is {spec.wall_mm:g}, under the printer's {least_wall:g} mm "
-            "minimum wall"
-        )
-
-    if spec.floor_mm < least_floor:
-        raise ValueError(
-            f"holder.floor_mm is {spec.floor_mm:g}, under the printer's {least_floor:g} mm "
-            "minimum floor"
-        )
-
-    clearance, clearance_from = holder_clearance(spec, profile, side_shortfall_mm)
+    clearance: float,
+    fits: dict[str, float],
+) -> _Shaped:
     p = placed(capture, spec.down_edge)
     front = front_height(spec, p)
     side_top = p.height_mm if spec.tab_overhang_mm is not None else front
@@ -424,7 +487,51 @@ def build_holder(
 
     half = p.width_mm / 2 + clearance + spec.wall_mm
     mount = plan_mount(spec, p, clearance, half, fits)
-    body = _cup(spec, p, clearance, front, side_top, mount.plate_half_width_mm)
+
+    return _Shaped(
+        p=p,
+        front=front,
+        openings=openings,
+        tabs=tabs,
+        mount=mount,
+        body=_cup(spec, p, clearance, front, side_top, mount.plate_half_width_mm),
+        item=object_solid(p, clearance),
+        notch_from_y=2 * clearance + p.depth_mm - 0.5,
+    )
+
+
+def build_holder(
+    spec: HolderSpec,
+    item: WearableCapture | HolderModel,
+    profile: dict[str, Any],
+    *,
+    side_shortfall_mm: float | None = None,
+) -> Holder:
+    """The holder for an object, captured or modelled; refused if a wall or the floor is under
+    the printer's minimum, a feature cannot be left open, the mount does not fit, or a tab
+    cannot be made."""
+
+    fits, least_wall, least_floor = printer_numbers(profile)
+
+    if spec.wall_mm < least_wall:
+        raise ValueError(
+            f"holder.wall_mm is {spec.wall_mm:g}, under the printer's {least_wall:g} mm "
+            "minimum wall"
+        )
+
+    if spec.floor_mm < least_floor:
+        raise ValueError(
+            f"holder.floor_mm is {spec.floor_mm:g}, under the printer's {least_floor:g} mm "
+            "minimum floor"
+        )
+
+    clearance, clearance_from = holder_clearance(spec, profile, side_shortfall_mm)
+    shaped = (
+        _shape_model(spec, item, clearance, fits)
+        if isinstance(item, HolderModel)
+        else _shape_capture(spec, item, clearance, fits)
+    )
+    p, body = shaped.p, shaped.body
     pocket_y = 2 * clearance + p.depth_mm
     notch = 2 * (p.width_mm / 2 + clearance) >= NOTCH_WIDTH_MM + 2 * NOTCH_MARGIN_MM
 
@@ -433,25 +540,25 @@ def build_holder(
             box(
                 -NOTCH_WIDTH_MM / 2,
                 NOTCH_WIDTH_MM / 2,
-                pocket_y - 0.5,
+                shaped.notch_from_y,
                 pocket_y + spec.wall_mm + 0.5,
                 0.0,
-                front + 1.0,
+                shaped.front + 1.0,
             )
         )
 
-    for opening in openings:
+    for opening in shaped.openings:
         body = body.cut(_opening_cutter(opening))
 
-    for cutter in mount.cutters:
+    for cutter in shaped.mount.cutters:
         body = body.cut(cutter)
 
-    for addition in mount.additions:
+    for addition in shaped.mount.additions:
         body = body.union(addition)
 
     plain = body
 
-    for tab in tabs:
+    for tab in shaped.tabs:
         rise, hook, slits = tab_solids(tab, p, clearance, spec.wall_mm)
         body = body.union(rise).union(hook)
         plain = plain.union(rise)
@@ -460,23 +567,30 @@ def build_holder(
             body = body.cut(slit)
             plain = plain.cut(slit)
 
-    item = object_solid(p, clearance)
-
     return Holder(
         spec=spec,
-        capture=capture,
+        item=item,
         body=body,
         placed=p,
         clearance_mm=clearance,
         clearance_from=clearance_from,
-        front_mm=front,
-        openings=tuple(openings),
-        mount=mount,
+        front_mm=shaped.front,
+        openings=tuple(shaped.openings),
+        mount=shaped.mount,
         notch=notch,
-        checks=_checks(spec, p, body, plain, item, openings, mount, tabs),
+        checks=_checks(
+            spec,
+            p,
+            body,
+            plain,
+            shaped.item,
+            shaped.openings,
+            shaped.mount,
+            shaped.tabs,
+        ),
         profile_id=str(profile.get("profile_id", "")),
         tolerance_status=str(profile.get("tolerance_status", "unknown")),
-        tabs=tabs,
+        tabs=shaped.tabs,
     )
 
 
@@ -553,11 +667,39 @@ def print_oriented(holder: Holder) -> cq.Workplane:
     return holder.body.translate((0, 0, holder.spec.floor_mm))
 
 
+def _object_record(holder: Holder) -> dict[str, Any]:
+    item, spec = holder.item, holder.spec
+
+    if isinstance(item, HolderModel):
+        return {
+            "kind": "model",
+            "step": str(spec.object_path),
+            "sha256": item.sha256,
+            "name": item.name,
+            "solid_index": item.solid_index,
+            "up": item.up,
+            "out": item.out,
+            "size_in_holder_mm": [round(v, 3) for v in item.size_mm],
+            "mass_g": None,
+        }
+
+    return {
+        "kind": "capture",
+        "capture": str(spec.object_path),
+        "sha256": item.sha256,
+        "name": item.name,
+        "size_mm": [item.length_mm, item.width_mm, item.thickness_mm],
+        "outline_radius_mm": item.outline_radius_mm,
+        "mass_g": item.mass_g,
+        "mass_source": item.mass_source or None,
+    }
+
+
 def holder_record(holder: Holder, files: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """What a build says of itself: the object by hash, the settings, what was cut, and that it
     is unverified."""
 
-    spec, capture, p = holder.spec, holder.capture, holder.placed
+    spec, p = holder.spec, holder.placed
     width, depth, height = holder.size_mm
 
     return {
@@ -565,18 +707,10 @@ def holder_record(holder: Holder, files: dict[str, dict[str, Any]]) -> dict[str,
         "record_kind": RECORD_KIND,
         "design_name": spec.identifier.lower().replace("_", "-"),
         "holder_file": {"path": str(spec.file_path), "sha256": spec.file_sha256},
-        "object": {
-            "capture": str(spec.capture_path),
-            "sha256": capture.sha256,
-            "name": capture.name,
-            "size_mm": [capture.length_mm, capture.width_mm, capture.thickness_mm],
-            "outline_radius_mm": capture.outline_radius_mm,
-            "mass_g": capture.mass_g,
-            "mass_source": capture.mass_source or None,
-        },
+        "object": _object_record(holder),
         "settings": {
-            "down_edge": spec.down_edge,
-            "face": spec.face,
+            "down_edge": spec.down_edge or None,
+            "face": spec.face or None,
             "front_mm": round(holder.front_mm, 3),
             "wall_mm": spec.wall_mm,
             "floor_mm": spec.floor_mm,
