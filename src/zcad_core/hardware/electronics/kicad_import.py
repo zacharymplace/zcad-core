@@ -1,7 +1,7 @@
-"""Read a board file's outline, thickness and mounting holes from a KiCad PCB.
+"""Read a board file from a KiCad PCB.
 
-This is the first part of ``zcad-validation board import --kicad``. From a
-``.kicad_pcb`` (KiCad 6 or later) it reads:
+This is ``zcad-validation board import --kicad``. From a ``.kicad_pcb`` (KiCad 6
+or later) it reads:
 
 - the outline: the ``Edge.Cuts`` lines, arcs, circles, rectangles, polygons and
   curves, in the board and in footprints, joined end to end into closed loops
@@ -13,13 +13,20 @@ This is the first part of ``zcad-validation board import --kicad``. From a
 - the thickness, from ``(general (thickness T))``, which the file may not give;
 - the mounting holes: round non-plated drills, and plated drills of a footprint
   named ``MountingHole*``. The commonest diameter is the mounting-hole size, a
-  tie going to the smaller; other sizes and slots are listed with positions.
+  tie going to the smaller; other sizes and slots are listed with positions;
+- the parts: every footprint but a mounting hole, fiducial, test point, logo or
+  board-only one, as the bounding box of its courtyard (or, with none, of its
+  pads, with a warning), above the board for the front side and below it for
+  the back. The file has no heights, so they come from a heights file (see
+  ``kicad_heights``), then from one default with its source; a part with
+  neither is left out and ``needs_review`` names it. Boxes are merged as the
+  STEP import merges them, and the parts past an edge or within 1 mm of one
+  are listed as cable connector candidates, of which the user names one.
 
 The frame is the board file's: KiCad's Y points down and the file's points up,
 so Y is flipped, and the outline's bounding box is centred on the origin. A
-board file also needs a cable connector and the parts' heights, which this part
-does not read, so the file is written with ``needs_review`` for them (heights
-may be given as one default, with where it came from).
+file without parts is written with an envelope of the default height, if one
+is given, and ``needs_review`` for its cable connector.
 
 KiCad's footprint angle is taken as counter-clockwise on screen and a
 bottom-side footprint as mirrored in X before it is turned. Neither is checked
@@ -32,7 +39,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -42,7 +49,14 @@ from zcad_core.hardware.electronics.board_file import (
     BOARD_SCHEMA_VERSION,
     HOLE_DIAMETER_RANGE_MM,
 )
+from zcad_core.hardware.electronics.board_import import (
+    Box,
+    component_records,
+    connector_record,
+    merge_boxes,
+)
 from zcad_core.hardware.electronics.board_outline import Point
+from zcad_core.hardware.electronics.kicad_heights import Height, Heights, read_heights
 from zcad_core.hardware.electronics.kicad_sexp import Node
 
 # KiCad 6's file version; older files (and ``module``) are refused.
@@ -61,6 +75,8 @@ MINIMUM_MOUNTING_MM = 1.6
 SIZE_GROUP_MM = 0.1
 DEFAULT_THICKNESS_MM = 1.6
 EDGE_LAYER = "Edge.Cuts"
+# How a height from --default-height is marked, against a heights file's key.
+DEFAULT_HEIGHT = "--default-height"
 
 
 @dataclass(frozen=True)
@@ -719,8 +735,468 @@ def _mounting(
     return size, positions, others
 
 
+COURTYARD_LAYERS = ("F.CrtYd", "B.CrtYd")
+COURTYARD_ITEMS = ("line", "arc", "circle", "rect", "poly")
+# A part past an edge, or within this of one, is a cable connector candidate.
+AT_EDGE_MM = 1.0
+TEST_POINT = "a test point, which phase 3 reads"
+# Footprints of these library names are not parts, with what each is.
+NOT_PARTS = (
+    ("MountingHole", "a mounting hole"),
+    ("Fiducial", "a fiducial"),
+    ("TestPoint", TEST_POINT),
+)
+TEST_POINT_REFERENCE = re.compile(r"TP\d+")
+
+
+@dataclass(frozen=True)
+class Part:
+    """A footprint read as a part: its plan (x0, x1, y0, y1) in the board
+    file's frame, its side, and what the plan was taken from."""
+
+    reference: str
+    library: str
+    bottom: bool
+    plan: tuple[float, float, float, float]
+    plan_from: str
+
+
+def _not_a_part(footprint: Node, reference: str, library: str) -> str | None:
+    """Why a footprint is not a part, or ``None`` if it is one."""
+
+    nickname, _, name = library.rpartition(":")
+
+    for prefix, what in NOT_PARTS:
+        if name.startswith(prefix):
+            return what
+
+    if TEST_POINT_REFERENCE.fullmatch(reference):
+        return TEST_POINT
+
+    if nickname == "Symbol" or "logo" in name.lower():
+        return "a logo"
+
+    attributes = kicad_sexp.child(footprint, "attr")
+
+    if attributes is not None and "board_only" in attributes[1:]:
+        return "board only: not placed as a part"
+
+    return None
+
+
+def _courtyard(footprint: Node, place: Placement) -> list[Point]:
+    points: list[Point] = []
+
+    for token in COURTYARD_ITEMS:
+        for form in kicad_sexp.children(footprint, f"fp_{token}"):
+            layer = kicad_sexp.child(form, "layer")
+
+            if layer is None or len(layer) < 2 or layer[1] not in COURTYARD_LAYERS:
+                continue
+
+            if piece := _piece(form, token, place):
+                points.extend(piece.points)
+
+    return points
+
+
+def _pad_extent(footprint: Node, place: Placement) -> list[Point]:
+    """Each pad as the square round its circumscribing circle, so the extent
+    does not depend on which way the pad is turned."""
+
+    points: list[Point] = []
+
+    for pad in kicad_sexp.children(footprint, "pad"):
+        at, size = kicad_sexp.child(pad, "at"), kicad_sexp.child(pad, "size")
+
+        if at is None or size is None:
+            continue
+
+        local_x, local_y = kicad_sexp.numbers(at, 2)
+        x, y = place.apply((local_x, local_y))
+        reach = math.hypot(*kicad_sexp.numbers(size, 2)) / 2
+        points.extend(((x - reach, y - reach), (x + reach, y + reach)))
+
+    return points
+
+
+def _parts(
+    root: Node, frame: Frame, unverified: list[str]
+) -> tuple[list[Part], list[dict[str, str]]]:
+    """The footprints that are parts, and those that are not, with why."""
+
+    parts: list[Part] = []
+    excluded: list[dict[str, str]] = []
+
+    for footprint in kicad_sexp.children(root, "footprint"):
+        reference = _reference(footprint)
+        library = str(footprint[1]) if len(footprint) > 1 else ""
+        why = _not_a_part(footprint, reference, library)
+
+        if why is not None:
+            excluded.append({"reference": reference, "why": why})
+            continue
+
+        place = _placement(footprint)
+        points, plan_from = _courtyard(footprint, place), "courtyard"
+
+        if not points:
+            points, plan_from = _pad_extent(footprint, place), "pads"
+
+        if not points:
+            excluded.append({"reference": reference, "why": "no courtyard and no pads"})
+            continue
+
+        if place.unsure:
+            unverified.append(
+                f"{reference}: its {plan_from} placed through angle {place.angle:g}"
+                + (" on the bottom side" if place.bottom else "")
+            )
+
+        plan = board_outline.bounding_box([frame(p) for p in points])
+        parts.append(Part(reference, library, place.bottom, plan, plan_from))
+
+    return parts, excluded
+
+
+def _box(part: Part, height_mm: float, thickness_mm: float) -> Box:
+    """A part's box, above the board's top face or below its bottom face."""
+
+    x0, x1, y0, y1 = part.plan
+
+    if part.bottom:
+        return (x0, x1, y0, y1, -(thickness_mm + height_mm), -thickness_mm)
+
+    return (x0, x1, y0, y1, 0.0, height_mm)
+
+
+def _edge_reach(part: Part, width: float, length: float) -> tuple[str, float]:
+    """The edge a part comes closest to, and how far past it the part
+    reaches: negative when it stops short."""
+
+    x0, x1, y0, y1 = part.plan
+    reach = {
+        "negative_x": -width / 2 - x0,
+        "positive_x": x1 - width / 2,
+        "negative_y": -length / 2 - y0,
+        "positive_y": y1 - length / 2,
+    }
+
+    return max(reach.items(), key=lambda item: item[1])
+
+
+def _candidates(
+    parts: Sequence[Part],
+    heights: Mapping[int, Height],
+    width: float,
+    length: float,
+) -> list[dict[str, Any]]:
+    """The parts past an edge or within 1 mm of one, largest plan first."""
+
+    found: list[tuple[float, dict[str, Any]]] = []
+
+    for index, part in enumerate(parts):
+        edge, reach = _edge_reach(part, width, length)
+
+        if reach <= -AT_EDGE_MM:
+            continue
+
+        x0, x1, y0, y1 = part.plan
+        height = heights.get(index)
+        found.append(
+            (
+                (x1 - x0) * (y1 - y0),
+                {
+                    "identifier": part.reference,
+                    "edge": edge,
+                    "past_edge_mm": round(reach, 3),
+                    "side": "bottom" if part.bottom else "top",
+                    "size_mm": [
+                        round(x1 - x0, 3),
+                        round(y1 - y0, 3),
+                        None if height is None else height.mm,
+                    ],
+                },
+            )
+        )
+
+    found.sort(key=lambda item: (-item[0], item[1]["identifier"]))
+
+    return [candidate for _, candidate in found]
+
+
+def _natural(reference: str) -> tuple[tuple[int, str], ...]:
+    """A reference's sort key, so R2 comes before R10."""
+
+    return tuple(
+        (int(piece), "") if piece.isdigit() else (-1, piece)
+        for piece in re.split(r"(\d+)", reference)
+    )
+
+
+def _box_name(references: Sequence[str], used: set[str]) -> str:
+    ordered = sorted(references, key=_natural)
+    name = (
+        "_".join(ordered)
+        if len(ordered) <= 3
+        else f"{ordered[0]}_and_{len(ordered) - 1}_more"
+    )
+    name = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("_.-") or "PART"
+    unique, count = name, 1
+
+    while unique in used:
+        count += 1
+        unique = f"{name}-{count}"
+
+    used.add(unique)
+
+    return unique
+
+
+def _volume(box: Box) -> float:
+    return (box[1] - box[0]) * (box[3] - box[2]) * (box[5] - box[4])
+
+
+def _within(inner: Box, outer: Box) -> bool:
+    return all(outer[i] - 1e-9 <= inner[i] for i in (0, 2, 4)) and all(
+        inner[i] <= outer[i] + 1e-9 for i in (1, 3, 5)
+    )
+
+
+def _merged_records(
+    boxes: Sequence[tuple[str, Box]],
+    mounting: tuple[float | None, Sequence[Point]],
+    width: float,
+    length: float,
+) -> list[dict[str, Any]]:
+    """Boxes merged as the STEP import merges them, each named by its parts:
+    a part belongs to the smallest merged box that holds it."""
+
+    hole_size, holes = mounting
+    records: list[dict[str, Any]] = []
+    used: set[str] = set()
+
+    for above in (True, False):
+        side = [(name, box) for name, box in boxes if (box[4] >= 0) == above]
+        merged = merge_boxes(
+            [box for _, box in side], above, holes, hole_diameter_mm=hole_size or 0.0
+        )
+        members: dict[int, list[str]] = {index: [] for index in range(len(merged))}
+
+        for name, part in side:
+            holders = [i for i, box in enumerate(merged) if _within(part, box)]
+            members[min(holders, key=lambda i: _volume(merged[i]))].append(name)
+
+        for index, box in enumerate(merged):
+            record = component_records([box], width, length)[0]
+            record["identifier"] = _box_name(members[index], used)
+            records.append(record)
+
+    return records
+
+
+@dataclass(frozen=True)
+class PartsRead:
+    """What the parts give the board file and the report."""
+
+    components: list[dict[str, Any]]
+    connector: dict[str, Any] | None
+    candidates: list[dict[str, Any]]
+    review: list[str]
+    source: str
+    report: dict[str, Any]
+    notes: list[str]
+
+
+def _heights_of(
+    parts: Sequence[Part], heights: Heights | None, default: Height | None
+) -> tuple[dict[int, Height], set[str]]:
+    """Each part's height by its index, and the heights file's keys used."""
+
+    found: dict[int, Height] = {}
+    used: set[str] = set()
+
+    for index, part in enumerate(parts):
+        height = heights.find(part.reference, part.library) if heights else None
+
+        if height is not None:
+            used.add(height.given_by)
+        else:
+            height = default
+
+        if height is not None:
+            found[index] = height
+
+    return found, used
+
+
+def _named_connector(
+    name: str,
+    parts: Sequence[Part],
+    heights: Mapping[int, Height],
+    candidates: Sequence[dict[str, Any]],
+    size: tuple[float, float, float],
+) -> tuple[int, dict[str, Any]]:
+    """The named part as the cable connector, and its index among the parts."""
+
+    width, length, thickness = size
+    named = [candidate["identifier"] for candidate in candidates]
+    index = next(
+        (i for i, part in enumerate(parts) if part.reference == name and name in named),
+        None,
+    )
+
+    if index is None:
+        raise ValueError(
+            f"{name} is not one of the parts at an edge: {', '.join(named) or 'none'}"
+        )
+
+    if index not in heights:
+        raise ValueError(
+            f"{name} has no height: give it in --heights, or give --default-height"
+        )
+
+    box = _box(parts[index], heights[index].mm, thickness)
+    edge, _ = _edge_reach(parts[index], width, length)
+
+    return index, connector_record(box, edge, width, length, name)
+
+
+def _heights_source(
+    heights: Mapping[int, Height], count: int, file: Heights | None
+) -> str:
+    """What the board file's ``source`` says of the parts' heights."""
+
+    default = [h for h in heights.values() if h.given_by == DEFAULT_HEIGHT]
+    said = []
+
+    if file is not None:
+        said.append(
+            f"{len(heights) - len(default)} from {file.name} (SHA-256 {file.sha256})"
+        )
+
+    if default:
+        said.append(
+            f"{len(default)} one default of {default[0].mm:g} mm, source: "
+            f"{default[0].source}"
+        )
+
+    if count > len(heights):
+        said.append(f"{count - len(heights)} none")
+
+    return f"; part heights: {', '.join(said)}"
+
+
+def _parts_report(
+    parts: Sequence[Part],
+    heights: Mapping[int, Height],
+    excluded: list[dict[str, str]],
+    boxes: int,
+    unused: list[str],
+) -> dict[str, Any]:
+    return {
+        "read": len(parts),
+        "boxes": boxes,
+        "plans_from_pads": [p.reference for p in parts if p.plan_from == "pads"],
+        "excluded": excluded,
+        "heights": [
+            {
+                "reference": part.reference,
+                "height_mm": heights[i].mm,
+                "source": heights[i].source,
+                "given_by": heights[i].given_by,
+            }
+            for i, part in enumerate(parts)
+            if i in heights
+        ],
+        "without_height": [
+            p.reference for i, p in enumerate(parts) if i not in heights
+        ],
+        "heights_file_unused": unused,
+    }
+
+
+def read_parts(
+    root: Node,
+    frame: Frame,
+    size: tuple[float, float, float],
+    mounting: tuple[float | None, Sequence[Point]],
+    *,
+    heights_file: Heights | None,
+    default: Height | None,
+    cable_connector: str | None,
+    unverified: list[str],
+) -> PartsRead | None:
+    """The footprints as the board file's components and cable connector, or
+    ``None`` when no footprint is a part."""
+
+    width, length, thickness = size
+    parts, excluded = _parts(root, frame, unverified)
+
+    if not parts:
+        if cable_connector is not None:
+            raise ValueError(f"The file has no parts, so none is {cable_connector}")
+
+        return None
+
+    heights, used = _heights_of(parts, heights_file, default)
+    candidates = _candidates(parts, heights, width, length)
+    connector, review, skip = None, [], -1
+
+    if cable_connector is not None:
+        skip, connector = _named_connector(
+            cable_connector, parts, heights, candidates, size
+        )
+    else:
+        review.append(
+            "cable_connector: name the part the cable plugs into with "
+            "--cable-connector, from the report's candidates"
+        )
+
+    missing = [p.reference for i, p in enumerate(parts) if i not in heights]
+
+    if missing:
+        review.append(
+            f"heights: {len(missing)} part(s) have no height ({', '.join(missing)}): "
+            "give them in --heights, or --default-height with "
+            "--default-height-source; they are left out of components until then"
+        )
+
+    boxes = [
+        (part.reference, _box(part, heights[i].mm, thickness))
+        for i, part in enumerate(parts)
+        if i in heights and i != skip
+    ]
+    components = _merged_records(boxes, mounting, width, length)
+    notes = [
+        f"{part.reference} has no courtyard: its box is its pads' extent, smaller "
+        "than a part's courtyard would be"
+        for part in parts
+        if part.plan_from == "pads"
+    ]
+    notes.append(
+        "The parts' boxes are conservative: a courtyard is bigger than its part, "
+        "a box covers a part's whole plan at its full height, and a merged box "
+        "takes its tallest part's height"
+    )
+    unused = heights_file.unused(used) if heights_file else []
+
+    return PartsRead(
+        components=components,
+        connector=connector,
+        candidates=candidates,
+        review=review,
+        source=_heights_source(heights, len(parts), heights_file),
+        report=_parts_report(parts, heights, excluded, len(components), unused),
+        notes=notes,
+    )
+
+
 def _review(
-    thickness: float | None, envelope: dict[str, float] | None, unverified: list[str]
+    thickness: float | None,
+    envelope: dict[str, float] | None,
+    parts: PartsRead | None,
+    unverified: list[str],
 ) -> list[str]:
     review = []
 
@@ -730,17 +1206,20 @@ def _review(
             "board.thickness_mm"
         )
 
-    if envelope is None:
-        review.append(
-            "heights: the parts' heights are not in the file; give "
-            "--default-height with --default-height-source, or set envelope or "
-            "components"
-        )
+    if parts is not None:
+        review.extend(parts.review)
+    else:
+        if envelope is None:
+            review.append(
+                "heights: the file has no parts and no heights; give "
+                "--default-height with --default-height-source, or set envelope "
+                "or components"
+            )
 
-    review.append(
-        "cable_connector: the KiCad import does not read parts yet; set the "
-        "part the cable plugs into from the board"
-    )
+        review.append(
+            "cable_connector: the file has no parts to name; set the part the "
+            "cable plugs into from the board"
+        )
 
     if unverified:
         review.append(
@@ -752,17 +1231,46 @@ def _review(
     return review
 
 
+def _cable_connector(parts: PartsRead | None) -> dict[str, Any]:
+    """The named connector, or a placeholder at the likeliest edge that
+    ``needs_review`` holds back until one is named."""
+
+    if parts is not None and parts.connector is not None:
+        return parts.connector
+
+    candidates = parts.candidates if parts is not None else []
+
+    return {
+        "identifier": "CABLE_CONNECTOR",
+        "edge": candidates[0]["edge"] if candidates else "negative_y",
+        "width_mm": 1.0,
+        "height_mm": 1.0,
+        "depth_mm": 1.0,
+        "center_offset_mm": 0.0,
+        "bottom_offset_from_board_top_mm": 0.0,
+    }
+
+
 def import_kicad(
     path: Path,
     *,
     identifier: str | None = None,
     default_height_mm: float | None = None,
     default_height_source: str | None = None,
+    heights_file: Path | None = None,
+    cable_connector: str | None = None,
 ) -> ImportedKicadBoard:
-    """Read a board file's outline, thickness and mounting holes from a KiCad
-    PCB. The result carries ``needs_review`` for what the file cannot give."""
+    """Read a board file from a KiCad PCB: its outline, thickness, mounting
+    holes, and its footprints as parts. The result carries ``needs_review``
+    for what the file cannot give."""
 
     envelope, height_source = _height(default_height_mm, default_height_source)
+    default = (
+        Height(envelope["top_mm"], height_source, DEFAULT_HEIGHT)
+        if envelope is not None and height_source is not None
+        else None
+    )
+    heights_given = read_heights(heights_file) if heights_file is not None else None
     root, sha = _read(path)
     unverified: list[str] = []
     outer, inner = _outer(_loops(_edge_pieces(root, unverified)))
@@ -772,12 +1280,32 @@ def import_kicad(
     size, positions, others = _mounting([*holes, *edge_holes], frame)
     thickness = _thickness(root)
     version, generator = _atom(root, "version"), _atom(root, "generator")
-    heights = (
-        f"; part heights: one default of {default_height_mm:g} mm, source: "
-        f"{height_source}"
-        if envelope is not None
-        else ""
+    parts = read_parts(
+        root,
+        frame,
+        (width, length, thickness if thickness is not None else DEFAULT_THICKNESS_MM),
+        (size, positions),
+        heights_file=heights_given,
+        default=default,
+        cable_connector=cable_connector,
+        unverified=unverified,
     )
+
+    if parts is not None:
+        envelope = None
+        heights = parts.source
+        notes.extend(parts.notes)
+    elif heights_given is not None:
+        raise ValueError(
+            f"The file has no parts, so {heights_given.name} has nothing to size"
+        )
+    else:
+        heights = (
+            f"; part heights: one default of {default_height_mm:g} mm, source: "
+            f"{height_source}"
+            if envelope is not None
+            else ""
+        )
     data: dict[str, Any] = {
         "schema_version": BOARD_SCHEMA_VERSION,
         "identifier": identifier or _identifier(path),
@@ -792,8 +1320,9 @@ def import_kicad(
         "notes": (
             "Read from the KiCad file's Edge.Cuts with Y flipped (KiCad's Y points "
             "down) and the outline's bounding box centred on the origin, so +X is "
-            "right and +Y up the page seen from above. Check the outline and "
-            "holes against the board, settle needs_review, then remove it."
+            "right and +Y up the page seen from above. Parts are boxes from their "
+            "footprints' courtyards. Check the outline, holes and parts against "
+            "the board, settle needs_review, then remove it."
         ),
         "board": {
             "width_mm": width,
@@ -802,16 +1331,8 @@ def import_kicad(
                 thickness if thickness is not None else DEFAULT_THICKNESS_MM
             ),
         },
-        "needs_review": _review(thickness, envelope, unverified),
-        "cable_connector": {
-            "identifier": "CABLE_CONNECTOR",
-            "edge": "negative_y",
-            "width_mm": 1.0,
-            "height_mm": 1.0,
-            "depth_mm": 1.0,
-            "center_offset_mm": 0.0,
-            "bottom_offset_from_board_top_mm": 0.0,
-        },
+        "needs_review": _review(thickness, envelope, parts, unverified),
+        "cable_connector": _cable_connector(parts),
         "wall_openings": [],
     }
 
@@ -823,6 +1344,12 @@ def import_kicad(
 
     if envelope is not None:
         data["envelope"] = envelope
+
+    if parts is not None:
+        data["components"] = parts.components
+
+    if not data["needs_review"]:
+        del data["needs_review"]
 
     report: dict[str, Any] = {
         "file": {
@@ -843,6 +1370,8 @@ def import_kicad(
             [round(v, 3) for v in frame((x, y))] for x, y, _ in slots
         ],
         "cutouts_not_modelled": cutouts,
+        "parts": parts.report if parts is not None else None,
+        "cable_connector_candidates": parts.candidates if parts is not None else [],
         "unverified_transforms": unverified,
         "notes": notes,
     }

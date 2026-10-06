@@ -87,18 +87,16 @@ def _board_template(args: argparse.Namespace) -> int:
 
 
 def _import_from_kicad(args: argparse.Namespace) -> ImportedKicadBoard:
-    for flag, value in (
-        ("--pcb-solid-index", args.pcb_solid_index),
-        ("--cable-connector", args.cable_connector),
-    ):
-        if value is not None:
-            raise ValueError(f"{flag} is for a STEP model, not a KiCad file")
+    if args.pcb_solid_index is not None:
+        raise ValueError("--pcb-solid-index is for a STEP model, not a KiCad file")
 
     return import_kicad(
         args.kicad,
         identifier=args.identifier,
         default_height_mm=args.default_height,
         default_height_source=args.default_height_source,
+        heights_file=args.heights,
+        cable_connector=args.cable_connector,
     )
 
 
@@ -117,6 +115,7 @@ def _board_import(args: argparse.Namespace) -> int:
         for flag, value in (
             ("--default-height", args.default_height),
             ("--default-height-source", args.default_height_source),
+            ("--heights", args.heights),
         ):
             if value is not None:
                 raise ValueError(f"{flag} is for a KiCad file, not a STEP model")
@@ -206,13 +205,21 @@ def register(
     import_.add_argument(
         "--cable-connector",
         metavar="PART",
-        help="the part the cable plugs into, from the candidates a first import lists",
+        help="the part the cable plugs into, from the candidates a first import "
+        "lists: a STEP model's part (top-01) or a KiCad reference (J1)",
+    )
+    import_.add_argument(
+        "--heights",
+        type=Path,
+        metavar="FILE",
+        help="KiCad only: JSON of reference, library name or pattern to "
+        '{"height_mm": H, "source": "..."}',
     )
     import_.add_argument(
         "--default-height",
         type=float,
         metavar="MM",
-        help="KiCad only: one height for every part, the tallest, from "
+        help="KiCad only: the height of every part --heights does not give, from "
         "--default-height-source",
     )
     import_.add_argument(
