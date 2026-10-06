@@ -104,6 +104,7 @@ def _import_from_kicad(args: argparse.Namespace) -> ImportedKicadBoard:
         heights_file=args.heights,
         cable_connector=args.cable_connector,
         test_points=args.test_points,
+        models_directory=args.models,
     )
 
 
@@ -124,6 +125,7 @@ def _board_import(args: argparse.Namespace) -> int:
             ("--default-height-source", args.default_height_source),
             ("--heights", args.heights),
             ("--test-points", args.test_points or None),
+            ("--models", args.models),
         ):
             if value is not None:
                 raise ValueError(f"{flag} is for a KiCad file, not a STEP model")
@@ -224,6 +226,13 @@ def register(
         '{"height_mm": H, "source": "..."}',
     )
     import_.add_argument(
+        "--models",
+        type=Path,
+        metavar="DIR",
+        help="KiCad only: where the footprints' STEP models are, for the height "
+        "of every part --heights does not give",
+    )
+    import_.add_argument(
         "--test-points",
         type=_references,
         default=(),
@@ -235,8 +244,8 @@ def register(
         "--default-height",
         type=float,
         metavar="MM",
-        help="KiCad only: the height of every part --heights does not give, from "
-        "--default-height-source",
+        help="KiCad only: the height of every part neither --heights nor --models "
+        "gives, from --default-height-source",
     )
     import_.add_argument(
         "--default-height-source",

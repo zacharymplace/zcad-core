@@ -9,10 +9,10 @@
 
 This is the design for reading a KiCad board into a board file, so that the engine's enclosures, [PCB test fixtures](pcb-test-fixtures.md), nests and guides can be built from a design the user already has.
 
-**Status (2026-10-05): phases 1 to 3 are built; phase 4 is design only.** Phase 1 reads the outline, the thickness and the mounting holes, phase 2 the parts, their heights from a heights file or a
-default, and the cable connector, and phase 3 the test points (`zcad-validation board import --kicad`). All three are tested only against boards written by hand to the format's documented tokens, not against a file
-exported from KiCad: **no real board has been read yet**. What the reader assumes, and what a real board must check, is under [Phase 1, as built](#phase-1-as-built), [Phase 2, as built](#phase-2-as-built) and
-[Phase 3, as built](#phase-3-as-built).
+**Status (2026-10-06): all four phases are built.** Phase 1 reads the outline, the thickness and the mounting holes, phase 2 the parts, their heights from a heights file or a
+default, and the cable connector, phase 3 the test points, and phase 4 heights from the parts' STEP models (`zcad-validation board import --kicad`). All four are tested only against boards written by hand to the
+format's documented tokens, and phase 4 against box models written by CadQuery, not against a file exported from KiCad or a library's models: **no real board has been read yet**. What the reader assumes, and what a
+real board must check, is under [Phase 1](#phase-1-as-built), [Phase 2](#phase-2-as-built), [Phase 3](#phase-3-as-built) and [Phase 4, as built](#phase-4-as-built).
 
 ## What the engine does not claim
 
@@ -185,6 +185,23 @@ real board settles the conventions for good.
 
 **Unverified, and written as such.** A test pad at its footprint's origin, the usual case, does not depend on the rotation or the mirror. One away from it, in a turned or back-side footprint, is listed under
 `unverified_transforms` with `needs_review: footprint_transforms`, as a drill is.
+
+### Phase 4, as built
+
+`--models DIR` joins the options, in `kicad_models.py`. A height comes from the heights file first, then the part's models, then `--default-height`.
+
+- **Finding a model.** Each shown `(model ...)` of the footprint (a `(hide yes)` one is skipped) has its leading `${VAR}/` or `$(VAR)/` dropped. The rest is looked for under `DIR`, then its file name alone,
+  first as named if it is `.step` or `.stp`, then with each STEP suffix in place of its own, since KiCad's libraries ship a `.wrl` and a `.step` side by side. A path that would leave `DIR` is not followed. Only
+  STEP is read; VRML has no solids.
+- **The height** is the top of the model's tessellated points (0.01 mm chord) through `scale`, then `rotate`, then `offset`'s Z, plus the 0.01 mm a chord can fall short of a curved top. A `scale` defaults to 1, a
+  missing `offset` falls back to KiCad 5's `(at (xyz ...))` in inches. A model that reaches no higher than the board gives no height. Several models give the highest; if any of them is not found, the part gets
+  no model height, since the missing one may be the tallest.
+- **The report** lists, under `parts.models`, the directory, how many heights came from models, and each model not read with why. The board file's `source` counts them, and each part's height names its model
+  file and that file's SHA-256.
+
+**Unverified, and written as such.** A turn about Z cannot change a height. A turn about X or Y is applied as right-handed turns about X, then Y, then Z, which is assumed and not checked against KiCad, so the
+part is listed under `unverified_transforms` with `needs_review: footprint_transforms`. A real board with a connector modelled on its side settles it. The model's own frame is taken as KiCad's: Z up from the
+board's surface, in millimetres.
 
 ## Not covered
 

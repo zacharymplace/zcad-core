@@ -1802,6 +1802,18 @@
     "hardware/electronics/kicad_import.py:SIZE_GROUP_MM": {
       "status": "unstated"
     },
+    "hardware/electronics/kicad_models.py:INCH_MM": {
+      "status": "sourced",
+      "source": "The inch, defined as exactly 25.4 mm by the international yard and pound agreement of 1959"
+    },
+    "hardware/electronics/kicad_models.py:MODEL_CHORD_MM": {
+      "status": "design_default",
+      "note": "A design value: tessellating a model to 0.01 mm leaves a curved top at most that low, and it is added back so a height is never short"
+    },
+    "hardware/electronics/kicad_models.py:ModelRef.scale": {
+      "status": "design_default",
+      "note": "A model's scale when the footprint gives none: no scaling, 1 in each axis"
+    },
     "hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.board_length_mm": {
       "status": "sourced",
       "source": "Raspberry Pi mechanical drawing RP-008347, as cited in hardware/electronics/raspberry_pi.py; the drawing calls itself approximate"

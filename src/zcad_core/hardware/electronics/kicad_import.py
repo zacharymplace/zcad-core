@@ -19,7 +19,8 @@ or later) it reads:
   board-only one, as the bounding box of its courtyard (or, with none, of its
   pads, with a warning), above the board for the front side and below it for
   the back. The file has no heights, so they come from a heights file (see
-  ``kicad_heights``), then from one default with its source; a part with
+  ``kicad_heights``), then from the part's 3D model (``kicad_models``), then
+  from one default with its source; a part with
   neither is left out and ``needs_review`` names it. Boxes are merged as the
   STEP import merges them, and the parts past an edge or within 1 mm of one
   are listed as cable connector candidates, of which the user names one.
@@ -65,6 +66,12 @@ from zcad_core.hardware.electronics.kicad_footprints import (
     footprint_reference,
 )
 from zcad_core.hardware.electronics.kicad_heights import Height, Heights, read_heights
+from zcad_core.hardware.electronics.kicad_models import (
+    MODEL_HEIGHT,
+    ModelHeights,
+    ModelRef,
+    model_refs,
+)
 from zcad_core.hardware.electronics.kicad_sexp import Node
 from zcad_core.hardware.electronics.kicad_test_points import (
     is_test_point,
@@ -697,6 +704,7 @@ class Part:
     bottom: bool
     plan: tuple[float, float, float, float]
     plan_from: str
+    models: tuple[ModelRef, ...] = ()
 
 
 def _not_a_part(
@@ -794,7 +802,16 @@ def _parts(
             )
 
         plan = board_outline.bounding_box([frame(p) for p in points])
-        parts.append(Part(reference, library, place.bottom, plan, plan_from))
+        parts.append(
+            Part(
+                reference,
+                library,
+                place.bottom,
+                plan,
+                plan_from,
+                model_refs(footprint),
+            )
+        )
 
     return parts, excluded
 
@@ -936,6 +953,15 @@ def _merged_records(
 
 
 @dataclass(frozen=True)
+class HeightSources:
+    """Where parts' heights come from, in the order they are tried."""
+
+    file: Heights | None = None
+    models: ModelHeights | None = None
+    default: Height | None = None
+
+
+@dataclass(frozen=True)
 class PartsRead:
     """What the parts give the board file and the report."""
 
@@ -949,20 +975,27 @@ class PartsRead:
 
 
 def _heights_of(
-    parts: Sequence[Part], heights: Heights | None, default: Height | None
+    parts: Sequence[Part],
+    sources: HeightSources,
+    unverified: list[str],
 ) -> tuple[dict[int, Height], set[str]]:
-    """Each part's height by its index, and the heights file's keys used."""
+    """Each part's height by its index, from the heights file, then its 3D
+    model, then the default; and the heights file's keys used."""
 
     found: dict[int, Height] = {}
     used: set[str] = set()
+    heights, models = sources.file, sources.models
 
     for index, part in enumerate(parts):
         height = heights.find(part.reference, part.library) if heights else None
 
         if height is not None:
             used.add(height.given_by)
-        else:
-            height = default
+        elif models is not None and part.models:
+            height = models.height(part.reference, part.models, unverified)
+
+        if height is None:
+            height = sources.default
 
         if height is not None:
             found[index] = height
@@ -1003,16 +1036,24 @@ def _named_connector(
 
 
 def _heights_source(
-    heights: Mapping[int, Height], count: int, file: Heights | None
+    heights: Mapping[int, Height], count: int, sources: HeightSources
 ) -> str:
     """What the board file's ``source`` says of the parts' heights."""
 
     default = [h for h in heights.values() if h.given_by == DEFAULT_HEIGHT]
+    modelled = [h for h in heights.values() if h.given_by == MODEL_HEIGHT]
+    file = sources.file
     said = []
 
     if file is not None:
         said.append(
-            f"{len(heights) - len(default)} from {file.name} (SHA-256 {file.sha256})"
+            f"{len(heights) - len(default) - len(modelled)} from {file.name} "
+            f"(SHA-256 {file.sha256})"
+        )
+
+    if sources.models is not None:
+        said.append(
+            f"{len(modelled)} from 3D models under {sources.models.directory.name}"
         )
 
     if default:
@@ -1062,8 +1103,7 @@ def read_parts(
     size: tuple[float, float, float],
     mounting: tuple[float | None, Sequence[Point]],
     *,
-    heights_file: Heights | None,
-    default: Height | None,
+    sources: HeightSources,
     cable_connector: str | None,
     test_points: Sequence[str],
     unverified: list[str],
@@ -1080,7 +1120,7 @@ def read_parts(
 
         return None
 
-    heights, used = _heights_of(parts, heights_file, default)
+    heights, used = _heights_of(parts, sources, unverified)
     candidates = _candidates(parts, heights, width, length)
     connector, review, skip = None, [], -1
 
@@ -1099,8 +1139,9 @@ def read_parts(
     if missing:
         review.append(
             f"heights: {len(missing)} part(s) have no height ({', '.join(missing)}): "
-            "give them in --heights, or --default-height with "
-            "--default-height-source; they are left out of components until then"
+            "give them in --heights, their 3D models with --models, or "
+            "--default-height with --default-height-source; they are left out "
+            "of components until then"
         )
 
     boxes = [
@@ -1120,15 +1161,23 @@ def read_parts(
         "a box covers a part's whole plan at its full height, and a merged box "
         "takes its tallest part's height"
     )
-    unused = heights_file.unused(used) if heights_file else []
+    unused = sources.file.unused(used) if sources.file else []
+    report = _parts_report(parts, heights, excluded, len(components), unused)
+
+    if sources.models is not None:
+        report["models"] = {
+            "directory": str(sources.models.directory),
+            "heights": sum(1 for h in heights.values() if h.given_by == MODEL_HEIGHT),
+            "not_read": sources.models.not_found,
+        }
 
     return PartsRead(
         components=components,
         connector=connector,
         candidates=candidates,
         review=review,
-        source=_heights_source(heights, len(parts), heights_file),
-        report=_parts_report(parts, heights, excluded, len(components), unused),
+        source=_heights_source(heights, len(parts), sources),
+        report=report,
         notes=notes,
     )
 
@@ -1201,6 +1250,7 @@ def import_kicad(
     heights_file: Path | None = None,
     cable_connector: str | None = None,
     test_points: Sequence[str] = (),
+    models_directory: Path | None = None,
 ) -> ImportedKicadBoard:
     """Read a board file from a KiCad PCB: its outline, thickness, mounting
     holes, its footprints as parts, and its test points. The result carries
@@ -1213,6 +1263,7 @@ def import_kicad(
         else None
     )
     heights_given = read_heights(heights_file) if heights_file is not None else None
+    models = ModelHeights(models_directory) if models_directory is not None else None
     root, sha = _read(path)
     unverified: list[str] = []
     outer, inner = _outer(_loops(_edge_pieces(root, unverified)))
@@ -1227,8 +1278,7 @@ def import_kicad(
         frame,
         (width, length, thickness if thickness is not None else DEFAULT_THICKNESS_MM),
         (size, positions),
-        heights_file=heights_given,
-        default=default,
+        sources=HeightSources(heights_given, models, default),
         cable_connector=cable_connector,
         test_points=test_points,
         unverified=unverified,
@@ -1240,10 +1290,9 @@ def import_kicad(
         envelope = None
         heights = parts.source
         notes.extend(parts.notes)
-    elif heights_given is not None:
-        raise ValueError(
-            f"The file has no parts, so {heights_given.name} has nothing to size"
-        )
+    elif heights_given is not None or models is not None:
+        given = heights_given.name if heights_given is not None else "--models"
+        raise ValueError(f"The file has no parts, so {given} has nothing to size")
     else:
         heights = (
             f"; part heights: one default of {default_height_mm:g} mm, source: "
