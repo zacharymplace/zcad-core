@@ -49,7 +49,7 @@ This repository intentionally contains no product-specific models.
   32-minute print whose measurements tell every build how this printer prints
   holes, gaps and bridges, and how far its plastic bends before it breaks; see
   `docs/guides/calibration-coupon.md`.
-- `zcad-validation wearable template` starts a caliper capture of a sealed
+- `zcad-validation capture template` starts a caliper capture of a sealed
   device, and `zcad-validation housing build` builds something to wear it in;
   see `docs/guides/wearable-capture.md` and `docs/guides/wearable-housing.md`.
 

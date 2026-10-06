@@ -1,4 +1,8 @@
-"""zcad-validation wearable template and check."""
+"""zcad-validation capture template and check: a caliper capture of a device or an object.
+
+``capture`` is the name; ``wearable``, the name it had while only wearable housings used captures,
+is kept as an alias so scripts and notes that use it still work.
+"""
 
 from __future__ import annotations
 
@@ -81,13 +85,14 @@ def _wearable_template(args: argparse.Namespace) -> int:
 def register(
     subcommands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
-    """Add the wearable commands to the zcad-validation parser."""
+    """Add the capture commands, also named ``wearable``, to the zcad-validation parser."""
 
-    wearable = subcommands.add_parser(
-        "wearable",
-        help="check a wearable device's caliper capture, or write one to fill in",
+    capture = subcommands.add_parser(
+        "capture",
+        aliases=["wearable"],
+        help="check a caliper capture of a device or an object, or write one to fill in",
     )
-    commands = wearable.add_subparsers(dest="wearable_command", required=True)
+    commands = capture.add_subparsers(dest="capture_command", required=True)
     check = commands.add_parser(
         "check", help="check a caliper capture; exits 1 if it cannot be used"
     )

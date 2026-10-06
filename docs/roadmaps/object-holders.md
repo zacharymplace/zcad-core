@@ -32,8 +32,8 @@ The stance of the other designs carries over, and a holder adds its own:
 Most objects a holder is for have no STEP model, and everyone has calipers. So the first source is the **caliper capture** the wearable housings use, a
 `"device": "custom"` capture, unchanged: its `length_mm`, `width_mm` and `thickness_mm` medians, its `outline` (a rectangle or a rounded rectangle),
 its `edge_features` (what a wall must not cover: a charging port, a button, a cable), its `face_features`, and its `mass`. A capture is already
-checked by `wearable check`, and a holder refuses one that check refuses. The name stays `wearable` for now; a capture is a capture, and renaming the
-command is its own change.
+checked by `capture check`, and a holder refuses one that check refuses. The command was named `wearable` when this was written; it is `capture` now,
+with `wearable` kept as an alias (see the open questions).
 
 A **STEP model** comes second (phase 3). Its pocket is the nest's: the model's shadow, seen along the way it goes in, so any shape releases.
 
@@ -95,7 +95,7 @@ object pushes past is held to the flexure strain limit: the engine's provisional
 
 | Check | What it refuses |
 | --- | --- |
-| The capture | Anything `wearable check` refuses |
+| The capture | Anything `capture check` refuses |
 | Fit | Holder material inside the object, or within the clearance of its sides |
 | Lift-out | The object, lifted straight up from its seat in 2 mm steps (tabs left out, as they give), meeting the holder before it is clear |
 | Features open | A floor slot or side notch that does not leave its feature's whole width open; a feature the back plate covers |
@@ -215,5 +215,6 @@ to `features/holder_shapes.py`. It differs from the design in these ways:
   build a third and let a trial say.
 - **Whether the clearance should be looser than the sliding clearance.** An object dropped into a cup needs less precision than a lid sliding on a base. The
   proposal is the sliding clearance, which the coupon measures, and a `clearance_mm` in the holder file for anyone who wants it looser, with a source.
-- **Whether the capture command should be renamed.** `wearable` reads oddly for a remote. The proposal is to leave it until a second product uses captures,
-  which this is, then add `capture` as the name and keep `wearable` as an alias.
+- **Whether the capture command should be renamed.** `wearable` reads oddly for a remote. The proposal was to leave it until a second product used
+  captures, then add `capture` as the name and keep `wearable` as an alias. **Settled:** holders are that second product, and `zcad-validation capture`
+  is the name; `zcad-validation wearable` still works.
