@@ -12,7 +12,8 @@ judged by whether it seats in someone else's baseplate, so the engine's figures 
 This is the design for building Gridfinity **bins** and **baseplates**, and for the thing the engine can add that a generic generator cannot: a bin with a
 pocket cut to a **measured object**, from the captures and models the holders already read.
 
-**Status (2026-10-06): design only.** Nothing here is built.
+**Status (2026-10-06): phase 1 is built; phases 2 to 4 are design only.** `zcad-validation gridfinity bin` and `baseplate`; see
+[Phase 1, as built](#phase-1-as-built) and [Gridfinity bins and baseplates](../guides/gridfinity.md).
 
 ## Where the figures come from
 
@@ -111,13 +112,31 @@ build writes a record that names the sources its figures come from, and says the
 
 ## Phases
 
-1. **Plain bins and baseplates.** The standard's figures in one module with their sources; a bin of `x` by `y` by `u` with its bases, walls, stacking lip and
-   magnet and screw holes; a plain baseplate; the standard, seats, stacks, walls, printable and one-solid checks; `gridfinity bin` and `gridfinity baseplate`.
-2. **Inside and under.** Dividers and compartments, a label tab; magnet and screw holes in baseplates; a baseplate in pieces when it outgrows the bed.
+1. **Plain bins and baseplates (built).** The standard's figures in one module with their sources; a bin of `x` by `y` by `u` with its bases, walls,
+   stacking lip and magnet holes; a plain baseplate; the standard, seats, stacks, walls, printable and one-solid checks; `gridfinity bin` and `gridfinity baseplate`.
+2. **Inside and under.** Dividers and compartments, a label tab; screw holes in bins; magnet and screw holes in baseplates; a baseplate in pieces when it outgrows the bed.
 3. **Fitted bins.** A bin with a pocket for a captured or modelled object.
 4. **Trials.** `gridfinity trial`, with a baseplate from another generator named, and verification on two passing trials.
 
 Each phase is one PR, and nothing that exists changes.
+
+### Phase 1, as built
+
+`zcad-validation gridfinity bin` and `gridfinity baseplate`, in `features/gridfinity_standard.py` (the figures and their sources) and
+`features/gridfinity.py`. It differs from the design above in these ways:
+
+- **The baseplate has its own profile.** The design took the socket to be the base profile's inverse grown by the gap. Gridfinity Rebuilt's
+  `src/core/gridfinity-baseplate.scad`, at the same commit, gives the baseplate its own profile, 0.7 mm at 45 degrees, 1.8 mm straight, 2.15 mm at 45
+  degrees (4.65 mm), over a 0.35 mm straight clearance to the drawing's 5 mm, so a base always meets the socket's slopes. That is what is built, and both
+  numbers are cited.
+- **A bin of several units rests on the ridges.** The ridges between cells peak at the plate's 5 mm, above the 4.75 mm where a bin's bridge joins its
+  units, so such a bin rests 0.25 mm above its slopes; a one-unit bin rests on them. The seat check puts each bin where it rests, and the record says which.
+  The design's checks did not foresee this; it follows from the figures.
+- **A stacked base sits 0.35 mm under the lip's foot,** where the base's bottom, 2.95 mm in, meets the lip's slope from its tip, 2.6 mm in.
+- **The lip's shoulder.** Under the lip's inner tip, the wall steps in at 45 degrees from the 1.2 mm wall to the tip's 2.6 mm, so the lip prints with
+  nothing under 45 degrees.
+- **Screw holes moved to phase 2,** beside the baseplate's: neither source gives a bin's screw-hole depth, and the design took one for granted.
+- **The wall is 1.2 mm,** the printer's minimum, not Rebuilt's own 0.95 mm, which is under it.
 
 ## Not covered
 

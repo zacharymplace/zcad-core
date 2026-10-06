@@ -40,6 +40,8 @@ This repository intentionally contains no product-specific models.
   a caliper capture of it or its STEP model, on screws, keyholes, a pegboard or an
   adhesive pad, with retaining tabs if it needs them; see
   `docs/guides/object-holder.md`.
+- `zcad-validation gridfinity bin` and `gridfinity baseplate` build parts that
+  keep to Gridfinity's published figures; see `docs/guides/gridfinity.md`.
 - `examples/kicad_board.py` imports a KiCad board (its outline, holes, parts,
   cable connector and test points) and builds an enclosure and a test fixture
   for it; see `docs/guides/board-file.md`.

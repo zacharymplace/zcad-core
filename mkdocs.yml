@@ -42,6 +42,7 @@ nav:
       - An insert jig for your part: guides/insert-jig.md
       - Stackable items: guides/stackable-items.md
       - A holder for an object: guides/object-holder.md
+      - Gridfinity bins and baseplates: guides/gridfinity.md
   - Roadmaps:
       - Validation Lab: roadmaps/validation-lab.md
       - Next phases: roadmaps/next-phases.md

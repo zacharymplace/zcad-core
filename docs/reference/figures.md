@@ -6,15 +6,15 @@ The engine states no strength, holding force or load claim, and a figure it did 
 
 **Scope.** Module-level numeric constants, and the non-zero numeric defaults of dataclass fields and function parameters. A default of zero (no offset, none) is not a figure and is not listed. Not covered: a number inside a function body, a default given by `field(...)` or a factory, a keyword argument at a call (so a module-level instance such as a display's is not listed), and a number in a data file. A status is only as good as what the code says: a `sourced` figure is as the code cites it and has not been re-checked against the standard. An `unstated` figure is not wrong; it has no basis written down. Adding a figure without recording it fails the test suite.
 
-## The 758 figures
+## The 778 figures
 
 | Status | Count | Meaning |
 | --- | ---: | --- |
-| `sourced` | 32 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
+| `sourced` | 45 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
 | `estimated` | 9 | Read off a drawing's scale or a stated rough estimate: the source does not state it outright |
-| `design_default` | 47 | The engine's own choice, which the code says is a default, a design value or a guess |
+| `design_default` | 52 | The engine's own choice, which the code says is a default, a design value or a guess |
 | `example` | 3 | An illustrative figure, not claimed right for any real part |
-| `unstated` | 667 | No basis is stated in the code |
+| `unstated` | 669 | No basis is stated in the code |
 
 ## Sourced
 
@@ -22,6 +22,19 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | --- | --- | --- |
 | `features/enclosure_group_viewer.py:_MAX_VERTICES` | `65535` | The 16-bit vertex index of the mesh the viewer writes, as stated in features/enclosure_group_viewer.py |
 | `features/enclosure_review.py:_SCREW_LENGTHS_MM` | `(4, 5, 6, 8, 10, 12, 16, 20, 25, 30)` | Standard metric screw lengths, as stated in features/enclosure_review.py; no standard number is cited |
+| `features/gridfinity_standard.py:BASEPLATE_CELL_RADIUS_MM` | `4.0` | Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings, the baseplate drawing's 8.0 corner; Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), gridfinity-baseplate.scad BASEPLATE_OUTER_DIAMETER |
+| `features/gridfinity_standard.py:BASEPLATE_HEIGHT_MM` | `5.0` | Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings, the baseplate drawing's 5 mm; Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), gridfinity-baseplate.scad BASEPLATE_HEIGHT |
+| `features/gridfinity_standard.py:BASEPLATE_PROFILE_STEPS_MM` | `((0.7, 0.7), (1.8, 0.0), (2.15, 2.15))` | Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), gridfinity-baseplate.scad _BASEPLATE_PROFILE, based on the specification |
+| `features/gridfinity_standard.py:BASE_HEIGHT_MM` | `7.0` | Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad BASE_HEIGHT |
+| `features/gridfinity_standard.py:BASE_PROFILE_STEPS_MM` | `((0.8, 0.8), (1.8, 0.0), (2.15, 2.15))` | Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad BASE_PROFILE, based on the specification; totals the block drawing's 4.75 mm |
+| `features/gridfinity_standard.py:BASE_TOP_MM` | `41.5` | Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings: a block 41.5 mm square (0.5 mm tolerance); Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad BASE_TOP_DIMENSIONS |
+| `features/gridfinity_standard.py:BASE_TOP_RADIUS_MM` | `3.75` | Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings, the block drawing's 3.75 corner; Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad BASE_TOP_RADIUS |
+| `features/gridfinity_standard.py:GRID_MM` | `42.0` | Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings: the 42x42x7 mm grid |
+| `features/gridfinity_standard.py:HEIGHT_UNIT_MM` | `7.0` | Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings: the 42x42x7 mm grid |
+| `features/gridfinity_standard.py:LIP_STEPS_MM` | `((0.7, 0.7), (1.8, 0.0), (1.9, 1.9))` | Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad STACKING_LIP_LINE, based on the specification |
+| `features/gridfinity_standard.py:MAGNET_HOLE_DEPTH_MM` | `2.4` | Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad MAGNET_HOLE_DEPTH: a 2 mm magnet and two 0.2 mm layers |
+| `features/gridfinity_standard.py:MAGNET_HOLE_MM` | `6.5` | Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad MAGNET_HOLE_RADIUS, for the specification's 6 x 2 mm magnets |
+| `features/gridfinity_standard.py:MAGNET_INSET_MM` | `8.0` | Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad d_hole_from_side |
 | `features/mount_rack.py:RACK_HOLE_PITCH_MM` | `15.875` | EIA-310 19 inch rack, as cited in features/mount_rack.py |
 | `features/mount_rack.py:RACK_HOLE_SPACING_MM` | `465.1` | EIA-310 19 inch rack, as cited in features/mount_rack.py |
 | `features/mount_rack.py:RACK_PANEL_WIDTH_MM` | `482.6` | EIA-310 19 inch rack, as cited in features/mount_rack.py |
@@ -73,6 +86,11 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | --- | --- | --- |
 | `features/enclosure_openings.py:_OPENING_CLEARANCE_MM` | `0.6` | The builder's default fit, before hole compensation widens it |
 | `features/enclosure_thermal.py:DEFAULT_SERVICE_LIMIT_C` | `60.0` | A design value for PETG's continuous air temperature, well under the 70 to 80 C at which it softens; a material profile's max_service_c overrides it |
+| `features/gridfinity.py:CLEAR_LIFT_MM` | `0.05` | A design value for a check: a seated base raised this much must be clear of what holds it |
+| `features/gridfinity.py:DEFAULT_WALL_MM` | `1.2` | A design value: the A1 mini profile's minimum wall; Gridfinity Rebuilt's own choice is 0.95 mm, under that minimum |
+| `features/gridfinity.py:HELD_DROP_MM` | `0.2` | A design value for a check: a seated base pushed this much lower must meet what holds it, showing the slopes hold it |
+| `features/gridfinity.py:MAXIMUM_UNITS` | `8` | A design value: eight units is 336 mm, past any bed this engine prints on; the bed check refuses less |
+| `features/gridfinity.py:MINIMUM_HEIGHT_UNITS` | `2` | A design value: one 7 mm unit is all base, with no room inside |
 | `features/guide_bores.py:GUIDE_LENGTH_FACTOR` | `1.5` | A printed bore's length in drill diameters: a design default, not a measured value; a trial replaces it |
 | `features/guide_bores.py:MINIMUM_GUIDE_LENGTH_MM` | `3.0` | A printed bore's least length: a design default, not a measured value; a trial replaces it |
 | `features/guide_file.py:MINIMUM_BEARING_AREA_MM2` | `25.0` | The least a ledge nest must rest on; the code calls it a design default |
@@ -157,7 +175,7 @@ Each fan, bushing and pogo pin records where its figures came from, whether the 
 | `MILLMAX-0906-0-15-20-76-14-11-0` | pogo pin | yes | barrel_diameter_mm, force_at_travel_mm |
 | `MILLMAX-0906-1-15-20-75-14-11-0` | pogo pin | yes | barrel_diameter_mm, force_at_travel_mm |
 
-## Unstated (667)
+## Unstated (669)
 
 No basis is written down for these. Moving one out of this list means finding where its value came from, or saying it is the engine's own choice, in `docs/figures/register.json`.
 
@@ -472,6 +490,11 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `GUARD_CELL_MM` = `5.0`
 - `_FRAME_BITE_REDUCTION_MM` = `2.0`
 - `_SCREW_LENGTHS_MM` = `(4, 5, 6, 8, 10, 12, 16, 20, 25, 30)`
+
+**`features/gridfinity.py`**
+
+- `ARC_STEPS` = `12`
+- `TOLERANCE_MM3` = `1e-06`
 
 **`features/guide_bores.py`**
 
