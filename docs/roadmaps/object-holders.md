@@ -11,8 +11,9 @@ the ports on its edges and the buttons on its face. The **calibration coupon** m
 The **holding nest** cuts a pocket to a part's shadow and checks it lifts straight out. The **mounts** have keyhole slots and countersunk screws.
 This is the design for putting them together into one new product: an **object holder**.
 
-**Status (2026-10-06): phase 1 is built; phases 2 to 4 are design only.** `zcad-validation holder` builds a cup from a capture on screws or keyholes;
-see [Phase 1, as built](#phase-1-as-built) and [A holder for an object](../guides/object-holder.md).
+**Status (2026-10-06): phases 1 and 2 are built; phases 3 and 4 are design only.** `zcad-validation holder` builds a cup from a capture on screws,
+keyholes, a pegboard or a flat pad, with retaining tabs if asked; see [Phase 1, as built](#phase-1-as-built), [Phase 2, as built](#phase-2-as-built) and
+[A holder for an object](../guides/object-holder.md).
 
 ## What the engine does not claim
 
@@ -150,6 +151,25 @@ Each phase is one PR, and nothing that exists changes.
 - **The fit.** `fit.clearance_mm` with a `source`, the open question's proposal, is built. Without it the clearance is the profile's sliding clearance, and
   `--compensation-profile` adds the coupon's measured side-gap shortfall, never bringing it under 0.05 mm.
 - **No label.** The embossed label is left for a later phase.
+
+### Phase 2, as built
+
+`retention: tabs`, and the `pegboard` and `flat` mounts, in `features/holder_tabs.py` and `features/holder_mounts.py`; the shapes the modules share moved
+to `features/holder_shapes.py`. It differs from the design in these ways:
+
+- **A hook's length is capped, so a rounded object takes no tabs.** A hook must reach past the object's rounded corner to its flat top, and its underside
+  prints flat over nothing. A hook longer than 2.5 mm from the wall is refused, which leaves tabs to objects whose corners are at most 1.7 mm round at the default overhang (2.0 mm at the least). The
+  tab's deflection counts the corner too: clearance, radius and overhang.
+- **Tabs only on sides with no notch.** A side notch runs to the wall's top through where the tab would be, so that side gets none; both notched is refused.
+- **Tabs need an object about 11.2 mm thick**, for a 10 mm tab and its two slits.
+- **A tab records the strain limit it was built to**, and where the limit came from, when it is planned, not when the record is written.
+- **A peg's underside is level, not 45 degrees.** The design drew a 45-degree underside; it cannot have one, since the board sits flat on the plate's back
+  and the peg must fit its hole from the plate's face. So a peg's underside overhangs its reach behind the plate, and a reach over 12 mm is refused. A peg is
+  the largest square whose diagonal clears the hole by the sliding clearance each side, at least 2.5 mm, and turns up behind the board by its own width.
+- **Pegs widen the plate, and so does a pad.** Pegs stand as many whole pitches apart as the plate allows; an object narrower than one pitch gets a plate
+  wide enough for one. A flat plate is as wide as the pad; a pad taller than the plate is refused.
+- **The holder file keeps a mount's figures together.** `mount` takes each type's own figures and one `source`, and the record writes them back with the
+  pegs' size and reach. The build record's schema is 1.1.0.
 
 ## Not covered
 

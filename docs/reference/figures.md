@@ -6,15 +6,15 @@ The engine states no strength, holding force or load claim, and a figure it did 
 
 **Scope.** Module-level numeric constants, and the non-zero numeric defaults of dataclass fields and function parameters. A default of zero (no offset, none) is not a figure and is not listed. Not covered: a number inside a function body, a default given by `field(...)` or a factory, a keyword argument at a call (so a module-level instance such as a display's is not listed), and a number in a data file. A status is only as good as what the code says: a `sourced` figure is as the code cites it and has not been re-checked against the standard. An `unstated` figure is not wrong; it has no basis written down. Adding a figure without recording it fails the test suite.
 
-## The 747 figures
+## The 757 figures
 
 | Status | Count | Meaning |
 | --- | ---: | --- |
 | `sourced` | 32 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
 | `estimated` | 9 | Read off a drawing's scale or a stated rough estimate: the source does not state it outright |
-| `design_default` | 41 | The engine's own choice, which the code says is a default, a design value or a guess |
+| `design_default` | 47 | The engine's own choice, which the code says is a default, a design value or a guess |
 | `example` | 3 | An illustrative figure, not claimed right for any real part |
-| `unstated` | 662 | No basis is stated in the code |
+| `unstated` | 666 | No basis is stated in the code |
 
 ## Sourced
 
@@ -77,17 +77,23 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | `features/guide_bores.py:MINIMUM_GUIDE_LENGTH_MM` | `3.0` | A printed bore's least length: a design default, not a measured value; a trial replaces it |
 | `features/guide_file.py:MINIMUM_BEARING_AREA_MM2` | `25.0` | The least a ledge nest must rest on; the code calls it a design default |
 | `features/guide_import.py:DEFAULT_NEST_DEPTH_MM` | `8.0` | The code calls it a guess at the nest's depth |
-| `features/holder.py:COUNTERSINK_FLOOR_MM` | `1.2` | The mounts' own countersink floor (features/mounts.py), so a holder's countersink leaves the same plate behind it |
 | `features/holder.py:FEATURE_MARGIN_MM` | `1.0` | A design value: an edge or face feature is left open this far past each end, for a measurement's error and a plug's shoulder |
 | `features/holder.py:MINIMUM_CLEARANCE_MM` | `0.05` | A design value: the least fit a measured shortfall may bring the pocket down to, so a printer measured loose still gets some clearance |
 | `features/holder.py:NOTCH_MARGIN_MM` | `5.0` | A design value: front left either side of the finger notch, so a narrow pocket gets none |
 | `features/holder.py:NOTCH_WIDTH_MM` | `20.0` | A design value: wide enough for two fingertips to reach the object's face |
+| `features/holder_file.py:DEFAULT_BACK_MM` | `4.0` | A design value: thick enough to sink a common 8 mm wood-screw head flush with the countersink floor left behind it; pegs and a pad take the same plate |
 | `features/holder_file.py:DEFAULT_FLOOR_MM` | `2.0` | The holding nest's default floor (features/nest_file.py) |
 | `features/holder_file.py:DEFAULT_KEYHOLE_BACK_MM` | `6.0` | The mounts' keyhole screw head, 3.0 mm proud, with 0.5 mm of play and a 2.0 mm feature wall in front of its channel |
-| `features/holder_file.py:DEFAULT_SCREW_BACK_MM` | `4.0` | A design value: thick enough to sink a common 8 mm wood-screw head flush with the countersink floor left behind it |
+| `features/holder_file.py:DEFAULT_TAB_OVERHANG_MM` | `0.6` | The holding nest's default lip overhang (features/nest_file.py) |
 | `features/holder_file.py:DEFAULT_WALL_MM` | `2.0` | The holding nest's default wall (features/nest_file.py) |
 | `features/holder_file.py:FRONT_SHARE` | `1 / 3` | A design value, an open question in the roadmap: the front climbs a third of the object's height, to keep its face in reach; a trial settles it |
 | `features/holder_file.py:MINIMUM_FRONT_MM` | `10.0` | A design value: below this a front holds nothing against a knock |
+| `features/holder_file.py:TAB_OVERHANG_RANGE_MM` | `(0.3, 2.0)` | The holding nest's lip overhang range (features/nest_file.py) |
+| `features/holder_mounts.py:COUNTERSINK_FLOOR_MM` | `1.2` | The mounts' own countersink floor (features/mounts.py), so a holder's countersink leaves the same plate behind it |
+| `features/holder_mounts.py:MAXIMUM_PEG_REACH_MM` | `12.0` | A design value: the longest a peg printed upright may run behind the plate with nothing under its underside; a trial judges whether it droops |
+| `features/holder_mounts.py:MINIMUM_PEG_MM` | `2.5` | A design value: a peg thinner than this is too weak to hang a holder on |
+| `features/holder_mounts.py:PEG_PLAY_MM` | `0.5` | A design value: play between the board's back face and the peg's riser, so the riser does not bind |
+| `features/holder_tabs.py:MAXIMUM_HOOK_MM` | `2.5` | A design value: the longest a tab's flat-bottomed hook printed upright may reach in from the wall; the holding nest's own lip reaches up to 2.0 mm past its clearance |
 | `features/housing_file.py:DEFAULT_SKIN_EDGE_RADIUS_MM` | `0.8` | A comfort setting, not a medical figure |
 | `features/mount_stack.py:TOP_RIM_MM` | `1.2` | The engine's own choice, and a baseplate's default |
 | `features/mounts.py:FLEXURE_STRAIN_LIMIT` | `0.015` | A design strain limit for a printed PETG tongue, well under the material's yield; provisional until a print trial measures it |
@@ -151,7 +157,7 @@ Each fan, bushing and pogo pin records where its figures came from, whether the 
 | `MILLMAX-0906-0-15-20-76-14-11-0` | pogo pin | yes | barrel_diameter_mm, force_at_travel_mm |
 | `MILLMAX-0906-1-15-20-75-14-11-0` | pogo pin | yes | barrel_diameter_mm, force_at_travel_mm |
 
-## Unstated (662)
+## Unstated (666)
 
 No basis is written down for these. Moving one out of this list means finding where its value came from, or saying it is the engine's own choice, in `docs/figures/register.json`.
 
@@ -507,16 +513,23 @@ No basis is written down for these. Moving one out of this list means finding wh
 **`features/holder.py`**
 
 - `TOLERANCE_MM3` = `1e-06`
-- `_teardrop(steps)` = `24`
 
 **`features/holder_file.py`**
 
 - `BACK_RANGE_MM` = `(2.0, 20.0)`
+- `BOARD_RANGE_MM` = `(2.0, 12.0)`
 - `CLEARANCE_RANGE_MM` = `(0.05, 3.0)`
 - `FRONT_RANGE_MM` = `(2.0, 300.0)`
 - `HEAD_RANGE_MM` = `(3.0, 20.0)`
+- `PAD_RANGE_MM` = `(10.0, 300.0)`
+- `PEG_HOLE_RANGE_MM` = `(3.0, 12.0)`
+- `PITCH_RANGE_MM` = `(10.0, 100.0)`
 - `SHANK_RANGE_MM` = `(1.5, 10.0)`
 - `WALL_RANGE_MM` = `(0.8, 20.0)`
+
+**`features/holder_shapes.py`**
+
+- `teardrop(steps)` = `24`
 
 **`features/housing.py`**
 

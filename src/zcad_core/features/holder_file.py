@@ -34,11 +34,11 @@ from zcad_core.hardware.wearables.capture import (
 HOLDER_SCHEMA_VERSION = "1.0.0"
 HOLDER_KIND = "holder"
 FACES = ("out", "wall")
-MOUNTS = ("screws", "keyhole")
 DEFAULT_WALL_MM = 2.0
 DEFAULT_FLOOR_MM = 2.0
-# A plate for countersunk screws, and one deep enough to hide a keyhole screw's head.
-DEFAULT_SCREW_BACK_MM = 4.0
+# A plate for countersunk screws, pegs or a pad, and one deep enough to hide a keyhole
+# screw's head.
+DEFAULT_BACK_MM = 4.0
 DEFAULT_KEYHOLE_BACK_MM = 6.0
 # The front climbs a third of the object's height, and no less than this.
 FRONT_SHARE = 1 / 3
@@ -49,6 +49,24 @@ FRONT_RANGE_MM = (2.0, 300.0)
 CLEARANCE_RANGE_MM = (0.05, 3.0)
 HEAD_RANGE_MM = (3.0, 20.0)
 SHANK_RANGE_MM = (1.5, 10.0)
+PITCH_RANGE_MM = (10.0, 100.0)
+PEG_HOLE_RANGE_MM = (3.0, 12.0)
+BOARD_RANGE_MM = (2.0, 12.0)
+PAD_RANGE_MM = (10.0, 300.0)
+# Each mount's figures, which are the user's and so need a source; a keyhole is the mounts'.
+MOUNT_FIGURES: dict[str, dict[str, tuple[float, float]]] = {
+    "screws": {"head_diameter_mm": HEAD_RANGE_MM, "shank_diameter_mm": SHANK_RANGE_MM},
+    "keyhole": {},
+    "pegboard": {
+        "pitch_mm": PITCH_RANGE_MM,
+        "hole_diameter_mm": PEG_HOLE_RANGE_MM,
+        "board_thickness_mm": BOARD_RANGE_MM,
+    },
+    "flat": {"width_mm": PAD_RANGE_MM, "height_mm": PAD_RANGE_MM},
+}
+MOUNTS = tuple(MOUNT_FIGURES)
+DEFAULT_TAB_OVERHANG_MM = 0.6
+TAB_OVERHANG_RANGE_MM = (0.3, 2.0)
 _TOP_LEVEL = frozenset(
     {
         "schema_version",
@@ -64,19 +82,11 @@ _TOP_LEVEL = frozenset(
         "holder",
         "fit",
         "mount",
+        "retention",
         "needs_review",
     }
 )
 _HOLDER = frozenset({"front_mm", "wall_mm", "floor_mm", "back_mm"})
-
-
-@dataclass(frozen=True)
-class ScrewSpec:
-    """The user's wall screw: its figures, with where they came from."""
-
-    head_diameter_mm: float
-    shank_diameter_mm: float
-    source: str
 
 
 @dataclass(frozen=True)
@@ -95,7 +105,10 @@ class HolderSpec:
     floor_mm: float
     back_mm: float
     mount: str
-    screw: ScrewSpec | None
+    # The mount's figures (a screw's head and shank, a pegboard's pitch, hole and thickness,
+    # a pad's size), which are the user's, and where they came from.
+    mount_figures: Mapping[str, float]
+    mount_source: str
     # The user's clearance per side, with its source; None takes the printer's.
     clearance_mm: float | None
     clearance_source: str
@@ -103,6 +116,8 @@ class HolderSpec:
     notes: str
     file_path: Path
     file_sha256: str
+    # Retaining tabs: None is none; else how far each hook reaches over the object's top.
+    tab_overhang_mm: float | None = None
 
 
 @dataclass(frozen=True)
@@ -170,46 +185,57 @@ def _check_mount(data: Mapping[str, Any], findings: Findings) -> None:
 
         return
 
-    allowed = {"type"} | (
-        {"head_diameter_mm", "shank_diameter_mm", "source"}
-        if kind == "screws"
-        else set()
-    )
+    figures = MOUNT_FIGURES[kind]
+    allowed = {"type"} | set(figures) | ({"source"} if figures else set())
     unknown = sorted(set(mount) - allowed)
 
     if unknown:
         findings.errors.append(f"mount has no {', '.join(unknown)} for {kind}")
 
-    if kind != "screws":
-        return
-
-    head = number(
-        mount,
-        "head_diameter_mm",
-        "mount",
-        findings,
-        low=HEAD_RANGE_MM[0],
-        high=HEAD_RANGE_MM[1],
-    )
-    shank = number(
-        mount,
-        "shank_diameter_mm",
-        "mount",
-        findings,
-        low=SHANK_RANGE_MM[0],
-        high=SHANK_RANGE_MM[1],
-    )
+    found = {
+        name: number(mount, name, "mount", findings, low=low, high=high)
+        for name, (low, high) in figures.items()
+    }
     source = mount.get("source")
 
-    if not isinstance(source, str) or not source.strip():
+    if figures and (not isinstance(source, str) or not source.strip()):
         findings.errors.append(
-            "mount.source must say where the screw's sizes came from"
+            f"mount.source must say where the {kind} figures came from"
         )
+
+    head, shank = found.get("head_diameter_mm"), found.get("shank_diameter_mm")
 
     if head is not None and shank is not None and head <= shank:
         findings.errors.append(
             f"mount.head_diameter_mm ({head:g}) must be wider than the shank ({shank:g})"
         )
+
+
+def _check_retention(data: Mapping[str, Any], findings: Findings) -> None:
+    retention = section(data, "retention", findings, required=False)
+
+    if retention is None:
+        return
+
+    if retention.get("type") != "tabs":
+        findings.errors.append(
+            f"retention.type must be 'tabs', not {retention.get('type')!r}"
+        )
+
+    unknown = sorted(set(retention) - {"type", "overhang_mm"})
+
+    if unknown:
+        findings.errors.append(f"retention has no {', '.join(unknown)}")
+
+    number(
+        retention,
+        "overhang_mm",
+        "retention",
+        findings,
+        low=TAB_OVERHANG_RANGE_MM[0],
+        high=TAB_OVERHANG_RANGE_MM[1],
+        required=False,
+    )
 
 
 def _check_holder_section(data: Mapping[str, Any], findings: Findings) -> None:
@@ -351,6 +377,7 @@ def check_holder_data(data: Any) -> HolderCheck:
     _check_holder_section(data, findings)
     _check_fit(data, findings)
     _check_mount(data, findings)
+    _check_retention(data, findings)
 
     return HolderCheck(tuple(findings.errors), tuple(findings.warnings))
 
@@ -379,9 +406,8 @@ def holder_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> Holder
     mount = data["mount"]
     fit = data.get("fit") or {}
     kind = str(mount["type"])
-    default_back = (
-        DEFAULT_SCREW_BACK_MM if kind == "screws" else DEFAULT_KEYHOLE_BACK_MM
-    )
+    default_back = DEFAULT_KEYHOLE_BACK_MM if kind == "keyhole" else DEFAULT_BACK_MM
+    retention = data.get("retention")
 
     return HolderSpec(
         identifier=str(data["identifier"]),
@@ -397,15 +423,8 @@ def holder_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> Holder
         floor_mm=float(holder.get("floor_mm", DEFAULT_FLOOR_MM)),
         back_mm=float(holder.get("back_mm", default_back)),
         mount=kind,
-        screw=(
-            ScrewSpec(
-                float(mount["head_diameter_mm"]),
-                float(mount["shank_diameter_mm"]),
-                str(mount["source"]).strip(),
-            )
-            if kind == "screws"
-            else None
-        ),
+        mount_figures={name: float(mount[name]) for name in MOUNT_FIGURES[kind]},
+        mount_source=str(mount.get("source", "")).strip(),
         clearance_mm=(
             float(fit["clearance_mm"]) if fit.get("clearance_mm") is not None else None
         ),
@@ -414,6 +433,11 @@ def holder_from_data(data: Mapping[str, Any], path: Path, sha256: str) -> Holder
         notes=str(data.get("notes", "")),
         file_path=path,
         file_sha256=sha256,
+        tab_overhang_mm=(
+            float(retention.get("overhang_mm", DEFAULT_TAB_OVERHANG_MM))
+            if retention
+            else None
+        ),
     )
 
 

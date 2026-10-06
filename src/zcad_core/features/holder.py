@@ -6,7 +6,9 @@ rests on, and open at the top, so the object lifts straight out. The front and s
 ``front_mm``, a finger notch is cut down the front's middle, and the object's edge and face
 features that a wall would cover are left open by a slot in the floor or a notch down a wall,
 each open to the top so nothing overhangs. The back plate stands the object's whole height and
-carries two countersunk screw holes or two keyholes, behind the object.
+carries the mount (:mod:`zcad_core.features.holder_mounts`). Retaining tabs, if asked for, are cut
+from the side walls (:mod:`zcad_core.features.holder_tabs`), and the sides then climb the
+object's whole height.
 
 The holder prints as it hangs, floor down, so a hole through the back plate is horizontal: each is
 a teardrop, pointed up, and a countersink is a 90-degree cone whose top is 45 degrees from level.
@@ -18,8 +20,6 @@ plate's front face is ``y == 0`` and the floor's top ``z == 0``. Millimetres thr
 from __future__ import annotations
 
 import json
-import math
-from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -32,50 +32,48 @@ from zcad_core.features.holder_file import (
     MINIMUM_FRONT_MM,
     HolderSpec,
 )
-from zcad_core.features.mounts import (
-    FEATURE_WALL_MM,
-    KEYHOLE_HEAD_DIAMETER_MM,
-    KEYHOLE_HEAD_HEIGHT_MM,
-    KEYHOLE_SLOT_WIDTH_MM,
-    KEYHOLE_TRAVEL_MM,
+from zcad_core.features.holder_mounts import (
+    Fixing,
+    MountPlan,
+    pegs_on_pitch,
+    plan_mount,
+)
+from zcad_core.features.holder_shapes import (
+    Box,
+    Placed,
+    Point,
+    box,
+    object_solid,
+    outline,
+    xz_prism,
+)
+from zcad_core.features.holder_tabs import (
+    HolderTab,
+    hooks_over_object,
+    plan_tabs,
+    tab_solids,
 )
 from zcad_core.features.nest_core import clear, lifts_out
 from zcad_core.geometry.intersection import intersection_volume
-from zcad_core.hardware.electronics import board_outline
 from zcad_core.hardware.wearables.capture import WearableCapture
 
-HOLDER_RECORD_SCHEMA_VERSION = "1.0.0"
+HOLDER_RECORD_SCHEMA_VERSION = "1.1.0"
 HOLDER_RECORD = "holder.json"
 RECORD_KIND = "holder-build"
 NOT_CLAIMED = (
     "The engine states nothing about the load a holder bears, whether its screws hold in a "
-    "wall, or how long it lasts; only that the object fits its pocket, lifts straight out, "
-    "and that the features it named stay open. A holder is unverified until a printed trial "
-    "with the real object has passed."
+    "wall, what a pegboard or an adhesive pad takes, or how long it lasts; only that the "
+    "object fits its pocket, lifts straight out, and that the features it named stay open. A "
+    "holder is unverified until a printed trial with the real object has passed."
 )
 # A finger notch down the front's middle, and the front it needs either side of it.
 NOTCH_WIDTH_MM = 20.0
 NOTCH_MARGIN_MM = 5.0
 # An edge or face feature is left open this far past each of its ends.
 FEATURE_MARGIN_MM = 1.0
-# A countersink stops this short of the plate's back face.
-COUNTERSINK_FLOOR_MM = 1.2
 # The narrowest clearance a measured shortfall may bring the fit down to.
 MINIMUM_CLEARANCE_MM = 0.05
 TOLERANCE_MM3 = 1e-6
-Box = tuple[float, float, float, float, float, float]
-Point = tuple[float, float]
-
-
-@dataclass(frozen=True)
-class Placed:
-    """The object as it stands in the holder: its size along X, Y and Z, and its corners'
-    radius seen from the room."""
-
-    width_mm: float
-    depth_mm: float
-    height_mm: float
-    radius_mm: float | None
 
 
 @dataclass(frozen=True)
@@ -95,23 +93,6 @@ class Opening:
 
 
 @dataclass(frozen=True)
-class Fixing:
-    """A screw hole or a keyhole in the back plate: its centre seen from the room."""
-
-    kind: str
-    x_mm: float
-    z_mm: float
-    hole_mm: float
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "kind": self.kind,
-            "centre_mm": [round(self.x_mm, 3), round(self.z_mm, 3)],
-            "hole_mm": round(self.hole_mm, 3),
-        }
-
-
-@dataclass(frozen=True)
 class Holder:
     """The built holder and what it was built from."""
 
@@ -123,11 +104,16 @@ class Holder:
     clearance_from: str
     front_mm: float
     openings: tuple[Opening, ...]
-    fixings: tuple[Fixing, ...]
+    mount: MountPlan
     notch: bool
     checks: dict[str, bool]
     profile_id: str
     tolerance_status: str
+    tabs: tuple[HolderTab, ...] = ()
+
+    @property
+    def fixings(self) -> tuple[Fixing, ...]:
+        return self.mount.fixings
 
     @property
     def passed(self) -> bool:
@@ -135,9 +121,9 @@ class Holder:
 
     @property
     def size_mm(self) -> tuple[float, float, float]:
-        box = self.body.val().BoundingBox()  # type: ignore[union-attr]
+        bounds = self.body.val().BoundingBox()  # type: ignore[union-attr]
 
-        return box.xlen, box.ylen, box.zlen
+        return bounds.xlen, bounds.ylen, bounds.zlen
 
 
 # --- the object in the holder's frame ----------------------------------------------
@@ -184,90 +170,6 @@ def _edge_point(capture: WearableCapture, edge: str, offset: float) -> Point:
 _OPPOSITE = {"north": "south", "south": "north", "east": "west", "west": "east"}
 
 
-# --- solids --------------------------------------------------------------------------
-
-
-def _xz_prism(points: Sequence[Point], y0: float, y1: float) -> cq.Workplane:
-    """A prism of an outline seen from the room, (X, Z) points, between two Y."""
-
-    return (
-        cq.Workplane("XY")
-        .workplane(offset=-y1)
-        .polyline(list(points))
-        .close()
-        .extrude(y1 - y0)
-        .rotate((0, 0, 0), (1, 0, 0), 90)
-    )
-
-
-def _box(
-    x0: float, x1: float, y0: float, y1: float, z0: float, z1: float
-) -> cq.Workplane:
-    return (
-        cq.Workplane("XY")
-        .box(x1 - x0, y1 - y0, z1 - z0, centered=False)
-        .translate((x0, y0, z0))
-    )
-
-
-def _outline(
-    width: float, height: float, radius: float | None, grow: float
-) -> list[Point]:
-    """The object's outline seen from the room, grown by ``grow``, standing on ``z == 0``."""
-
-    if radius is None:
-        w, h = width + 2 * grow, height + grow
-        return [(-w / 2, 0.0), (w / 2, 0.0), (w / 2, h), (-w / 2, h)]
-
-    points = board_outline.rounded_rectangle_points(
-        width + 2 * grow, height + 2 * grow, radius + grow
-    )
-
-    return [(x, z + height / 2 + grow) for x, z in points]
-
-
-def _teardrop(cx: float, cz: float, radius: float, steps: int = 24) -> list[Point]:
-    """A circle with its top drawn as a 45-degree point, so a horizontal hole prints."""
-
-    points = [(cx, cz + radius * math.sqrt(2.0))]
-
-    for i in range(steps - 5):
-        angle = math.radians(45.0 - i * 360.0 / steps)
-        points.append((cx + radius * math.cos(angle), cz + radius * math.sin(angle)))
-
-    return points
-
-
-def _pointed_slot(x: float, z0: float, z1: float, width: float) -> list[Point]:
-    """A vertical slot from ``z0`` to ``z1``, its top a 45-degree point."""
-
-    half = width / 2
-
-    return [
-        (x - half, z0),
-        (x + half, z0),
-        (x + half, z1),
-        (x, z1 + half),
-        (x - half, z1),
-    ]
-
-
-def object_solid(holder_placed: Placed, clearance: float) -> cq.Shape:
-    """The object as it stands, its back ``clearance`` off the back plate."""
-
-    p = holder_placed
-    solid = _xz_prism(
-        _outline(p.width_mm, p.height_mm, p.radius_mm, 0.0),
-        clearance,
-        clearance + p.depth_mm,
-    ).val()
-
-    if not isinstance(solid, cq.Shape):
-        raise TypeError("Expected a shape")
-
-    return solid
-
-
 # --- what the holder must leave open -------------------------------------------------
 
 
@@ -277,6 +179,7 @@ def _openings(
     p: Placed,
     clearance: float,
     front: float,
+    side_top: float,
 ) -> tuple[list[Opening], list[str]]:
     """Each feature a wall or the floor would cover, as the box that must stay open; and the
     features nothing can leave open."""
@@ -311,7 +214,7 @@ def _openings(
                     (x - reach, x + reach, 0.0, pocket_y, -spec.floor_mm - 0.5, 0.0),
                 )
             )
-        elif feature.edge == _OPPOSITE[spec.down_edge] or z - reach >= front:
+        elif feature.edge == _OPPOSITE[spec.down_edge] or z - reach >= side_top:
             continue
         else:
             side = 1.0 if x > 0 else -1.0
@@ -326,7 +229,7 @@ def _openings(
                         0.0,
                         pocket_y,
                         max(z - reach, 0.0),
-                        front,
+                        side_top,
                     ),
                 )
             )
@@ -365,109 +268,6 @@ def _openings(
         )
 
     return openings, problems
-
-
-# --- the fixings ----------------------------------------------------------------------
-
-
-def _fixing_sites(
-    p: Placed, clearance: float, half_width: float, below: float, above: float
-) -> list[Point]:
-    """Two fixings behind the object: side by side if the pocket is wide enough for two a
-    fixing's width apart, else one above the other; each clear of the plate's edges, the
-    floor and the plate's top by a feature wall."""
-
-    reach = p.width_mm / 2 + clearance - FEATURE_WALL_MM - half_width
-    low = below + FEATURE_WALL_MM
-    high = p.height_mm - above - FEATURE_WALL_MM
-    spacing = 4 * half_width
-
-    if 2 * reach >= spacing and high >= low:
-        z = max(low, min(high, 0.6 * p.height_mm))
-        offset = min(reach, 30.0)
-
-        return [(-offset, z), (offset, z)]
-
-    if high - low >= spacing:
-        return [(0.0, low), (0.0, low + max(spacing, (high - low) / 2))]
-
-    raise ValueError(
-        f"The back plate has no room for two fixings: each needs {2 * half_width:.1f} mm and "
-        f"{spacing:.1f} mm between them, behind an object {p.width_mm:.1f} mm wide and "
-        f"{p.height_mm:.1f} mm tall"
-    )
-
-
-def _screws(
-    spec: HolderSpec, p: Placed, clearance: float, oversize: float
-) -> tuple[list[Fixing], list[cq.Workplane]]:
-    screw = spec.screw
-
-    if screw is None:
-        raise ValueError("A screws mount needs the screw's sizes")
-
-    hole = screw.shank_diameter_mm + oversize
-    head = screw.head_diameter_mm + oversize
-    depth = (head - hole) / 2
-
-    if depth > spec.back_mm - COUNTERSINK_FLOOR_MM:
-        raise ValueError(
-            f"A {screw.head_diameter_mm:g} mm head needs a back plate at least "
-            f"{depth + COUNTERSINK_FLOOR_MM:.1f} mm thick to sink flush; holder.back_mm is "
-            f"{spec.back_mm:g}"
-        )
-
-    sites = _fixing_sites(p, clearance, head / 2, head / 2, head * math.sqrt(2.0) / 2)
-    cutters = []
-
-    for x, z in sites:
-        cutters.append(_xz_prism(_teardrop(x, z, hole / 2), -spec.back_mm - 1.0, 0.5))
-        cone = cq.Solid.makeCone(
-            head / 2 + 0.01,
-            hole / 2,
-            depth + 0.01,
-            pnt=cq.Vector(x, 0.01, z),
-            dir=cq.Vector(0, -1, 0),
-        )
-        cutters.append(cq.Workplane("XY").add(cone))
-
-    return [Fixing("countersunk_screw", x, z, hole) for x, z in sites], cutters
-
-
-def _keyholes(
-    spec: HolderSpec, p: Placed, clearance: float, oversize: float
-) -> tuple[list[Fixing], list[cq.Workplane]]:
-    channel = KEYHOLE_HEAD_HEIGHT_MM + 0.5
-
-    if spec.back_mm < channel + FEATURE_WALL_MM:
-        raise ValueError(
-            f"A keyhole needs a back plate at least {channel + FEATURE_WALL_MM:.1f} mm thick, "
-            f"to hide a screw head {KEYHOLE_HEAD_HEIGHT_MM:g} mm proud of the wall; "
-            f"holder.back_mm is {spec.back_mm:g}"
-        )
-
-    head = KEYHOLE_HEAD_DIAMETER_MM + oversize
-    slot = KEYHOLE_SLOT_WIDTH_MM + oversize
-    top = KEYHOLE_TRAVEL_MM + head * math.sqrt(2.0) / 2
-    sites = _fixing_sites(p, clearance, head / 2, head / 2, top)
-    back = -spec.back_mm
-    cutters = []
-
-    for x, z in sites:
-        cutters.append(_xz_prism(_teardrop(x, z, head / 2), back - 1.0, 0.5))
-        cutters.append(
-            _xz_prism(_pointed_slot(x, z, z + KEYHOLE_TRAVEL_MM, slot), back - 1.0, 0.5)
-        )
-        # The screw's head rides up a channel in the plate's back face as it hangs.
-        cutters.append(
-            _xz_prism(
-                _pointed_slot(x, z - head / 2, z + KEYHOLE_TRAVEL_MM, head),
-                back - 1.0,
-                back + channel,
-            )
-        )
-
-    return [Fixing("keyhole", x, z, head) for x, z in sites], cutters
 
 
 # --- the build -------------------------------------------------------------------------
@@ -510,6 +310,75 @@ def front_height(spec: HolderSpec, p: Placed) -> float:
     return min(p.height_mm, max(MINIMUM_FRONT_MM, FRONT_SHARE * p.height_mm))
 
 
+def _cup(
+    spec: HolderSpec,
+    p: Placed,
+    clearance: float,
+    front: float,
+    side_top: float,
+    plate_half: float,
+) -> cq.Workplane:
+    """The back plate, floor, front and sides, with the pocket cut out."""
+
+    half = p.width_mm / 2 + clearance + spec.wall_mm
+    inner = p.width_mm / 2 + clearance
+    pocket_y = 2 * clearance + p.depth_mm
+    body = box(
+        -plate_half, plate_half, -spec.back_mm, 0.0, -spec.floor_mm, p.height_mm
+    ).union(box(-half, half, 0.0, pocket_y + spec.wall_mm, -spec.floor_mm, front))
+
+    if side_top > front:
+        for x0, x1 in ((-half, -inner), (inner, half)):
+            body = body.union(
+                box(x0, x1, 0.0, pocket_y + spec.wall_mm, front, side_top)
+            )
+
+    pocket = xz_prism(
+        outline(p.width_mm, p.height_mm, p.radius_mm, clearance), 0.0, pocket_y
+    ).union(box(-inner, inner, 0.0, pocket_y, p.height_mm / 2, p.height_mm + 1.0))
+
+    return body.cut(pocket)
+
+
+def _checks(
+    spec: HolderSpec,
+    p: Placed,
+    body: cq.Workplane,
+    plain: cq.Workplane,
+    item: cq.Shape,
+    openings: list[Opening],
+    mount: MountPlan,
+    tabs: tuple[HolderTab, ...],
+) -> dict[str, bool]:
+    """Every check on the built holder; ``plain`` is the body without the tabs' hooks, which
+    give as the object is lifted."""
+
+    solid = body.val()
+    checks = {
+        "one_solid": len(body.solids().vals()) == 1,
+        "object_fits_pocket": clear(solid, item),
+        "object_lifts_out": lifts_out(item, plain.val(), p.height_mm),
+        "features_open": all(_open(solid, opening.probe) for opening in openings),
+        "fixings_open": all(
+            _open(solid, _hole_probe(fixing, spec.back_mm))
+            for fixing in mount.fixings
+            if fixing.has_hole
+        ),
+    }
+
+    if spec.mount == "pegboard":
+        checks["pegs_on_pitch"] = pegs_on_pitch(
+            mount.fixings, spec.mount_figures["pitch_mm"]
+        )
+
+    if tabs and spec.tab_overhang_mm is not None:
+        checks["hooks_over_object"] = hooks_over_object(
+            tabs, p, item, spec.tab_overhang_mm
+        )
+
+    return checks
+
+
 def build_holder(
     spec: HolderSpec,
     capture: WearableCapture,
@@ -518,7 +387,7 @@ def build_holder(
     side_shortfall_mm: float | None = None,
 ) -> Holder:
     """The holder for a captured object; refused if a wall or the floor is under the printer's
-    minimum, a feature cannot be left open, or the fixings do not fit."""
+    minimum, a feature cannot be left open, the mount does not fit, or a tab cannot be made."""
 
     fits, least_wall, least_floor = printer_numbers(profile)
 
@@ -537,34 +406,31 @@ def build_holder(
     clearance, clearance_from = holder_clearance(spec, profile, side_shortfall_mm)
     p = placed(capture, spec.down_edge)
     front = front_height(spec, p)
-    openings, problems = _openings(capture, spec, p, clearance, front)
+    side_top = p.height_mm if spec.tab_overhang_mm is not None else front
+    openings, problems = _openings(capture, spec, p, clearance, front, side_top)
 
     if problems:
         raise ValueError("The holder cannot be built:\n- " + "\n- ".join(problems))
 
-    half = p.width_mm / 2 + clearance + spec.wall_mm
-    pocket_y = 2 * clearance + p.depth_mm
-    body = _box(-half, half, -spec.back_mm, 0.0, -spec.floor_mm, p.height_mm).union(
-        _box(-half, half, 0.0, pocket_y + spec.wall_mm, -spec.floor_mm, front)
-    )
-    pocket = _xz_prism(
-        _outline(p.width_mm, p.height_mm, p.radius_mm, clearance), 0.0, pocket_y
-    ).union(
-        _box(
-            -(p.width_mm / 2 + clearance),
-            p.width_mm / 2 + clearance,
-            0.0,
-            pocket_y,
-            p.height_mm / 2,
-            p.height_mm + 1.0,
+    tabs: tuple[HolderTab, ...] = ()
+
+    if spec.tab_overhang_mm is not None:
+        notched = {
+            1.0 if o.probe[0] > 0 else -1.0 for o in openings if o.kind == "side_notch"
+        }
+        tabs = plan_tabs(
+            p, clearance, spec.wall_mm, spec.tab_overhang_mm, sorted(notched)
         )
-    )
-    body = body.cut(pocket)
+
+    half = p.width_mm / 2 + clearance + spec.wall_mm
+    mount = plan_mount(spec, p, clearance, half, fits)
+    body = _cup(spec, p, clearance, front, side_top, mount.plate_half_width_mm)
+    pocket_y = 2 * clearance + p.depth_mm
     notch = 2 * (p.width_mm / 2 + clearance) >= NOTCH_WIDTH_MM + 2 * NOTCH_MARGIN_MM
 
     if notch:
         body = body.cut(
-            _box(
+            box(
                 -NOTCH_WIDTH_MM / 2,
                 NOTCH_WIDTH_MM / 2,
                 pocket_y - 0.5,
@@ -577,27 +443,24 @@ def build_holder(
     for opening in openings:
         body = body.cut(_opening_cutter(opening))
 
-    oversize = fits["hole_oversize"]
-    fixings, cutters = (
-        _screws(spec, p, clearance, oversize)
-        if spec.mount == "screws"
-        else _keyholes(spec, p, clearance, oversize)
-    )
-
-    for cutter in cutters:
+    for cutter in mount.cutters:
         body = body.cut(cutter)
 
+    for addition in mount.additions:
+        body = body.union(addition)
+
+    plain = body
+
+    for tab in tabs:
+        rise, hook, slits = tab_solids(tab, p, clearance, spec.wall_mm)
+        body = body.union(rise).union(hook)
+        plain = plain.union(rise)
+
+        for slit in slits:
+            body = body.cut(slit)
+            plain = plain.cut(slit)
+
     item = object_solid(p, clearance)
-    solid = body.val()
-    checks = {
-        "one_solid": len(body.solids().vals()) == 1,
-        "object_fits_pocket": clear(solid, item),
-        "object_lifts_out": lifts_out(item, solid, p.height_mm),
-        "features_open": all(_open(solid, opening.probe) for opening in openings),
-        "fixings_open": all(
-            _open(solid, _hole_probe(fixing, spec.back_mm)) for fixing in fixings
-        ),
-    }
 
     return Holder(
         spec=spec,
@@ -608,11 +471,12 @@ def build_holder(
         clearance_from=clearance_from,
         front_mm=front,
         openings=tuple(openings),
-        fixings=tuple(fixings),
+        mount=mount,
         notch=notch,
-        checks=checks,
+        checks=_checks(spec, p, body, plain, item, openings, mount, tabs),
         profile_id=str(profile.get("profile_id", "")),
         tolerance_status=str(profile.get("tolerance_status", "unknown")),
+        tabs=tabs,
     )
 
 
@@ -623,12 +487,12 @@ def _opening_cutter(opening: Opening) -> cq.Workplane:
     x0, x1, y0, y1, z0, z1 = opening.probe
 
     if opening.kind == "floor_slot":
-        return _box(x0, x1, y0, y1, z0, z1 + 0.01)
+        return box(x0, x1, y0, y1, z0, z1 + 0.01)
 
     if opening.kind == "side_notch":
-        return _box(x0 - 0.5, x1 + 0.5, y0, y1, z0, z1 + 1.0)
+        return box(x0 - 0.5, x1 + 0.5, y0, y1, z0, z1 + 1.0)
 
-    return _box(x0, x1, y0 - 0.5, y1 + 0.5, z0, z1 + 1.0)
+    return box(x0, x1, y0 - 0.5, y1 + 0.5, z0, z1 + 1.0)
 
 
 def _open(solid: object, probe: Box) -> bool:
@@ -653,7 +517,7 @@ def _open(solid: object, probe: Box) -> bool:
 def _hole_probe(fixing: Fixing, back_mm: float) -> Box:
     """A square inside a fixing's hole, through the back plate."""
 
-    half = fixing.hole_mm / 2 * 0.6
+    half = fixing.size_mm / 2 * 0.6
 
     return (
         fixing.x_mm - half,
@@ -719,15 +583,16 @@ def holder_record(holder: Holder, files: dict[str, dict[str, Any]]) -> dict[str,
             "back_mm": spec.back_mm,
             "clearance_per_side_mm": round(holder.clearance_mm, 3),
             "clearance_from": holder.clearance_from,
-            "mount": spec.mount,
-            "screw": (
+            "mount": {
+                "type": spec.mount,
+                "figures": dict(spec.mount_figures),
+                "source": spec.mount_source or None,
+                **dict(holder.mount.details),
+            },
+            "retention": (
                 None
-                if spec.screw is None
-                else {
-                    "head_diameter_mm": spec.screw.head_diameter_mm,
-                    "shank_diameter_mm": spec.screw.shank_diameter_mm,
-                    "source": spec.screw.source,
-                }
+                if spec.tab_overhang_mm is None
+                else {"type": "tabs", "overhang_mm": spec.tab_overhang_mm}
             ),
         },
         "object_in_holder_mm": {
@@ -738,6 +603,7 @@ def holder_record(holder: Holder, files: dict[str, dict[str, Any]]) -> dict[str,
         "finger_notch": holder.notch,
         "openings": [opening.to_dict() for opening in holder.openings],
         "fixings": [fixing.to_dict() for fixing in holder.fixings],
+        "tabs": [tab.to_dict() for tab in holder.tabs],
         "size_mm": [round(width, 3), round(depth, 3), round(height, 3)],
         "printer_profile_id": holder.profile_id,
         "tolerance_status": holder.tolerance_status,
