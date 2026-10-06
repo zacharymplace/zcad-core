@@ -55,7 +55,8 @@ gives a board for the snap-in cradle.
 
 ## From a KiCad board
 
-If you have the board's KiCad design (KiCad 6 or later), read the board and its parts from it. A first import lists the parts at an edge; name the one the cable plugs into on a second:
+If you have the board's KiCad design (KiCad 6 or later), read the board and its parts from it. [`examples/kicad_board.py`](https://github.com/zacharymplace/zcad-core/blob/main/examples/kicad_board.py) does this for a sample board,
+then builds an enclosure and a test fixture from the file it writes. A first import lists the parts at an edge; name the one the cable plugs into on a second:
 
 ```bash
 zcad-validation board import --kicad board.kicad_pcb --output my-board.json --heights heights.json

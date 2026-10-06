@@ -1,0 +1,6 @@
+{
+  "J1": {"height_mm": 3.5, "source": "EXAMPLE ONLY: read your connector's datasheet"},
+  "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm": {"height_mm": 1.75, "source": "EXAMPLE ONLY: read your part's datasheet"},
+  "C*": {"height_mm": 0.9, "source": "EXAMPLE ONLY: measure your capacitors"},
+  "R*": {"height_mm": 0.55, "source": "EXAMPLE ONLY: measure your resistors"}
+}
