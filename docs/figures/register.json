@@ -110,6 +110,21 @@
     "features/calibration_coupon.py:SLOT_SPAN_MM": {
       "status": "unstated"
     },
+    "features/calibration_coupon.py:TONGUE_LENGTH_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:TONGUE_STOP_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:TONGUE_STRAINS": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:TONGUE_THICKNESS_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:TONGUE_WIDTH_MM": {
+      "status": "unstated"
+    },
     "features/connector_cutouts.py:ConnectorCutoutParameters.cutter_depth_mm": {
       "status": "unstated"
     },

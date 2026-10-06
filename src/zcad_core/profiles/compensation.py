@@ -15,7 +15,13 @@ trials for one printer and material:
 A calibration coupon (:mod:`zcad_core.features.calibration_coupon`) measures all
 three from one print: its holes are an enclosure's insert pocket and screw hole,
 half its pockets' width shortfall is the per-side growth a fixture's side gap
-reads, and its slots stand where a fixture's vertical play is modelled.
+reads, and its slots stand where a fixture's vertical play is modelled. Its
+tongues, bent to set strains, give the profile a fourth figure, ``strain_limit``:
+in each coupon trial, the highest strain every tongue up to it survived, stopping
+at the first that did not; across trials, the lowest of those, since a limit must
+hold on every print. A tongue that survived above one that failed does not count.
+With no coupon tongues recorded, or one trial whose gentlest tongue failed, the
+profile has no strain limit to give.
 
 Positive means tighter than modelled. Each figure keeps its mean, spread,
 and sample count, and the profile lists every trial record it read, with its
@@ -189,6 +195,64 @@ def _figure(samples: Iterable[Sample]) -> dict[str, Any] | None:
     }
 
 
+def _trial_strain_limit(tongues: list[dict[str, Any]]) -> dict[str, Any]:
+    """The highest strain every tested tongue up to it survived, and the first
+    strain that failed, in one trial."""
+
+    survived_up_to: float | None = None
+    first_failure: float | None = None
+
+    for tongue in sorted(tongues, key=lambda entry: float(entry["strain"])):
+        strain = float(tongue["strain"])
+
+        if not tongue["survived"]:
+            first_failure = strain
+            break
+
+        survived_up_to = strain
+
+    return {"survived_up_to": survived_up_to, "first_failure": first_failure}
+
+
+def derive_strain_limit(
+    evidence_root: Path, *, printer_profile_id: str, material_profile_id: str
+) -> dict[str, Any] | None:
+    """The strain limit the recorded coupon tongues support, or None when no
+    coupon trial tested a tongue."""
+
+    trials = []
+
+    for path, record in distinct_trial_records(
+        evidence_root, "trials/*/calibration-coupon-trial.json"
+    ):
+        if (
+            record.get("printer_profile_id") == printer_profile_id
+            and record.get("material_profile_id") == material_profile_id
+            and record.get("tongues")
+        ):
+            trials.append(
+                {
+                    "path": str(path),
+                    "orientation": record.get("tongue_orientation"),
+                    **_trial_strain_limit(record["tongues"]),
+                }
+            )
+
+    if not trials:
+        return None
+
+    limits = [trial["survived_up_to"] for trial in trials]
+
+    return {
+        # None when any trial's gentlest tongue failed: the limit is below
+        # everything tested, and no figure here can stand for it.
+        "value": None if None in limits else min(limits),
+        "trials": len(trials),
+        "orientations": sorted({str(trial["orientation"]) for trial in trials}),
+        "per_trial": trials,
+    }
+
+
 def derive_compensation_profile(
     evidence_root: Path,
     *,
@@ -225,6 +289,7 @@ def derive_compensation_profile(
                 "version": previous["version"],
                 "derived_at_utc": previous["derived_at_utc"],
                 "figures": previous["figures"],
+                "strain_limit": previous.get("strain_limit"),
             }
         )
 
@@ -236,6 +301,11 @@ def derive_compensation_profile(
         "version": (previous["version"] + 1) if previous else 1,
         "derived_at_utc": datetime.now(UTC).isoformat(),
         "figures": figures,
+        "strain_limit": derive_strain_limit(
+            evidence_root,
+            printer_profile_id=printer_profile_id,
+            material_profile_id=material_profile_id,
+        ),
         "sources": [
             {
                 "path": str(path),
@@ -276,6 +346,16 @@ class CompensationProfile:
         entry = self.payload["figures"].get(figure)
 
         return None if entry is None else float(entry["mean_mm"])
+
+    def strain_limit(self) -> float | None:
+        """The measured strain limit, or None when the profile has none."""
+
+        entry = self.payload.get("strain_limit")
+
+        if not entry or entry.get("value") is None:
+            return None
+
+        return float(entry["value"])
 
     def reference(self) -> dict[str, Any]:
         return {

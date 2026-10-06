@@ -3,8 +3,10 @@
 Every clearance the engine models is printed by a real printer, which prints holes
 small, walls fat and bridges low. A compensation profile corrects for that, and it
 is pooled from recorded trials. A calibration coupon gives it those figures from one
-quick print, about 18 minutes and 8 g of PETG on the A1 mini, instead of waiting for
-fixtures and enclosures to be printed and measured.
+quick print, about 32 minutes and 10 g of PETG on the A1 mini, instead of waiting for
+fixtures and enclosures to be printed and measured. It also tests how far the
+printed plastic bends before it breaks, the strain limit every flexure is checked
+against.
 
 ```bash
 zcad-validation coupon build --output-directory evidence/coupons/a1-mini-petg-01 --slice
@@ -17,7 +19,7 @@ is backed up with the rest of the evidence. Without `--slice`, start the trial w
 
 ## What it measures
 
-The plate is 58 × 43 mm with a notch in its front-left corner. Lay it notch to your
+The plate is 58 × 55 mm with a notch in its front-left corner. Lay it notch to your
 front left: the rows run front to back, each left to right.
 
 - **Front row, holes.** Three M3 insert pockets (4.6 mm) and three M3 screw holes
@@ -28,11 +30,23 @@ front left: the rows run front to back, each left to right.
   left to right with the inside jaws. A pocket narrows by a wall's growth on each
   side, so half its shortfall is `side_gap_shortfall_mm`, the per-side figure a
   fixture's gap beside a board reads.
-- **Back row, slots.** 0.85, 0.9 and 1.0 mm high under a bridge, the heights a
+- **Third row, slots.** 0.85, 0.9 and 1.0 mm high under a bridge, the heights a
   fixture's vertical play is modelled at. Record the thickest feeler gauge that
   slides through without forcing. They give `vertical_play_shortfall_mm`.
+- **Back row, tongues.** Five posts, 12 mm tall and 1 mm thick, each with a stop
+  behind it. The gap to the stop is how far the post's top must swing to strain it
+  to 1, 1.5, 2, 3 or 4 per cent, by the same cantilever formula every flexure check
+  uses. Push each post's top back until it touches its stop, hold five seconds, and
+  let go: it passes if it springs back upright with no crack or white mark, and
+  fails if it cracks, whitens or stays bent. Start with the gentlest. They give the
+  profile's `strain_limit`.
 
 The coupon is built with no hole compensation, so it measures the printer itself.
+
+The tongues bend across their printed layers, the weakest way printed plastic bends,
+because a post prints with no overhang and a tongue lying in a layer would not. A
+flexure bending along its layers is at least as strong, so the limit they give errs
+on the safe side for it.
 
 ## Recording it
 
@@ -49,7 +63,16 @@ On a print day, answer it on the Fixture Fit Trials checklist with the other pri
 instead, as `measured`, or `fail` if it did not print; `record-print-day.py` records
 it with them (see [the Validation Lab workflow](validation-lab-workflow.md)).
 
-A coupon has no disposition: what it measured is the result. A feature left
+A coupon has no disposition: what it measured is the result. A tongue can be
+`skipped` if you did not test it.
+
+The strain limit is, in each coupon trial, the highest strain every tongue up to it
+survived, stopping at the first that failed; across trials it is the lowest of
+those, since a limit must hold on every print. A tongue that survived above one that
+failed does not count. If any trial's gentlest tongue failed, the profile gives no
+strain limit, because the true one is below everything tested. No check reads the
+measured limit yet: every flexure is still checked against the provisional 1.5 per
+cent until that is decided. A feature left
 unmeasured is left out. A profile needs at least two recorded trials, so print two
 coupons, or one coupon and a fixture or enclosure trial, before deriving one. An
 enclosure built with `--compensation-profile` then sizes its holes from it and
