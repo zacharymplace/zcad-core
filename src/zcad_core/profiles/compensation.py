@@ -12,6 +12,11 @@ trials for one printer and material:
 - ``vertical_play_shortfall_mm``: how much tighter a fixture's vertical play
   prints than its clearance plus overlap.
 
+A calibration coupon (:mod:`zcad_core.features.calibration_coupon`) measures all
+three from one print: its holes are an enclosure's insert pocket and screw hole,
+half its pockets' width shortfall is the per-side growth a fixture's side gap
+reads, and its slots stand where a fixture's vertical play is modelled.
+
 Positive means tighter than modelled. Each figure keeps its mean, spread,
 and sample count, and the profile lists every trial record it read, with its
 hash. Profiles live in ``profiles/compensation/<printer>-<material>.json``;
@@ -102,6 +107,29 @@ def _enclosure_samples(path: Path, record: dict[str, Any]) -> list[Sample]:
     ]
 
 
+def _coupon_samples(path: Path, record: dict[str, Any]) -> list[Sample]:
+    """Each measured coupon feature as the error of the figure it reads. A
+    pocket narrows by a wall's growth on both sides, so half its shortfall is
+    the per-side figure."""
+
+    modelled_extra = float(record.get("hole_compensation_mm", 0.0))
+    samples = []
+
+    for entry in record.get("measurements", []):
+        nominal, value = float(entry["nominal_mm"]), float(entry["value_mm"])
+
+        if entry["kind"] == "hole":
+            shortfall = nominal + modelled_extra - value
+        elif entry["kind"] == "pocket":
+            shortfall = (nominal - value) / 2
+        else:
+            shortfall = nominal - value
+
+        samples.append(Sample(entry["figure"], shortfall, path))
+
+    return samples
+
+
 def collect_samples(
     evidence_root: Path, *, printer_profile_id: str, material_profile_id: str
 ) -> list[Sample]:
@@ -133,6 +161,15 @@ def collect_samples(
             and record.get("material_profile_id") == material_profile_id
         ):
             samples.extend(_enclosure_samples(path, record))
+
+    for path, record in distinct_trial_records(
+        evidence_root, "trials/*/calibration-coupon-trial.json"
+    ):
+        if (
+            record.get("printer_profile_id") == printer_profile_id
+            and record.get("material_profile_id") == material_profile_id
+        ):
+            samples.extend(_coupon_samples(path, record))
 
     return samples
 
