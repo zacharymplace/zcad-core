@@ -14,6 +14,7 @@ or later) it reads:
 - the mounting holes: round non-plated drills, and plated drills of a footprint
   named ``MountingHole*``. The commonest diameter is the mounting-hole size, a
   tie going to the smaller; other sizes and slots are listed with positions;
+- the test points (see ``kicad_test_points``), written to ``test_points``;
 - the parts: every footprint but a mounting hole, fiducial, test point, logo or
   board-only one, as the bounding box of its courtyard (or, with none, of its
   pads, with a warning), above the board for the front side and below it for
@@ -56,8 +57,19 @@ from zcad_core.hardware.electronics.board_import import (
     merge_boxes,
 )
 from zcad_core.hardware.electronics.board_outline import Point
+from zcad_core.hardware.electronics.kicad_footprints import (
+    Frame,
+    Placement,
+    atom,
+    footprint_placement,
+    footprint_reference,
+)
 from zcad_core.hardware.electronics.kicad_heights import Height, Heights, read_heights
 from zcad_core.hardware.electronics.kicad_sexp import Node
+from zcad_core.hardware.electronics.kicad_test_points import (
+    is_test_point,
+    read_test_points,
+)
 
 # KiCad 6's file version; older files (and ``module``) are refused.
 MINIMUM_VERSION = 20211014
@@ -115,35 +127,6 @@ class Hole:
 
 
 @dataclass(frozen=True)
-class Placement:
-    """Where a footprint sits: position, angle (degrees) and side."""
-
-    x_mm: float = 0.0
-    y_mm: float = 0.0
-    angle: float = 0.0
-    bottom: bool = False
-
-    @property
-    def unsure(self) -> bool:
-        """Whether a point's place depends on a convention not yet checked."""
-
-        return self.angle % 360 != 0 or self.bottom
-
-    def apply(self, point: Point) -> Point:
-        x, y = point
-
-        if self.bottom:
-            x = -x
-
-        turn = math.radians(self.angle)
-        # Counter-clockwise on screen; the file's Y points down.
-        return (
-            self.x_mm + x * math.cos(turn) + y * math.sin(turn),
-            self.y_mm - x * math.sin(turn) + y * math.cos(turn),
-        )
-
-
-@dataclass(frozen=True)
 class ImportedKicadBoard:
     """A board file's data from a KiCad PCB, and what the reader noted."""
 
@@ -157,12 +140,6 @@ def _identifier(path: Path) -> str:
     return name or "IMPORTED_BOARD"
 
 
-def _atom(root: Node, token: str) -> str | None:
-    found = kicad_sexp.child(root, token)
-
-    return str(found[1]) if found is not None and len(found) > 1 else None
-
-
 def _read(path: Path) -> tuple[Node, str]:
     raw = path.read_bytes()
     root = kicad_sexp.parse(raw.decode("utf-8"))
@@ -171,7 +148,7 @@ def _read(path: Path) -> tuple[Node, str]:
         raise ValueError(f"{path.name} is not a KiCad PCB (no kicad_pcb form)")
 
     advice = "open it in KiCad 6 or later and save it, then import that"
-    version = _atom(root, "version")
+    version = atom(root, "version")
 
     if kicad_sexp.child(root, "module") is not None:
         raise ValueError(f"{path.name} uses KiCad 5's module form: {advice}")
@@ -352,31 +329,6 @@ def _on_edge(form: Node) -> bool:
     return layer is not None and len(layer) > 1 and layer[1] == EDGE_LAYER
 
 
-def _placement(footprint: Node) -> Placement:
-    layer = _atom(footprint, "layer") or "F.Cu"
-    at = kicad_sexp.child(footprint, "at")
-
-    if at is None:
-        raise ValueError(f"footprint {_reference(footprint)} has no position")
-
-    x, y = kicad_sexp.numbers(at, 2)
-    angle = kicad_sexp.number(at[3]) if len(at) > 3 else 0.0
-
-    return Placement(x, y, angle, layer.startswith("B."))
-
-
-def _reference(footprint: Node) -> str:
-    for text in kicad_sexp.children(footprint, "fp_text"):
-        if len(text) > 2 and text[1] == "reference":
-            return str(text[2])
-
-    for prop in kicad_sexp.children(footprint, "property"):
-        if len(prop) > 2 and prop[1] == "Reference":
-            return str(prop[2])
-
-    return str(footprint[1]) if len(footprint) > 1 else "?"
-
-
 def _edge_pieces(root: Node, unverified: list[str]) -> list[Piece]:
     pieces = []
 
@@ -386,7 +338,7 @@ def _edge_pieces(root: Node, unverified: list[str]) -> list[Piece]:
                 pieces.append(piece)
 
     for footprint in kicad_sexp.children(root, "footprint"):
-        place = _placement(footprint)
+        place = footprint_placement(footprint)
         listed = False
 
         for token in EDGE_ITEMS:
@@ -398,7 +350,7 @@ def _edge_pieces(root: Node, unverified: list[str]) -> list[Piece]:
 
                 if place.unsure and not listed:
                     unverified.append(
-                        f"{_reference(footprint)}: Edge.Cuts item placed through "
+                        f"{footprint_reference(footprint)}: Edge.Cuts item placed through "
                         f"angle {place.angle:g}"
                         + (" on the bottom side" if place.bottom else "")
                     )
@@ -558,7 +510,7 @@ def _pad_holes(
     slots: list[tuple[float, float, float | None]] = []
 
     for footprint in kicad_sexp.children(root, "footprint"):
-        place = _placement(footprint)
+        place = footprint_placement(footprint)
         library_name = str(footprint[1]).split(":")[-1] if len(footprint) > 1 else ""
 
         for pad in kicad_sexp.children(footprint, "pad"):
@@ -577,7 +529,7 @@ def _pad_holes(
 
             if place.unsure and max(abs(local[0]), abs(local[1])) > 1e-9:
                 unverified.append(
-                    f"{_reference(footprint)}: a drill at ({local[0]:g}, "
+                    f"{footprint_reference(footprint)}: a drill at ({local[0]:g}, "
                     f"{local[1]:g}) in a footprint at angle {place.angle:g}"
                     + (" on the bottom side" if place.bottom else "")
                 )
@@ -611,7 +563,7 @@ def _groups(holes: Sequence[Hole]) -> dict[float, list[Hole]]:
 
 def _thickness(root: Node) -> float | None:
     general = kicad_sexp.child(root, "general")
-    value = _atom(general, "thickness") if general is not None else None
+    value = atom(general, "thickness") if general is not None else None
 
     return kicad_sexp.number(value) if value is not None else None
 
@@ -629,17 +581,6 @@ def _height(
         )
 
     return {"top_mm": default_height_mm}, source.strip()
-
-
-@dataclass(frozen=True)
-class Frame:
-    """KiCad's frame to the board file's: Y flipped, the outline's centre at
-    the origin."""
-
-    centre: Point
-
-    def __call__(self, point: Point) -> Point:
-        return (point[0] - self.centre[0], -(point[1] - self.centre[1]))
 
 
 def _outline(
@@ -739,14 +680,11 @@ COURTYARD_LAYERS = ("F.CrtYd", "B.CrtYd")
 COURTYARD_ITEMS = ("line", "arc", "circle", "rect", "poly")
 # A part past an edge, or within this of one, is a cable connector candidate.
 AT_EDGE_MM = 1.0
-TEST_POINT = "a test point, which phase 3 reads"
 # Footprints of these library names are not parts, with what each is.
 NOT_PARTS = (
     ("MountingHole", "a mounting hole"),
     ("Fiducial", "a fiducial"),
-    ("TestPoint", TEST_POINT),
 )
-TEST_POINT_REFERENCE = re.compile(r"TP\d+")
 
 
 @dataclass(frozen=True)
@@ -761,7 +699,9 @@ class Part:
     plan_from: str
 
 
-def _not_a_part(footprint: Node, reference: str, library: str) -> str | None:
+def _not_a_part(
+    footprint: Node, reference: str, library: str, test_points: Sequence[str]
+) -> str | None:
     """Why a footprint is not a part, or ``None`` if it is one."""
 
     nickname, _, name = library.rpartition(":")
@@ -770,8 +710,8 @@ def _not_a_part(footprint: Node, reference: str, library: str) -> str | None:
         if name.startswith(prefix):
             return what
 
-    if TEST_POINT_REFERENCE.fullmatch(reference):
-        return TEST_POINT
+    if is_test_point(reference, library, test_points):
+        return "a test point"
 
     if nickname == "Symbol" or "logo" in name.lower():
         return "a logo"
@@ -821,7 +761,7 @@ def _pad_extent(footprint: Node, place: Placement) -> list[Point]:
 
 
 def _parts(
-    root: Node, frame: Frame, unverified: list[str]
+    root: Node, frame: Frame, unverified: list[str], test_points: Sequence[str]
 ) -> tuple[list[Part], list[dict[str, str]]]:
     """The footprints that are parts, and those that are not, with why."""
 
@@ -829,15 +769,15 @@ def _parts(
     excluded: list[dict[str, str]] = []
 
     for footprint in kicad_sexp.children(root, "footprint"):
-        reference = _reference(footprint)
+        reference = footprint_reference(footprint)
         library = str(footprint[1]) if len(footprint) > 1 else ""
-        why = _not_a_part(footprint, reference, library)
+        why = _not_a_part(footprint, reference, library, test_points)
 
         if why is not None:
             excluded.append({"reference": reference, "why": why})
             continue
 
-        place = _placement(footprint)
+        place = footprint_placement(footprint)
         points, plan_from = _courtyard(footprint, place), "courtyard"
 
         if not points:
@@ -1125,13 +1065,14 @@ def read_parts(
     heights_file: Heights | None,
     default: Height | None,
     cable_connector: str | None,
+    test_points: Sequence[str],
     unverified: list[str],
 ) -> PartsRead | None:
     """The footprints as the board file's components and cable connector, or
     ``None`` when no footprint is a part."""
 
     width, length, thickness = size
-    parts, excluded = _parts(root, frame, unverified)
+    parts, excluded = _parts(root, frame, unverified, test_points)
 
     if not parts:
         if cable_connector is not None:
@@ -1259,10 +1200,11 @@ def import_kicad(
     default_height_source: str | None = None,
     heights_file: Path | None = None,
     cable_connector: str | None = None,
+    test_points: Sequence[str] = (),
 ) -> ImportedKicadBoard:
     """Read a board file from a KiCad PCB: its outline, thickness, mounting
-    holes, and its footprints as parts. The result carries ``needs_review``
-    for what the file cannot give."""
+    holes, its footprints as parts, and its test points. The result carries
+    ``needs_review`` for what the file cannot give."""
 
     envelope, height_source = _height(default_height_mm, default_height_source)
     default = (
@@ -1279,7 +1221,7 @@ def import_kicad(
     edge_holes, cutouts = _inner(inner, frame)
     size, positions, others = _mounting([*holes, *edge_holes], frame)
     thickness = _thickness(root)
-    version, generator = _atom(root, "version"), _atom(root, "generator")
+    version, generator = atom(root, "version"), atom(root, "generator")
     parts = read_parts(
         root,
         frame,
@@ -1288,8 +1230,11 @@ def import_kicad(
         heights_file=heights_given,
         default=default,
         cable_connector=cable_connector,
+        test_points=test_points,
         unverified=unverified,
     )
+    probed = read_test_points(root, frame, test_points, unverified)
+    notes.extend(probed.notes)
 
     if parts is not None:
         envelope = None
@@ -1348,6 +1293,9 @@ def import_kicad(
     if parts is not None:
         data["components"] = parts.components
 
+    if probed.points:
+        data["test_points"] = probed.points
+
     if not data["needs_review"]:
         del data["needs_review"]
 
@@ -1357,7 +1305,7 @@ def import_kicad(
             "sha256": sha,
             "kicad_file_version": version,
             "generator": generator,
-            "generator_version": _atom(root, "generator_version"),
+            "generator_version": atom(root, "generator_version"),
         },
         "outline": {"kind": kind, "size_mm": [width, length]},
         "thickness": {
@@ -1372,6 +1320,11 @@ def import_kicad(
         "cutouts_not_modelled": cutouts,
         "parts": parts.report if parts is not None else None,
         "cable_connector_candidates": parts.candidates if parts is not None else [],
+        "test_points": {
+            "top": sum(1 for point in probed.points if point["side"] == "top"),
+            "bottom": sum(1 for point in probed.points if point["side"] == "bottom"),
+            "not_read": probed.not_read,
+        },
         "unverified_transforms": unverified,
         "notes": notes,
     }

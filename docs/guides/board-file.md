@@ -66,7 +66,7 @@ zcad-validation board import --kicad board.kicad_pcb --output my-board.json --he
 The import reads the board's `Edge.Cuts` outline (a rectangle, a rounded rectangle, or a polygon, following any arc KiCad 7 or later writes among a polygon's points and refusing anything else there), the thickness the file gives, and the mounting holes (round non-plated drills and `MountingHole`
 footprints; the commonest size is taken and others are listed). A file with no thickness gets a placeholder you must replace.
 
-Every other footprint is a part, except fiducials, test points (`TestPoint*` footprints and `TP` references, which a later phase reads), logos and board-only footprints. A part is the bounding box of its courtyard, or of its
+Every other footprint is a part, except fiducials, test points, logos and board-only footprints. A part is the bounding box of its courtyard, or of its
 pads when it has none (the report warns: pads are smaller than the part), above the board for a front-side footprint and below it for a back-side one. Neighbouring parts of a similar height are merged into one box named by its
 parts (`R1_and_12_more`), and a part reaching past an edge is marked `access_edge`, as in the STEP import. The boxes are conservative: a courtyard is bigger than its part.
 
@@ -87,7 +87,12 @@ as its `envelope`.
 The cable connector is one of the `cable_connector_candidates` the report lists: the parts past an edge or within 1 mm of one, largest first. `--cable-connector REF` writes that part as the connector and takes it out of the
 components; until then the file carries `needs_review` and a placeholder.
 
-This reader has been tested on boards written by hand, **not on a file exported from KiCad**, so check the outline, holes and parts against the board. A hole or part whose place depends on how KiCad turns or
+**Test points** are the `TestPoint*` footprints, the `TP` references (`TP1`, `TP12`), and any you name with `--test-points J5,R12`. Each must have one copper pad, which is the point: its centre
+is the place, the footprint's side is the point's side, the pad's net is its `net`, and a round pad's size is its diameter. Any other pad shape gives the smaller side, with a warning, since a probe lands in
+the middle. A footprint with more than one pad is listed under `not_read` for you to give by hand. They are written to `test_points`, so a fixture can be built from the imported file; the board file's own check refuses
+a pad under 0.5 mm, two that overlap, and one off the outline.
+
+This reader has been tested on boards written by hand, **not on a file exported from KiCad**, so check the outline, holes, parts and test points against the board. A hole, part or test pad whose place depends on how KiCad turns or
 mirrors a footprint (any part on the back, or turned) is flagged `footprint_transforms` for you to check. See [Importing a KiCad board](../roadmaps/kicad-import.md).
 
 ## Measuring a board
@@ -175,9 +180,10 @@ Positions are in the board's frame, as for holes. `side` is `top` (the default)
 or `bottom`; `net` is your own label, carried to the fixture's report. The check
 refuses a pad that hangs off the board (judged by its outline, so a rounded
 corner counts), a pad under 0.5 mm, two pads on the same side that overlap, and a
-name used twice. `board check` counts the points by side. `board import` cannot
-find test points, since a STEP model carries no copper: they come from your
-design. See [A test fixture for your board](pcb-test-fixture.md).
+name used twice. `board check` counts the points by side. A STEP import cannot
+find test points, since a STEP model carries no copper; a KiCad import reads them
+(see [From a KiCad board](#from-a-kicad-board)). See
+[A test fixture for your board](pcb-test-fixture.md).
 
 ## Power
 
