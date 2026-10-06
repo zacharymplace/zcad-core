@@ -58,6 +58,7 @@ nav:
       - Stacking on a lid: roadmaps/stack-top.md
       - A drawer stop: roadmaps/drawer-stop.md
       - Importing a KiCad board: roadmaps/kicad-import.md
+      - Object holders: roadmaps/object-holders.md
   - API Reference:
       - Overview: reference/index.md
       - assemblies: reference/assemblies.md
