@@ -25,7 +25,7 @@ DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
 def _holder_template(args: argparse.Namespace) -> int:
     """Print a valid example holder file to copy and edit, or write it."""
 
-    template = holder_template(args.capture)
+    template = holder_template(args.capture, args.model)
 
     if args.output is None:
         emit(template)
@@ -54,18 +54,18 @@ def _side_shortfall(args: argparse.Namespace) -> float | None:
 
 
 def _holder_check(args: argparse.Namespace) -> int:
-    """Check a holder file and its capture, then try the build; exits 1 if it cannot be
+    """Check a holder file and its object, then try the build; exits 1 if it cannot be
     built."""
 
     profile = load_printer_profile(args.printer_profile)
-    report, spec, capture = inspect_holder_file(args.file)
+    report, spec, item = inspect_holder_file(args.file)
     errors = list(report.errors)
     holder: dict[str, Any] | None = None
 
-    if spec is not None and capture is not None:
+    if spec is not None and item is not None:
         try:
             built = build_holder(
-                spec, capture, profile, side_shortfall_mm=_side_shortfall(args)
+                spec, item, profile, side_shortfall_mm=_side_shortfall(args)
             )
             require_fits_bed(built, profile)
         except ValueError as error:
@@ -87,7 +87,7 @@ def _holder_check(args: argparse.Namespace) -> int:
             "valid": not errors,
             "errors": errors,
             "warnings": list(report.warnings),
-            "object": report.capture,
+            "object": report.item,
             "holder": holder,
         }
     )
@@ -103,14 +103,12 @@ def _holder_build(args: argparse.Namespace) -> int:
     """Build, validate, and export a holder, with its record."""
 
     profile = load_printer_profile(args.printer_profile)
-    report, spec, capture = inspect_holder_file(args.holder_file)
+    report, spec, item = inspect_holder_file(args.holder_file)
 
-    if not report.valid or spec is None or capture is None:
+    if not report.valid or spec is None or item is None:
         raise ValueError("The holder cannot be built:\n- " + "\n- ".join(report.errors))
 
-    holder = build_holder(
-        spec, capture, profile, side_shortfall_mm=_side_shortfall(args)
-    )
+    holder = build_holder(spec, item, profile, side_shortfall_mm=_side_shortfall(args))
     require_fits_bed(holder, profile)
 
     if not holder.passed:
@@ -127,11 +125,12 @@ def _holder_build(args: argparse.Namespace) -> int:
             repository_root=Path.cwd(),
             printer_profile=profile,
             parameters={
-                "down_edge": spec.down_edge,
-                "face": spec.face,
+                "object_kind": spec.object_kind,
+                "down_edge": spec.down_edge or None,
+                "face": spec.face or None,
                 "front_mm": holder.front_mm,
                 "mount": spec.mount,
-                "capture_sha256": capture.sha256,
+                "object_sha256": item.sha256,
             },
         )
     )
@@ -148,7 +147,7 @@ def _holder_build(args: argparse.Namespace) -> int:
     emit(
         {
             "design_name": name,
-            "object": report.capture,
+            "object": report.item,
             "warnings": list(report.warnings),
             "front_mm": round(holder.front_mm, 3),
             "clearance_per_side_mm": round(holder.clearance_mm, 3),
@@ -183,8 +182,12 @@ def register(
     template = commands.add_parser(
         "template", help="print a valid example holder file to edit"
     )
-    template.add_argument(
+    named = template.add_mutually_exclusive_group()
+    named.add_argument(
         "--capture", type=Path, help="the object's capture file to name, with its hash"
+    )
+    named.add_argument(
+        "--model", type=Path, help="or the object's STEP model to name, with its hash"
     )
     template.add_argument(
         "--output", type=Path, help="write the example here instead of printing it"
@@ -192,7 +195,7 @@ def register(
     template.set_defaults(handler=_holder_template)
     check = commands.add_parser(
         "check",
-        help="check a holder file and its capture; exits 1 if it cannot be built",
+        help="check a holder file and its object; exits 1 if it cannot be built",
     )
     check.add_argument("file", type=Path)
     check.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)

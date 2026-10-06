@@ -11,9 +11,9 @@ the ports on its edges and the buttons on its face. The **calibration coupon** m
 The **holding nest** cuts a pocket to a part's shadow and checks it lifts straight out. The **mounts** have keyhole slots and countersunk screws.
 This is the design for putting them together into one new product: an **object holder**.
 
-**Status (2026-10-06): phases 1 and 2 are built; phases 3 and 4 are design only.** `zcad-validation holder` builds a cup from a capture on screws,
-keyholes, a pegboard or a flat pad, with retaining tabs if asked; see [Phase 1, as built](#phase-1-as-built), [Phase 2, as built](#phase-2-as-built) and
-[A holder for an object](../guides/object-holder.md).
+**Status (2026-10-06): phases 1 to 3 are built; phase 4 is design only.** `zcad-validation holder` builds a cup from a capture or a STEP model on
+screws, keyholes, a pegboard or a flat pad, with retaining tabs for a captured object if asked; see [Phase 1](#phase-1-as-built),
+[Phase 2](#phase-2-as-built), [Phase 3, as built](#phase-3-as-built) and [A holder for an object](../guides/object-holder.md).
 
 ## What the engine does not claim
 
@@ -170,6 +170,20 @@ to `features/holder_shapes.py`. It differs from the design in these ways:
   wide enough for one. A flat plate is as wide as the pad; a pad taller than the plate is refused.
 - **The holder file keeps a mount's figures together.** `mount` takes each type's own figures and one `source`, and the record writes them back with the
   pegs' size and reach. The build record's schema is 1.1.0.
+
+### Phase 3, as built
+
+`object: {"step", "sha256", "up", "out", "solid_index"}` and `holder template --model`, in `features/holder_model.py`.
+
+- **Which way the model hangs.** The design said the shadow is taken along the way the object goes in, and left how the user says that way open. The holder
+  file names the model's axis that points `up` and the one that points `out` to the room, from `+x`, `-x`, `+y`, `-y`, `+z` and `-z`, square to each
+  other; the third axis is their cross product, so the turn is always a rotation, never a mirror.
+- **The pocket is the shadow from above,** the nest's own code, grown by the clearance and open at the top; the object stands on its lowest point. The
+  shadow is drawn to a grid and can be a pixel or so wider than the model, so the back plate is sized to the cup round the shadow, not to the model's box.
+- **No openings and no tabs for a model.** A model names no ports or buttons to leave open, and tabs need a captured object's flat top; a model holder that
+  asks for tabs is refused. Mounts, the finger notch, the fit, and every check are the same as for a capture.
+- **The record** says which kind the object is, and for a model its file, hash, solid, `up`, `out` and size as it hangs; its schema is 1.2.0. The spec's
+  `capture_path` and `capture_sha256` became `object_path` and `object_sha256`, with `object_kind`.
 
 ## Not covered
 

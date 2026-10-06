@@ -89,6 +89,26 @@ and they spring back over its top. With tabs, the sides climb the object's whole
 - The pocket must be at least 11.6 mm deep, a tab and its slits, so the object must be about 11.2 mm thick.
 - The object is checked to lift out with the hooks left off, since they give, and each hook to have the object's flat top under it.
 
+## From a STEP model
+
+An object you have a model of, rather than one you have measured, can be named in place of a capture:
+
+```bash
+zcad-validation holder template --model part.step --output part-holder.json
+```
+
+The holder file's `object` is then `{"step": "part.step", "sha256": "...", "up": "+z", "out": "+y"}`, with an optional `solid_index` (from 1) when the
+model holds several solids. `up` is the model's axis that points up in the holder, the way the object comes out, and `out` the one that faces the room;
+each is one of `+x`, `-x`, `+y`, `-y`, `+z`, `-z`, and the two must be square to each other. The model is turned so they become the holder's up and out,
+with the third axis following from them, so the turn is never a mirror. A model holder has no `down_edge` or `face`.
+
+The pocket is the model's **shadow seen from above** as it hangs, grown by the clearance, and open at the top, as a holding nest's is: whatever the object
+does beneath its widest point, it lifts straight out. The shadow is drawn to a grid, so the pocket can be a pixel or so wider than the model, and the back
+plate is made as wide as the cup round it. The object stands on its lowest point; a cup cut to its shadow holds it by its widest part, so an object
+narrower beneath is looser there. The front climbs a third of its height, a finger notch is cut when the cup is wide enough, and every mount works the
+same. A model names no ports or buttons, so nothing is left open for one, and it takes no retaining tabs, which need a captured object's flat top. A
+model that has changed since the holder file named it is refused.
+
 ## Printing it
 
 The holder prints as it hangs, floor down, so its walls are vertical. Every hole through the back plate is horizontal, so each is drawn as a teardrop
@@ -103,5 +123,5 @@ pitches apart on one row, and each tab's hook has the object's flat top under it
 
 **The engine says nothing about the load a holder bears, whether its screws hold in your wall, what a wall plug, a pegboard or a pad takes, or how
 hard a tab grips.** It says the object fits,
-lifts out, and that what you named is left open. The capture's mass goes into the record so a trial can say what the holder carried. A holder is
-unverified until it has been printed and used with the real object. STEP models and trials are later phases of [the design](../roadmaps/object-holders.md).
+lifts out, and that what you named is left open. The capture's mass goes into the record so a trial can say what the holder carried; a model has no
+mass. A holder is unverified until it has been printed and used with the real object. Trials are the last phase of [the design](../roadmaps/object-holders.md).
