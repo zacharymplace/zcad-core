@@ -29,6 +29,7 @@ from zcad_core.cli import (
     enclosure,
     enclosure_group,
     fixture,
+    gridfinity,
     guide,
     holder,
     housing,
@@ -68,6 +69,7 @@ _COMMAND_GROUPS = (
     nest,
     jig,
     holder,
+    gridfinity,
 )
 
 

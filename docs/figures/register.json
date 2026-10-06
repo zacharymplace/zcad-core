@@ -615,6 +615,84 @@
     "features/fan_bay.py:_SCREW_LENGTHS_MM": {
       "status": "unstated"
     },
+    "features/gridfinity.py:ARC_STEPS": {
+      "status": "unstated"
+    },
+    "features/gridfinity.py:CLEAR_LIFT_MM": {
+      "status": "design_default",
+      "note": "A design value for a check: a seated base raised this much must be clear of what holds it"
+    },
+    "features/gridfinity.py:DEFAULT_WALL_MM": {
+      "status": "design_default",
+      "note": "A design value: the A1 mini profile's minimum wall; Gridfinity Rebuilt's own choice is 0.95 mm, under that minimum"
+    },
+    "features/gridfinity.py:HELD_DROP_MM": {
+      "status": "design_default",
+      "note": "A design value for a check: a seated base pushed this much lower must meet what holds it, showing the slopes hold it"
+    },
+    "features/gridfinity.py:MAXIMUM_UNITS": {
+      "status": "design_default",
+      "note": "A design value: eight units is 336 mm, past any bed this engine prints on; the bed check refuses less"
+    },
+    "features/gridfinity.py:MINIMUM_HEIGHT_UNITS": {
+      "status": "design_default",
+      "note": "A design value: one 7 mm unit is all base, with no room inside"
+    },
+    "features/gridfinity.py:TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/gridfinity_standard.py:BASEPLATE_CELL_RADIUS_MM": {
+      "status": "sourced",
+      "source": "Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings, the baseplate drawing's 8.0 corner; Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), gridfinity-baseplate.scad BASEPLATE_OUTER_DIAMETER"
+    },
+    "features/gridfinity_standard.py:BASEPLATE_HEIGHT_MM": {
+      "status": "sourced",
+      "source": "Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings, the baseplate drawing's 5 mm; Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), gridfinity-baseplate.scad BASEPLATE_HEIGHT"
+    },
+    "features/gridfinity_standard.py:BASEPLATE_PROFILE_STEPS_MM": {
+      "status": "sourced",
+      "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), gridfinity-baseplate.scad _BASEPLATE_PROFILE, based on the specification"
+    },
+    "features/gridfinity_standard.py:BASE_HEIGHT_MM": {
+      "status": "sourced",
+      "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad BASE_HEIGHT"
+    },
+    "features/gridfinity_standard.py:BASE_PROFILE_STEPS_MM": {
+      "status": "sourced",
+      "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad BASE_PROFILE, based on the specification; totals the block drawing's 4.75 mm"
+    },
+    "features/gridfinity_standard.py:BASE_TOP_MM": {
+      "status": "sourced",
+      "source": "Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings: a block 41.5 mm square (0.5 mm tolerance); Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad BASE_TOP_DIMENSIONS"
+    },
+    "features/gridfinity_standard.py:BASE_TOP_RADIUS_MM": {
+      "status": "sourced",
+      "source": "Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings, the block drawing's 3.75 corner; Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad BASE_TOP_RADIUS"
+    },
+    "features/gridfinity_standard.py:GRID_MM": {
+      "status": "sourced",
+      "source": "Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings: the 42x42x7 mm grid"
+    },
+    "features/gridfinity_standard.py:HEIGHT_UNIT_MM": {
+      "status": "sourced",
+      "source": "Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings: the 42x42x7 mm grid"
+    },
+    "features/gridfinity_standard.py:LIP_STEPS_MM": {
+      "status": "sourced",
+      "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad STACKING_LIP_LINE, based on the specification"
+    },
+    "features/gridfinity_standard.py:MAGNET_HOLE_DEPTH_MM": {
+      "status": "sourced",
+      "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad MAGNET_HOLE_DEPTH: a 2 mm magnet and two 0.2 mm layers"
+    },
+    "features/gridfinity_standard.py:MAGNET_HOLE_MM": {
+      "status": "sourced",
+      "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad MAGNET_HOLE_RADIUS, for the specification's 6 x 2 mm magnets"
+    },
+    "features/gridfinity_standard.py:MAGNET_INSET_MM": {
+      "status": "sourced",
+      "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad d_hole_from_side"
+    },
     "features/guide_bores.py:CHUCK_LENGTH_MM": {
       "status": "unstated"
     },
