@@ -153,3 +153,38 @@ def test_slice_produces_gcode_for_both_parts(
         assert plates[part]["estimated_print_minutes"] > 0
         assert plates[part]["filament_used_g"] > 0
         assert plates[part]["slicer_warning"] == ""
+
+
+def test_a_hinged_lid_that_lies_on_its_knuckles_is_sliced_with_supports(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Turned over, its knuckles are its lowest point and the panel is in the
+    # air; no turn helps, so its plate gets supports from the build plate.
+    supported: dict[str, bool] = {}
+
+    def fake_slice(
+        models: Sequence[Path], output_directory: Path, **kwargs: Any
+    ) -> SliceResult:
+        supported[kwargs["summary_fields"]["part"]] = kwargs["supports"]
+
+        return SliceResult(
+            gcode_path=output_directory / "plate_1.gcode",
+            summary_path=output_directory / "slice-summary.json",
+            summary={
+                "estimated_print_time_seconds": 60,
+                "filament_used_g": 1.0,
+                "slicer_warning": "",
+            },
+        )
+
+    monkeypatch.setattr("zcad_core.cli.enclosure_group.slice_models", fake_slice)
+
+    exit_code, output, _ = build(
+        capsys, tmp_path, "--lid", "hinge", "--headroom-mm", "20", "--slice"
+    )
+
+    assert exit_code == 0
+    assert supported == {"base": False, "lid": True}
+    assert output["print"]["plates"]["lid"]["supported"] is True

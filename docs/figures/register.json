@@ -2278,6 +2278,18 @@
       "status": "design_default",
       "note": "A limit chosen so a stalled slice fails instead of hanging: a plate slices in seconds to a few minutes"
     },
+    "printing/bed.py:MINIMUM_BED_SHARE": {
+      "status": "unstated"
+    },
+    "printing/bed.py:_FACING_DOWN": {
+      "status": "unstated"
+    },
+    "printing/bed.py:_ON_BED_MM": {
+      "status": "unstated"
+    },
+    "printing/bed.py:_TURNS": {
+      "status": "unstated"
+    },
     "profiles/compensation.py:DEFAULT_MINIMUM_TRIALS": {
       "status": "unstated"
     },

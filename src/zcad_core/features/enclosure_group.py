@@ -109,6 +109,7 @@ from zcad_core.features.mount_stack import (
 from zcad_core.features.pcb_mounts import PcbStandoffParameters, add_pcb_standoff
 from zcad_core.features.stack_profile import load_profile
 from zcad_core.hardware import RaspberryPi5Spec, get_fastener, get_raspberry_pi5
+from zcad_core.printing.bed import laid_flat
 
 # Kept importable from here, where they were defined before the split.
 __all__ = [
@@ -470,10 +471,22 @@ def build_group_enclosure(
 
 
 def print_oriented_parts(group: GroupEnclosure) -> dict[str, cq.Shape]:
-    """Each part as it goes on the bed: the base on its floor, the lid on its
-    outer face, so the face you see sits against the plate."""
+    """Each part it exports, as it goes on the bed: the base on its floor, the
+    lid on its outer face, so the face you see sits against the plate, and
+    each mount piece or a stack top on whichever face lies flattest. A part
+    that still has little of itself on the bed is sliced with supports (see
+    :mod:`zcad_core.printing.bed`)."""
 
-    return {
+    parts = {
         "base": single_shape(group.base),
         "lid": single_shape(group.lid).rotate((0, 0, 0), (1, 0, 0), 180),
     }
+
+    if group.mount is not None:
+        for name, piece in group.mount.parts.items():
+            parts[name] = laid_flat(single_shape(piece))
+
+    if group.stack_top is not None:
+        parts["stack_top"] = laid_flat(single_shape(group.stack_top.plate))
+
+    return parts

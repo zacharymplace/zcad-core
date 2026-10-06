@@ -35,6 +35,7 @@ from zcad_core.features.enclosure_thermal import (
     DEFAULT_AMBIENT_C,
     DEFAULT_SERVICE_LIMIT_C,
 )
+from zcad_core.features.enclosure_trial import BUILD_RECORD as ENCLOSURE_RECORD
 from zcad_core.features.enclosure_trial import (
     EnclosureTrialDisposition,
     complete_enclosure_trial,
@@ -66,6 +67,7 @@ from zcad_core.hardware import (
     load_board,
 )
 from zcad_core.printing import SliceError, slice_freshness, slice_models
+from zcad_core.printing.bed import bed_contact
 from zcad_core.profiles import (
     load_compensation_profile,
     load_printer_profile,
@@ -404,6 +406,7 @@ def _build(
         ExportRequest(
             design_name=name,
             design_type="enclosure",
+            build_record_name=ENCLOSURE_RECORD,
             parts=_parts(enclosure),
             output_directory=args.output_directory,
             repository_root=Path.cwd(),
@@ -578,41 +581,71 @@ def _slice(
     build_record: Path,
     part_stls: dict[str, Path],
 ) -> dict[str, object]:
-    """Write print-oriented STLs, slice them onto one plate, and open the
-    first trial."""
+    """Write print-oriented STLs, slice the base and lid onto one plate and
+    each other part (a mount plate, a stack top) onto one of its own, and open
+    the first trial. A plate holding a part that does not lie flat is sliced
+    with supports from the build plate."""
 
     print_directory = args.output_directory / "print"
     print_directory.mkdir()
-    models = []
+    recipe = rebuild_recipe(getattr(args, "argv", None), part_stls)
+    shapes = print_oriented_parts(enclosure)
+    plates: dict[str, list[str]] = {
+        "": ["base", "lid"],
+        **{part: [part] for part in shapes if part not in ("base", "lid")},
+    }
+    printed: dict[str, dict[str, object]] = {}
 
-    for part, shape in print_oriented_parts(enclosure).items():
-        model = print_directory / f"{name}-{part}.stl"
-        cq.exporters.export(shape, str(model))
-        models.append(model)
+    for plate, parts in plates.items():
+        models = []
 
-    try:
-        sliced = slice_models(
-            models,
-            args.output_directory / "slice",
-            slicer_profile_path=args.slicer_profile,
-            summary_fields={
-                "design_name": name,
-                "build_record_sha256": sha256(build_record),
-                "rebuild": rebuild_recipe(getattr(args, "argv", None), part_stls),
-            },
-        )
-    except SliceError as error:
-        raise ValueError(str(error)) from error
+        for part in parts:
+            model = print_directory / f"{name}-{part}.stl"
+            cq.exporters.export(shapes[part], str(model))
+            models.append(model)
+
+        needing = [part for part in parts if bed_contact(shapes[part]).needs_support]
+
+        try:
+            sliced = slice_models(
+                models,
+                args.output_directory / "slice" / plate,
+                slicer_profile_path=args.slicer_profile,
+                summary_fields={
+                    "design_name": name,
+                    "build_record_sha256": sha256(build_record),
+                    "rebuild": recipe,
+                    "supported_parts": needing,
+                },
+                supports=bool(needing),
+            )
+        except SliceError as error:
+            raise ValueError(str(error)) from error
+
+        summary = sliced.summary
+        printed[plate or "+".join(parts)] = {
+            "gcode": str(sliced.gcode_path),
+            "estimated_print_minutes": round(
+                summary["estimated_print_time_seconds"] / 60
+            ),
+            "filament_used_g": round(summary["filament_used_g"], 1),
+            "slicer_warning": summary["slicer_warning"],
+            "supported_parts": needing,
+        }
 
     trial = start_enclosure_trial(build_record)
-    summary = sliced.summary
+    main = printed["base+lid"]
 
     return {
-        "gcode": str(sliced.gcode_path),
-        "estimated_print_minutes": round(summary["estimated_print_time_seconds"] / 60),
-        "filament_used_g": round(summary["filament_used_g"], 1),
-        "slicer_warning": summary["slicer_warning"],
+        **main,
         "trial": str(trial),
+        "other_plates": {k: v for k, v in printed.items() if k != "base+lid"},
+        "total_print_minutes": sum(
+            int(str(p["estimated_print_minutes"])) for p in printed.values()
+        ),
+        "total_filament_g": round(
+            sum(float(str(p["filament_used_g"])) for p in printed.values()), 1
+        ),
     }
 
 

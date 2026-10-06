@@ -385,9 +385,12 @@ zcad-validation enclosure-group build --bays pi5,pi5 \
 ```
 
 `--slice` writes print-oriented STLs to `print/` (the base on its floor, the
-lid on its outer face) and slices each with Bambu Studio into
-`slice/base/` and `slice/lid/`, using the project slicer profile
-(`--slicer-profile`). Each part gets a plate of its own: the pair's base and
+lid on its outer face, each mount piece or a stack top on its flattest face) and
+slices each with Bambu Studio into `slice/base/`, `slice/lid/` and so on, using
+the project slicer profile (`--slicer-profile`). A part with less than half its
+footprint flat on the bed, such as a hinged lid lying on its knuckles, is sliced
+with supports from the build plate; see the
+[builder guide](enclosure-builder.md#printing-and-recording-a-trial). Each part gets a plate of its own: the pair's base and
 lid are each 96 mm deep, so together they would not fit the A1 mini's
 180 mm bed. The summary reports each plate's print time, filament, and any
 slicer warning. Slicing is skipped if a fit check fails.
