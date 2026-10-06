@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "zcad-core"
-version = "0.4.0"
+version = "0.5.0"
 description = "Reusable parametric CAD engine"
 requires-python = ">=3.11"
 dependencies = [
