@@ -374,3 +374,52 @@ def test_the_dexcom_script_now_refuses_to_overwrite_its_pinned_files(
         script.main([], root=root)
 
     assert envelope.read_bytes() == before
+
+
+def test_a_snap_shell_uses_a_measured_strain_limit_only_when_asked(
+    root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script = load("build-tandem-mobi-snap-shell-candidate", monkeypatch)
+    profile = root / "bambu-lab-a1-mini-petg.json"
+    profile.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0.0",
+                "profile_id": "bambu-lab-a1-mini-petg",
+                "version": 2,
+                "figures": {},
+                "strain_limit": {"value": 0.02},
+            }
+        ),
+        encoding="utf-8",
+    )
+    script.main([], root=root)
+    script.main(
+        [
+            "--revision",
+            "r002",
+            "--parent",
+            "r001",
+            "--reason",
+            "Measured strain limit",
+            "--compensation-profile",
+            str(profile),
+        ],
+        root=root,
+    )
+    candidates = root / "evidence/tandem-mobi-pump/validation-lab/candidates"
+
+    def strain_limit(revision: str) -> dict[str, Any]:
+        report = json.loads(
+            (candidates / revision / "automated-validation.json").read_text("utf-8")
+        )
+        limit: dict[str, Any] = report["strain_limit"]
+        detail = report["fit_checks"]["clip_strain"]["detail"]
+        assert f"{limit['percent']:g} per cent limit" in detail
+        return limit
+
+    assert strain_limit("r001") == {"percent": 1.5, "source": "provisional"}
+    assert strain_limit("r002") == {
+        "percent": 2.0,
+        "source": "bambu-lab-a1-mini-petg version 2",
+    }
