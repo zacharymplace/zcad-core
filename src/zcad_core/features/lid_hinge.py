@@ -28,9 +28,9 @@ import cadquery as cq
 from zcad_core.features.connector_cutouts import ConnectorCutoutParameters
 from zcad_core.features.enclosure_lid import Cavity
 from zcad_core.features.mounts import (
-    FLEXURE_STRAIN_LIMIT,
     Flexure,
     flexure_for,
+    flexure_strain_limit,
 )
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware import FastenerSpec
@@ -417,7 +417,7 @@ def add_hinge(
     # The catch: how long its tongue must be, and so how tall the wall.
     deflection = CATCH_ENGAGEMENT_MM + CATCH_CLEARANCE_MM
     reach = math.ceil(
-        math.sqrt(3 * CATCH_TONGUE_MM * deflection / (2 * FLEXURE_STRAIN_LIMIT))
+        math.sqrt(3 * CATCH_TONGUE_MM * deflection / (2 * flexure_strain_limit()))
     )
     catch = flexure_for(deflection, reach, CATCH_TONGUE_MM)
     hook_top = top - reach + CATCH_HOOK_HEIGHT_MM / 2

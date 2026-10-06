@@ -30,7 +30,7 @@ from zcad_core.features.connector_cutouts import (
     cut_connector_opening,
 )
 from zcad_core.features.enclosure_lid import Cavity
-from zcad_core.features.mounts import FLEXURE_STRAIN_LIMIT, Flexure, flexure_for
+from zcad_core.features.mounts import Flexure, flexure_for, flexure_strain_limit
 from zcad_core.geometry.intersection import intersection_volume
 
 GROOVE_DEPTH_MM = 1.6
@@ -321,7 +321,7 @@ def add_slide(
     # from its root to the bump.
     deflection = _BUMP_ENGAGEMENT_MM + cl
     reach = math.ceil(
-        math.sqrt(3 * TONGUE_MM * deflection / (2 * FLEXURE_STRAIN_LIMIT))
+        math.sqrt(3 * TONGUE_MM * deflection / (2 * flexure_strain_limit()))
     )
     detent = flexure_for(deflection, reach, TONGUE_MM)
     tongue_length = reach + _BUMP_FROM_END_MM

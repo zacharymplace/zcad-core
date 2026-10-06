@@ -913,7 +913,10 @@ def register(
     build.add_argument(
         "--compensation-profile",
         type=Path,
-        help="take hole compensation from this printer and material profile",
+        help=(
+            "take hole compensation from this printer and material profile, and "
+            "its measured strain limit, if it has one, for every flexure"
+        ),
     )
     build.add_argument(
         "--hole-compensation-mm",

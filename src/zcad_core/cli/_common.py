@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from zcad_core.features.mounts import measured_strain_limit
+from zcad_core.profiles import load_compensation_profile
 from zcad_core.retention import (
     UNRECORDED_SLICER_PROFILE,
     CornerCapturePolicy,
@@ -233,3 +237,41 @@ def add_capture_policy_arguments(
             "clear of components (default 4.0; the XIAO ESP32-S3 needs 2.1)."
         ),
     )
+
+
+COMPENSATION_PROFILE_HELP = (
+    "use this printer and material's compensation profile: its measured strain "
+    "limit, if it has one, replaces the provisional 1.5 per cent every flexure "
+    "is checked and sized against"
+)
+
+
+def add_compensation_profile_argument(parser: argparse.ArgumentParser) -> None:
+    """The option that lets a build use measured figures instead of the
+    provisional ones; without it, nothing changes."""
+
+    parser.add_argument(
+        "--compensation-profile", type=Path, help=COMPENSATION_PROFILE_HELP
+    )
+
+
+@contextmanager
+def applied_strain_limit(profile_path: Path | None) -> Iterator[None]:
+    """For one command, hold flexures to the strain limit the profile measured,
+    if the command was given a profile that has one."""
+
+    if profile_path is None:
+        yield
+        return
+
+    profile = load_compensation_profile(profile_path)
+    limit = profile.strain_limit()
+
+    if limit is None:
+        yield
+        return
+
+    source = f"{profile.payload['profile_id']} version {profile.payload['version']}"
+
+    with measured_strain_limit(limit, source):
+        yield

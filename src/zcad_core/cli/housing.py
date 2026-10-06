@@ -7,7 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from zcad_core.cli._common import emit
+from zcad_core.cli._common import add_compensation_profile_argument, emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.housing import (
@@ -209,6 +209,7 @@ def register(
     )
     check.add_argument("file", type=Path)
     check.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
+    add_compensation_profile_argument(check)
     check.set_defaults(handler=_housing_check)
     build = commands.add_parser(
         "build", help="build, validate, and export a housing's parts"
@@ -216,6 +217,7 @@ def register(
     build.add_argument("--housing-file", required=True, type=Path)
     build.add_argument("--output-directory", required=True, type=Path)
     build.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
+    add_compensation_profile_argument(build)
     build.set_defaults(handler=_housing_build)
     trial = commands.add_parser("trial", help="record a print and wear of a housing")
     trial_commands = trial.add_subparsers(dest="trial_command", required=True)

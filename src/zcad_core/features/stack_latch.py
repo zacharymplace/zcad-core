@@ -30,9 +30,10 @@ from typing import Any
 import cadquery as cq
 
 from zcad_core.features.mounts import (
-    FLEXURE_STRAIN_LIMIT,
     flexure_for,
     flexure_payload,
+    flexure_strain_limit,
+    strain_limit_source,
 )
 from zcad_core.features.stack_profile import StackProfile
 
@@ -134,7 +135,8 @@ class LatchPlan:
             "relief_mm": round(self.relief_mm, 3),
             "slit_mm": SLIT_MM,
             "strain_percent": round(100 * self.strain, 2),
-            "strain_limit_percent": round(100 * FLEXURE_STRAIN_LIMIT, 2),
+            "strain_limit_percent": round(100 * flexure_strain_limit(), 2),
+            "strain_limit_source": strain_limit_source(),
             "flexure": flexure_payload(
                 flexure_for(self.deflection_mm, self.reach_mm, self.tongue_thickness_mm)
             ),
@@ -238,7 +240,7 @@ def plan_latch(
     # to pass a baseplate's pocket wall, which stands only the nest clearance from the foot
     # where the lip stands the full gap from it: the hook must clear whichever is nearer.
     deflection = max(engagement_mm, protrusion - profile.min_nest_clearance_mm)
-    reach = math.sqrt(3 * least_wall * deflection / (2 * FLEXURE_STRAIN_LIMIT))
+    reach = math.sqrt(3 * least_wall * deflection / (2 * flexure_strain_limit()))
     reach = math.ceil(reach * 2) / 2
     strain = flexure_for(deflection, reach, least_wall).strain
     length = reach + HOOK_WIDTH_MM / 2

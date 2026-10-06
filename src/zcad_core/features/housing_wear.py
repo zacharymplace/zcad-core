@@ -35,7 +35,11 @@ from typing import Any
 import cadquery as cq
 
 from zcad_core.features.housing_skin import round_free_skin_edge
-from zcad_core.features.mounts import FLEXURE_STRAIN_LIMIT, flexure_for
+from zcad_core.features.mounts import (
+    flexure_for,
+    flexure_strain_limit,
+    strain_limit_source,
+)
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.geometry.outline_prism import outline_prism
 from zcad_core.hardware.electronics import board_outline
@@ -322,15 +326,15 @@ def _clip(
     errors: list[str] = []
     flexure = flexure_for(deflection, max(arm, 0.1), CLIP_THICKNESS_MM)
 
-    if arm <= 0 or flexure.strain > FLEXURE_STRAIN_LIMIT:
+    if arm <= 0 or flexure.strain > flexure_strain_limit():
         needed = math.ceil(
-            math.sqrt(3 * CLIP_THICKNESS_MM * deflection / (2 * FLEXURE_STRAIN_LIMIT))
+            math.sqrt(3 * CLIP_THICKNESS_MM * deflection / (2 * flexure_strain_limit()))
         )
         errors.append(
             f"The housing is {body.length:.1f} mm long, so the belt clip's spring arm "
             f"is {max(arm, 0.0):.1f} mm and would strain "
             f"{100 * flexure.strain:.1f} per cent, over the "
-            f"{100 * FLEXURE_STRAIN_LIMIT:g} per cent limit: it needs an arm "
+            f"{100 * flexure_strain_limit():g} per cent limit: it needs an arm "
             f"{needed} mm long"
         )
 
@@ -364,7 +368,8 @@ def _clip(
         "arm_thickness_mm": CLIP_THICKNESS_MM,
         "deflection_mm": round(deflection, 3),
         "strain_percent": round(100 * flexure.strain, 2),
-        "strain_limit_percent": round(100 * FLEXURE_STRAIN_LIMIT, 2),
+        "strain_limit_percent": round(100 * flexure_strain_limit(), 2),
+        "strain_limit_source": strain_limit_source(),
     }
 
     return add, cut, summary, errors

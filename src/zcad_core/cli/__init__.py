@@ -43,6 +43,7 @@ from zcad_core.cli import (
     trial,
     wearable,
 )
+from zcad_core.cli._common import applied_strain_limit
 
 _COMMAND_GROUPS = (
     target,
@@ -92,7 +93,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args.argv = list(sys.argv[1:] if argv is None else argv)
 
     try:
-        return int(args.handler(args))
+        # Measured figures apply only to a command given a profile.
+        with applied_strain_limit(getattr(args, "compensation_profile", None)):
+            return int(args.handler(args))
     except (
         ValueError,
         TypeError,

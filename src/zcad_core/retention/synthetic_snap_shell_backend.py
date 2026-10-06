@@ -8,7 +8,7 @@ from math import hypot
 
 import cadquery as cq
 
-from zcad_core.features.mounts import FLEXURE_STRAIN_LIMIT, Flexure, flexure_for
+from zcad_core.features.mounts import Flexure, flexure_for, flexure_strain_limit
 from zcad_core.features.snap_retention import (
     SnapRetentionClipParameters,
     add_snap_retention_clip,
@@ -170,7 +170,7 @@ class SyntheticSnapShellBackend:
 
         anchor_passed = self._anchor_separation_passed(parameters)
         flexure = clip_flexure(parameters)
-        strain_passed = flexure.strain <= FLEXURE_STRAIN_LIMIT
+        strain_passed = flexure.strain <= flexure_strain_limit()
         covered = self._covered_face_features(parameters, shell_shape)
 
         return SnapShellFitReport(
@@ -503,7 +503,7 @@ def clip_flexure(parameters: SnapShellParameters) -> Flexure:
             length_mm=max(length, 0.0),
             deflection_mm=parameters.overhang_mm,
             strain=float("inf"),
-            strain_limit=FLEXURE_STRAIN_LIMIT,
+            strain_limit=flexure_strain_limit(),
         )
 
     return flexure_for(parameters.overhang_mm, length, parameters.wall_mm)
@@ -516,7 +516,7 @@ def _strain_detail(flexure: Flexure, passed: bool, *, tab: bool) -> str:
         f"{flexure.length_mm:.2f} mm to swing {flexure.deflection_mm:g} mm "
         f"strains {100 * flexure.strain:.1f} per cent"
     )
-    limit = f"the {100 * FLEXURE_STRAIN_LIMIT:g} per cent limit"
+    limit = f"the {100 * flexure_strain_limit():g} per cent limit"
 
     if passed:
         return f"{strain}, within {limit}."
@@ -528,10 +528,10 @@ def _strain_detail(flexure: Flexure, passed: bool, *, tab: bool) -> str:
 
     # The longest stem and the thickest wall that stay within the limit.
     needed = math.sqrt(
-        3 * flexure.thickness_mm * flexure.deflection_mm / (2 * FLEXURE_STRAIN_LIMIT)
+        3 * flexure.thickness_mm * flexure.deflection_mm / (2 * flexure_strain_limit())
     )
     thinnest = (
-        2 * FLEXURE_STRAIN_LIMIT * flexure.length_mm**2 / (3 * flexure.deflection_mm)
+        2 * flexure_strain_limit() * flexure.length_mm**2 / (3 * flexure.deflection_mm)
     )
 
     return (

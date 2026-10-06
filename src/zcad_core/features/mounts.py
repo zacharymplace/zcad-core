@@ -11,6 +11,9 @@ to sit between the plate and the floor.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
@@ -73,7 +76,9 @@ _DIN_LATCH_HOOK_WIDTH_MM = 8.0
 FLEXURE_THICKNESS_MM = 1.6
 _DIN_SWING_MARGIN_MM = 0.3
 # A design strain limit for a printed PETG tongue, well under the material's
-# yield; provisional until a print trial measures it.
+# yield; provisional until a print trial measures it. Every flexure is checked
+# and sized against it unless a build is given a compensation profile with a
+# measured limit (see flexure_strain_limit).
 FLEXURE_STRAIN_LIMIT = 0.015
 _DIN_INNER_SLIT_MM = 0.8
 _DIN_END_SLIT_MM = 1.0
@@ -512,6 +517,55 @@ def _vesa_plate(
     )
 
 
+@dataclass(frozen=True)
+class StrainLimit:
+    """The strain limit flexures are held to, and where it came from:
+    ``provisional``, or the compensation profile that measured it."""
+
+    value: float
+    source: str
+
+
+PROVISIONAL_STRAIN_LIMIT = StrainLimit(FLEXURE_STRAIN_LIMIT, "provisional")
+_STRAIN_LIMIT: ContextVar[StrainLimit] = ContextVar(
+    "strain_limit", default=PROVISIONAL_STRAIN_LIMIT
+)
+
+
+def flexure_strain_limit() -> float:
+    """The strain every flexure is checked and sized against now: the
+    provisional limit, or a measured one a build has asked for."""
+
+    return _STRAIN_LIMIT.get().value
+
+
+def strain_limit_source() -> str:
+    """Where :func:`flexure_strain_limit` comes from, for a build's record."""
+
+    return _STRAIN_LIMIT.get().source
+
+
+@contextmanager
+def measured_strain_limit(value: float, source: str) -> Iterator[StrainLimit]:
+    """Hold flexures to a measured strain limit for the length of one build.
+    A build opts in by passing a compensation profile; nothing changes for one
+    that does not."""
+
+    if not 0 < value < 0.2:
+        raise ValueError(
+            f"A strain limit of {100 * value:g} per cent is not a plausible "
+            "measurement for printed plastic"
+        )
+
+    limit = StrainLimit(value, source)
+    token = _STRAIN_LIMIT.set(limit)
+
+    try:
+        yield limit
+    finally:
+        _STRAIN_LIMIT.reset(token)
+
+
 def flexure_for(
     deflection_mm: float,
     reach_mm: float,
@@ -527,7 +581,7 @@ def flexure_for(
         length_mm=reach_mm,
         deflection_mm=deflection_mm,
         strain=strain,
-        strain_limit=FLEXURE_STRAIN_LIMIT,
+        strain_limit=flexure_strain_limit(),
     )
 
 
@@ -608,7 +662,7 @@ def _din_plate(
     # the latch hook's centre, where the flange pushes.
     # Solved from the limit and rounded up, so the strain is within it by
     # construction; the flexure is recorded, not refused.
-    reach = math.ceil(math.sqrt(3 * t * swing / (2 * FLEXURE_STRAIN_LIMIT)))
+    reach = math.ceil(math.sqrt(3 * t * swing / (2 * flexure_strain_limit())))
     length = reach + _DIN_LATCH_HOOK_WIDTH_MM / 2 + 1.0
     flexure = flexure_for(swing, reach)
 

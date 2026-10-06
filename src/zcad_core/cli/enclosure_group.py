@@ -16,7 +16,7 @@ from pathlib import Path
 
 import cadquery as cq
 
-from zcad_core.cli._common import emit
+from zcad_core.cli._common import add_compensation_profile_argument, emit
 from zcad_core.cli.enclosure import hinge_payload, slide_payload
 from zcad_core.cli.enclosure_group_bays import _bay_summary, _bays
 from zcad_core.cli.enclosure_group_join import _add_joint_arguments, _check_join, _size
@@ -467,6 +467,7 @@ def register(
             "uses it to compare what was printed"
         ),
     )
+    add_compensation_profile_argument(build)
     build.set_defaults(handler=_group_build)
 
     trial = commands.add_parser("trial", help="record a print of a built group")

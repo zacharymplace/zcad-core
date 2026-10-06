@@ -33,7 +33,7 @@ from dataclasses import dataclass
 
 import cadquery as cq
 
-from zcad_core.features.mounts import FLEXURE_STRAIN_LIMIT, Flexure, flexure_for
+from zcad_core.features.mounts import Flexure, flexure_for, flexure_strain_limit
 from zcad_core.geometry.outline_prism import outline_prism
 from zcad_core.hardware.electronics import board_outline
 from zcad_core.hardware.wearables import FaceFeature, WearableCapture
@@ -188,14 +188,14 @@ def plan_cradle(
 
     flexure = flexure_for(OVERHANG_MM, TAB_LENGTH_MM, wall_mm)
 
-    if flexure.strain > FLEXURE_STRAIN_LIMIT:
+    if flexure.strain > flexure_strain_limit():
         needed = math.ceil(
-            math.sqrt(3 * wall_mm * OVERHANG_MM / (2 * FLEXURE_STRAIN_LIMIT))
+            math.sqrt(3 * wall_mm * OVERHANG_MM / (2 * flexure_strain_limit()))
         )
         errors.append(
             f"A {wall_mm:g} mm wall's {TAB_LENGTH_MM:g} mm tab strains "
             f"{100 * flexure.strain:.1f} per cent, over the "
-            f"{100 * FLEXURE_STRAIN_LIMIT:g} per cent limit: it needs a tab "
+            f"{100 * flexure_strain_limit():g} per cent limit: it needs a tab "
             f"{needed} mm long, or a thinner wall"
         )
 
