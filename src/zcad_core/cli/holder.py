@@ -1,4 +1,5 @@
-"""zcad-validation holder template, check and build: a holder that hangs an object on a wall."""
+"""zcad-validation holder template, check, build and trial: a holder that hangs an object on a
+wall, and the record of printing it."""
 
 from __future__ import annotations
 
@@ -10,6 +11,7 @@ from typing import Any
 
 from zcad_core.cli._common import add_compensation_profile_argument, emit
 from zcad_core.exporters import ExportRequest, export_parts
+from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.holder import (
     build_holder,
     print_oriented,
@@ -17,6 +19,11 @@ from zcad_core.features.holder import (
     write_holder_record,
 )
 from zcad_core.features.holder_file import holder_template, inspect_holder_file
+from zcad_core.features.holder_trial import (
+    complete_holder_trial,
+    holder_verification,
+    start_holder_trial,
+)
 from zcad_core.profiles import load_compensation_profile, load_printer_profile
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
@@ -169,6 +176,46 @@ def _holder_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def _holder_trial_start(args: argparse.Namespace) -> int:
+    trial = start_holder_trial(args.build_record)
+    emit(
+        {
+            "trial": str(trial),
+            "observations": str(trial / "observations.json"),
+            "measurements": str(trial / "measurements.json"),
+            "use": str(trial / "use.json"),
+        }
+    )
+
+    return 0
+
+
+def _holder_trial_complete(args: argparse.Namespace) -> int:
+    record = complete_holder_trial(
+        args.trial_directory,
+        disposition=EnclosureTrialDisposition(args.disposition),
+        material_profile_id=args.material_profile,
+        notes=args.notes,
+    )
+    emit(
+        {
+            "trial_record": str(record),
+            "passed": json.loads(record.read_text(encoding="utf-8"))["passed"],
+            "verification": holder_verification(
+                args.trial_directory.parent.parent / "holder.json"
+            ),
+        }
+    )
+
+    return 0
+
+
+def _holder_trial_status(args: argparse.Namespace) -> int:
+    emit(holder_verification(args.build_record))
+
+    return 0
+
+
 def register(
     subcommands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
@@ -207,3 +254,32 @@ def register(
     build.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
     add_compensation_profile_argument(build)
     build.set_defaults(handler=_holder_build)
+
+    trial = commands.add_parser(
+        "trial", help="record a print of a holder and how it held the object"
+    )
+    trial_commands = trial.add_subparsers(dest="trial_command", required=True)
+    trial_start = trial_commands.add_parser(
+        "start",
+        help="write the next trial's observation, measurement and use templates",
+    )
+    trial_start.add_argument("--build-record", required=True, type=Path)
+    trial_start.set_defaults(handler=_holder_trial_start)
+    trial_complete = trial_commands.add_parser(
+        "complete", help="validate a filled-in trial and write its record"
+    )
+    trial_complete.add_argument("--trial-directory", required=True, type=Path)
+    trial_complete.add_argument(
+        "--disposition",
+        required=True,
+        choices=[disposition.value for disposition in EnclosureTrialDisposition],
+    )
+    trial_complete.add_argument("--material-profile", default="petg")
+    trial_complete.add_argument("--notes", default="")
+    trial_complete.set_defaults(handler=_holder_trial_complete)
+    trial_status = trial_commands.add_parser(
+        "status",
+        help="whether a build is verified: two passing trials of that build record",
+    )
+    trial_status.add_argument("--build-record", required=True, type=Path)
+    trial_status.set_defaults(handler=_holder_trial_status)
