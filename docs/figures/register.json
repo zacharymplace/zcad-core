@@ -65,6 +65,51 @@
     "features/board_promotion.py:MINIMUM_TRIALS": {
       "status": "unstated"
     },
+    "features/calibration_coupon.py:FEATURE_GAP_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:HOLE_COUNT": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:MARGIN_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:MINIMUM_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:NOTCH_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:PLATE_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:POCKET_DEPTH_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:POCKET_LENGTH_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:POCKET_WIDTHS_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:ROW_GAP_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:SLOT_CHEEK_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:SLOT_DEPTH_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:SLOT_HEIGHTS_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:SLOT_ROOF_MM": {
+      "status": "unstated"
+    },
+    "features/calibration_coupon.py:SLOT_SPAN_MM": {
+      "status": "unstated"
+    },
     "features/connector_cutouts.py:ConnectorCutoutParameters.cutter_depth_mm": {
       "status": "unstated"
     },

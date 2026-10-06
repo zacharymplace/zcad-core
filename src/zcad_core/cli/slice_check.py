@@ -36,7 +36,11 @@ from zcad_core.printing.provenance import changed_since
 SUMMARY_NAME = "slice-summary.json"
 RECIPE_SCHEMA_VERSION = "1.0.0"
 # Only these build anything; a revision's recipe would revise again.
-_BUILD_COMMANDS = (("enclosure", "build"), ("enclosure-group", "build"))
+_BUILD_COMMANDS = (
+    ("enclosure", "build"),
+    ("enclosure-group", "build"),
+    ("coupon", "build"),
+)
 # What the rebuild leaves out: where it writes, and the work it does not need.
 _DROPPED_FLAGS = frozenset({"--slice", "--review"})
 _DROPPED_OPTIONS = frozenset({"--output-directory", "--slicer-profile"})
