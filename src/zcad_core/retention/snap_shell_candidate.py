@@ -39,6 +39,7 @@ from pathlib import Path
 
 import cadquery as cq
 
+from zcad_core.features.mounts import flexure_strain_limit, strain_limit_source
 from zcad_core.hardware.wearables import (
     EdgeFeature,
     FaceFeature,
@@ -191,6 +192,14 @@ def parse_arguments(argv: Sequence[str] | None, description: str) -> argparse.Na
         "--capture",
         type=Path,
         help="a caliper capture to build from; see docs/guides/wearable-capture.md",
+    )
+    parser.add_argument(
+        "--compensation-profile",
+        type=Path,
+        help=(
+            "hold the clips to this printer and material profile's measured strain "
+            "limit, if it has one, instead of the provisional 1.5 per cent"
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -596,6 +605,11 @@ def _report(
         ],
         "policy": retention_policy,
         "fit_checks": fit_results,
+        # Which limit the clip strain check held them to, and where it came from.
+        "strain_limit": {
+            "percent": round(100 * flexure_strain_limit(), 3),
+            "source": strain_limit_source(),
+        },
         "clips_into_device_mm3": round(clips_into_device_mm3, 3),
         "metadata_publication": (
             {

@@ -27,6 +27,7 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
+from zcad_core.cli._common import applied_strain_limit
 from zcad_core.hardware.wearables import get_tandem_mobi
 from zcad_core.retention.snap_shell_candidate import (
     WearableTarget,
@@ -78,9 +79,11 @@ def main(argv: Sequence[str] | None = None, root: Path = ROOT) -> None:
         source=spec.geometry_source,
         capture_path=args.capture,
     )
-    register_snap_shell_candidate(
-        TARGET, body, args, root=root, git_commit=git_commit(root)
-    )
+    # A measured strain limit applies only when the profile is asked for.
+    with applied_strain_limit(args.compensation_profile):
+        register_snap_shell_candidate(
+            TARGET, body, args, root=root, git_commit=git_commit(root)
+        )
 
 
 if __name__ == "__main__":
