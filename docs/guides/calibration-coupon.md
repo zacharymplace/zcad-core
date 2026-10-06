@@ -61,7 +61,11 @@ scripts/backup-evidence.sh
 
 On a print day, answer it on the Fixture Fit Trials checklist with the other prints
 instead, as `measured`, or `fail` if it did not print; `record-print-day.py` records
-it with them (see [the Validation Lab workflow](validation-lab-workflow.md)).
+it with them (see [the Validation Lab workflow](validation-lab-workflow.md)), and
+shows what the compensation profile would become.
+
+The G7 and Mobi snap-shell scripts take `--compensation-profile` too, and their
+candidate records the strain limit their clips were held to.
 
 A coupon has no disposition: what it measured is the result. A tongue can be
 `skipped` if you did not test it.
