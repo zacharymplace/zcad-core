@@ -14,7 +14,15 @@ fixtures and enclosures:
   a wall's growth on each side, so half its width's shortfall gives
   ``side_gap_shortfall_mm``, the per-side figure a fixture's side gap reads; and
 - **slots** under a bridge, at the heights a fixture's vertical play is modelled
-  at; their measured heights give ``vertical_play_shortfall_mm``.
+  at; their measured heights give ``vertical_play_shortfall_mm``; and
+- **tongues**, upright posts each bent back against a stop through the deflection
+  that strains it to its own figure, 1 to 4 per cent by the end-loaded cantilever
+  every flexure check uses (:func:`zcad_core.features.mounts.flexure_for`). Which
+  spring back unharmed and which crack or stay bent gives the profile's
+  ``strain_limit``. A post bends across its printed layers, the weakest way
+  printed plastic bends, so the limit it gives is the cautious one for a flexure
+  bending along its layers too; and it prints with no overhang, as a tongue lying
+  in a layer could not.
 
 A notch in the front-left corner orients it. The build writes the coupon's STL and
 ``coupon.json``, the record of every feature's name, kind, figure, nominal size and
@@ -27,8 +35,8 @@ The coupon is built with no hole compensation, so it measures the printer itself
 the record says so (``hole_compensation_mm`` is 0).
 
 Frame: the plate's front-left corner at the origin, its top face at ``z == PLATE_MM``;
-the holes are the front row, then the pockets, then the slots, each row left to
-right in the order of its record.
+the holes are the front row, then the pockets, the slots and the tongues, each row
+left to right in the order of its record. A tongue's stop stands behind it.
 """
 
 from __future__ import annotations
@@ -42,6 +50,7 @@ from typing import Any
 
 import cadquery as cq
 
+from zcad_core.features.mounts import flexure_for
 from zcad_core.hardware import FastenerSpec
 
 COUPON_SCHEMA_VERSION = "1.0.0"
@@ -70,6 +79,14 @@ SLOT_SPAN_MM = 8.0
 SLOT_DEPTH_MM = 8.0
 SLOT_ROOF_MM = 1.6
 SLOT_CHEEK_MM = 1.5
+# Tongues: posts as long and as thick as the flexures they stand for (a snap
+# clip's 1 mm wall), bent to these strains; the stop beside each sets how far.
+TONGUE_STRAINS = (0.01, 0.015, 0.02, 0.03, 0.04)
+TONGUE_LENGTH_MM = 12.0
+TONGUE_THICKNESS_MM = 1.0
+TONGUE_WIDTH_MM = 4.0
+TONGUE_STOP_MM = 2.0
+TONGUE_ORIENTATION = "across_layers"
 NOTCH_MM = 3.0
 # The least plastic left between two neighbouring features.
 MINIMUM_WALL_MM = 1.2
@@ -87,6 +104,12 @@ GUIDANCE = {
     POCKET: "Calipers' inside jaws across the pocket, left to right, halfway along it.",
     SLOT: "Feeler gauges: the thickest that slides under the bridge without forcing.",
 }
+TONGUE_GUIDANCE = (
+    "Push the post's top back until it touches its stop, hold it there for five "
+    "seconds, and let go: pass if it springs back upright with no crack or white "
+    "mark, fail if it cracks, whitens or stays bent; skipped if you did not test it."
+)
+TONGUE_RESULTS = ("pass", "fail", "skipped")
 CHECKS = (
     (
         "printed_cleanly",
@@ -116,13 +139,69 @@ class CouponFeature:
 
 
 @dataclass(frozen=True)
+class Tongue:
+    """One tongue: the strain it is bent to, the deflection its stop allows, and
+    where its post's middle is on the plate."""
+
+    name: str
+    strain: float
+    deflection_mm: float
+    x_mm: float
+    y_mm: float
+
+
+@dataclass(frozen=True)
 class Coupon:
-    """The coupon as built: its features, its size, and its solid."""
+    """The coupon as built: its features, its tongues, its size, and its solid."""
 
     fastener: str
     features: tuple[CouponFeature, ...]
+    tongues: tuple[Tongue, ...]
     size_mm: tuple[float, float, float]
     solid: cq.Workplane
+
+
+def tongue_deflection_mm(strain: float) -> float:
+    """How far a tongue's tip must swing to reach ``strain``: the end-loaded
+    cantilever's strain, 3 t d / (2 L^2), solved for d."""
+
+    return 2 * strain * TONGUE_LENGTH_MM**2 / (3 * TONGUE_THICKNESS_MM)
+
+
+def coupon_tongues(front_mm: float) -> tuple[Tongue, ...]:
+    """The tongues in a row whose front edge is at ``front_mm``, left to right
+    from the gentlest strain."""
+
+    tongues = []
+    left = MARGIN_MM
+
+    for strain in TONGUE_STRAINS:
+        percent = f"{strain * 100:g}".replace(".", "_")
+        tongues.append(
+            Tongue(
+                name=f"tongue_{percent}_percent",
+                strain=strain,
+                deflection_mm=tongue_deflection_mm(strain),
+                x_mm=left + TONGUE_WIDTH_MM / 2,
+                y_mm=front_mm + TONGUE_THICKNESS_MM / 2,
+            )
+        )
+        left += TONGUE_WIDTH_MM + FEATURE_GAP_MM
+
+    return tuple(tongues)
+
+
+def _tongue_footprint(tongue: Tongue) -> tuple[float, float, float, float]:
+    """The post and its stop, from the post's front face to the stop's back."""
+
+    front = tongue.y_mm - TONGUE_THICKNESS_MM / 2
+
+    return (
+        tongue.x_mm - TONGUE_WIDTH_MM / 2,
+        tongue.x_mm + TONGUE_WIDTH_MM / 2,
+        front,
+        front + TONGUE_THICKNESS_MM + tongue.deflection_mm + TONGUE_STOP_MM,
+    )
 
 
 def _slug(value: float) -> str:
@@ -198,15 +277,22 @@ def _footprint(feature: CouponFeature) -> tuple[float, float, float, float]:
     )
 
 
-def plate_size_mm(features: tuple[CouponFeature, ...]) -> tuple[float, float, float]:
-    """The plate: every feature and the margin round it, as tall as the
-    tallest slot's roof."""
+def plate_size_mm(
+    features: tuple[CouponFeature, ...], tongues: tuple[Tongue, ...] = ()
+) -> tuple[float, float, float]:
+    """The plate: every feature and tongue and the margin round them, as tall as
+    the tallest slot's roof or tongue."""
 
-    boxes = [_footprint(feature) for feature in features]
+    boxes = [_footprint(feature) for feature in features] + [
+        _tongue_footprint(tongue) for tongue in tongues
+    ]
     tallest = max(
-        feature.nominal_mm + SLOT_ROOF_MM
-        for feature in features
-        if feature.kind == SLOT
+        [
+            feature.nominal_mm + SLOT_ROOF_MM
+            for feature in features
+            if feature.kind == SLOT
+        ]
+        + ([TONGUE_LENGTH_MM] if tongues else [])
     )
 
     return (
@@ -230,7 +316,10 @@ def build_coupon(fastener: FastenerSpec) -> Coupon:
     """The plate with every feature cut into it or stood on it."""
 
     features = coupon_features(fastener)
-    length, width, _ = plate_size_mm(features)
+    tongues = coupon_tongues(
+        max(_footprint(feature)[3] for feature in features) + ROW_GAP_MM
+    )
+    length, width, _ = plate_size_mm(features, tongues)
     solid = _box((0.0, length), (0.0, width), (0.0, PLATE_MM))
     solid = solid.cut(_box((-1.0, NOTCH_MM), (-1.0, NOTCH_MM), (-1.0, PLATE_MM + 1.0)))
 
@@ -270,10 +359,19 @@ def build_coupon(fastener: FastenerSpec) -> Coupon:
             )
             solid = solid.union(block).cut(slot)
 
+    top = PLATE_MM + TONGUE_LENGTH_MM
+
+    for tongue in tongues:
+        x0, x1, y0, y1 = _tongue_footprint(tongue)
+        post = _box((x0, x1), (y0, y0 + TONGUE_THICKNESS_MM), (0.0, top))
+        stop = _box((x0, x1), (y1 - TONGUE_STOP_MM, y1), (0.0, top))
+        solid = solid.union(post).union(stop)
+
     return Coupon(
         fastener=fastener.identifier,
         features=features,
-        size_mm=plate_size_mm(features),
+        tongues=tongues,
+        size_mm=plate_size_mm(features, tongues),
         solid=solid,
     )
 
@@ -283,7 +381,9 @@ def _least_wall_mm(coupon: Coupon) -> float:
     the plate's edges or the orientation notch."""
 
     length, width, _ = coupon.size_mm
-    boxes = [_footprint(feature) for feature in coupon.features]
+    boxes = [_footprint(feature) for feature in coupon.features] + [
+        _tongue_footprint(tongue) for tongue in coupon.tongues
+    ]
     least = float("inf")
 
     for index, (x0, x1, y0, y1) in enumerate(boxes):
@@ -372,6 +472,27 @@ def write_coupon_record(
         "nominal_measurements_mm": {
             feature.name: feature.nominal_mm for feature in coupon.features
         },
+        "tongue_orientation": TONGUE_ORIENTATION,
+        "tongues": [
+            {
+                "name": tongue.name,
+                "strain": tongue.strain,
+                "deflection_mm": round(tongue.deflection_mm, 3),
+                "length_mm": TONGUE_LENGTH_MM,
+                "thickness_mm": TONGUE_THICKNESS_MM,
+                # The strain the engine's own formula gives this tongue, so the
+                # record shows the two agree.
+                "modelled_strain": round(
+                    flexure_for(
+                        tongue.deflection_mm, TONGUE_LENGTH_MM, TONGUE_THICKNESS_MM
+                    ).strain,
+                    6,
+                ),
+                "x_mm": round(tongue.x_mm, 3),
+                "y_mm": round(tongue.y_mm, 3),
+            }
+            for tongue in coupon.tongues
+        ],
         "parts": {
             "coupon": {"stl_path": str(stl_path), "stl_sha256": sha256(stl_path)}
         },
@@ -408,6 +529,17 @@ def start_coupon_trial(build_record_path: Path) -> Path:
         check: {"result": "pending", "guidance": guidance, "notes": ""}
         for check, guidance in CHECKS
     }
+    observations.update(
+        {
+            tongue["name"]: {
+                "result": "pending",
+                "guidance": TONGUE_GUIDANCE,
+                "strain": tongue["strain"],
+                "notes": "",
+            }
+            for tongue in build.get("tongues", [])
+        }
+    )
     measurements = {
         feature["name"]: {
             "nominal_mm": feature["nominal_mm"],
@@ -425,6 +557,34 @@ def start_coupon_trial(build_record_path: Path) -> Path:
     )
 
     return trial
+
+
+def _tongue_results(
+    build: dict[str, Any], observed: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Each tongue tested, and whether it survived; a skipped one is left out."""
+
+    tongues = []
+
+    for tongue in build.get("tongues", []):
+        result = observed.get(tongue["name"], {}).get("result")
+
+        if result not in TONGUE_RESULTS:
+            raise ValueError(
+                f"{tongue['name']} must be pass, fail or skipped, not {result}"
+            )
+
+        if result != "skipped":
+            tongues.append(
+                {
+                    "name": tongue["name"],
+                    "strain": tongue["strain"],
+                    "survived": result == "pass",
+                    "notes": str(observed[tongue["name"]].get("notes", "")),
+                }
+            )
+
+    return tongues
 
 
 def complete_coupon_trial(
@@ -496,8 +656,12 @@ def complete_coupon_trial(
             }
         )
 
-    if not measurements:
-        raise ValueError("A coupon trial needs at least one measured feature")
+    tongues = _tongue_results(build, observed)
+
+    if not measurements and not tongues:
+        raise ValueError(
+            "A coupon trial needs at least one measured feature or tested tongue"
+        )
 
     failed = [entry["check"] for entry in observations if not entry["passed"]]
     record = {
@@ -513,6 +677,8 @@ def complete_coupon_trial(
         "failed_checks": failed,
         "observations": observations,
         "measurements": measurements,
+        "tongue_orientation": build.get("tongue_orientation", TONGUE_ORIENTATION),
+        "tongues": tongues,
         "notes": notes,
     }
     record_path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")

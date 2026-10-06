@@ -38,9 +38,10 @@ This repository intentionally contains no product-specific models.
   enclosure with the core engine from Python.
 - `docs/guides/validation-lab-workflow.md` takes a board from its vendor STEP
   model to a promoted, validated fixture candidate.
-- `zcad-validation coupon build --slice` builds a calibration coupon, an
-  18-minute print whose measurements tell every build how this printer prints
-  holes, gaps and bridges; see `docs/guides/calibration-coupon.md`.
+- `zcad-validation coupon build --slice` builds a calibration coupon, a
+  32-minute print whose measurements tell every build how this printer prints
+  holes, gaps and bridges, and how far its plastic bends before it breaks; see
+  `docs/guides/calibration-coupon.md`.
 - `zcad-validation wearable template` starts a caliper capture of a sealed
   device, and `zcad-validation housing build` builds something to wear it in;
   see `docs/guides/wearable-capture.md` and `docs/guides/wearable-housing.md`.
