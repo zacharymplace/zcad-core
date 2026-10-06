@@ -36,6 +36,9 @@ This repository intentionally contains no product-specific models.
   viewer of it. See `docs/guides/pi5-group-enclosure.md`.
 - `examples/pico2_oled_enclosure.py` designs, checks, and exports an
   enclosure with the core engine from Python.
+- `examples/kicad_board.py` imports a KiCad board (its outline, holes, parts,
+  cable connector and test points) and builds an enclosure and a test fixture
+  for it; see `docs/guides/board-file.md`.
 - `docs/guides/validation-lab-workflow.md` takes a board from its vendor STEP
   model to a promoted, validated fixture candidate.
 - `zcad-validation coupon build --slice` builds a calibration coupon, a

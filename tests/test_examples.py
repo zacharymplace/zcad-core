@@ -63,6 +63,37 @@ def test_pi5_group_enclosure_exports_a_validated_base_and_lid_and_a_viewer(
     assert (viewer / "index.html").read_text(encoding="utf-8").startswith("<!doctype")
 
 
+def test_kicad_board_gives_a_board_file_an_enclosure_and_a_fixture(
+    tmp_path: Path,
+) -> None:
+    example = load_example("kicad_board")
+
+    board_file, enclosure, fixture, exported = example.main(tmp_path)
+    board = json.loads(board_file.read_text(encoding="utf-8"))
+
+    assert "needs_review" not in board
+    assert board["cable_connector"]["identifier"] == "J1"
+    assert sorted(part["identifier"] for part in board["components"]) == [
+        "C1_C2_C3",
+        "R1_R2",
+        "U1",
+    ]
+    assert [point["net"] for point in board["test_points"]] == [
+        "GND",
+        "3V3",
+        "SDA",
+        "SCL",
+    ]
+    assert [part.part_name for part in enclosure.parts] == ["base", "lid"]
+    assert enclosure.validation_report["evaluated_status"] == "PASS"
+    assert fixture.passed
+    assert len(fixture.plan.points) == 4
+    assert exported.validation_report["evaluated_status"] == "PASS"
+    for part in (*enclosure.parts, *exported.parts):
+        assert part.step_path.is_file()
+        assert part.stl_path.is_file()
+
+
 def test_pi5_group_example_command_line_spelling_matches_its_bays() -> None:
     example = load_example("pi5_group_enclosure")
     written = tuple(
