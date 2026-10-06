@@ -45,6 +45,10 @@ zcad-validation compensation derive
 scripts/backup-evidence.sh
 ```
 
+On a print day, answer it on the Fixture Fit Trials checklist with the other prints
+instead, as `measured`, or `fail` if it did not print; `record-print-day.py` records
+it with them (see [the Validation Lab workflow](validation-lab-workflow.md)).
+
 A coupon has no disposition: what it measured is the result. A feature left
 unmeasured is left out. A profile needs at least two recorded trials, so print two
 coupons, or one coupon and a fixture or enclosure trial, before deriving one. An
