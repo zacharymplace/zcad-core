@@ -810,6 +810,9 @@
       "status": "design_default",
       "note": "A design value: the longest a tab's flat-bottomed hook printed upright may reach in from the wall; the holding nest's own lip reaches up to 2.0 mm past its clearance"
     },
+    "features/holder_trial.py:MINIMUM_TRIALS_TO_VERIFY": {
+      "status": "unstated"
+    },
     "features/housing.py:SKIN_CORNER_MARGIN_MM": {
       "status": "unstated"
     },

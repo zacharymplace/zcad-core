@@ -55,12 +55,13 @@ from zcad_core.features.holder_tabs import (
     plan_tabs,
     tab_solids,
 )
+from zcad_core.features.holder_trial import holder_checks
 from zcad_core.features.nest_core import clear, lifts_out
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.geometry.outline_prism import outline_prism
 from zcad_core.hardware.wearables.capture import WearableCapture
 
-HOLDER_RECORD_SCHEMA_VERSION = "1.2.0"
+HOLDER_RECORD_SCHEMA_VERSION = "1.3.0"
 HOLDER_RECORD = "holder.json"
 RECORD_KIND = "holder-build"
 NOT_CLAIMED = (
@@ -667,6 +668,26 @@ def print_oriented(holder: Holder) -> cq.Workplane:
     return holder.body.translate((0, 0, holder.spec.floor_mm))
 
 
+def _nominal_measurements(holder: Holder) -> dict[str, float]:
+    """The sizes a trial measures with calipers, in mm: the holder as built, the pocket as
+    designed, and the walls."""
+
+    width, depth, height = holder.size_mm
+    p, clearance, spec = holder.placed, holder.clearance_mm, holder.spec
+
+    return {
+        "overall_width_mm": round(width, 3),
+        "overall_depth_mm": round(depth, 3),
+        "overall_height_mm": round(height, 3),
+        "pocket_width_mm": round(p.width_mm + 2 * clearance, 3),
+        "pocket_depth_mm": round(p.depth_mm + 2 * clearance, 3),
+        "front_mm": round(holder.front_mm, 3),
+        "wall_mm": spec.wall_mm,
+        "floor_mm": spec.floor_mm,
+        "back_mm": spec.back_mm,
+    }
+
+
 def _object_record(holder: Holder) -> dict[str, Any]:
     item, spec = holder.item, holder.spec
 
@@ -743,6 +764,10 @@ def holder_record(holder: Holder, files: dict[str, dict[str, Any]]) -> dict[str,
         "tolerance_status": holder.tolerance_status,
         "parts": files,
         "fit_checks": holder.checks,
+        "checks": holder_checks(
+            mount=spec.mount, openings=bool(holder.openings), tabs=bool(holder.tabs)
+        ),
+        "nominal_measurements_mm": _nominal_measurements(holder),
         "verified": False,
         "not_claimed": NOT_CLAIMED,
     }

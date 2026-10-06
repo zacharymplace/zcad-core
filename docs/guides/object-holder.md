@@ -115,6 +115,26 @@ The holder prints as it hangs, floor down, so its walls are vertical. Every hole
 pointed up, and a keyhole's slot and channel end in a 45-degree point. Two things do overhang: a pegboard peg's underside, for its reach behind the plate
 (at most 12 mm, or it is refused), and a tab's hook (at most 2.5 mm). A trial says whether either droops. A holder larger than the printer's bed is refused.
 
+## Trying a print
+
+Print the holder, hang it, and use it with the real object, then record it:
+
+```bash
+zcad-validation holder trial start --build-record exports/remote-holder/holder.json
+# fill in observations.json, measurements.json and use.json in the trial's folder, then:
+zcad-validation holder trial complete --trial-directory exports/remote-holder/trials/trial-001 --disposition pass
+zcad-validation holder trial status --build-record exports/remote-holder/holder.json
+```
+
+`observations.json` asks the checks that apply to this holder: it printed cleanly; the object goes in, lifts out and sits square; every port or button
+left open can be used; the tabs hold, if it has them; and the mount's own (the screws seat flush, the keyholes hang, the pegs hang, or the pad holds).
+`measurements.json` lists the sizes to measure with calipers, each beside its nominal. `use.json` asks what you mounted it on, how many days it was in
+use, how many times the object went in and out, whether it stayed put when knocked, and whether anything crept or cracked; the object's mass is filled
+in from its capture. Leave a reading blank when you did not take it.
+
+A trial that passes cannot have a failed check, and a trial is refused if the printed STL has changed since the build. A build is **verified** on two
+passing trials of its exact build record; a rebuilt holder starts again.
+
 ## What is checked
 
 The holder is **one solid**. The object, put in its pocket, shares no volume with it, and lifted straight up in 2 mm steps meets nothing on the way.
@@ -124,4 +144,4 @@ pitches apart on one row, and each tab's hook has the object's flat top under it
 **The engine says nothing about the load a holder bears, whether its screws hold in your wall, what a wall plug, a pegboard or a pad takes, or how
 hard a tab grips.** It says the object fits,
 lifts out, and that what you named is left open. The capture's mass goes into the record so a trial can say what the holder carried; a model has no
-mass. A holder is unverified until it has been printed and used with the real object. Trials are the last phase of [the design](../roadmaps/object-holders.md).
+mass. A holder is unverified until two printed trials with the real object have passed (see [Trying a print](#trying-a-print)).

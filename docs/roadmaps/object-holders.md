@@ -11,9 +11,10 @@ the ports on its edges and the buttons on its face. The **calibration coupon** m
 The **holding nest** cuts a pocket to a part's shadow and checks it lifts straight out. The **mounts** have keyhole slots and countersunk screws.
 This is the design for putting them together into one new product: an **object holder**.
 
-**Status (2026-10-06): phases 1 to 3 are built; phase 4 is design only.** `zcad-validation holder` builds a cup from a capture or a STEP model on
-screws, keyholes, a pegboard or a flat pad, with retaining tabs for a captured object if asked; see [Phase 1](#phase-1-as-built),
-[Phase 2](#phase-2-as-built), [Phase 3, as built](#phase-3-as-built) and [A holder for an object](../guides/object-holder.md).
+**Status (2026-10-06): all four phases are built.** `zcad-validation holder` builds a cup from a capture or a STEP model on screws, keyholes, a
+pegboard or a flat pad, with retaining tabs for a captured object if asked, and `holder trial` records a print of it; see [Phase 1](#phase-1-as-built),
+[Phase 2](#phase-2-as-built), [Phase 3](#phase-3-as-built), [Phase 4, as built](#phase-4-as-built) and
+[A holder for an object](../guides/object-holder.md). No holder has been printed yet: every one is unverified.
 
 ## What the engine does not claim
 
@@ -184,6 +185,22 @@ to `features/holder_shapes.py`. It differs from the design in these ways:
   asks for tabs is refused. Mounts, the finger notch, the fit, and every check are the same as for a capture.
 - **The record** says which kind the object is, and for a model its file, hash, solid, `up`, `out` and size as it hangs; its schema is 1.2.0. The spec's
   `capture_path` and `capture_sha256` became `object_path` and `object_sha256`, with `object_kind`.
+
+### Phase 4, as built
+
+`zcad-validation holder trial start`, `complete` and `status`, in `features/holder_trial.py`, in the style of the holding nest's trials.
+
+- **Verified, not promoted.** The design said two passing trials promote the holder file, as boards are promoted into the catalog. There is no holder
+  catalog to promote one into, so instead, as a PCB fixture is, a build is **verified** on two passing trials of that exact build record; a rebuilt holder
+  has a new record and starts with none. `holder trial status` says how many it has.
+- **The checks** a trial asks follow the holder: printed cleanly, the object goes in, lifts out and sits square, every feature left open can be used (when
+  it has openings), the tabs hold (when it has tabs), and the mount's own check: screws seat flush, keyholes hang, pegs hang, or the pad holds.
+- **The readings** in `use.json`: what it was mounted on, days in use, uses counted, whether the object stayed put when knocked, and whether anything crept
+  or cracked. The capture's mass is set beside them as what the holder carried; a model has none. The engine states no limit for any of them.
+- **The sizes** a trial measures come from the build record: the holder overall, the pocket's width and depth as designed, the front, the walls, the
+  floor and the back plate. The build record's schema is 1.3.0.
+- **A passing trial** cannot have a failed check, needs at least one measurement or reading, and is refused if the printed STL is no longer the one
+  built. A completed trial is never overwritten.
 
 ## Not covered
 
