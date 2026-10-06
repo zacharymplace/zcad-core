@@ -193,3 +193,67 @@ def test_a_coupon_is_found_recorded_and_skipped_when_it_did_not_print(
     assert written["slot_1_height_mm"]["value_mm"] == 0.9
     (trial / "calibration-coupon-trial.json").write_text("{}", encoding="utf-8")
     assert module.plan(measured, tmp_path)[1] == "already recorded"
+
+
+def coupon_record(root: Path, name: str, hole_mm: float, survived_to: float) -> None:
+    trial = root / "coupons" / name / "trials" / "trial-001"
+    trial.mkdir(parents=True)
+    (trial / "calibration-coupon-trial.json").write_text(
+        json.dumps(
+            {
+                "printer_profile_id": "bambu-lab-a1-mini",
+                "material_profile_id": "petg",
+                "hole_compensation_mm": 0.0,
+                "tongue_orientation": "across_layers",
+                "measurements": [
+                    {
+                        "name": "screw_hole_1_diameter_mm",
+                        "kind": "hole",
+                        "figure": "hole_shortfall_mm",
+                        "nominal_mm": 3.4,
+                        "value_mm": hole_mm,
+                    }
+                ],
+                "tongues": [
+                    {"name": f"t{s}", "strain": s, "survived": s <= survived_to}
+                    for s in (0.01, 0.015, 0.02, 0.03)
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_the_profile_preview_says_what_would_change_and_writes_nothing(
+    tmp_path: Path,
+) -> None:
+    module = recorder()
+    evidence = tmp_path / "evidence"
+    current = tmp_path / "profile.json"
+
+    def preview() -> dict[str, object]:
+        result: dict[str, object] = module.profile_preview(
+            evidence,
+            printer_profile_id="bambu-lab-a1-mini",
+            material_profile_id="petg",
+            profile_path=current,
+        )
+        return result
+
+    coupon_record(evidence, "c1", 3.25, 0.02)
+    not_yet = preview()
+    assert not_yet["ready"] is False
+    assert "needs at least 2" in str(not_yet["reason"])
+
+    coupon_record(evidence, "c2", 3.35, 0.015)
+    ready = preview()
+
+    assert ready["ready"] is True
+    assert ready["version"] == 1
+    assert ready["trials"] == 2
+    assert ready["changes"] == {
+        "hole_shortfall_mm": {"from": None, "to": 0.1},
+        "strain_limit": {"from": None, "to": 0.015},
+    }
+    assert str(ready["write_with"]).startswith("zcad-validation compensation derive")
+    assert not current.exists()

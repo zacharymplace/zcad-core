@@ -200,6 +200,10 @@ reason, and never touches a trial already recorded. An enclosure is found by
 its folder name under `evidence/enclosures/`, so build one to print there,
 not in `exports/`, and its trial is recorded and backed up with the rest. A
 completed trial is never overwritten: record another attempt as `trial-002`.
+After recording it shows what the compensation profile would become with the
+new trials, each figure and the strain limit from and to, or why there are not
+enough trials yet. It writes nothing: run the `compensation derive` command it
+prints in a worktree and land the profile through a pull request.
 
 ## 6. Promote, or revise
 

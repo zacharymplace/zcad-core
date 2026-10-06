@@ -24,6 +24,12 @@ measurement where one is needed) is skipped with the reason, and a trial
 already recorded is never touched. ``--dry-run`` reports the plan and
 writes nothing. Back up the evidence afterwards.
 
+Once it has recorded something, it says what the printer and material's
+compensation profile would become with the new trials (each figure and the
+strain limit, from and to) or why there are not yet enough trials for one. It
+does not write the profile, a file this repository tracks: it prints the
+command that does, to run in a worktree and land through a pull request.
+
 Usage:
     python scripts/record-print-day.py <answers-directory> \\
         [--evidence-root evidence] [--dry-run]
@@ -40,6 +46,8 @@ from pathlib import Path
 from typing import Any
 
 from zcad_core.cli import main as zcad
+from zcad_core.profiles import derive_compensation_profile
+from zcad_core.profiles.compensation import FIGURES
 
 GIVE_UP = ("reject", "fail")
 
@@ -301,11 +309,85 @@ def plan(answer: Answer, evidence_root: Path) -> tuple[str, str, Path | None]:
     return kind, (f"skip: {reason}" if reason else "record"), location
 
 
+def _figure_mean(profile: dict[str, Any] | None, figure: str) -> float | None:
+    entry = (profile or {}).get("figures", {}).get(figure)
+
+    return None if entry is None else float(entry["mean_mm"])
+
+
+def _strain_value(profile: dict[str, Any] | None) -> float | None:
+    entry = (profile or {}).get("strain_limit")
+
+    return None if not entry else entry.get("value")
+
+
+def profile_preview(
+    evidence_root: Path,
+    *,
+    printer_profile_id: str,
+    material_profile_id: str,
+    profile_path: Path,
+) -> dict[str, Any]:
+    """What the compensation profile would become with every recorded trial,
+    against what it is now; nothing is written."""
+
+    current = (
+        json.loads(profile_path.read_text(encoding="utf-8"))
+        if profile_path.exists()
+        else None
+    )
+
+    try:
+        derived = derive_compensation_profile(
+            evidence_root,
+            printer_profile_id=printer_profile_id,
+            material_profile_id=material_profile_id,
+            previous=current,
+        )
+    except ValueError as error:
+        return {"ready": False, "reason": str(error)}
+
+    changes: dict[str, dict[str, float | None]] = {
+        figure: {
+            "from": _figure_mean(current, figure),
+            "to": _figure_mean(derived, figure),
+        }
+        for figure in FIGURES
+    }
+    changes["strain_limit"] = {
+        "from": _strain_value(current),
+        "to": _strain_value(derived),
+    }
+
+    return {
+        "ready": True,
+        "profile": str(profile_path),
+        "version": derived["version"],
+        "trials": len(derived["sources"]),
+        "changes": {
+            name: change
+            for name, change in changes.items()
+            if change["from"] != change["to"]
+        },
+        "write_with": (
+            "zcad-validation compensation derive --printer-profile-id "
+            f"{printer_profile_id} --material-profile-id {material_profile_id}"
+        ),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("answers", type=Path)
     parser.add_argument("--evidence-root", type=Path, default=Path("evidence"))
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--printer-profile-id", default="bambu-lab-a1-mini")
+    parser.add_argument("--material-profile-id", default="petg")
+    parser.add_argument(
+        "--compensation-profile",
+        type=Path,
+        help="the profile to compare with; defaults to profiles/compensation/<printer>-<material>.json",
+    )
     args = parser.parse_args()
     report = []
 
@@ -335,6 +417,15 @@ def main() -> int:
 
     if not args.dry_run and any("result" in entry for entry in report):
         print("Now back up the evidence: scripts/backup-evidence.sh")
+        preview = profile_preview(
+            args.evidence_root,
+            printer_profile_id=args.printer_profile_id,
+            material_profile_id=args.material_profile_id,
+            profile_path=args.compensation_profile
+            or Path("profiles/compensation")
+            / f"{args.printer_profile_id}-{args.material_profile_id}.json",
+        )
+        print(json.dumps({"compensation_profile": preview}, indent=2))
 
     return 0
 
