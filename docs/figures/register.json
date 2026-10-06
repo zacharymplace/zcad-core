@@ -706,10 +706,6 @@
     "features/guide_trial.py:MINIMUM_TRIALS_TO_VERIFY": {
       "status": "unstated"
     },
-    "features/holder.py:COUNTERSINK_FLOOR_MM": {
-      "status": "design_default",
-      "note": "The mounts' own countersink floor (features/mounts.py), so a holder's countersink leaves the same plate behind it"
-    },
     "features/holder.py:FEATURE_MARGIN_MM": {
       "status": "design_default",
       "note": "A design value: an edge or face feature is left open this far past each end, for a measurement's error and a plug's shoulder"
@@ -729,14 +725,18 @@
     "features/holder.py:TOLERANCE_MM3": {
       "status": "unstated"
     },
-    "features/holder.py:_teardrop(steps)": {
+    "features/holder_file.py:BACK_RANGE_MM": {
       "status": "unstated"
     },
-    "features/holder_file.py:BACK_RANGE_MM": {
+    "features/holder_file.py:BOARD_RANGE_MM": {
       "status": "unstated"
     },
     "features/holder_file.py:CLEARANCE_RANGE_MM": {
       "status": "unstated"
+    },
+    "features/holder_file.py:DEFAULT_BACK_MM": {
+      "status": "design_default",
+      "note": "A design value: thick enough to sink a common 8 mm wood-screw head flush with the countersink floor left behind it; pegs and a pad take the same plate"
     },
     "features/holder_file.py:DEFAULT_FLOOR_MM": {
       "status": "design_default",
@@ -746,9 +746,9 @@
       "status": "design_default",
       "note": "The mounts' keyhole screw head, 3.0 mm proud, with 0.5 mm of play and a 2.0 mm feature wall in front of its channel"
     },
-    "features/holder_file.py:DEFAULT_SCREW_BACK_MM": {
+    "features/holder_file.py:DEFAULT_TAB_OVERHANG_MM": {
       "status": "design_default",
-      "note": "A design value: thick enough to sink a common 8 mm wood-screw head flush with the countersink floor left behind it"
+      "note": "The holding nest's default lip overhang (features/nest_file.py)"
     },
     "features/holder_file.py:DEFAULT_WALL_MM": {
       "status": "design_default",
@@ -768,11 +768,47 @@
       "status": "design_default",
       "note": "A design value: below this a front holds nothing against a knock"
     },
+    "features/holder_file.py:PAD_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/holder_file.py:PEG_HOLE_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/holder_file.py:PITCH_RANGE_MM": {
+      "status": "unstated"
+    },
     "features/holder_file.py:SHANK_RANGE_MM": {
       "status": "unstated"
     },
+    "features/holder_file.py:TAB_OVERHANG_RANGE_MM": {
+      "status": "design_default",
+      "note": "The holding nest's lip overhang range (features/nest_file.py)"
+    },
     "features/holder_file.py:WALL_RANGE_MM": {
       "status": "unstated"
+    },
+    "features/holder_mounts.py:COUNTERSINK_FLOOR_MM": {
+      "status": "design_default",
+      "note": "The mounts' own countersink floor (features/mounts.py), so a holder's countersink leaves the same plate behind it"
+    },
+    "features/holder_mounts.py:MAXIMUM_PEG_REACH_MM": {
+      "status": "design_default",
+      "note": "A design value: the longest a peg printed upright may run behind the plate with nothing under its underside; a trial judges whether it droops"
+    },
+    "features/holder_mounts.py:MINIMUM_PEG_MM": {
+      "status": "design_default",
+      "note": "A design value: a peg thinner than this is too weak to hang a holder on"
+    },
+    "features/holder_mounts.py:PEG_PLAY_MM": {
+      "status": "design_default",
+      "note": "A design value: play between the board's back face and the peg's riser, so the riser does not bind"
+    },
+    "features/holder_shapes.py:teardrop(steps)": {
+      "status": "unstated"
+    },
+    "features/holder_tabs.py:MAXIMUM_HOOK_MM": {
+      "status": "design_default",
+      "note": "A design value: the longest a tab's flat-bottomed hook printed upright may reach in from the wall; the holding nest's own lip reaches up to 2.0 mm past its clearance"
     },
     "features/housing.py:SKIN_CORNER_MARGIN_MM": {
       "status": "unstated"

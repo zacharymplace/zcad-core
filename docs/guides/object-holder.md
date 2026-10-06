@@ -29,9 +29,10 @@ says the holder is **unverified**.
 | `face` | `out`, the capture's top face toward the room, or `wall`. An object with `face_features` must face out. |
 | `holder.front_mm` | How high the front and sides climb. Left out, a third of the object's height, at least 10 mm. It cannot be more than the object's height. |
 | `holder.wall_mm`, `holder.floor_mm` | The walls and floor (2.0 each). Neither can be under the printer's minimum. |
-| `holder.back_mm` | The back plate: 4.0 for screws, 6.0 for keyholes. |
+| `holder.back_mm` | The back plate: 6.0 for keyholes, 4.0 for the others. |
 | `fit` | `{"clearance_mm": x, "source": "why"}`, a clearance per side of your own. Left out, the printer's. |
-| `mount` | `{"type": "screws", "head_diameter_mm", "shank_diameter_mm", "source"}`, or `{"type": "keyhole"}`. |
+| `mount` | `{"type": "screws", "head_diameter_mm", "shank_diameter_mm", "source"}`; `{"type": "keyhole"}`; `{"type": "pegboard", "pitch_mm", "hole_diameter_mm", "board_thickness_mm", "source"}`; or `{"type": "flat", "width_mm", "height_mm", "source"}`. |
+| `retention` | `{"type": "tabs", "overhang_mm": 0.6}`: retaining tabs, the hooks reaching 0.3 to 2.0 mm over the object's top. Left out, none: the object's weight holds it. |
 
 ## How it stands
 
@@ -66,18 +67,41 @@ other, and clear of the plate's edges, the floor and the plate's top by 2 mm.
   thickness it needs. An 82-degree wood-screw head seats on the countersink's rim, a little proud of flush; the 90-degree cone is what prints upright.
 - **Keyholes.** The mounts' keyhole: a 9.0 mm head hole and a 4.5 mm slot running 10 mm up, with a channel in the plate's back face that a screw head
   standing 3.0 mm off the wall rides up as the holder drops onto it. A plate under 5.5 mm is refused.
+- **Pegboard.** Your board's pitch, hole diameter and thickness, with where they came from: the engine assumes no pegboard standard. Two square pegs
+  leave the plate's back face near its top, a whole number of pitches apart (as many as the plate allows, and the plate is widened for one if the object
+  is narrower than a pitch). A peg is the largest square whose diagonal clears the hole by the sliding clearance each side, at least 2.5 mm; it runs
+  through the board with 0.5 mm of play and turns up behind it by its own width. Hook it in by tilting the holder, then let it hang.
+- **Flat.** A plain back plate for an adhesive pad or tape, as wide as the pad and the cup, whichever is wider. A pad taller than the plate is refused.
+  The pad's size is your figure, with its source, and the engine says nothing about whether it stays stuck.
+
+## Retaining tabs
+
+An object that stands in a shallow cup can be knocked out. `retention: tabs` cuts a tab from each side wall: a 10 mm strip freed by a 0.8 mm slit each
+side, rooted 2 mm above the floor, rising 1.3 mm past the object's top with a hook that reaches in over it. The object pushes the tabs apart on its way in
+and they spring back over its top. With tabs, the sides climb the object's whole height.
+
+- A tab bends by the clearance, the object's corner radius and the overhang, since the hook must reach past a rounded corner to the flat top. Its strain
+  is held to the flexure limit, the engine's provisional 1.5 per cent or the coupon's measured one under `--compensation-profile`, and a tab over it is
+  refused with the reach it needs. It bends across the printed layers, as the holding nest's tabs and the coupon's tongues do.
+- The hook's underside is flat and prints with nothing under it, so a hook reaching more than 2.5 mm in from the wall is refused. With the A1 mini's
+  0.2 mm clearance, tabs take corners up to 1.7 mm round at the default 0.6 mm overhang, and up to 2.0 mm at the least, 0.3 mm.
+- A side with a notch for an edge feature takes no tab, since the notch runs through where the tab would be; with both sides notched, tabs are refused.
+- The pocket must be at least 11.6 mm deep, a tab and its slits, so the object must be about 11.2 mm thick.
+- The object is checked to lift out with the hooks left off, since they give, and each hook to have the object's flat top under it.
 
 ## Printing it
 
-The holder prints as it hangs, floor down, so its walls are vertical and nothing overhangs. Every hole through the back plate is horizontal, so each is
-drawn as a teardrop pointed up, and a keyhole's slot and channel end in a 45-degree point. A holder taller than the printer's bed is refused.
+The holder prints as it hangs, floor down, so its walls are vertical. Every hole through the back plate is horizontal, so each is drawn as a teardrop
+pointed up, and a keyhole's slot and channel end in a 45-degree point. Two things do overhang: a pegboard peg's underside, for its reach behind the plate
+(at most 12 mm, or it is refused), and a tab's hook (at most 2.5 mm). A trial says whether either droops. A holder larger than the printer's bed is refused.
 
 ## What is checked
 
 The holder is **one solid**. The object, put in its pocket, shares no volume with it, and lifted straight up in 2 mm steps meets nothing on the way.
-Every opening is clear of the holder over the feature's whole width, and every fixing's hole is open through the plate.
+Every opening is clear of the holder over the feature's whole width, and every fixing's hole is open through the plate. Pegs stand a whole number of
+pitches apart on one row, and each tab's hook has the object's flat top under it.
 
-**The engine says nothing about the load a holder bears, whether its screws hold in your wall, or what a wall plug takes.** It says the object fits,
+**The engine says nothing about the load a holder bears, whether its screws hold in your wall, what a wall plug, a pegboard or a pad takes, or how
+hard a tab grips.** It says the object fits,
 lifts out, and that what you named is left open. The capture's mass goes into the record so a trial can say what the holder carried. A holder is
-unverified until it has been printed and used with the real object. Retaining tabs, pegboard and adhesive mounts, STEP models and trials are later
-phases of [the design](../roadmaps/object-holders.md).
+unverified until it has been printed and used with the real object. STEP models and trials are later phases of [the design](../roadmaps/object-holders.md).
