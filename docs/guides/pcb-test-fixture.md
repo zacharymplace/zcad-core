@@ -41,7 +41,8 @@ A board file with test points on both sides gives two fixtures, one for each sid
 ## Test points are in the board file
 
 A fixture never repeats the board's data. The pads to probe are the board's own
-property, so they go in its [board file](board-file.md#test-points). Without
+property, so they go in its [board file](board-file.md#test-points), written by
+hand or read from a KiCad design by `board import --kicad`. Without
 test points on the side being probed, the fixture is refused. List the board's
 parts as components, not an envelope, if you want the check to say which pins
 would land on a part.

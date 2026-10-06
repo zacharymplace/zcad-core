@@ -9,9 +9,10 @@
 
 This is the design for reading a KiCad board into a board file, so that the engine's enclosures, [PCB test fixtures](pcb-test-fixtures.md), nests and guides can be built from a design the user already has.
 
-**Status (2026-10-05): phases 1 and 2 are built; phases 3 and 4 are design only.** Phase 1 reads the outline, the thickness and the mounting holes, and phase 2 the parts, their heights from a heights file or a
-default, and the cable connector (`zcad-validation board import --kicad`). Both are tested only against boards written by hand to the format's documented tokens, not against a file exported from KiCad: **no real board has
-been read yet**. What the reader assumes, and what a real board must check, is under [Phase 1, as built](#phase-1-as-built) and [Phase 2, as built](#phase-2-as-built).
+**Status (2026-10-05): phases 1 to 3 are built; phase 4 is design only.** Phase 1 reads the outline, the thickness and the mounting holes, phase 2 the parts, their heights from a heights file or a
+default, and the cable connector, and phase 3 the test points (`zcad-validation board import --kicad`). All three are tested only against boards written by hand to the format's documented tokens, not against a file
+exported from KiCad: **no real board has been read yet**. What the reader assumes, and what a real board must check, is under [Phase 1, as built](#phase-1-as-built), [Phase 2, as built](#phase-2-as-built) and
+[Phase 3, as built](#phase-3-as-built).
 
 ## What the engine does not claim
 
@@ -171,6 +172,19 @@ The file-version floor, 20211014 for KiCad 6, is from memory of KiCad's source a
 **Unverified, and written as such.** A part on the back, or turned, is placed through the two conventions phase 1 assumed and has not checked, so every such part is listed under `unverified_transforms`
 and the file carries `needs_review: footprint_transforms`. On a real board that will be most of them; checking a few parts of each angle and side against the board settles all of them, and the first
 real board settles the conventions for good.
+
+### Phase 3, as built
+
+`--test-points REFS` joins the options, in `kicad_test_points.py`; the footprint placement the readers share moved to `kicad_footprints.py`.
+
+- **A test point** is a footprint whose library name starts with `TestPoint`, whose reference is `TP` and digits, or which `--test-points` names (a reference the file does not have is refused). It is not a part.
+- **Its pad** is its one copper pad (anything but `np_thru_hole`); a footprint with none or more than one is listed under the report's `test_points.not_read`, not guessed at. The place is the pad's `(at)` through
+  the footprint, the side the footprint's layer, and the net the pad's `(net N "NAME")`, or `(net "NAME")` as newer files may write it, or empty. A `circle` pad's size is the diameter; any other shape gives its
+  smaller side, with a note.
+- **Checks** are the board file's own: a pad under 0.5 mm, two overlapping on a side, one off the outline, a name used twice. The import writes what it read and the report carries the check's errors.
+
+**Unverified, and written as such.** A test pad at its footprint's origin, the usual case, does not depend on the rotation or the mirror. One away from it, in a turned or back-side footprint, is listed under
+`unverified_transforms` with `needs_review: footprint_transforms`, as a drill is.
 
 ## Not covered
 

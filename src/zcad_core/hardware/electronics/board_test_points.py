@@ -5,8 +5,9 @@ diameter, in the board's frame (centre at the origin, +X right and +Y up the
 page seen from above). The list is optional: it is a property of the board, so
 it lives in the board file, and a test fixture reads it from there.
 
-``board import`` cannot find test points: a STEP model carries no copper. They
-come from the board's design, and from the person who wrote the file.
+A STEP import cannot find test points: a STEP model carries no copper. A KiCad
+import reads them from the design (``kicad_test_points``); otherwise they come
+from the person who wrote the file.
 """
 
 from __future__ import annotations

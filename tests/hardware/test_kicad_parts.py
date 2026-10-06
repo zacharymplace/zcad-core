@@ -201,8 +201,8 @@ def test_mounting_holes_fiducials_test_points_and_logos_are_not_parts(
     assert excluded == {
         "H1": "a mounting hole",
         "FID1": "a fiducial",
-        "TP1": "a test point, which phase 3 reads",
-        "TP2": "a test point, which phase 3 reads",
+        "TP1": "a test point",
+        "TP2": "a test point",
         "LOGO1": "a logo",
         "NT1": "board only: not placed as a part",
     }

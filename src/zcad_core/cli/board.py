@@ -86,6 +86,12 @@ def _board_template(args: argparse.Namespace) -> int:
     return 0
 
 
+def _references(text: str) -> tuple[str, ...]:
+    """A comma-separated list of references, blanks dropped."""
+
+    return tuple(piece.strip() for piece in text.split(",") if piece.strip())
+
+
 def _import_from_kicad(args: argparse.Namespace) -> ImportedKicadBoard:
     if args.pcb_solid_index is not None:
         raise ValueError("--pcb-solid-index is for a STEP model, not a KiCad file")
@@ -97,6 +103,7 @@ def _import_from_kicad(args: argparse.Namespace) -> ImportedKicadBoard:
         default_height_source=args.default_height_source,
         heights_file=args.heights,
         cable_connector=args.cable_connector,
+        test_points=args.test_points,
     )
 
 
@@ -116,6 +123,7 @@ def _board_import(args: argparse.Namespace) -> int:
             ("--default-height", args.default_height),
             ("--default-height-source", args.default_height_source),
             ("--heights", args.heights),
+            ("--test-points", args.test_points or None),
         ):
             if value is not None:
                 raise ValueError(f"{flag} is for a KiCad file, not a STEP model")
@@ -214,6 +222,14 @@ def register(
         metavar="FILE",
         help="KiCad only: JSON of reference, library name or pattern to "
         '{"height_mm": H, "source": "..."}',
+    )
+    import_.add_argument(
+        "--test-points",
+        type=_references,
+        default=(),
+        metavar="REFS",
+        help="KiCad only: more test points by reference, e.g. J5,R12; TestPoint* "
+        "footprints and TP references are read without it",
     )
     import_.add_argument(
         "--default-height",
