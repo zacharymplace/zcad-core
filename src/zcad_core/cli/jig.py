@@ -12,6 +12,7 @@ from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.jig import (
+    JIG_RECORD,
     build_jig,
     print_oriented,
     require_fits_bed,
@@ -97,6 +98,7 @@ def _jig_build(args: argparse.Namespace) -> int:
         ExportRequest(
             design_name=name,
             design_type="jig",
+            build_record_name=JIG_RECORD,
             parts={"jig": print_oriented(jig)},
             output_directory=args.output_directory,
             repository_root=Path.cwd(),

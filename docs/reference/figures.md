@@ -6,7 +6,7 @@ The engine states no strength, holding force or load claim, and a figure it did 
 
 **Scope.** Module-level numeric constants, and the non-zero numeric defaults of dataclass fields and function parameters. A default of zero (no offset, none) is not a figure and is not listed. Not covered: a number inside a function body, a default given by `field(...)` or a factory, a keyword argument at a call (so a module-level instance such as a display's is not listed), and a number in a data file. A status is only as good as what the code says: a `sourced` figure is as the code cites it and has not been re-checked against the standard. An `unstated` figure is not wrong; it has no basis written down. Adding a figure without recording it fails the test suite.
 
-## The 718 figures
+## The 722 figures
 
 | Status | Count | Meaning |
 | --- | ---: | --- |
@@ -14,7 +14,7 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | `estimated` | 9 | Read off a drawing's scale or a stated rough estimate: the source does not state it outright |
 | `design_default` | 26 | The engine's own choice, which the code says is a default, a design value or a guess |
 | `example` | 3 | An illustrative figure, not claimed right for any real part |
-| `unstated` | 649 | No basis is stated in the code |
+| `unstated` | 653 | No basis is stated in the code |
 
 ## Sourced
 
@@ -135,7 +135,7 @@ Each fan, bushing and pogo pin records where its figures came from, whether the 
 | `MILLMAX-0906-0-15-20-76-14-11-0` | pogo pin | yes | barrel_diameter_mm, force_at_travel_mm |
 | `MILLMAX-0906-1-15-20-75-14-11-0` | pogo pin | yes | barrel_diameter_mm, force_at_travel_mm |
 
-## Unstated (649)
+## Unstated (653)
 
 No basis is written down for these. Moving one out of this list means finding where its value came from, or saying it is the engine's own choice, in `docs/figures/register.json`.
 
@@ -987,6 +987,13 @@ No basis is written down for these. Moving one out of this list means finding wh
 - `FACE_MARGIN_MM` = `0.5`
 - `FEATURE_MARGIN_MM` = `1.0`
 - `_SLIDE_STEP_MM` = `0.5`
+
+**`printing/bed.py`**
+
+- `MINIMUM_BED_SHARE` = `0.5`
+- `_FACING_DOWN` = `-0.999`
+- `_ON_BED_MM` = `0.05`
+- `_TURNS` = `(((1.0, 0.0, 0.0), 0.0), ((1.0, 0.0, 0.0), 180.0), ((1.0, 0.0, 0.0), 90.0), ((1.0, 0.0, 0.0), -90.0), ((0.0, 1.0, 0.0), 90.0), ((0.0, 1.0, 0.0), -90.0))`
 
 **`profiles/compensation.py`**
 

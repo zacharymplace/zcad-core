@@ -14,6 +14,7 @@ from pathlib import Path
 from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.pcb_fixture import (
+    FIXTURE_RECORD,
     build_fixture,
     print_oriented,
     require_fits_bed,
@@ -112,6 +113,7 @@ def _fixture_build(args: argparse.Namespace) -> int:
         ExportRequest(
             design_name=name,
             design_type="fixture",
+            build_record_name=FIXTURE_RECORD,
             parts=print_oriented(fixture),
             output_directory=args.output_directory,
             repository_root=Path.cwd(),

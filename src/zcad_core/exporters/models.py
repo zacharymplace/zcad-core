@@ -22,6 +22,10 @@ class ExportRequest:
     parameters: dict[str, Any] | None = None
     feature_validator: Callable[..., list[dict[str, Any]]] | None = None
     stl_feature_validator: Callable[..., list[dict[str, Any]]] | None = None
+    # The build record the caller writes next to the parts. If it is there
+    # already, nothing is exported: a rebuild that will be refused must not
+    # first replace the parts the old record names.
+    build_record_name: str | None = None
 
 
 @dataclass(frozen=True)

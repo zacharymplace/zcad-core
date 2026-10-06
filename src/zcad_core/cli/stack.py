@@ -10,6 +10,7 @@ from pathlib import Path
 from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
+from zcad_core.features.layer_trial import BUILD_RECORD as LAYER_RECORD
 from zcad_core.features.layer_trial import (
     complete_layer_trial,
     start_layer_trial,
@@ -37,6 +38,7 @@ from zcad_core.features.stack_profile import (
     profile_template,
     read_profile_file,
 )
+from zcad_core.features.stack_trial import BUILD_RECORD as STACK_RECORD
 from zcad_core.features.stack_trial import (
     complete_stack_trial,
     start_stack_trial,
@@ -217,6 +219,7 @@ def _layer_build(args: argparse.Namespace) -> int:
         ExportRequest(
             design_name=name,
             design_type="layer",
+            build_record_name=LAYER_RECORD,
             parts=layer.parts,
             output_directory=args.output_directory,
             repository_root=Path.cwd(),
@@ -334,6 +337,7 @@ def _stack_build(args: argparse.Namespace) -> int:
         ExportRequest(
             design_name=name,
             design_type="stack",
+            build_record_name=STACK_RECORD,
             parts=stack.parts,
             output_directory=args.output_directory,
             repository_root=Path.cwd(),

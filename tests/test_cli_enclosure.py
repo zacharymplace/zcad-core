@@ -433,3 +433,98 @@ def test_build_snaps_the_lid_on_and_vents_the_walls(
     record = json.loads(Path(output["build_record"]).read_text("utf-8"))
     assert record["design"]["lid_attachment"] == "snap"
     assert "inserts_installed" not in record["checks"]
+
+
+def _fake_slice(calls: list[dict[str, Any]]) -> Any:
+    from zcad_core.printing import SliceResult
+
+    def fake(models: Any, output_directory: Path, **kwargs: Any) -> Any:
+        calls.append(
+            {
+                "models": [model.name for model in models],
+                "directory": output_directory,
+                "supports": kwargs["supports"],
+            }
+        )
+
+        return SliceResult(
+            gcode_path=output_directory / "plate_1.gcode",
+            summary_path=output_directory / "slice-summary.json",
+            summary={
+                "estimated_print_time_seconds": 600,
+                "filament_used_g": 5.0,
+                "slicer_warning": "",
+            },
+        )
+
+    return fake
+
+
+def test_a_base_on_mount_pads_is_sliced_with_supports_and_its_plate_too(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The base stands on its four pads with its floor in the air, so the base
+    # and lid's plate gets supports; the mount plate, laid flat, gets its own
+    # plate without them.
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr("zcad_core.cli.enclosure.slice_models", _fake_slice(calls))
+    output = tmp_path / "keyhole"
+
+    assert (
+        main(
+            [
+                "enclosure",
+                "build",
+                "--board",
+                "raspberry_pi_5",
+                "--mount",
+                "keyhole",
+                "--slice",
+                "--output-directory",
+                str(output),
+                "--printer-profile",
+                str(PRINTER_PROFILE),
+            ]
+        )
+        == 0
+    )
+    printed = json.loads(capsys.readouterr().out)["print"]
+
+    assert [(c["models"], c["supports"]) for c in calls] == [
+        (
+            ["raspberry-pi-5-enclosure-base.stl", "raspberry-pi-5-enclosure-lid.stl"],
+            True,
+        ),
+        (["raspberry-pi-5-enclosure-mount.stl"], False),
+    ]
+    assert calls[1]["directory"] == output / "slice" / "mount"
+    assert printed["supported_parts"] == ["base"]
+    assert printed["total_print_minutes"] == 20
+
+
+def test_a_refused_rebuild_leaves_the_earlier_build_as_it_was(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Before, the second build replaced the parts and then refused to replace
+    # the record, which no longer matched them.
+    output = tmp_path / "case"
+    command = [
+        "enclosure",
+        "build",
+        "--board",
+        "raspberry_pi_pico_2",
+        "--output-directory",
+        str(output),
+        "--printer-profile",
+        str(PRINTER_PROFILE),
+    ]
+
+    assert main(command) == 0
+    capsys.readouterr()
+    before = {path.name: path.read_bytes() for path in output.glob("*.stl")}
+
+    assert main([*command, "--wall-mm", "3"]) == 1
+    assert "nothing was written" in capsys.readouterr().err
+    assert {path.name: path.read_bytes() for path in output.glob("*.stl")} == before

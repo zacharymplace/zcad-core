@@ -12,6 +12,7 @@ from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.nest import (
+    NEST_RECORD,
     build_nest,
     print_oriented,
     require_fits_bed,
@@ -97,6 +98,7 @@ def _nest_build(args: argparse.Namespace) -> int:
         ExportRequest(
             design_name=name,
             design_type="nest",
+            build_record_name=NEST_RECORD,
             parts={"nest": print_oriented(nest)},
             output_directory=args.output_directory,
             repository_root=Path.cwd(),

@@ -21,6 +21,7 @@ from zcad_core.features.housing_file import (
     housing_template,
     load_housing,
 )
+from zcad_core.features.housing_trial import BUILD_RECORD as HOUSING_RECORD
 from zcad_core.features.housing_trial import (
     complete_housing_trial,
     start_housing_trial,
@@ -98,6 +99,7 @@ def _housing_build(args: argparse.Namespace) -> int:
         ExportRequest(
             design_name=name,
             design_type="housing",
+            build_record_name=HOUSING_RECORD,
             parts=print_oriented(housing),
             output_directory=args.output_directory,
             repository_root=Path.cwd(),
