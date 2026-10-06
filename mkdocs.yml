@@ -60,6 +60,7 @@ nav:
       - A drawer stop: roadmaps/drawer-stop.md
       - Importing a KiCad board: roadmaps/kicad-import.md
       - Object holders: roadmaps/object-holders.md
+      - Gridfinity bins: roadmaps/gridfinity-bins.md
   - API Reference:
       - Overview: reference/index.md
       - assemblies: reference/assemblies.md
