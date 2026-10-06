@@ -706,6 +706,74 @@
     "features/guide_trial.py:MINIMUM_TRIALS_TO_VERIFY": {
       "status": "unstated"
     },
+    "features/holder.py:COUNTERSINK_FLOOR_MM": {
+      "status": "design_default",
+      "note": "The mounts' own countersink floor (features/mounts.py), so a holder's countersink leaves the same plate behind it"
+    },
+    "features/holder.py:FEATURE_MARGIN_MM": {
+      "status": "design_default",
+      "note": "A design value: an edge or face feature is left open this far past each end, for a measurement's error and a plug's shoulder"
+    },
+    "features/holder.py:MINIMUM_CLEARANCE_MM": {
+      "status": "design_default",
+      "note": "A design value: the least fit a measured shortfall may bring the pocket down to, so a printer measured loose still gets some clearance"
+    },
+    "features/holder.py:NOTCH_MARGIN_MM": {
+      "status": "design_default",
+      "note": "A design value: front left either side of the finger notch, so a narrow pocket gets none"
+    },
+    "features/holder.py:NOTCH_WIDTH_MM": {
+      "status": "design_default",
+      "note": "A design value: wide enough for two fingertips to reach the object's face"
+    },
+    "features/holder.py:TOLERANCE_MM3": {
+      "status": "unstated"
+    },
+    "features/holder.py:_teardrop(steps)": {
+      "status": "unstated"
+    },
+    "features/holder_file.py:BACK_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/holder_file.py:CLEARANCE_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/holder_file.py:DEFAULT_FLOOR_MM": {
+      "status": "design_default",
+      "note": "The holding nest's default floor (features/nest_file.py)"
+    },
+    "features/holder_file.py:DEFAULT_KEYHOLE_BACK_MM": {
+      "status": "design_default",
+      "note": "The mounts' keyhole screw head, 3.0 mm proud, with 0.5 mm of play and a 2.0 mm feature wall in front of its channel"
+    },
+    "features/holder_file.py:DEFAULT_SCREW_BACK_MM": {
+      "status": "design_default",
+      "note": "A design value: thick enough to sink a common 8 mm wood-screw head flush with the countersink floor left behind it"
+    },
+    "features/holder_file.py:DEFAULT_WALL_MM": {
+      "status": "design_default",
+      "note": "The holding nest's default wall (features/nest_file.py)"
+    },
+    "features/holder_file.py:FRONT_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/holder_file.py:FRONT_SHARE": {
+      "status": "design_default",
+      "note": "A design value, an open question in the roadmap: the front climbs a third of the object's height, to keep its face in reach; a trial settles it"
+    },
+    "features/holder_file.py:HEAD_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/holder_file.py:MINIMUM_FRONT_MM": {
+      "status": "design_default",
+      "note": "A design value: below this a front holds nothing against a knock"
+    },
+    "features/holder_file.py:SHANK_RANGE_MM": {
+      "status": "unstated"
+    },
+    "features/holder_file.py:WALL_RANGE_MM": {
+      "status": "unstated"
+    },
     "features/housing.py:SKIN_CORNER_MARGIN_MM": {
       "status": "unstated"
     },

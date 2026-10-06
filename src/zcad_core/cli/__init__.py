@@ -30,6 +30,7 @@ from zcad_core.cli import (
     enclosure_group,
     fixture,
     guide,
+    holder,
     housing,
     jig,
     nest,
@@ -66,6 +67,7 @@ _COMMAND_GROUPS = (
     stack,
     nest,
     jig,
+    holder,
 )
 
 

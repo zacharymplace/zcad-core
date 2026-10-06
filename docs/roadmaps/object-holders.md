@@ -11,7 +11,8 @@ the ports on its edges and the buttons on its face. The **calibration coupon** m
 The **holding nest** cuts a pocket to a part's shadow and checks it lifts straight out. The **mounts** have keyhole slots and countersunk screws.
 This is the design for putting them together into one new product: an **object holder**.
 
-**Status (2026-10-06): design only.** Nothing here is built.
+**Status (2026-10-06): phase 1 is built; phases 2 to 4 are design only.** `zcad-validation holder` builds a cup from a capture on screws or keyholes;
+see [Phase 1, as built](#phase-1-as-built) and [A holder for an object](../guides/object-holder.md).
 
 ## What the engine does not claim
 
@@ -133,6 +134,22 @@ front, above the pocket. `holder build` writes `holder.json`, a record of what w
 4. **Trials.** `holder trial start` and `complete`, and promotion on two passing trials.
 
 Each phase is one PR, and nothing that exists changes.
+
+### Phase 1, as built
+
+`zcad-validation holder template`, `check` and `build`, in `features/holder_file.py` and `features/holder.py`. It differs from the design above in these ways:
+
+- **The countersink is always 90 degrees.** The design took the screw's head angle. A 90-degree cone printed on its side has a 45-degree top and needs no
+  support; any other angle does, or is not a countersink at all. So the file takes the head's diameter and the shank's, with their source, and the
+  countersink is cut to the head's diameter plus the hole oversize at the plate's face. An 82-degree head seats on its rim, a little proud of flush.
+- **Fixings stand side by side or one above the other.** The design refused a plate too narrow for two side by side. A pen or a torch is narrower than
+  two screw heads, so the fixings stand one above the other on the centre line when the pocket is too narrow, at least two head diameters apart, and the
+  holder is refused only when neither fits. They are always behind the object, 2 mm clear of the plate's edges, the floor and the plate's top.
+- **Openings run to the top.** A notch for a side feature or a face feature runs from the feature to the wall's top instead of being a window, so it has
+  no roof to overhang. A floor slot runs front to back across the pocket.
+- **The fit.** `fit.clearance_mm` with a `source`, the open question's proposal, is built. Without it the clearance is the profile's sliding clearance, and
+  `--compensation-profile` adds the coupon's measured side-gap shortfall, never bringing it under 0.05 mm.
+- **No label.** The embossed label is left for a later phase.
 
 ## Not covered
 
