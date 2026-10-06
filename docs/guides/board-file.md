@@ -55,20 +55,40 @@ gives a board for the snap-in cradle.
 
 ## From a KiCad board
 
-If you have the board's KiCad design (KiCad 6 or later), read the outline, thickness and holes from it:
+If you have the board's KiCad design (KiCad 6 or later), read the board and its parts from it. A first import lists the parts at an edge; name the one the cable plugs into on a second:
 
 ```bash
-zcad-validation board import --kicad board.kicad_pcb --output my-board.json \
-  --default-height 6 --default-height-source "tallest part, measured"
+zcad-validation board import --kicad board.kicad_pcb --output my-board.json --heights heights.json
+zcad-validation board import --kicad board.kicad_pcb --output my-board.json --heights heights.json \
+  --cable-connector J1
 ```
 
 The import reads the board's `Edge.Cuts` outline (a rectangle, a rounded rectangle, or a polygon, following any arc KiCad 7 or later writes among a polygon's points and refusing anything else there), the thickness the file gives, and the mounting holes (round non-plated drills and `MountingHole`
-footprints; the commonest size is taken and others are listed). It does not read the parts yet, so two things stay open and the file is written with `needs_review`: the **cable connector**, which you set by hand,
-and the **heights**, which a KiCad file does not hold. `--default-height` with `--default-height-source` gives one height for every part, which is written as the board's `envelope` with where it came from;
-give both or neither. A file with no thickness gets a placeholder you must replace.
+footprints; the commonest size is taken and others are listed). A file with no thickness gets a placeholder you must replace.
 
-This reader has been tested on boards written by hand, **not on a file exported from KiCad**, so check the outline and holes against the board. A hole whose place depends on how KiCad turns or
-mirrors a footprint is flagged `footprint_transforms` for you to check. See [Importing a KiCad board](../roadmaps/kicad-import.md).
+Every other footprint is a part, except fiducials, test points (`TestPoint*` footprints and `TP` references, which a later phase reads), logos and board-only footprints. A part is the bounding box of its courtyard, or of its
+pads when it has none (the report warns: pads are smaller than the part), above the board for a front-side footprint and below it for a back-side one. Neighbouring parts of a similar height are merged into one box named by its
+parts (`R1_and_12_more`), and a part reaching past an edge is marked `access_edge`, as in the STEP import. The boxes are conservative: a courtyard is bigger than its part.
+
+A KiCad file holds no heights, so you give them. `--heights FILE` is a JSON object from a reference, a footprint's library name, or a pattern over either, to the height and where it came from:
+
+```json
+{
+  "J1": {"height_mm": 3.26, "source": "GCT USB4105 datasheet, p. 2"},
+  "Capacitor_SMD:C_0805_2012Metric": {"height_mm": 1.35, "source": "measured"},
+  "R*": {"height_mm": 0.55, "source": "0603 resistors, datasheet"}
+}
+```
+
+A reference wins over a library name, which wins over a pattern; patterns are tried in the file's order, and keys that match nothing are listed in the report. `--default-height` with `--default-height-source`
+gives every part the file does not; give both or neither. A part with no height is left out of `components`, and `needs_review` names it until you give one. A file with no parts at all gets the default
+as its `envelope`.
+
+The cable connector is one of the `cable_connector_candidates` the report lists: the parts past an edge or within 1 mm of one, largest first. `--cable-connector REF` writes that part as the connector and takes it out of the
+components; until then the file carries `needs_review` and a placeholder.
+
+This reader has been tested on boards written by hand, **not on a file exported from KiCad**, so check the outline, holes and parts against the board. A hole or part whose place depends on how KiCad turns or
+mirrors a footprint (any part on the back, or turned) is flagged `footprint_transforms` for you to check. See [Importing a KiCad board](../roadmaps/kicad-import.md).
 
 ## Measuring a board
 

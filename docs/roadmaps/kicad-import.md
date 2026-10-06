@@ -9,9 +9,9 @@
 
 This is the design for reading a KiCad board into a board file, so that the engine's enclosures, [PCB test fixtures](pcb-test-fixtures.md), nests and guides can be built from a design the user already has.
 
-**Status (2026-10-03): phase 1 is built; phases 2 to 4 are design only.** Phase 1 reads the outline, the thickness and the mounting holes (`zcad-validation board import --kicad`), and is
-tested only against boards written by hand to the format's documented tokens, not against a file exported from KiCad: **no real board has been read yet**. What the reader assumes, and what a real
-board must check, is under [Phase 1, as built](#phase-1-as-built).
+**Status (2026-10-05): phases 1 and 2 are built; phases 3 and 4 are design only.** Phase 1 reads the outline, the thickness and the mounting holes, and phase 2 the parts, their heights from a heights file or a
+default, and the cable connector (`zcad-validation board import --kicad`). Both are tested only against boards written by hand to the format's documented tokens, not against a file exported from KiCad: **no real board has
+been read yet**. What the reader assumes, and what a real board must check, is under [Phase 1, as built](#phase-1-as-built) and [Phase 2, as built](#phase-2-as-built).
 
 ## What the engine does not claim
 
@@ -140,8 +140,8 @@ Each phase is one PR, and no existing board or import changes.
 - **Thickness** from `(general (thickness T))`. A file without one gets 1.6 mm as a placeholder **and** `needs_review: thickness`: the figure is not read, so it is not trusted.
 - **Heights** are open (`needs_review: heights`) unless `--default-height` is given with `--default-height-source`; the two go together, the default is written as `envelope.top_mm`, and the board file's `source`
   says it is one default and where it came from.
-- **The cable connector** cannot be read until phase 2 reads parts, so the file is written with `needs_review: cable_connector` and a placeholder connector. To build from it now, set `cable_connector` by hand
-  and remove `needs_review`.
+- **The cable connector** could not be read until phase 2 read parts, so the file was written with `needs_review: cable_connector` and a placeholder connector. Phase 2 names it from the parts; a file with
+  no parts still gets the placeholder.
 
 **Unverified, and written as such.** Three conventions are assumed and have not been checked against KiCad: Y points down (so Y is flipped); a footprint's angle is counter-clockwise on screen; and a bottom-side
 footprint is mirrored in X before it is turned. The first is how KiCad draws and affects every board; the other two only matter for a point that is *not at its footprint's origin*. A mounting hole at the centre
@@ -150,6 +150,27 @@ of a `MountingHole` footprint, the usual case, does not depend on them. Where on
 board with a rotated footprint and one on the bottom side is what settles them.
 
 The file-version floor, 20211014 for KiCad 6, is from memory of KiCad's source and has not been checked against an exported file.
+
+### Phase 2, as built
+
+`--heights FILE` and `--cable-connector REF` join phase 1's options, in `kicad_import.py` and `kicad_heights.py`.
+
+- **Parts** are every footprint but a mounting hole, a fiducial (`Fiducial*`), a test point (`TestPoint*`, or a reference `TP` and digits), a logo (the `Symbol` library, or `Logo` in the name) or a board-only one
+  (`(attr ... board_only)`), each listed in the report with why. A part's plan is the bounding box of its courtyard (`fp_line`, `fp_rect`, `fp_circle`, `fp_arc` and `fp_poly` on `F.CrtYd` or `B.CrtYd`), taken through
+  the footprint's place as phase 1 takes a drill. With no courtyard it is the extent of its pads, each taken as the square round its circumscribing circle so a pad's own angle does not matter, and the report warns.
+  A front-side part sits on the board's top face; a back-side one hangs from its bottom face.
+- **Heights** come from the heights file (a reference, then a library name, then the patterns in the file's order), then from `--default-height`. Every entry needs a height of 0.05 to 200 mm, the board
+  file's own bounds, and a source. A part with neither is left out of `components` and named under `needs_review: heights`. The board file's `source` counts the heights from each, and the report lists each
+  part's height, where it came from, and the heights file's keys that matched nothing. When the file has parts, the default is a part height and no `envelope` is written; with no parts it is the
+  envelope, as in phase 1, and a heights file is refused as having nothing to size.
+- **Merging** is the STEP import's `merge_boxes`, the front by height tier and the back as one, and never across a mounting hole none of the parts covers. A box is named by its parts: one to three
+  references joined, or the first and a count (`R1_and_12_more`).
+- **The cable connector**: the parts past an edge or within 1 mm of one are the candidates, largest plan first, with the edge and how far past it each reaches. `--cable-connector REF` must name one with a height;
+  it is written as the connector through the STEP import's `connector_record` and taken out of the components.
+
+**Unverified, and written as such.** A part on the back, or turned, is placed through the two conventions phase 1 assumed and has not checked, so every such part is listed under `unverified_transforms`
+and the file carries `needs_review: footprint_transforms`. On a real board that will be most of them; checking a few parts of each angle and side against the board settles all of them, and the first
+real board settles the conventions for good.
 
 ## Not covered
 

@@ -483,7 +483,7 @@ def _candidates(
     return found
 
 
-def _connector(
+def connector_record(
     box: Box, edge: str, width_mm: float, length_mm: float, name: str
 ) -> dict[str, Any]:
     """A part's box as the cable connector: clipped to the outline, against its
@@ -613,7 +613,7 @@ def import_step(
             )
 
         position = records.index(chosen[0])
-        data["cable_connector"] = _connector(
+        data["cable_connector"] = connector_record(
             boxes[position], chosen[0]["access_edge"], width, length, "CABLE_CONNECTOR"
         )
         del records[position]

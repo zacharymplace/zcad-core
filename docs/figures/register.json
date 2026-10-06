@@ -1770,6 +1770,14 @@
       "status": "design_default",
       "note": "The spec's own recommendation (the engine's choice); no basis is written down"
     },
+    "hardware/electronics/kicad_heights.py:HEIGHT_RANGE_MM": {
+      "status": "design_default",
+      "note": "The board file's own bounds on a component's height_mm, so a heights file cannot give a height the board file would refuse"
+    },
+    "hardware/electronics/kicad_import.py:AT_EDGE_MM": {
+      "status": "design_default",
+      "note": "A design value: a connector sits flush with its edge or past it, and 1 mm takes in a courtyard that stops just short; it only lists candidates, and the user names the connector"
+    },
     "hardware/electronics/kicad_import.py:CHORD_MM": {
       "status": "unstated"
     },
