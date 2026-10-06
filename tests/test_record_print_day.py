@@ -140,3 +140,56 @@ def test_a_group_enclosure_is_completed_as_a_group(
     # Once its record exists, the group is never recorded again.
     (trial / "enclosure-group-trial.json").write_text("{}", encoding="utf-8")
     assert module.plan(finished, tmp_path)[1] == "already recorded"
+
+
+def test_a_coupon_is_found_recorded_and_skipped_when_it_did_not_print(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = recorder()
+    build = tmp_path / "coupons" / "c1"
+    trial = build / "trials" / "trial-001"
+    trial.mkdir(parents=True)
+    (build / "coupon.json").write_text("{}", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def run(arguments: list[str]) -> dict[str, object]:
+        calls.append(arguments)
+        return {"trial_record": str(trial / "calibration-coupon-trial.json")}
+
+    monkeypatch.setattr(module, "_run", run)
+    answers = tmp_path / "answers"
+    answers.mkdir()
+
+    def answer(disposition: str, value: float | None):  # type: ignore[no-untyped-def]
+        return read(
+            answers,
+            {
+                "candidate_id": "c1",
+                "observations": {
+                    "printed_cleanly": {"passed": True, "notes": ""},
+                    "features_open": {"passed": True, "notes": ""},
+                },
+                "measurements": {
+                    "slot_1_height_mm": {"value_mm": value, "nominal_mm": 1.0}
+                },
+                "disposition": disposition,
+                "operator_notes": "",
+            },
+        )
+
+    assert module.find_print(tmp_path, "c1") == ("coupon", build)
+    # It did not print: nothing to measure, so nothing to record.
+    assert module.plan(answer("fail", None), tmp_path)[1].startswith(
+        "skip: the coupon did not print"
+    )
+    assert module.plan(answer("measured", None), tmp_path)[1].startswith("skip:")
+
+    measured = answer("measured", 0.9)
+    assert module.plan(measured, tmp_path) == ("coupon", "record", build)
+    module.record_coupon(measured, build)
+
+    assert calls[0][:3] == ["coupon", "trial", "complete"]
+    written = json.loads((trial / "measurements.json").read_text(encoding="utf-8"))
+    assert written["slot_1_height_mm"]["value_mm"] == 0.9
+    (trial / "calibration-coupon-trial.json").write_text("{}", encoding="utf-8")
+    assert module.plan(measured, tmp_path)[1] == "already recorded"

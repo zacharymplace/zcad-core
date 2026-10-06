@@ -193,8 +193,9 @@ scripts/backup-evidence.sh
 ```
 
 It records each finished fixture (`trial complete` and `trial register`),
-enclosure (`enclosure trial complete`) and group enclosure
-(`enclosure-group trial complete`), skips an unfinished answer with the
+enclosure (`enclosure trial complete`), group enclosure
+(`enclosure-group trial complete`) and calibration coupon (`coupon trial
+complete`; see [Calibrating a printer](calibration-coupon.md)), skips an unfinished answer with the
 reason, and never touches a trial already recorded. An enclosure is found by
 its folder name under `evidence/enclosures/`, so build one to print there,
 not in `exports/`, and its trial is recorded and backed up with the rest. A

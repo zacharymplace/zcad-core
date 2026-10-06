@@ -13,7 +13,11 @@ each finished one:
   files in the enclosure trial's form and runs
   ``zcad-validation enclosure trial complete``, or, for a group of boards
   in one enclosure (an ``enclosure-group.json`` build),
-  ``zcad-validation enclosure-group trial complete``.
+  ``zcad-validation enclosure-group trial complete``;
+- a calibration coupon under ``evidence/coupons/``: writes the same two
+  files and runs ``zcad-validation coupon trial complete``. A coupon has no
+  verdict: answered ``measured``, its readings are recorded; answered
+  ``fail``, it did not print, so there is nothing to record.
 
 An answer that is not finished (a check unanswered, no disposition, or no
 measurement where one is needed) is skipped with the reason, and a trial
@@ -107,8 +111,13 @@ def read_answers(directory: Path) -> list[Answer]:
 
 
 def find_print(evidence_root: Path, candidate_id: str) -> tuple[str, Path]:
-    """Whether a candidate id names an enclosure, a group enclosure, or a
-    fixture, and where."""
+    """Whether a candidate id names an enclosure, a group enclosure, a
+    calibration coupon, or a fixture, and where."""
+
+    coupon = evidence_root / "coupons" / candidate_id
+
+    if (coupon / "coupon.json").is_file():
+        return "coupon", coupon
 
     enclosure = evidence_root / "enclosures" / candidate_id
 
@@ -231,6 +240,36 @@ def record_enclosure(
     return {"trial_record": completed["trial_record"]}
 
 
+def record_coupon(answer: Answer, build: Path) -> dict[str, Any]:
+    """Record a coupon trial: its two checks and every feature measured."""
+
+    trial = build / "trials" / "trial-001"
+    _write(
+        trial / "observations.json",
+        {
+            check: {
+                "result": "pass" if entry["passed"] else "fail",
+                "notes": entry.get("notes", ""),
+            }
+            for check, entry in answer.observations.items()
+        },
+    )
+    _write(trial / "measurements.json", answer.measured)
+    completed = _run(
+        [
+            "coupon",
+            "trial",
+            "complete",
+            "--trial-directory",
+            str(trial),
+            "--notes",
+            answer.notes,
+        ]
+    )
+
+    return {"trial_record": completed["trial_record"]}
+
+
 def recorded(kind: str, location: Path) -> bool:
     trial = location / "trials" / "trial-001"
 
@@ -239,6 +278,9 @@ def recorded(kind: str, location: Path) -> bool:
 
     if kind == "group":
         return (trial / "enclosure-group-trial.json").is_file()
+
+    if kind == "coupon":
+        return (trial / "calibration-coupon-trial.json").is_file()
 
     return (trial / "trial.json").is_file()
 
@@ -252,6 +294,9 @@ def plan(answer: Answer, evidence_root: Path) -> tuple[str, str, Path | None]:
         return kind, "already recorded", location
 
     reason = answer.unfinished()
+
+    if reason is None and kind == "coupon" and answer.disposition in GIVE_UP:
+        reason = "the coupon did not print, so it has nothing to record; print another"
 
     return kind, (f"skip: {reason}" if reason else "record"), location
 
@@ -275,6 +320,8 @@ def main() -> int:
         if action == "record" and not args.dry_run and location is not None:
             if kind == "fixture":
                 entry["result"] = record_fixture(answer, location)
+            elif kind == "coupon":
+                entry["result"] = record_coupon(answer, location)
             else:
                 entry["result"] = record_enclosure(
                     answer,
