@@ -20,7 +20,11 @@ from typing import Any
 
 import cadquery as cq
 
-from zcad_core.features.mounts import FLEXURE_STRAIN_LIMIT, flexure_for
+from zcad_core.features.mounts import (
+    flexure_for,
+    flexure_strain_limit,
+    strain_limit_source,
+)
 from zcad_core.features.nest_file import NestSpec
 from zcad_core.geometry.outline_prism import outline_prism
 
@@ -283,7 +287,8 @@ class Tab:
             "reach_mm": round(self.reach_mm, 3),
             "deflection_mm": round(self.deflection_mm, 3),
             "strain_percent": round(100 * self.strain, 2),
-            "strain_limit_percent": round(100 * FLEXURE_STRAIN_LIMIT, 2),
+            "strain_limit_percent": round(100 * flexure_strain_limit(), 2),
+            "strain_limit_source": strain_limit_source(),
         }
 
 
@@ -321,11 +326,11 @@ def lip_errors(
         height_mm, spec.wall_mm, spec.lip_overhang_mm, clearance
     )
 
-    if strain > FLEXURE_STRAIN_LIMIT:
-        needed = math.sqrt(3 * spec.wall_mm * deflection / (2 * FLEXURE_STRAIN_LIMIT))
+    if strain > flexure_strain_limit():
+        needed = math.sqrt(3 * spec.wall_mm * deflection / (2 * flexure_strain_limit()))
         errors.append(
             f"A lip tab on a part {height_mm:.1f} mm tall would strain {100 * strain:.1f}%, over the "
-            f"{100 * FLEXURE_STRAIN_LIMIT:.1f}% limit: its reach is {reach:.1f} mm and needs "
+            f"{100 * flexure_strain_limit():.1f}% limit: its reach is {reach:.1f} mm and needs "
             f"{needed:.1f} mm, or use a smaller overhang or a thinner wall"
         )
 

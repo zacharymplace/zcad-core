@@ -70,9 +70,17 @@ The strain limit is, in each coupon trial, the highest strain every tongue up to
 survived, stopping at the first that failed; across trials it is the lowest of
 those, since a limit must hold on every print. A tongue that survived above one that
 failed does not count. If any trial's gentlest tongue failed, the profile gives no
-strain limit, because the true one is below everything tested. No check reads the
-measured limit yet: every flexure is still checked against the provisional 1.5 per
-cent until that is decided. A feature left
+strain limit, because the true one is below everything tested.
+
+A build uses the measured limit only when you ask: give `enclosure build`,
+`enclosure-group build`, `housing`, `nest` or `stack` `check` or `build` the profile
+with `--compensation-profile profiles/compensation/bambu-lab-a1-mini-petg.json`.
+Every flexure in that build is then checked against the measured limit, and the
+tongues that are sized from the limit (the DIN clip, the lid catches, the stack
+detent and latch) are sized from it, so a higher limit gives shorter ones. A record
+that states the limit also says where it came from (`strain_limit_source`). A build
+without a profile, or with one that has no measured limit, keeps the provisional 1.5
+per cent, so deriving a new profile never changes a build that did not ask for it. A feature left
 unmeasured is left out. A profile needs at least two recorded trials, so print two
 coupons, or one coupon and a fixture or enclosure trial, before deriving one. An
 enclosure built with `--compensation-profile` then sizes its holes from it and

@@ -35,9 +35,10 @@ from typing import Any
 import cadquery as cq
 
 from zcad_core.features.mounts import (
-    FLEXURE_STRAIN_LIMIT,
     flexure_for,
     flexure_payload,
+    flexure_strain_limit,
+    strain_limit_source,
 )
 from zcad_core.features.stack_drawers import LEDGE_THICKNESS_MM, FramePlan
 from zcad_core.features.stack_latch import (
@@ -136,7 +137,8 @@ class DetentPlan:
             "tongue_length_mm": round(self.length_mm, 3),
             "tongue_reach_mm": round(self.reach_mm, 3),
             "strain_percent": round(100 * self.strain, 2),
-            "strain_limit_percent": round(100 * FLEXURE_STRAIN_LIMIT, 2),
+            "strain_limit_percent": round(100 * flexure_strain_limit(), 2),
+            "strain_limit_source": strain_limit_source(),
             "flexure": flexure_payload(
                 flexure_for(self.engagement_mm, self.reach_mm, self.tongue_thickness_mm)
             ),
@@ -195,7 +197,7 @@ def plan_detent(
 
     protrusion = clearance_mm + engagement_mm
     thickness = plan.drawer_wall
-    reach = math.sqrt(3 * thickness * engagement_mm / (2 * FLEXURE_STRAIN_LIMIT))
+    reach = math.sqrt(3 * thickness * engagement_mm / (2 * flexure_strain_limit()))
     reach = math.ceil(reach * 2) / 2
     strain = flexure_for(engagement_mm, reach, thickness).strain
     base = 2 * protrusion + HOOK_FLAT_MM
