@@ -5,10 +5,13 @@ candidates are `provisional_synthetic_candidate` and no trial may use them. A
 caliper capture replaces those sizes with your measurements of the real device.
 A candidate built from it is a `verified_candidate`, ready for a printed trial.
 
+The command is `zcad-validation capture`; `zcad-validation wearable`, its name before
+object holders used captures too, still works.
+
 ```bash
-zcad-validation wearable template --device tandem-mobi --output mobi.json
+zcad-validation capture template --device tandem-mobi --output mobi.json
 # measure, fill in, delete needs_review, then:
-zcad-validation wearable check mobi.json
+zcad-validation capture check mobi.json
 python scripts/build-tandem-mobi-snap-shell-candidate.py \
   --revision r003 --parent r002 --reason "Caliper capture of the pump" \
   --capture mobi.json
@@ -84,7 +87,7 @@ feature.
 catalog knows:
 
 ```bash
-zcad-validation wearable template --device custom --output tracker.json
+zcad-validation capture template --device custom --output tracker.json
 ```
 
 Set `"device": "custom"` and give it a `name`. A custom device has **no published
@@ -107,12 +110,12 @@ unchanged, and three optional sections, which a Dexcom or Mobi capture may also 
   zero and 5000 g, with how it was found. Only a trial's readings use it.
 
 A capture made before these existed is still valid, and loads with no outline radius,
-no face features and no mass. `wearable check` prints the device's name, its outline,
+no face features and no mass. `capture check` prints the device's name, its outline,
 its face features and its mass beside the sizes.
 
 ## What the check does
 
-`wearable check` lists every problem at once and exits 1 if the capture cannot
+`capture check` lists every problem at once and exits 1 if the capture cannot
 be used.
 
 Refused: a wrong `schema_version` or `units`, an unknown device or field, a

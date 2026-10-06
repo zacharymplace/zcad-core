@@ -4,9 +4,9 @@ A holder is a cup on a back plate that hangs on a wall: a remote, a power brick 
 You measure the object with calipers, say which way up it stands, and say how the holder is fixed to the wall.
 
 ```bash
-zcad-validation wearable template --device custom --output remote.json
+zcad-validation capture template --device custom --output remote.json
 # measure the object and fill it in, as for a wearable, then:
-zcad-validation wearable check remote.json
+zcad-validation capture check remote.json
 zcad-validation holder template --capture remote.json --output remote-holder.json
 # say how it stands and what it hangs on, then:
 zcad-validation holder check remote-holder.json

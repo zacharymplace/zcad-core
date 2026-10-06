@@ -5,7 +5,7 @@ and sits on its floor. The file names the object by a caliper capture (a ``weara
 of a ``custom`` device) and its hash, says which of the object's edges sits on the floor and
 which way its face looks, how high the front climbs, and how the holder is fixed to the wall.
 The engine does not trust it: :func:`check_holder_data` refuses what cannot be right, and
-:func:`inspect_holder_file` also reads the capture and refuses one that ``wearable check``
+:func:`inspect_holder_file` also reads the capture and refuses one that ``capture check``
 refuses.
 
 Frame: the holder's, as it hangs and as it prints. X runs along the wall, to the right seen from

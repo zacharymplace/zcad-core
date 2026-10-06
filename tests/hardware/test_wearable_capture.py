@@ -412,3 +412,30 @@ def test_the_cli_writes_a_custom_template_and_checks_a_custom_capture(
     assert output["outline"] == "rounded rectangle, 3 mm corners"
     assert output["face_features"] == ["screen (24 x 18 mm)"]
     assert output["mass_g"] == 18.5
+
+
+def test_capture_is_the_command_and_wearable_still_works(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    capture = tmp_path / "tracker.json"
+    capture.write_text(json.dumps(custom()), encoding="utf-8")
+    outputs = []
+
+    for name in ("capture", "wearable"):
+        assert main([name, "check", str(capture)]) == 0
+        outputs.append(json.loads(capsys.readouterr().out))
+
+    assert outputs[0] == outputs[1]
+
+    for name in ("capture", "wearable"):
+        written = tmp_path / f"{name}-template.json"
+
+        assert (
+            main([name, "template", "--device", "custom", "--output", str(written)])
+            == 0
+        )
+
+    capsys.readouterr()
+    assert (tmp_path / "capture-template.json").read_text() == (
+        tmp_path / "wearable-template.json"
+    ).read_text()
