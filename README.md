@@ -36,6 +36,9 @@ This repository intentionally contains no product-specific models.
   viewer of it. See `docs/guides/pi5-group-enclosure.md`.
 - `examples/pico2_oled_enclosure.py` designs, checks, and exports an
   enclosure with the core engine from Python.
+- `zcad-validation holder build` builds a cup that hangs an object you have measured
+  with calipers on a wall, on screws or keyholes; see
+  `docs/guides/object-holder.md`.
 - `examples/kicad_board.py` imports a KiCad board (its outline, holes, parts,
   cable connector and test points) and builds an enclosure and a test fixture
   for it; see `docs/guides/board-file.md`.
