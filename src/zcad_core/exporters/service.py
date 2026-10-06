@@ -403,7 +403,19 @@ def _prepare_exports(
 
 
 def export_parts(request: ExportRequest) -> ExportResult:
-    """Prepare all artifacts before publishing with caught-failure rollback."""
+    """Prepare all artifacts before publishing with caught-failure rollback.
+    Refused before anything is written when the build record the caller will
+    write is already in the output directory."""
+
+    if request.build_record_name is not None:
+        record = request.output_directory / request.build_record_name
+
+        if record.exists():
+            raise FileExistsError(
+                f"Refusing to overwrite build record: {record}; nothing was written. "
+                "Build into a new output directory"
+            )
+
     with tempfile.TemporaryDirectory(prefix="zcad-export-stage-") as folder:
         staging = Path(folder)
         result = _prepare_exports(request, staging)

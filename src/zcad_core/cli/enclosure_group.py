@@ -50,12 +50,14 @@ from zcad_core.features.enclosure_group_model import (
     PASS_THROUGH_SIDES,
     SLIDE_ENTRIES,
 )
+from zcad_core.features.enclosure_group_trial import BUILD_RECORD as GROUP_RECORD
 from zcad_core.features.enclosure_group_trial import write_group_record
 from zcad_core.features.enclosure_thermal import DEFAULT_AMBIENT_C
 from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.mounts import flexure_payload
 from zcad_core.features.vent_patterns import PATTERNS
 from zcad_core.printing import SliceError, slice_models
+from zcad_core.printing.bed import bed_contact
 from zcad_core.profiles import load_printer_profile
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
@@ -72,8 +74,9 @@ def _slice(
     name: str,
     part_stls: dict[str, Path],
 ) -> dict[str, object]:
-    """Write print-oriented STLs and slice the base and the lid, each on a
-    plate of its own: together they would not fit the bed."""
+    """Write print-oriented STLs and slice each part on a plate of its own:
+    the base and the lid together would not fit the bed. A part that does not
+    lie flat is sliced with supports from the build plate."""
 
     print_directory = args.output_directory / "print"
     print_directory.mkdir()
@@ -85,13 +88,20 @@ def _slice(
     for part, shape in print_oriented_parts(group).items():
         model = print_directory / f"{name}-{part}.stl"
         cq.exporters.export(shape, str(model))
+        supported = bed_contact(shape).needs_support
 
         try:
             sliced = slice_models(
                 [model],
                 args.output_directory / "slice" / part,
                 slicer_profile_path=args.slicer_profile,
-                summary_fields={"design_name": name, "part": part, "rebuild": recipe},
+                summary_fields={
+                    "design_name": name,
+                    "part": part,
+                    "rebuild": recipe,
+                    "supported_parts": [part] if supported else [],
+                },
+                supports=supported,
             )
         except SliceError as error:
             raise ValueError(str(error)) from error
@@ -106,6 +116,7 @@ def _slice(
             "estimated_print_minutes": part_minutes,
             "filament_used_g": part_grams,
             "slicer_warning": summary["slicer_warning"],
+            "supported": supported,
         }
 
     return {
@@ -156,6 +167,7 @@ def _group_build(args: argparse.Namespace) -> int:
         ExportRequest(
             design_name=name,
             design_type="enclosure",
+            build_record_name=GROUP_RECORD,
             parts=_parts(group),
             output_directory=args.output_directory,
             repository_root=Path.cwd(),

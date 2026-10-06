@@ -363,13 +363,23 @@ Every build writes `enclosure.json`, a build record of the hardware, the
 design settings, each part's STL hash, the checks that apply, and the
 nominal dimensions to measure. `--slice` then:
 
-- writes print-oriented copies of the parts to `print/`: the base on its
-  floor, the lid on its outer face so its posts or retainer point up;
-- slices both onto one plate with Bambu Studio into `slice/`
-  (`plate_1.gcode` and `slice-summary.json`), using the project slicer
-  profile (`--slicer-profile`); a plate too small for both parts fails
-  here; and
+- writes print-oriented copies of every part to `print/`: the base on its
+  floor, the lid on its outer face so its posts or retainer point up, and a
+  mount plate or a stack top on whichever face lies flattest;
+- slices the base and the lid onto one plate with Bambu Studio into `slice/`
+  (`plate_1.gcode` and `slice-summary.json`), and a mount plate or a stack
+  top onto a plate of its own in `slice/mount/` or `slice/stack_top/`, using
+  the project slicer profile (`--slicer-profile`); a plate too small for its
+  parts fails here; and
 - opens `trials/trial-001/`.
+
+**A part that does not lie flat is sliced with supports.** A base on mount
+pads stands on the pads with its floor in the air, and a hinged lid turned over
+lies on its knuckles; neither lies flat any other way either. When less than
+half a part's footprint is flat on the bed, its plate is sliced with tree
+supports from the build plate only, so none is built on the part itself. The
+summary and the build's output name the parts (`supported_parts`); every plain
+part, which has nine tenths or more of itself on the bed, is sliced without.
 
 **Is a slice still current?** The G-code keeps its geometry after the
 code that made it has moved on, so a fix does nothing for a slice made

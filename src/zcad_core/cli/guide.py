@@ -11,6 +11,7 @@ from typing import Any
 from zcad_core.cli._common import emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.guide import (
+    GUIDE_RECORD,
     build_guide,
     measured_accuracy,
     print_oriented,
@@ -148,6 +149,7 @@ def _guide_build(args: argparse.Namespace) -> int:
         ExportRequest(
             design_name=name,
             design_type="guide",
+            build_record_name=GUIDE_RECORD,
             parts={"guide": print_oriented(guide)},
             output_directory=args.output_directory,
             repository_root=Path.cwd(),

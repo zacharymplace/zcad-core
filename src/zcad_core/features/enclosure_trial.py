@@ -42,6 +42,7 @@ from zcad_core.features.lid_hinge import HingeReport
 from zcad_core.features.lid_slide import SlideReport
 from zcad_core.features.mount_stack import StackTop
 from zcad_core.hardware import DisplaySpec, get_fastener
+from zcad_core.printing.bed import laid_flat
 from zcad_core.validation.measurements import PhysicalMeasurement
 
 ENCLOSURE_BUILD_SCHEMA_VERSION = "1.1.0"
@@ -185,8 +186,11 @@ def sha256(path: Path) -> str:
 
 
 def print_oriented_parts(enclosure: Enclosure) -> dict[str, cq.Shape]:
-    """Each part as it goes on the bed: the base on its floor, the lid on
-    its outer face, so its screw posts or retainer point up."""
+    """Each part it exports, as it goes on the bed: the base on its floor, the
+    lid on its outer face, so its screw posts or retainer point up, and a
+    mount plate or a stack top on whichever face lies flattest. A part that
+    still has little of itself on the bed, such as a base on mount pads, is
+    sliced with supports (see :mod:`zcad_core.printing.bed`)."""
 
     base = enclosure.base.val()
     lid = enclosure.lid.val()
@@ -194,7 +198,24 @@ def print_oriented_parts(enclosure: Enclosure) -> dict[str, cq.Shape]:
     if not isinstance(base, cq.Shape) or not isinstance(lid, cq.Shape):
         raise TypeError("Expected a shape for each enclosure part")
 
-    return {"base": base, "lid": lid.rotate((0, 0, 0), (1, 0, 0), 180)}
+    parts = {"base": base, "lid": lid.rotate((0, 0, 0), (1, 0, 0), 180)}
+
+    if enclosure.mount is not None:
+        parts["mount"] = laid_flat(_one_shape(enclosure.mount.plate))
+
+    if enclosure.stack_top is not None:
+        parts["stack_top"] = laid_flat(_one_shape(enclosure.stack_top.plate))
+
+    return parts
+
+
+def _one_shape(model: cq.Workplane) -> cq.Shape:
+    shape = model.val()
+
+    if not isinstance(shape, cq.Shape):
+        raise TypeError("Expected a shape")
+
+    return shape
 
 
 def applicable_checks(enclosure: Enclosure) -> tuple[EnclosureCheck, ...]:
@@ -875,16 +896,33 @@ def _measurements(trial: Path) -> list[PhysicalMeasurement]:
 
 
 def _printed_slice(build_directory: Path) -> dict[str, Any] | None:
-    """The slice a trial was printed from, checked: its G-code and the
-    print-oriented copies the slicer was given, each still the file the slice
-    summary records. The build's own STLs are not what was printed (the lid is
-    printed turned), so this is what ties the trial to the plate. None for a
-    build that was never sliced."""
+    """The slices a trial was printed from, checked: each plate's G-code and
+    the print-oriented copies the slicer was given, each still the file its
+    slice summary records. The build's own STLs are not what was printed (the
+    lid is printed turned), so this is what ties the trial to the plates. The
+    base and lid's plate is ``slice/``; a mount plate or a stack top has its
+    own under it. None for a build that was never sliced."""
 
-    summary_path = build_directory / "slice" / "slice-summary.json"
+    main = build_directory / "slice" / "slice-summary.json"
 
-    if not summary_path.is_file():
+    if not main.is_file():
         return None
+
+    others = sorted(p for p in main.parent.rglob("slice-summary.json") if p != main)
+    printed = _checked_plate(main)
+
+    if others:
+        printed["other_plates"] = {
+            str(path.parent.relative_to(main.parent)): _checked_plate(path)
+            for path in others
+        }
+
+    return printed
+
+
+def _checked_plate(summary_path: Path) -> dict[str, Any]:
+    """One plate's G-code and print copies, refused if any has changed since
+    its summary was written."""
 
     summary = _read(summary_path)
     files = {
@@ -917,6 +955,7 @@ def _printed_slice(build_directory: Path) -> dict[str, Any] | None:
             {"path": str(model["path"]), "sha256": model.get("sha256")}
             for model in summary.get("models") or ()
         ],
+        "supported_parts": summary.get("supported_parts", []),
     }
 
 

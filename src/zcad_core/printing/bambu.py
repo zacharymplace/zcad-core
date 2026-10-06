@@ -96,6 +96,11 @@ def flatten(
     return merged
 
 
+# For a plate with a part that does not lie flat: supports only where they
+# stand on the bed, so none is built on the part itself.
+SUPPORT_OVERRIDES = {"enable_support": "1", "support_on_build_plate_only": "1"}
+
+
 def process_overrides(profile: dict[str, Any]) -> dict[str, str]:
     """The process settings a project slicer profile fixes."""
 
@@ -159,9 +164,12 @@ def slice_models(
     app: Path = BAMBU_STUDIO,
     summary_fields: dict[str, Any] | None = None,
     timeout_seconds: float = SLICE_TIMEOUT_SECONDS,
+    supports: bool = False,
 ) -> SliceResult:
     """Slice the models onto one plate and write the slice evidence, with
-    any ``summary_fields`` the caller adds to the summary."""
+    any ``summary_fields`` the caller adds to the summary. ``supports``
+    slices it with tree supports from the build plate whatever the profile
+    says, for a part that does not lie flat (see :mod:`zcad_core.printing.bed`)."""
 
     _require_inputs(models, output_directory, app)
     profile = json.loads(slicer_profile_path.read_text(encoding="utf-8"))
@@ -173,6 +181,10 @@ def slice_models(
     index = load_presets(app)
     configs = {kind: flatten(index, kind, name) for kind, name in names.items()}
     overrides = process_overrides(profile)
+
+    if supports:
+        overrides.update(SUPPORT_OVERRIDES)
+
     configs["process"].update(overrides)
     plate = _run_bambu(app, configs, models, output_directory, timeout_seconds)
     gcode = output_directory / "plate_1.gcode"
