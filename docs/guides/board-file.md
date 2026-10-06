@@ -80,8 +80,14 @@ A KiCad file holds no heights, so you give them. `--heights FILE` is a JSON obje
 }
 ```
 
-A reference wins over a library name, which wins over a pattern; patterns are tried in the file's order, and keys that match nothing are listed in the report. `--default-height` with `--default-height-source`
-gives every part the file does not; give both or neither. A part with no height is left out of `components`, and `needs_review` names it until you give one. A file with no parts at all gets the default
+A reference wins over a library name, which wins over a pattern; patterns are tried in the file's order, and keys that match nothing are listed in the report.
+
+`--models DIR` reads a height from each part's 3D model, for every part the heights file does not give. The footprint's model path loses its leading variable (`${KICAD8_3DMODEL_DIR}/`) and is looked for under `DIR`,
+then by its file name alone, as a STEP file (`.step` or `.stp`, beside the `.wrl` KiCad often names). The height is the model's top through its scale, turn and offset, plus 0.01 mm for the tessellation. Only STEP is read;
+a part whose model is not found, or one of whose models is not, is listed under `parts.models.not_read`. A model turned about X or Y is flagged `footprint_transforms`, since how KiCad turns a model is not yet checked.
+
+`--default-height` with `--default-height-source`
+gives every part neither of those does; give both or neither. A part with no height is left out of `components`, and `needs_review` names it until you give one. A file with no parts at all gets the default
 as its `envelope`.
 
 The cable connector is one of the `cable_connector_candidates` the report lists: the parts past an edge or within 1 mm of one, largest first. `--cable-connector REF` writes that part as the connector and takes it out of the

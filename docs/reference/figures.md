@@ -6,13 +6,13 @@ The engine states no strength, holding force or load claim, and a figure it did 
 
 **Scope.** Module-level numeric constants, and the non-zero numeric defaults of dataclass fields and function parameters. A default of zero (no offset, none) is not a figure and is not listed. Not covered: a number inside a function body, a default given by `field(...)` or a factory, a keyword argument at a call (so a module-level instance such as a display's is not listed), and a number in a data file. A status is only as good as what the code says: a `sourced` figure is as the code cites it and has not been re-checked against the standard. An `unstated` figure is not wrong; it has no basis written down. Adding a figure without recording it fails the test suite.
 
-## The 725 figures
+## The 728 figures
 
 | Status | Count | Meaning |
 | --- | ---: | --- |
-| `sourced` | 31 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
+| `sourced` | 32 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
 | `estimated` | 9 | Read off a drawing's scale or a stated rough estimate: the source does not state it outright |
-| `design_default` | 28 | The engine's own choice, which the code says is a default, a design value or a guess |
+| `design_default` | 30 | The engine's own choice, which the code says is a default, a design value or a guess |
 | `example` | 3 | An illustrative figure, not claimed right for any real part |
 | `unstated` | 654 | No basis is stated in the code |
 
@@ -36,6 +36,7 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | `hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.board_length_mm` | `53.34` | Arduino UNO R4 WiFi STEP (PCB outline), as cited in hardware/electronics/arduino.py; the code marks its geometry provisional |
 | `hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.board_width_mm` | `68.58` | Arduino UNO R4 WiFi STEP (PCB outline), as cited in hardware/electronics/arduino.py; the code marks its geometry provisional |
 | `hardware/electronics/arduino.py:ArduinoUnoR4WifiSpec.mounting_hole_positions_mm` | `((-20.32, -24.13), (-19.05, 24.13), (31.75, -19.05), (31.75, 8.89))` | The UNO form-factor drawing, as cited in hardware/electronics/arduino.py (the STEP model has no mounting holes); the code marks its geometry provisional |
+| `hardware/electronics/kicad_models.py:INCH_MM` | `25.4` | The inch, defined as exactly 25.4 mm by the international yard and pound agreement of 1959 |
 | `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.board_length_mm` | `85.0` | Raspberry Pi mechanical drawing RP-008347, as cited in hardware/electronics/raspberry_pi.py; the drawing calls itself approximate |
 | `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.board_width_mm` | `56.0` | Raspberry Pi mechanical drawing RP-008347, as cited in hardware/electronics/raspberry_pi.py; the drawing calls itself approximate |
 | `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.mounting_hole_positions_mm` | `((-24.5, -39.0), (24.5, -39.0), (-24.5, 19.0), (24.5, 19.0))` | Raspberry Pi's STEP model, as the comment in hardware/electronics/raspberry_pi.py states |
@@ -90,6 +91,8 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | `hardware/electronics/displays.py:DisplaySpec.recommended_window_clearance_mm` | `0.4` | The spec's own recommendation (the engine's choice); no basis is written down |
 | `hardware/electronics/kicad_heights.py:HEIGHT_RANGE_MM` | `(0.05, 200.0)` | The board file's own bounds on a component's height_mm, so a heights file cannot give a height the board file would refuse |
 | `hardware/electronics/kicad_import.py:AT_EDGE_MM` | `1.0` | A design value: a connector sits flush with its edge or past it, and 1 mm takes in a courtyard that stops just short; it only lists candidates, and the user names the connector |
+| `hardware/electronics/kicad_models.py:MODEL_CHORD_MM` | `0.01` | A design value: tessellating a model to 0.01 mm leaves a curved top at most that low, and it is added back so a height is never short |
+| `hardware/electronics/kicad_models.py:ModelRef.scale` | `(1.0, 1.0, 1.0)` | A model's scale when the footprint gives none: no scaling, 1 in each axis |
 | `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.recommended_standoff_height_mm` | `4.0` | The spec's own recommendation (the engine's choice); no basis is written down |
 | `hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.recommended_clearance_mm` | `0.5` | The spec's own recommendation (the engine's choice); no basis is written down |
 | `hardware/electronics/raspberry_pi.py:RaspberryPiPico2Spec.recommended_standoff_height_mm` | `3.0` | The spec's own recommendation (the engine's choice); no basis is written down |
