@@ -70,14 +70,16 @@ def shell(request: pytest.FixtureRequest) -> str:
     return str(request.param)
 
 
-def back_up(checkout: Path, shell: str) -> subprocess.CompletedProcess[str]:
+def back_up(
+    checkout: Path, shell: str, **variables: str
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [shell, str(checkout / "scripts" / SCRIPT.name)],
         # The tests assert on the exit status, including a refusal.
         check=False,
         capture_output=True,
         text=True,
-        env=environment(),
+        env={**environment(), **variables},
     )
 
 
@@ -115,6 +117,39 @@ def test_filled_in_evidence_is_committed_and_pushed(checkout: Path, shell: str) 
     assert git(evidence, "rev-parse", "HEAD") == git(
         evidence, "rev-parse", "origin/main"
     )
+
+
+def test_a_file_too_large_for_git_and_not_in_lfs_is_not_backed_up(
+    checkout: Path, shell: str
+) -> None:
+    evidence = checkout / "evidence"
+    before = git(evidence, "rev-parse", "HEAD")
+    (evidence / "board.step").write_bytes(b"ISO-10303-21;\n" * 100)
+    (evidence / "small.json").write_text("{}\n", encoding="utf-8")
+
+    result = back_up(checkout, shell, EVIDENCE_GIT_FILE_LIMIT_BYTES="1000")
+
+    assert result.returncode == 1
+    assert "board.step" in result.stderr
+    assert "small.json" not in result.stderr
+    assert git(evidence, "rev-parse", "HEAD") == before
+
+
+@pytest.mark.skipif(shutil.which("git-lfs") is None, reason="needs git-lfs")
+def test_a_large_file_tracked_by_lfs_is_backed_up_as_a_pointer(
+    checkout: Path, shell: str
+) -> None:
+    evidence = checkout / "evidence"
+    git(evidence, "lfs", "install", "--local")
+    git(evidence, "lfs", "track", "*.step")
+    (evidence / "board.step").write_bytes(b"ISO-10303-21;\n" * 100)
+
+    result = back_up(checkout, shell, EVIDENCE_GIT_FILE_LIMIT_BYTES="1000")
+
+    assert result.returncode == 0, result.stderr
+    assert git(evidence, "lfs", "ls-files", "--name-only") == "board.step"
+    pointer = git(evidence, "cat-file", "-p", "HEAD:board.step")
+    assert pointer.startswith("version https://git-lfs.github.com/spec/v1")
 
 
 def test_unchanged_evidence_needs_no_backup(checkout: Path, shell: str) -> None:

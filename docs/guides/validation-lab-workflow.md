@@ -36,7 +36,10 @@ place. `evidence/` is ignored by this repository and backed up to its own
 private repository with `scripts/backup-evidence.sh`; run it after every
 step that writes evidence. It backs up nothing while a new or changed file
 still has the `needs_review` line its template came with, naming each one:
-fill it in and delete the line, or move it out of `evidence/`.
+fill it in and delete the line, or move it out of `evidence/`. The CAD files
+go through Git LFS (see the evidence repository's `.gitattributes`): the
+script needs git-lfs installed, and refuses a file over 95 MB that LFS does
+not track, since GitHub would refuse it at the push.
 
 ## 1. Register the target
 
