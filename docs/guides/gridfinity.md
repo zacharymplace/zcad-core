@@ -94,6 +94,27 @@ The tests check the built solids against them: the base's 41.5 mm top and its bo
 engine's baseplate and a base stacked in a lip, each clear when raised 0.05 mm and meeting what holds it when pushed 0.2 mm lower. The figures are listed,
 with their sources, in [Figures taken on trust](../reference/figures.md).
 
+## Trying a print
+
+Each build is unverified until it has been printed and tried. After printing a part:
+
+```bash
+zcad-validation gridfinity trial start --build-record exports/bin-2x3x6/gridfinity.json
+```
+
+That writes `exports/bin-2x3x6/trials/trial-001/` with three files to fill in: `observations.json`, one entry per check the part is asked, each pass or
+fail; `measurements.json`, the sizes to measure with calipers beside their nominal; and `fit.json`, what the part was fitted with and how it went.
+Name the baseplate a bin was tried in, or the bin a baseplate held, as made by `this engine` or `another generator`, and for another generator say which
+and where it came from. Then:
+
+```bash
+zcad-validation gridfinity trial complete --trial-directory exports/bin-2x3x6/trials/trial-001 --disposition pass
+```
+
+A pass needs every check passed and a fit named. A trial of a part whose STL has changed since the build is refused: rebuild and start again. Two passing
+trials of the same build verify it; `trial status` says so, and how many of the passes were with another generator's part. Those are the ones that say a
+part keeps to the standard in practice.
+
 ## What is checked, and what is not
 
 A bin is **one solid**, its base keeps to the standard, it **seats** in the engine's own baseplate and, with a lip, a base **stacks** in it. A baseplate is
