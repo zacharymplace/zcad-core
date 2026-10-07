@@ -82,6 +82,10 @@ PCB edge. Fixtures now cut a relief through the base beyond each overhung
 edge, across the connector's width plus 0.5 mm a side
 (`ValidationFixturePolicy.connector_relief_clearance_mm`). The reviews above
 predate it, and the four candidates need new revisions before they print.
+Design-review schema 1.3.0 measures each `base_lip_mm` from the base's
+material under the part rather than the fixture's bounds, which a relief
+leaves unchanged; under 1.2.0 a relieved fixture still reported its old lip.
+A relieved base reads negative: it stops that far inside the part's face.
 
 ### Tracks
 

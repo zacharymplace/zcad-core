@@ -305,7 +305,7 @@ def test_component_beyond_minimum_gap_passes(tmp_path: Path) -> None:
     report = review_board_with_top_part(tmp_path, minimum_component_gap_mm=0.1)
 
     assert report["passed"] is True
-    assert report["schema_version"] == "1.2.0"
+    assert report["schema_version"] == "1.3.0"
     assert report["interference"]["minimum_component_gap_mm"] == 0.1
     assert report["interference"]["component_clearance_violations"] == []
 
@@ -336,6 +336,7 @@ def test_rejects_negative_minimum_component_gap(tmp_path: Path) -> None:
 def review_clearance(
     tmp_path: Path,
     parts: tuple[tuple[tuple[float, float, float], tuple[float, float, float]], ...],
+    fixture_policy: ValidationFixturePolicy | None = None,
 ) -> dict[str, Any]:
     """Review a 40 x 30 mm board carrying boxes given as (size, center)."""
 
@@ -363,7 +364,7 @@ def review_clearance(
     artifact = export_design_review_package(
         execution,
         output_directory=tmp_path / "review",
-        fixture_policy=ValidationFixturePolicy(),
+        fixture_policy=fixture_policy or ValidationFixturePolicy(),
     )
     report = json.loads(artifact.report_path.read_text(encoding="utf-8"))
     assert report["geometry"]["selected_corners"] == [
@@ -399,9 +400,12 @@ def test_clearance_lists_closest_parts_and_capture_gaps(tmp_path: Path) -> None:
 
 
 def test_clearance_measures_base_lip_under_an_overhanging_part(tmp_path: Path) -> None:
-    """The fixture's 2 mm margin runs 0.5 mm past a part overhanging by 1.5 mm."""
+    """Without a relief, the fixture's 2 mm margin runs 0.5 mm past a part
+    overhanging by 1.5 mm."""
 
-    clearance = review_clearance(tmp_path, (EDGE_PART,))
+    clearance = review_clearance(
+        tmp_path, (EDGE_PART,), ValidationFixturePolicy(connector_overhang_mm=5.0)
+    )
 
     assert clearance["edge_overhangs"] == [
         {
@@ -414,6 +418,15 @@ def test_clearance_measures_base_lip_under_an_overhanging_part(tmp_path: Path) -
             "size_mm": [3.0, 4.0, 2.0],
         }
     ]
+
+
+def test_a_relieved_base_stops_at_the_pcb_edge_under_the_part(tmp_path: Path) -> None:
+    """The relief notches the base back to the PCB edge, 1.5 mm inside the part's
+    face, though the fixture's bounds still reach 0.5 mm past it."""
+
+    (overhang,) = review_clearance(tmp_path, (EDGE_PART,))["edge_overhangs"]
+
+    assert overhang["base_lip_mm"] == -1.5
 
 
 def test_clearance_reports_parts_through_base_holes(tmp_path: Path) -> None:

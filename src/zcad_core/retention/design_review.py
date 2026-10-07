@@ -26,7 +26,7 @@ from zcad_core.retention.validation_fixture import (
 # read up to ~0.3 um loose, so seating comparisons allow 1 um.
 _SEATING_EPSILON_MM = 1e-3
 
-DESIGN_REVIEW_SCHEMA_VERSION = "1.2.0"
+DESIGN_REVIEW_SCHEMA_VERSION = "1.3.0"
 
 # How many nearest parts the clearance section lists, and how close (by
 # bounding box) a part must be to a capture before its exact gap is measured.
@@ -129,9 +129,56 @@ def _within(first: cq.BoundBox, second: cq.BoundBox, margin: float) -> bool:
     )
 
 
+def _base_lip(
+    fixture: cq.Shape,
+    fixture_bounds: cq.BoundBox,
+    pcb_bounds: cq.BoundBox,
+    part: cq.BoundBox,
+    edge: str,
+) -> float:
+    """How far the base below a part runs past its outer face.
+
+    Measured from the base's material within the part's span, from the PCB
+    edge outwards, not from the fixture's bounds: a connector relief notches
+    the base under the part and leaves the bounds where they were. Negative
+    when the base stops short of the face; at the PCB edge when none is left.
+    The base is the fixture below the PCB's underside, so a capture beside
+    the part is not counted.
+    """
+
+    reach = 2.0 + max(fixture_bounds.xlen, fixture_bounds.ylen)
+    z0 = fixture_bounds.zmin - 1.0
+    height = pcb_bounds.zmin - z0
+
+    if edge == "negative_x":
+        box = (pcb_bounds.xmin - reach, part.ymin, reach, part.ylen)
+    elif edge == "positive_x":
+        box = (pcb_bounds.xmax, part.ymin, reach, part.ylen)
+    elif edge == "negative_y":
+        box = (part.xmin, pcb_bounds.ymin - reach, part.xlen, reach)
+    else:
+        box = (part.xmin, pcb_bounds.ymax, part.xlen, reach)
+
+    x, y, xlen, ylen = box
+    below = solid_intersection(
+        fixture, cq.Solid.makeBox(xlen, ylen, height, pnt=cq.Vector(x, y, z0))
+    )
+    material = None if below is None else below.BoundingBox()
+
+    if edge == "negative_x":
+        return part.xmin - (pcb_bounds.xmin if material is None else material.xmin)
+    if edge == "positive_x":
+        return (pcb_bounds.xmax if material is None else material.xmax) - part.xmax
+    if edge == "negative_y":
+        return part.ymin - (pcb_bounds.ymin if material is None else material.ymin)
+
+    return (pcb_bounds.ymax if material is None else material.ymax) - part.ymax
+
+
 def _edge_overhangs(
     components: Sequence[cq.Shape],
     *,
+    fixture: cq.Shape,
     pcb_bounds: cq.BoundBox,
     fixture_bounds: cq.BoundBox,
     gaps: dict[int, float],
@@ -140,7 +187,8 @@ def _edge_overhangs(
 
     A positive ``base_lip_mm`` is fixture extending beyond the part's outer
     face; with a small ``height_above_base_mm`` a cable plug seated in the
-    part can bind on it.
+    part can bind on it. A negative one is a relief: the base stops that far
+    short of the face.
     """
 
     overhangs = []
@@ -148,30 +196,15 @@ def _edge_overhangs(
     for index, component in enumerate(components, start=1):
         bounds = component.BoundingBox()
         faces = (
-            (
-                "negative_x",
-                pcb_bounds.xmin - bounds.xmin,
-                bounds.xmin - fixture_bounds.xmin,
-            ),
-            (
-                "positive_x",
-                bounds.xmax - pcb_bounds.xmax,
-                fixture_bounds.xmax - bounds.xmax,
-            ),
-            (
-                "negative_y",
-                pcb_bounds.ymin - bounds.ymin,
-                bounds.ymin - fixture_bounds.ymin,
-            ),
-            (
-                "positive_y",
-                bounds.ymax - pcb_bounds.ymax,
-                fixture_bounds.ymax - bounds.ymax,
-            ),
+            ("negative_x", pcb_bounds.xmin - bounds.xmin),
+            ("positive_x", bounds.xmax - pcb_bounds.xmax),
+            ("negative_y", pcb_bounds.ymin - bounds.ymin),
+            ("positive_y", bounds.ymax - pcb_bounds.ymax),
         )
 
-        for edge, overhang, lip in faces:
+        for edge, overhang in faces:
             if overhang > _OVERHANG_MM:
+                lip = _base_lip(fixture, fixture_bounds, pcb_bounds, bounds, edge)
                 overhangs.append(
                     {
                         "component_index": index,
@@ -270,6 +303,7 @@ def _clearance_report(
         ],
         "edge_overhangs": _edge_overhangs(
             components,
+            fixture=fixture,
             pcb_bounds=pcb_bounds,
             fixture_bounds=fixture_bounds,
             gaps=gaps,
