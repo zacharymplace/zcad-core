@@ -626,6 +626,18 @@
       "status": "design_default",
       "note": "A design value: one 7 mm unit is all base, with no room inside"
     },
+    "features/gridfinity_fitted.py:FINGER_NOTCH_REACH_MM": {
+      "status": "design_default",
+      "note": "A design value: past the pocket's edge far enough for a fingertip to get under the object, cut short where the bin's wall leaves less"
+    },
+    "features/gridfinity_fitted.py:FINGER_NOTCH_WIDTH_MM": {
+      "status": "design_default",
+      "note": "The object holder's finger notch (features/holder.py), so a tray and a holder take the same fingers"
+    },
+    "features/gridfinity_fitted.py:MINIMUM_CLEARANCE_MM": {
+      "status": "design_default",
+      "note": "The object holder's least clearance (features/holder.py), for the same reason: a printer measured loose still gets some"
+    },
     "features/gridfinity_inside.py:DIVIDER_MM": {
       "status": "design_default",
       "note": "A design value: the printer's minimum wall; Gridfinity Rebuilt's own d_div is the same 1.2 mm"

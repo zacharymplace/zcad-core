@@ -1,4 +1,5 @@
-"""zcad-validation gridfinity bin and baseplate: parts that keep to the Gridfinity figures."""
+"""zcad-validation gridfinity bin, baseplate and fitted: parts that keep to the Gridfinity
+figures, and bins with a pocket for one measured object."""
 
 from __future__ import annotations
 
@@ -16,7 +17,16 @@ from zcad_core.features.gridfinity import (
     write_gridfinity_record,
 )
 from zcad_core.features.gridfinity_baseplate import BaseplateSpec, build_baseplate
+from zcad_core.features.gridfinity_fitted import (
+    FittedSpec,
+    Footprint,
+    build_fitted_bin,
+    capture_footprint,
+    model_footprint,
+)
 from zcad_core.features.gridfinity_shapes import GridfinityPart, require_fits_bed
+from zcad_core.features.holder_model import AXES, load_holder_model
+from zcad_core.hardware.wearables.capture import load_capture
 from zcad_core.profiles import load_compensation_profile, load_printer_profile
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
@@ -116,6 +126,52 @@ def _gridfinity_bin(args: argparse.Namespace) -> int:
     return _export(part, f"gridfinity-bin-{x}x{y}x{args.height}", args, profile)
 
 
+def _footprint(args: argparse.Namespace) -> Footprint:
+    if args.capture is not None:
+        return capture_footprint(load_capture(args.capture))
+
+    return model_footprint(
+        load_holder_model(
+            args.model, _sha256(args.model), args.solid_index, args.up, args.out
+        )
+    )
+
+
+def _gridfinity_fitted(args: argparse.Namespace) -> int:
+    """Build, validate, and export a bin with a pocket for one object, with its record."""
+
+    profile = load_printer_profile(args.printer_profile)
+
+    if (args.clearance_mm is None) != (not args.clearance_source):
+        raise ValueError(
+            "--clearance-mm and --clearance-source go together: a clearance with no source "
+            "is a guess"
+        )
+
+    shortfall = (
+        load_compensation_profile(args.compensation_profile).mean(
+            "side_gap_shortfall_mm"
+        )
+        if args.compensation_profile is not None
+        else None
+    )
+    item = _footprint(args)
+    spec = FittedSpec(
+        depth_mm=args.depth,
+        lip=not args.no_lip,
+        magnets=args.magnets,
+        screws=args.screws,
+        units=args.units,
+        clearance_mm=args.clearance_mm,
+        clearance_source=args.clearance_source or "",
+    )
+    part = build_fitted_bin(item, spec, profile, side_shortfall_mm=shortfall)
+    x, y = part.settings["units"]
+    stem = (args.capture or args.model).stem.lower().replace("_", "-")
+
+    return _export(part, f"gridfinity-fitted-{stem}-{x}x{y}", args, profile)
+
+
 def _gridfinity_baseplate(args: argparse.Namespace) -> int:
     """Build, validate, and export a Gridfinity baseplate, in pieces if it outgrows the bed,
     with its record."""
@@ -191,3 +247,42 @@ def register(
     plate.add_argument("--output-directory", required=True, type=Path)
     plate.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
     plate.set_defaults(handler=_gridfinity_baseplate)
+    fitted = commands.add_parser(
+        "fitted", help="build a bin with a pocket cut for one measured object"
+    )
+    named = fitted.add_mutually_exclusive_group(required=True)
+    named.add_argument("--capture", type=Path, help="the object's caliper capture")
+    named.add_argument("--model", type=Path, help="or its STEP model")
+    fitted.add_argument(
+        "--up", choices=sorted(AXES), default="+z", help="a model's axis that points up"
+    )
+    fitted.add_argument(
+        "--out",
+        choices=sorted(AXES),
+        default="+y",
+        help="a model's axis that points to the bin's back",
+    )
+    fitted.add_argument("--solid-index", type=int, help="a model's solid, from 1")
+    fitted.add_argument(
+        "--depth",
+        type=float,
+        help="how far the object sinks into the pocket, in mm; default its whole height",
+    )
+    fitted.add_argument(
+        "--units",
+        type=_units,
+        help="units across, e.g. 3x1; default the fewest that fit",
+    )
+    fitted.add_argument(
+        "--clearance-mm", type=float, help="a clearance per side of your own"
+    )
+    fitted.add_argument("--clearance-source", help="why that clearance")
+    fitted.add_argument(
+        "--no-lip", action="store_true", help="leave off the stacking lip"
+    )
+    fitted.add_argument("--magnets", action="store_true")
+    fitted.add_argument("--screws", action="store_true")
+    fitted.add_argument("--output-directory", required=True, type=Path)
+    fitted.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
+    add_compensation_profile_argument(fitted)
+    fitted.set_defaults(handler=_gridfinity_fitted)

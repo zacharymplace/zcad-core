@@ -43,6 +43,33 @@ straight, 2.15 mm at 45 degrees) over a 0.35 mm straight clearance, open through
   on a 180 mm bed are three and two). The plate is built whole and cut at the cells' edges, so the pieces are exactly the plate; each is exported as
   `baseplate-1`, `baseplate-2` and so on, and only the plate's outer corners are rounded. Nothing joins the pieces: lay them side by side.
 
+## A bin for a measured object
+
+A **fitted bin** is a solid bin with a pocket cut for one object, so a tool tray fits its tool:
+
+```bash
+zcad-validation capture template --device custom --output tool.json
+# measure the tool lying flat, face up, then:
+zcad-validation gridfinity fitted --capture tool.json --depth 10 --output-directory exports/tool-bin
+```
+
+The object is a caliper capture, as for an [object holder](object-holder.md), its length along the bin's width and its width front to back; or a STEP
+model with `--model part.step`, turned so its `--up` axis (default `+z`) is up and its `--out` axis (default `+y`) points to the bin's back.
+
+- **The bin** is the fewest units that hold the object's footprint with the clearance and the wall round it, and the fewest height units that sink it
+  `--depth` mm (default its whole height) with the printer's floor (1.2 mm) left above the base. `--units 3x1` asks for more; fewer than the object needs
+  is refused.
+- **The pocket** is the object's shadow seen from above, grown by the clearance, and open at the top, so it lifts straight out. The clearance is the
+  printer's sliding clearance, the coupon's measured one with `--compensation-profile`, or yours with `--clearance-mm` and `--clearance-source`. Inside the
+  bin the fit is the engine's to choose; the bin's base, the interface, is still the standard's and never changed.
+- **A finger notch** is cut at the middle of each long side, 20 mm wide and reaching 8 mm past the pocket where the bin's wall leaves room.
+- The bin is **solid** below its top, so a bin stacked on it rests on that top inside the lip rather than on the lip's slopes; an object sunk less than its
+  height stands proud of the top and the build warns that a stacked bin would rest on it.
+- `--no-lip`, `--magnets` and `--screws` work as for a plain bin.
+
+The checks are a plain bin's (one solid, base to the standard, seats, stacks) and the object's: it shares no volume with the bin in its pocket, it lifts
+straight out, and the notches are open.
+
 ## How a bin sits
 
 A one-unit bin rests on its cell's slopes, its bottom level with the plate's. A bin of more than one unit rests on the ridges between cells: they peak at
@@ -72,6 +99,6 @@ with their sources, in [Figures taken on trust](../reference/figures.md).
 A bin is **one solid**, its base keeps to the standard, it **seats** in the engine's own baseplate and, with a lip, a base **stacks** in it. A baseplate is
 one solid, its cells keep to the standard, and it holds a bin. Both must fit the printer's bed.
 
-**The engine says nothing about whether a part fits a baseplate or a bin from another generator, what a bin or a stack bears, or how well a magnet holds.**
+**The engine says nothing about whether a part fits a baseplate or a bin from another generator, what a bin or a stack bears, how well a magnet holds, or how a fitted bin holds its object.**
 Generators differ in small ways; a printed trial in a baseplate made elsewhere is what says a bin keeps to the standard in practice. See
 [the design](../roadmaps/gridfinity-bins.md).

@@ -110,6 +110,39 @@ class BinSpec:
         return self.units_x * GRID_MM - gap, self.units_y * GRID_MM - gap
 
 
+def bin_block(spec: BinSpec) -> cq.Workplane:
+    """The bin solid to its top, its lip's height included: the bases under every unit and the
+    outer body above them, before anything is cut from it."""
+
+    width, depth = spec.footprint_mm
+    top = spec.height_mm + (LIP_HEIGHT_MM if spec.lip else 0.0)
+    body = stepped(
+        width,
+        depth,
+        BASE_TOP_RADIUS_MM,
+        [(BASE_PROFILE_HEIGHT_MM, 0.0), (top, 0.0)],
+    )
+
+    for x, y in unit_centres(spec.units_x, spec.units_y):
+        body = body.union(base_unit((x, y, 0.0)))
+
+    return body
+
+
+def lip_socket(spec: BinSpec) -> cq.Workplane:
+    """The stacking lip's socket alone, above the wall's top, for a bin solid below it."""
+
+    width, depth = spec.footprint_mm
+    top = spec.height_mm
+    insets = [(top - 0.01, LIP_DEPTH_MM)]
+    insets += [
+        (top + height, inset) for height, inset in profile_insets(LIP_STEPS_MM)[1:]
+    ]
+    insets.append((top + LIP_HEIGHT_MM + 1.0, 0.0))
+
+    return stepped(width, depth, BASE_TOP_RADIUS_MM, insets)
+
+
 def _bin_cavity(spec: BinSpec, width: float, depth: float) -> cq.Workplane:
     """The bin's inside: straight walls from the base's top, a 45-degree shoulder up to the lip's
     inner tip, and the lip's socket above, open at the top."""
@@ -137,7 +170,7 @@ def _bin_cavity(spec: BinSpec, width: float, depth: float) -> cq.Workplane:
     return stepped(width, depth, radius, insets)
 
 
-def _underside_holes(spec: BinSpec, least_floor: float) -> list[cq.Workplane]:
+def underside_holes(spec: BinSpec, least_floor: float) -> list[cq.Workplane]:
     """Magnet holes, and screw holes up through the base to a floor's thickness under the
     cavity, in every unit's corners."""
 
@@ -191,7 +224,6 @@ def build_bin(
     least_floor = float(minimums.get("floor", 1.2))
     _validate(spec, least_wall)
     width, depth = spec.footprint_mm
-    top = spec.height_mm + (LIP_HEIGHT_MM if spec.lip else 0.0)
     inside_top = (
         stack_seat_mm(spec) - STACK_CLEARANCE_MM if spec.lip else spec.height_mm
     )
@@ -202,24 +234,14 @@ def build_bin(
         inside_top,
         least_wall,
     )
-    body = stepped(
-        width,
-        depth,
-        BASE_TOP_RADIUS_MM,
-        [(BASE_PROFILE_HEIGHT_MM, 0.0), (top, 0.0)],
-    )
-
-    for x, y in unit_centres(spec.units_x, spec.units_y):
-        body = body.union(base_unit((x, y, 0.0)))
-
-    body = body.cut(_bin_cavity(spec, width, depth))
+    body = bin_block(spec).cut(_bin_cavity(spec, width, depth))
 
     for addition in divider_walls(inside) + (
         label_tabs(inside) if spec.label_tabs else []
     ):
         body = body.union(addition)
 
-    for cutter in _underside_holes(spec, least_floor):
+    for cutter in underside_holes(spec, least_floor):
         body = body.cut(cutter)
 
     return GridfinityPart(
@@ -251,7 +273,7 @@ def _bin_checks(spec: BinSpec, body: cq.Workplane, inside: Inside) -> dict[str, 
     ).body
     checks = {
         "one_solid": len(body.solids().vals()) == 1,
-        "base_to_standard": _base_to_standard(body, spec),
+        "base_to_standard": base_to_standard(body, spec),
         "seats_in_baseplate": held(
             body, plate, seat_height_mm(spec.units_x, spec.units_y)
         ),
@@ -308,7 +330,7 @@ def stack_seat_mm(spec: BinSpec) -> float:
     return spec.height_mm - (BASE_PROFILE_DEPTH_MM - LIP_DEPTH_MM)
 
 
-def _base_to_standard(body: cq.Workplane, spec: BinSpec) -> bool:
+def base_to_standard(body: cq.Workplane, spec: BinSpec) -> bool:
     """The base's bottom is the profile's bottom and its top the standard's 41.5 mm units, each
     measured across the whole bin."""
 

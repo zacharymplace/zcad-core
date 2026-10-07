@@ -12,9 +12,9 @@ judged by whether it seats in someone else's baseplate, so the engine's figures 
 This is the design for building Gridfinity **bins** and **baseplates**, and for the thing the engine can add that a generic generator cannot: a bin with a
 pocket cut to a **measured object**, from the captures and models the holders already read.
 
-**Status (2026-10-06): phases 1 and 2 are built; phases 3 and 4 are design only.** `zcad-validation gridfinity bin` and `baseplate`, with
-compartments, label tabs, screws, magnet and screw baseplates and baseplates in pieces; see [Phase 1](#phase-1-as-built),
-[Phase 2, as built](#phase-2-as-built) and [Gridfinity bins and baseplates](../guides/gridfinity.md).
+**Status (2026-10-06): phases 1 to 3 are built; phase 4 is design only.** `zcad-validation gridfinity bin`, `baseplate` and `fitted`;
+see [Phase 1](#phase-1-as-built), [Phase 2](#phase-2-as-built), [Phase 3, as built](#phase-3-as-built) and
+[Gridfinity bins and baseplates](../guides/gridfinity.md).
 
 ## Where the figures come from
 
@@ -117,7 +117,7 @@ build writes a record that names the sources its figures come from, and says the
    stacking lip and magnet holes; a plain baseplate; the standard, seats, stacks, walls, printable and one-solid checks; `gridfinity bin` and `gridfinity baseplate`.
 2. **Inside and under (built).** Dividers and compartments, a label tab; screw holes in bins; magnet and screw holes in baseplates; a baseplate in pieces
    when it outgrows the bed.
-3. **Fitted bins.** A bin with a pocket for a captured or modelled object.
+3. **Fitted bins (built).** A bin with a pocket for a captured or modelled object.
 4. **Trials.** `gridfinity trial`, with a baseplate from another generator named, and verification on two passing trials.
 
 Each phase is one PR, and nothing that exists changes.
@@ -159,6 +159,20 @@ for the bed by itself; in `features/gridfinity_inside.py` and `features/gridfini
   clips or dovetails join them yet.
 - **The figures:** the screw hole, the plate's floor and the countersink are sourced to Rebuilt; the divider, the label tab and the clearances are
   registered as design values.
+
+### Phase 3, as built
+
+`zcad-validation gridfinity fitted`, in `features/gridfinity_fitted.py`, with the bin's solid block and its lip's socket shared from
+`features/gridfinity.py`.
+
+- **No file, flags.** The design had a fitted bin name its object as a holder does; it takes `--capture` or `--model` (with `--up`, `--out` and
+  `--solid-index`) on the command line, and records the object's name and SHA-256, since a fitted bin has nothing else a file would hold.
+- **Solid, not hollowed.** The design offered to hollow the space under the pocket; the bin is solid below its pocket. Hollowing is left for later.
+- **Stacking on a solid bin.** A bin stacked on a fitted bin rests on its flat top inside the lip, not 0.35 mm down on the lip's slopes as on a hollow bin;
+  the stacking check seats it there. An object sunk less than its height stands proud of the top, and the build warns that a stacked bin would rest on it.
+- **Face features.** The design meant to leave a capture's face features uncovered; lying face up in an open pocket, nothing covers them, so nothing is cut.
+- **The finger notches** are the holder's 20 mm, at the middle of each long side, reaching 8 mm past the pocket and cut short by the bin's wall; none where
+  the wall leaves no room.
 
 ## Not covered
 
