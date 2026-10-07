@@ -17,7 +17,12 @@ each finished one:
 - a calibration coupon under ``evidence/coupons/``: writes the same two
   files and runs ``zcad-validation coupon trial complete``. A coupon has no
   verdict: answered ``measured``, its readings are recorded; answered
-  ``fail``, it did not print, so there is nothing to record.
+  ``fail``, it did not print, so there is nothing to record;
+- a Gridfinity bin or baseplate under ``evidence/gridfinity/``: writes the
+  same two files and ``fit.json`` from the answer's ``fit`` (what it was
+  fitted with and how it felt), and runs
+  ``zcad-validation gridfinity trial complete``. A pass must name what it was
+  fitted with.
 
 An answer that is not finished (a check unanswered, no disposition, or no
 measurement where one is needed) is skipped with the reason, and a trial
@@ -62,6 +67,7 @@ class Answer:
     measurements: dict[str, dict[str, Any]]
     disposition: str
     notes: str
+    fit: dict[str, Any]
 
     @property
     def measured(self) -> dict[str, dict[str, Any]]:
@@ -112,6 +118,7 @@ def read_answers(directory: Path) -> list[Answer]:
                 measurements=dict(payload.get("measurements", {})),
                 disposition=str(payload.get("disposition", "")),
                 notes=str(payload.get("operator_notes", "")),
+                fit=dict(payload.get("fit") or {}),
             )
         )
 
@@ -120,7 +127,7 @@ def read_answers(directory: Path) -> list[Answer]:
 
 def find_print(evidence_root: Path, candidate_id: str) -> tuple[str, Path]:
     """Whether a candidate id names an enclosure, a group enclosure, a
-    calibration coupon, or a fixture, and where."""
+    calibration coupon, a Gridfinity part, or a fixture, and where."""
 
     coupon = evidence_root / "coupons" / candidate_id
 
@@ -134,6 +141,11 @@ def find_print(evidence_root: Path, candidate_id: str) -> tuple[str, Path]:
 
     if (enclosure / "enclosure-group.json").is_file():
         return "group", enclosure
+
+    gridfinity = evidence_root / "gridfinity" / candidate_id
+
+    if (gridfinity / "gridfinity.json").is_file():
+        return "gridfinity", gridfinity
 
     for manifest in evidence_root.glob("*/validation-lab/candidates/*/candidate.json"):
         if json.loads(manifest.read_text(encoding="utf-8")).get("candidate_id") == (
@@ -278,6 +290,44 @@ def record_coupon(answer: Answer, build: Path) -> dict[str, Any]:
     return {"trial_record": completed["trial_record"]}
 
 
+def record_gridfinity(answer: Answer, build: Path) -> dict[str, Any]:
+    """Record a Gridfinity trial: its checks, its measurements, and what it
+    was fitted with, over the trial's own fit template."""
+
+    trial = build / "trials" / "trial-001"
+    _write(
+        trial / "observations.json",
+        {
+            check: {
+                "result": "pass" if entry["passed"] else "fail",
+                "notes": entry.get("notes", ""),
+            }
+            for check, entry in answer.observations.items()
+        },
+    )
+    _write(trial / "measurements.json", answer.measured)
+    fit = json.loads((trial / "fit.json").read_text(encoding="utf-8"))
+    _write(trial / "fit.json", {**fit, **answer.fit})
+    completed = _run(
+        [
+            "gridfinity",
+            "trial",
+            "complete",
+            "--trial-directory",
+            str(trial),
+            "--disposition",
+            answer.disposition,
+            "--notes",
+            answer.notes,
+        ]
+    )
+
+    return {
+        "trial_record": completed["trial_record"],
+        "verification": completed["verification"],
+    }
+
+
 def recorded(kind: str, location: Path) -> bool:
     trial = location / "trials" / "trial-001"
 
@@ -289,6 +339,9 @@ def recorded(kind: str, location: Path) -> bool:
 
     if kind == "coupon":
         return (trial / "calibration-coupon-trial.json").is_file()
+
+    if kind == "gridfinity":
+        return (trial / "gridfinity-trial.json").is_file()
 
     return (trial / "trial.json").is_file()
 
@@ -305,6 +358,14 @@ def plan(answer: Answer, evidence_root: Path) -> tuple[str, str, Path | None]:
 
     if reason is None and kind == "coupon" and answer.disposition in GIVE_UP:
         reason = "the coupon did not print, so it has nothing to record; print another"
+
+    if (
+        reason is None
+        and kind == "gridfinity"
+        and answer.disposition == "pass"
+        and not (answer.fit.get("mated_with") or {}).get("made_by")
+    ):
+        reason = "a pass must name what the part was fitted with"
 
     return kind, (f"skip: {reason}" if reason else "record"), location
 
@@ -404,6 +465,8 @@ def main() -> int:
                 entry["result"] = record_fixture(answer, location)
             elif kind == "coupon":
                 entry["result"] = record_coupon(answer, location)
+            elif kind == "gridfinity":
+                entry["result"] = record_gridfinity(answer, location)
             else:
                 entry["result"] = record_enclosure(
                     answer,

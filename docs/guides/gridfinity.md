@@ -96,7 +96,10 @@ with their sources, in [Figures taken on trust](../reference/figures.md).
 
 ## Trying a print
 
-Each build is unverified until it has been printed and tried. After printing a part:
+Each build is unverified until it has been printed and tried. `--slice` on `bin`, `baseplate` or `fitted` slices the parts onto one plate
+with Bambu Studio (the slicer profile is `--slicer-profile`) and opens the first trial, as `coupon build --slice` does; a baseplate in
+pieces is refused, since each piece needs a plate of its own. A trial answered on the print-day checklist is recorded by
+`scripts/record-print-day.py` with the rest of the day's prints, from a build under `evidence/gridfinity/`. After printing a part:
 
 ```bash
 zcad-validation gridfinity trial start --build-record exports/bin-2x3x6/gridfinity.json
