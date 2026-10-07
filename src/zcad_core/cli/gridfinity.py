@@ -35,9 +35,13 @@ from zcad_core.features.gridfinity_trial import (
 )
 from zcad_core.features.holder_model import AXES, load_holder_model
 from zcad_core.hardware.wearables.capture import load_capture
+from zcad_core.printing import SliceError, slice_models
 from zcad_core.profiles import load_compensation_profile, load_printer_profile
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
+DEFAULT_SLICER_PROFILE = Path(
+    "profiles/slicers/bambu-studio-a1-mini-petg-validation.json"
+)
 
 
 def _units(text: str) -> tuple[int, int]:
@@ -61,6 +65,12 @@ def _export(
     part: GridfinityPart, name: str, args: argparse.Namespace, profile: dict[str, Any]
 ) -> int:
     require_fits_bed(part, profile)
+
+    if args.slice and part.pieces:
+        raise ValueError(
+            "--slice puts every part on one plate, and a baseplate in pieces needs a "
+            "plate for each; slice its pieces one at a time"
+        )
 
     if not part.passed:
         failed = sorted(check for check, ok in part.checks.items() if not ok)
@@ -87,23 +97,54 @@ def _export(
         for exported in result.parts
     }
     record = write_gridfinity_record(part, files, args.output_directory, name)
-    emit(
-        {
-            "design_name": name,
-            "settings": part.settings,
-            "size_mm": [round(v, 3) for v in part.size_mm],
-            "checks": part.checks,
-            "warnings": list(part.warnings),
-            "verified": False,
-            "validation_status": (result.validation_report or {}).get(
-                "evaluated_status"
-            ),
-            "build_record": str(record),
-            "parts": files,
-        }
-    )
+    payload: dict[str, Any] = {
+        "design_name": name,
+        "settings": part.settings,
+        "size_mm": [round(v, 3) for v in part.size_mm],
+        "checks": part.checks,
+        "warnings": list(part.warnings),
+        "verified": False,
+        "validation_status": (result.validation_report or {}).get("evaluated_status"),
+        "build_record": str(record),
+        "parts": files,
+    }
+
+    if args.slice:
+        payload["print"] = _slice(name, files, record, args.slicer_profile)
+
+    emit(payload)
 
     return 0
+
+
+def _slice(
+    name: str, files: dict[str, dict[str, Any]], record: Path, slicer_profile: Path
+) -> dict[str, Any]:
+    """Slice the exported parts onto one plate, as they print, and open the
+    first trial of what was sliced."""
+
+    try:
+        sliced = slice_models(
+            [Path(entry["stl_path"]) for entry in files.values()],
+            record.parent / "slice",
+            slicer_profile_path=slicer_profile,
+            summary_fields={
+                "design_name": name,
+                "build_record_sha256": _sha256(record),
+            },
+        )
+    except SliceError as error:
+        raise ValueError(str(error)) from error
+
+    summary = sliced.summary
+
+    return {
+        "gcode": str(sliced.gcode_path),
+        "estimated_print_minutes": round(summary["estimated_print_time_seconds"] / 60),
+        "filament_used_g": round(summary["filament_used_g"], 1),
+        "slicer_warning": summary["slicer_warning"],
+        "trial": str(start_gridfinity_trial(record)),
+    }
 
 
 def _gridfinity_bin(args: argparse.Namespace) -> int:
@@ -233,6 +274,15 @@ def _trial_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_slice_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--slice",
+        action="store_true",
+        help="slice the parts onto one plate with Bambu Studio and open the first trial",
+    )
+    parser.add_argument("--slicer-profile", type=Path, default=DEFAULT_SLICER_PROFILE)
+
+
 def register(
     subcommands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
@@ -274,6 +324,7 @@ def register(
     bin_.add_argument("--output-directory", required=True, type=Path)
     bin_.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
     add_compensation_profile_argument(bin_)
+    _add_slice_arguments(bin_)
     bin_.set_defaults(handler=_gridfinity_bin)
     plate = commands.add_parser(
         "baseplate",
@@ -294,6 +345,7 @@ def register(
     )
     plate.add_argument("--output-directory", required=True, type=Path)
     plate.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
+    _add_slice_arguments(plate)
     plate.set_defaults(handler=_gridfinity_baseplate)
     fitted = commands.add_parser(
         "fitted", help="build a bin with a pocket cut for one measured object"
@@ -333,6 +385,7 @@ def register(
     fitted.add_argument("--output-directory", required=True, type=Path)
     fitted.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
     add_compensation_profile_argument(fitted)
+    _add_slice_arguments(fitted)
     fitted.set_defaults(handler=_gridfinity_fitted)
 
     trial = commands.add_parser(

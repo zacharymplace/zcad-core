@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -204,3 +205,51 @@ def test_the_trial_commands_start_complete_and_report(
     status = json.loads(capsys.readouterr().out)
 
     assert status == {**status, "verified": False, "passing_trials": 1}
+
+
+def test_a_sliced_part_is_sliced_as_exported_and_its_first_trial_opened(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sliced: dict[str, Any] = {}
+
+    def slice_models(models: list[Path], output: Path, **options: Any) -> Any:
+        sliced.update(models=models, output=output, **options)
+        return SimpleNamespace(
+            gcode_path=output / "plate_1.gcode",
+            summary={
+                "estimated_print_time_seconds": 1500,
+                "filament_used_g": 21.04,
+                "slicer_warning": "",
+            },
+        )
+
+    monkeypatch.setattr("zcad_core.cli.gridfinity.slice_models", slice_models)
+    output = tmp_path / "part"
+    command = ["gridfinity", "bin", "--units", "1x1", "--height", "2", "--no-lip"]
+
+    assert main([*command, "--output-directory", str(output), "--slice"]) == 0
+    printed = json.loads(capsys.readouterr().out)["print"]
+    record = json.loads((output / "gridfinity.json").read_text())
+
+    assert [str(model) for model in sliced["models"]] == [
+        part["stl_path"] for part in record["parts"].values()
+    ]
+    assert sliced["output"] == output / "slice"
+    assert sliced["summary_fields"]["design_name"] == "gridfinity-bin-1x1x2"
+    assert (printed["estimated_print_minutes"], printed["filament_used_g"]) == (
+        25,
+        21.0,
+    )
+    assert Path(printed["trial"]) == output / "trials" / "trial-001"
+    assert (output / "trials" / "trial-001" / "fit.json").is_file()
+
+
+def test_a_baseplate_in_pieces_is_not_sliced_onto_one_plate(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    output = tmp_path / "plate"
+    command = ["gridfinity", "baseplate", "--units", "5x1", "--slice"]
+
+    assert main([*command, "--output-directory", str(output)]) == 1
+    assert "a baseplate in pieces needs a plate for each" in capsys.readouterr().err
+    assert not output.exists()

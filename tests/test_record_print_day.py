@@ -195,6 +195,74 @@ def test_a_coupon_is_found_recorded_and_skipped_when_it_did_not_print(
     assert module.plan(measured, tmp_path)[1] == "already recorded"
 
 
+def test_a_gridfinity_bin_is_recorded_with_what_it_was_fitted_with(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from zcad_core.cli import main
+
+    module = recorder()
+    name = "gridfinity-bin-1x1x2"
+    build = tmp_path / "gridfinity" / name
+    command = ["gridfinity", "bin", "--units", "1x1", "--height", "2", "--no-lip"]
+    assert main([*command, "--output-directory", str(build)]) == 0
+    assert (
+        main(
+            [
+                "gridfinity",
+                "trial",
+                "start",
+                "--build-record",
+                str(build / "gridfinity.json"),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    answers = tmp_path / "answers"
+    answers.mkdir()
+
+    def answer(**fit: object):  # type: ignore[no-untyped-def]
+        return read(
+            answers,
+            {
+                "candidate_id": name,
+                "observations": {
+                    check: {"passed": True, "notes": ""}
+                    for check in ("printed_cleanly", "seats_flat", "lifts_out")
+                },
+                "measurements": {
+                    "overall_width_mm": {"value_mm": 41.4, "nominal_mm": 41.5}
+                },
+                "disposition": "pass",
+                "operator_notes": "",
+                "fit": fit,
+            },
+        )
+
+    assert module.find_print(tmp_path, name) == ("gridfinity", build)
+    assert module.plan(answer(), tmp_path)[1] == (
+        "skip: a pass must name what the part was fitted with"
+    )
+
+    fitted = answer(
+        mated_with={
+            "kind": "baseplate",
+            "made_by": "another generator",
+            "name": "Gridfinity Rebuilt 2x2 baseplate",
+        },
+        feel="right",
+        seats_flat=True,
+    )
+    assert module.plan(fitted, tmp_path) == ("gridfinity", "record", build)
+    result = module.record_gridfinity(fitted, build)
+
+    assert result["verification"]["passing_with_another_generator"] == 1
+    trial = json.loads(Path(result["trial_record"]).read_text(encoding="utf-8"))
+    assert trial["fit"]["feel"] == "right"
+    assert trial["measurements"][0]["value_mm"] == 41.4
+    assert module.plan(fitted, tmp_path)[1] == "already recorded"
+
+
 def coupon_record(root: Path, name: str, hole_mm: float, survived_to: float) -> None:
     trial = root / "coupons" / name / "trials" / "trial-001"
     trial.mkdir(parents=True)
