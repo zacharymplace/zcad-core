@@ -6,25 +6,27 @@ This roadmap sequences work after the completed Validation Lab phases and the
 September 2026 export-validation work. It builds on both tracks rather than
 adding new retention strategies or hardware families.
 
-## Current position (2026-10-05)
+## Current position (2026-10-07)
 
 | Phase | Status |
 |---|---|
 | 0 — Restore the gate | Complete |
 | 1 — Route Validation Lab through the export pipeline | Complete |
-| 2 — Close the physical loop | Pre-print and visual review complete for four candidates; blocked on printer access |
+| 2 — Close the physical loop | Four candidates rebuilt with connector reliefs and sliced; visual reviews pending, then blocked on printer access |
 | 3 — Measurement feedback | Built for fixtures and enclosures; needs Phase 2 trial data |
-| 4 — Retention-strategy breadth | Pre-print and visual review complete for Pico 2, XIAO, and UNO R4; prints pending |
+| 4 — Retention-strategy breadth | Pico 2, XIAO, and UNO R4 rebuilt and sliced; visual reviews and prints pending |
 | 5 — Publication and downstream integration | Not started |
 
-Four candidates are ready to print. Each has passing export validation, a
-passing design review, a passing human visual review, slicing readiness, a
-Bambu Studio slice, and an open pending trial (see Phase 2):
+Four candidates are rebuilt under generator 1.5.0, with the base relieved
+under every overhanging connector (see the visual reviews below). Each has
+passing export validation, a passing design review (schema 1.3.0), slicing
+readiness, a Bambu Studio slice, and an open pending trial; each needs a
+human visual review before it prints (see Phase 2):
 
-- `adafruit-feather-rp2040-corner-capture-r004`
-- `raspberry-pi-pico-2-corner-capture-r002`
-- `seeed-xiao-esp32s3-corner-capture-r003`
-- `arduino-uno-r4-wifi-edge-clip-r005`
+- `adafruit-feather-rp2040-corner-capture-r005`
+- `raspberry-pi-pico-2-corner-capture-r003`
+- `seeed-xiao-esp32s3-corner-capture-r004`
+- `arduino-uno-r4-wifi-edge-clip-r006`
 
 No candidate has been printed or promoted yet, and nothing is
 publication-eligible.
@@ -81,11 +83,23 @@ fixture's 2 mm perimeter margin ran under any connector that overhangs the
 PCB edge. Fixtures now cut a relief through the base beyond each overhung
 edge, across the connector's width plus 0.5 mm a side
 (`ValidationFixturePolicy.connector_relief_clearance_mm`). The reviews above
-predate it, and the four candidates need new revisions before they print.
+predate it; the four candidates were rebuilt with it on 2026-10-07.
 Design-review schema 1.3.0 measures each `base_lip_mm` from the base's
 material under the part rather than the fixture's bounds, which a relief
 leaves unchanged; under 1.2.0 a relieved fixture still reported its old lip.
 A relieved base reads negative: it stops that far inside the part's face.
+
+| Rebuilt candidate | Connector | Base lip before | Base lip now |
+|---|---|---|---|
+| Feather RP2040 r005 | USB-C | 0.85 mm | −1.15 mm |
+| Pico 2 r003 | Micro-USB | 0.70 mm | −1.30 mm |
+| XIAO ESP32-S3 r004 | USB-C | 0.47 mm | −1.53 mm |
+| UNO R4 WiFi r006 | USB-C | 1.14 mm | −0.86 mm |
+
+Each board's other overhanging part is relieved too: XIAO r004's 4.6 × 6.7 mm
+part (−0.83 mm) and UNO R4 r006's 14.4 × 9.4 mm part (−1.96 mm). A relief
+cuts only the base beyond the PCB edge, so the captures are unchanged and the
+other reservations in the table above stand for the rebuilt candidates.
 
 ### Tracks
 
@@ -414,17 +428,19 @@ UNO R4 r005, the two collision-free planar paths its stored report shows are
 blocked by its pins. XIAO r003's diagonal slide-out stays collision-free, so
 that reservation is a real escape path.
 
-Print-ready candidates, each with passing export validation, design review,
-and slicing readiness, a Bambu Studio slice, and an open trial-001:
+Candidates rebuilt with connector reliefs (2026-10-07, commit `af048ee`),
+each with passing export validation, design review, and slicing readiness,
+a Bambu Studio slice, and an open trial-001; each awaits its visual review:
 
 | Candidate | Slice (A1 mini, PETG) | Vertical play |
 |---|---|---|
-| `adafruit-feather-rp2040-corner-capture-r004` | 9 min, 3.70 g | 0.90 mm |
-| `raspberry-pi-pico-2-corner-capture-r002` | 8 min, 3.45 g | 0.85 mm |
-| `seeed-xiao-esp32s3-corner-capture-r003` | 5 min, 1.44 g | 0.85 mm |
-| `arduino-uno-r4-wifi-edge-clip-r005` | 17 min, 8.61 g | 0.85 mm |
+| `adafruit-feather-rp2040-corner-capture-r005` | 9 min, 3.66 g | 0.90 mm |
+| `raspberry-pi-pico-2-corner-capture-r003` | 8 min, 3.41 g | 0.85 mm |
+| `seeed-xiao-esp32s3-corner-capture-r004` | 5 min, 1.39 g | 0.85 mm |
+| `arduino-uno-r4-wifi-edge-clip-r006` | 17 min, 8.56 g | 0.85 mm |
 
-Do not print superseded candidates, including UNO R4 r004, whose visual
+Do not print superseded candidates: Feather r004, Pico 2 r002, XIAO r003
+and UNO R4 r005, which predate the relief, and UNO R4 r004, whose visual
 review recorded `revise`. XIAO r002's unregistered placeholder trial was
 removed. `scripts/regenerate-candidate.py` rebuilds a candidate under a new
 generator version with its policy unchanged, as it did for UNO R4 r005.
@@ -469,9 +485,12 @@ without the fingerprint (and, if geometry changed, the version) being updated.
   still loads but cannot support a promotion.
 - [x] Human visual review of each candidate's design-review package (all
   four pass with reservations; UNO R4 r004 was revised to r005 first)
-- [ ] Feather RP2040 r004 printed and recorded through `trial complete`,
+- [x] The four rebuilt with connector reliefs (Feather r005, Pico 2 r003,
+  XIAO r004, UNO R4 r006)
+- [ ] Human visual review of each rebuilt candidate
+- [ ] Feather RP2040 r005 printed and recorded through `trial complete`,
   with dimensional measurements
-- [ ] A pass promotes r004; a revise derives r005 from measured deltas.
+- [ ] A pass promotes r005; a revise derives r006 from measured deltas.
 
 ### Exit criteria
 
@@ -526,9 +545,9 @@ Prove the physical loop for each retention strategy.
 ### Deliverables
 
 - Phase 2 repeated for Pico 2 (corner capture), UNO R4 WiFi (edge clip),
-  and XIAO ESP32-S3. Their pre-print packages and visual reviews are
-  complete (Pico 2 r002, UNO R4 r005, and XIAO r003), so they can be printed
-  in the same session as Feather r004.
+  and XIAO ESP32-S3. Their pre-print packages are complete (Pico 2 r003,
+  UNO R4 r006, and XIAO r004); once visually reviewed they can be printed in
+  the same session as Feather r005.
 - wearable targets moved from synthetic to measured or official models when
   source data is available
 
