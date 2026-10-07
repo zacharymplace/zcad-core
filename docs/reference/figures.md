@@ -6,13 +6,13 @@ The engine states no strength, holding force or load claim, and a figure it did 
 
 **Scope.** Module-level numeric constants, and the non-zero numeric defaults of dataclass fields and function parameters. A default of zero (no offset, none) is not a figure and is not listed. Not covered: a number inside a function body, a default given by `field(...)` or a factory, a keyword argument at a call (so a module-level instance such as a display's is not listed), and a number in a data file. A status is only as good as what the code says: a `sourced` figure is as the code cites it and has not been re-checked against the standard. An `unstated` figure is not wrong; it has no basis written down. Adding a figure without recording it fails the test suite.
 
-## The 787 figures
+## The 790 figures
 
 | Status | Count | Meaning |
 | --- | ---: | --- |
 | `sourced` | 48 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
 | `estimated` | 9 | Read off a drawing's scale or a stated rough estimate: the source does not state it outright |
-| `design_default` | 57 | The engine's own choice, which the code says is a default, a design value or a guess |
+| `design_default` | 60 | The engine's own choice, which the code says is a default, a design value or a guess |
 | `example` | 3 | An illustrative figure, not claimed right for any real part |
 | `unstated` | 670 | No basis is stated in the code |
 
@@ -91,6 +91,9 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | `features/enclosure_thermal.py:DEFAULT_SERVICE_LIMIT_C` | `60.0` | A design value for PETG's continuous air temperature, well under the 70 to 80 C at which it softens; a material profile's max_service_c overrides it |
 | `features/gridfinity.py:DEFAULT_WALL_MM` | `1.2` | A design value: the A1 mini profile's minimum wall; Gridfinity Rebuilt's own choice is 0.95 mm, under that minimum |
 | `features/gridfinity.py:MINIMUM_HEIGHT_UNITS` | `2` | A design value: one 7 mm unit is all base, with no room inside |
+| `features/gridfinity_fitted.py:FINGER_NOTCH_REACH_MM` | `8.0` | A design value: past the pocket's edge far enough for a fingertip to get under the object, cut short where the bin's wall leaves less |
+| `features/gridfinity_fitted.py:FINGER_NOTCH_WIDTH_MM` | `20.0` | The object holder's finger notch (features/holder.py), so a tray and a holder take the same fingers |
+| `features/gridfinity_fitted.py:MINIMUM_CLEARANCE_MM` | `0.05` | The object holder's least clearance (features/holder.py), for the same reason: a printer measured loose still gets some |
 | `features/gridfinity_inside.py:DIVIDER_MM` | `1.2` | A design value: the printer's minimum wall; Gridfinity Rebuilt's own d_div is the same 1.2 mm |
 | `features/gridfinity_inside.py:LABEL_TAB_DEPTH_MM` | `12.0` | A design value: room for a 12 mm label strip; Gridfinity Rebuilt's own tab is 15.85 mm on a 36-degree support, which would overhang past 45 degrees |
 | `features/gridfinity_inside.py:LABEL_TAB_FACE_MM` | `1.2` | A design value: the tab's front edge, the printer's minimum wall |
