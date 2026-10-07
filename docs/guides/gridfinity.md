@@ -19,6 +19,9 @@ to and where they come from, and that the part is **unverified**.
 | `--height 6` | Height in 7 mm units, 2 or more. A bin of `u` units is `7u` mm from its bottom to the top of its wall, its base included. |
 | `--no-lip` | Leaves off the stacking lip, which otherwise stands 4.4 mm above the wall so another bin can sit on it. |
 | `--magnets` | Magnet holes for 6 x 2 mm magnets, 6.5 mm across and 2.4 mm deep, in the four corners of every unit, 8 mm in from each side. They open on the underside. |
+| `--screws` | M3 screw holes, 3 mm across, in the same corners, up through the base to leave the printer's floor (1.2 mm) under the cavity. |
+| `--divisions 3x1` | Compartments across and front to back. Dividers are 1.2 mm (or the printer's minimum wall), split the inside evenly, and stand from the floor to half a millimetre under where a stacked bin's base comes down, so the bin still stacks. A compartment narrower than 10 mm is refused. |
+| `--label-tabs` | A label shelf along the back wall of each compartment in the back row, 12 mm deep, its top level with the dividers', on a 45-degree underside so it prints. A back compartment shallower than 24 mm is refused. |
 | `--wall-mm` | The wall, 1.2 mm unless you give more; never under the printer's minimum. |
 | `--compensation-profile` | A coupon's measured fit: it does not change the bin (see below), but a printer that closes gaps too much is warned. |
 
@@ -30,8 +33,15 @@ carries it, so the bin prints standing on its base with nothing overhanging.
 ## Baseplates
 
 `--units 4x4` makes a plate of 42 mm cells, 5 mm tall with 8 mm corners outside. Each cell's socket is the baseplate profile (0.7 mm at 45 degrees, 1.8 mm
-straight, 2.15 mm at 45 degrees) over a 0.35 mm straight clearance, open through the plate. Magnet and screw holes in a baseplate, and a plate in pieces
-for one larger than the bed, come later.
+straight, 2.15 mm at 45 degrees) over a 0.35 mm straight clearance, open through the plate.
+
+- `--magnets` and `--screws` put the plate on a solid floor under its cells, as Gridfinity Rebuilt's are: 1 mm, with 2.4 mm added for magnet pockets and
+  2.5 mm for countersinks. A magnet pocket, 6.5 mm across, opens up from the floor's top under each of a bin's magnets; a screw hole, 3 mm, goes through the
+  floor below it, with a 45-degree countersink 8 mm across so an M3 screw's head sits under the magnet. With both the plate is 10.9 mm tall. The sockets
+  start on the floor, where a bin then rests. The floor is solid, not cut away to save plastic as some generators do.
+- **A plate larger than the bed** is built in pieces of whole cells that butt together: as few as the bed allows, as even as the cells allow (five cells
+  on a 180 mm bed are three and two). The plate is built whole and cut at the cells' edges, so the pieces are exactly the plate; each is exported as
+  `baseplate-1`, `baseplate-2` and so on, and only the plate's outer corners are rounded. Nothing joins the pieces: lay them side by side.
 
 ## How a bin sits
 

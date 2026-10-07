@@ -12,8 +12,9 @@ judged by whether it seats in someone else's baseplate, so the engine's figures 
 This is the design for building Gridfinity **bins** and **baseplates**, and for the thing the engine can add that a generic generator cannot: a bin with a
 pocket cut to a **measured object**, from the captures and models the holders already read.
 
-**Status (2026-10-06): phase 1 is built; phases 2 to 4 are design only.** `zcad-validation gridfinity bin` and `baseplate`; see
-[Phase 1, as built](#phase-1-as-built) and [Gridfinity bins and baseplates](../guides/gridfinity.md).
+**Status (2026-10-06): phases 1 and 2 are built; phases 3 and 4 are design only.** `zcad-validation gridfinity bin` and `baseplate`, with
+compartments, label tabs, screws, magnet and screw baseplates and baseplates in pieces; see [Phase 1](#phase-1-as-built),
+[Phase 2, as built](#phase-2-as-built) and [Gridfinity bins and baseplates](../guides/gridfinity.md).
 
 ## Where the figures come from
 
@@ -114,7 +115,8 @@ build writes a record that names the sources its figures come from, and says the
 
 1. **Plain bins and baseplates (built).** The standard's figures in one module with their sources; a bin of `x` by `y` by `u` with its bases, walls,
    stacking lip and magnet holes; a plain baseplate; the standard, seats, stacks, walls, printable and one-solid checks; `gridfinity bin` and `gridfinity baseplate`.
-2. **Inside and under.** Dividers and compartments, a label tab; screw holes in bins; magnet and screw holes in baseplates; a baseplate in pieces when it outgrows the bed.
+2. **Inside and under (built).** Dividers and compartments, a label tab; screw holes in bins; magnet and screw holes in baseplates; a baseplate in pieces
+   when it outgrows the bed.
 3. **Fitted bins.** A bin with a pocket for a captured or modelled object.
 4. **Trials.** `gridfinity trial`, with a baseplate from another generator named, and verification on two passing trials.
 
@@ -137,6 +139,26 @@ Each phase is one PR, and nothing that exists changes.
   nothing under 45 degrees.
 - **Screw holes moved to phase 2,** beside the baseplate's: neither source gives a bin's screw-hole depth, and the design took one for granted.
 - **The wall is 1.2 mm,** the printer's minimum, not Rebuilt's own 0.95 mm, which is under it.
+
+### Phase 2, as built
+
+`--divisions`, `--label-tabs` and `--screws` on `gridfinity bin`, and `--magnets` and `--screws` on `gridfinity baseplate`, which splits a plate too large
+for the bed by itself; in `features/gridfinity_inside.py` and `features/gridfinity_baseplate.py`, with the shapes and checks they share in
+`features/gridfinity_shapes.py`.
+
+- **Screw holes go up to a floor's thickness under the cavity.** Gridfinity Rebuilt runs a bin's screw hole up the base's whole 7 mm; the engine stops it
+  1.2 mm (the printer's minimum floor) short, so the cavity's floor stays closed.
+- **A magnet or screw baseplate has a solid floor.** Rebuilt's floor (`h_skel`, 1 mm, with the magnet's depth and the countersink's added) is used, but
+  not its skeleton of cut-outs that saves plastic; that is left for later. The countersink is under the magnet pocket, as Rebuilt has it, and opens
+  upward, a funnel that prints with nothing over it.
+- **The label tab is the engine's own.** Rebuilt's tab, 15.85 mm deep on a 36-degree support, overhangs past the 45 degrees the engine prints to; the tab
+  here is 12 mm deep on a 45-degree underside, its top level with the dividers.
+- **Dividers stop half a millimetre under a stacked base,** whose lowest point comes 0.35 mm below the lip's foot, so a divided bin still stacks; the
+  stacking check is made on the divided bin.
+- **Pieces need nothing to join them.** The pieces of a large plate butt together at the cells' edges, where the ridges between cells are split; no
+  clips or dovetails join them yet.
+- **The figures:** the screw hole, the plate's floor and the countersink are sourced to Rebuilt; the divider, the label tab and the clearances are
+  registered as design values.
 
 ## Not covered
 

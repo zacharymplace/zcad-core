@@ -45,6 +45,15 @@ LIP_STEPS_MM = ((0.7, 0.7), (1.8, 0.0), (1.9, 1.9))
 MAGNET_HOLE_MM = 6.5
 MAGNET_HOLE_DEPTH_MM = 2.4
 MAGNET_INSET_MM = 8.0
+# An M3 screw hole, 3 mm across, at a unit's corners as the magnets are. (REBUILT,
+# standard.scad SCREW_HOLE_RADIUS; gridfinity-rebuilt-holes.scad places it with the magnet)
+SCREW_HOLE_MM = 3.0
+# A baseplate with magnets or screws stands on a floor under its cells: 1 mm, with the magnet
+# hole's depth and a 45-degree countersink 2.5 mm deep added for each. (REBUILT,
+# gridfinity-rebuilt-baseplate.scad calculate_offset_skeletonized, h_skel and
+# BASEPLATE_SCREW_COUNTERSINK_ADDITIONAL_RADIUS)
+BASEPLATE_FLOOR_MM = 1.0
+BASEPLATE_COUNTERSINK_MM = 2.5
 # A baseplate cell is 42 mm square with 8.0 mm corners (a 4.0 mm radius) and 5 mm tall.
 # (SPECIFICATION, REBUILT)
 BASEPLATE_CELL_RADIUS_MM = 4.0
