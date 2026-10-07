@@ -71,9 +71,10 @@ from zcad_core.features.gridfinity_standard import (
     SPECIFICATION,
     profile_insets,
 )
+from zcad_core.features.gridfinity_trial import gridfinity_checks
 
 GRIDFINITY_RECORD = "gridfinity.json"
-RECORD_SCHEMA_VERSION = "1.1.0"
+RECORD_SCHEMA_VERSION = "1.2.0"
 NOT_CLAIMED = (
     "The engine keeps to the cited Gridfinity figures and checks its solids against them; it "
     "says nothing about whether a part fits a baseplate or a bin from another generator, what "
@@ -342,14 +343,33 @@ def base_to_standard(body: cq.Workplane, spec: BinSpec) -> bool:
     )
 
 
+def _nominal_measurements(part: GridfinityPart) -> dict[str, float]:
+    """The sizes a trial measures with calipers, in mm, from the part as built."""
+
+    width, depth, height = part.size_mm
+    sizes = {
+        "overall_width_mm": round(width, 3),
+        "overall_depth_mm": round(depth, 3),
+        "overall_height_mm": round(height, 3),
+    }
+
+    if part.kind == "bin":
+        sizes["wall_mm"] = float(part.settings["wall_mm"])
+    else:
+        sizes["cell_mm"] = GRID_MM
+
+    return sizes
+
+
 def gridfinity_record(
-    part: GridfinityPart, files: dict[str, dict[str, Any]]
+    part: GridfinityPart, files: dict[str, dict[str, Any]], design_name: str = ""
 ) -> dict[str, Any]:
     width, depth, height = part.size_mm
 
     return {
         "schema_version": RECORD_SCHEMA_VERSION,
         "record_kind": f"gridfinity-{part.kind}-build",
+        "design_name": design_name,
         "kind": part.kind,
         "settings": part.settings,
         "standard": {
@@ -369,6 +389,8 @@ def gridfinity_record(
         "tolerance_status": part.tolerance_status,
         "parts": files,
         "fit_checks": part.checks,
+        "checks": gridfinity_checks(part.kind, part.settings),
+        "nominal_measurements_mm": _nominal_measurements(part),
         "warnings": list(part.warnings),
         "verified": False,
         "not_claimed": NOT_CLAIMED,
@@ -376,7 +398,10 @@ def gridfinity_record(
 
 
 def write_gridfinity_record(
-    part: GridfinityPart, files: dict[str, dict[str, Any]], output_directory: Path
+    part: GridfinityPart,
+    files: dict[str, dict[str, Any]],
+    output_directory: Path,
+    design_name: str = "",
 ) -> Path:
     path = output_directory / GRIDFINITY_RECORD
 
@@ -384,7 +409,10 @@ def write_gridfinity_record(
         raise FileExistsError(f"Refusing to overwrite build record: {path}")
 
     path.write_text(
-        json.dumps(gridfinity_record(part, files), indent=2, sort_keys=True) + "\n",
+        json.dumps(
+            gridfinity_record(part, files, design_name), indent=2, sort_keys=True
+        )
+        + "\n",
         "utf-8",
     )
 

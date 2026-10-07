@@ -1,15 +1,17 @@
-"""zcad-validation gridfinity bin, baseplate and fitted: parts that keep to the Gridfinity
-figures, and bins with a pocket for one measured object."""
+"""zcad-validation gridfinity bin, baseplate, fitted and trial: parts that keep to the Gridfinity
+figures, bins with a pocket for one measured object, and the record of printing them."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 from pathlib import Path
 from typing import Any
 
 from zcad_core.cli._common import add_compensation_profile_argument, emit
 from zcad_core.exporters import ExportRequest, export_parts
+from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.gridfinity import (
     DEFAULT_WALL_MM,
     BinSpec,
@@ -25,6 +27,12 @@ from zcad_core.features.gridfinity_fitted import (
     model_footprint,
 )
 from zcad_core.features.gridfinity_shapes import GridfinityPart, require_fits_bed
+from zcad_core.features.gridfinity_trial import (
+    GRIDFINITY_BUILD_RECORD,
+    complete_gridfinity_trial,
+    gridfinity_verification,
+    start_gridfinity_trial,
+)
 from zcad_core.features.holder_model import AXES, load_holder_model
 from zcad_core.hardware.wearables.capture import load_capture
 from zcad_core.profiles import load_compensation_profile, load_printer_profile
@@ -78,7 +86,7 @@ def _export(
         }
         for exported in result.parts
     }
-    record = write_gridfinity_record(part, files, args.output_directory)
+    record = write_gridfinity_record(part, files, args.output_directory, name)
     emit(
         {
             "design_name": name,
@@ -185,6 +193,46 @@ def _gridfinity_baseplate(args: argparse.Namespace) -> int:
     return _export(part, f"gridfinity-baseplate-{x}x{y}", args, profile)
 
 
+def _trial_start(args: argparse.Namespace) -> int:
+    trial = start_gridfinity_trial(args.build_record)
+    emit(
+        {
+            "trial": str(trial),
+            "observations": str(trial / "observations.json"),
+            "measurements": str(trial / "measurements.json"),
+            "fit": str(trial / "fit.json"),
+        }
+    )
+
+    return 0
+
+
+def _trial_complete(args: argparse.Namespace) -> int:
+    record = complete_gridfinity_trial(
+        args.trial_directory,
+        disposition=EnclosureTrialDisposition(args.disposition),
+        material_profile_id=args.material_profile,
+        notes=args.notes,
+    )
+    emit(
+        {
+            "trial_record": str(record),
+            "passed": json.loads(record.read_text(encoding="utf-8"))["passed"],
+            "verification": gridfinity_verification(
+                args.trial_directory.parent.parent / GRIDFINITY_BUILD_RECORD
+            ),
+        }
+    )
+
+    return 0
+
+
+def _trial_status(args: argparse.Namespace) -> int:
+    emit(gridfinity_verification(args.build_record))
+
+    return 0
+
+
 def register(
     subcommands: argparse._SubParsersAction[argparse.ArgumentParser],
 ) -> None:
@@ -286,3 +334,33 @@ def register(
     fitted.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
     add_compensation_profile_argument(fitted)
     fitted.set_defaults(handler=_gridfinity_fitted)
+
+    trial = commands.add_parser(
+        "trial", help="record a print of a bin or baseplate and how it fitted"
+    )
+    trial_commands = trial.add_subparsers(dest="trial_command", required=True)
+    start = trial_commands.add_parser(
+        "start",
+        help="write the next trial's observation, measurement and fit templates",
+    )
+    start.add_argument("--build-record", required=True, type=Path)
+    start.set_defaults(handler=_trial_start)
+    complete = trial_commands.add_parser(
+        "complete", help="validate a filled-in trial and write its record"
+    )
+    complete.add_argument("--trial-directory", required=True, type=Path)
+    complete.add_argument(
+        "--disposition",
+        required=True,
+        choices=[disposition.value for disposition in EnclosureTrialDisposition],
+    )
+    complete.add_argument("--material-profile", default="petg")
+    complete.add_argument("--notes", default="")
+    complete.set_defaults(handler=_trial_complete)
+    status = trial_commands.add_parser(
+        "status",
+        help="whether a part is verified, and how many trials passed with another "
+        "generator's part",
+    )
+    status.add_argument("--build-record", required=True, type=Path)
+    status.set_defaults(handler=_trial_status)

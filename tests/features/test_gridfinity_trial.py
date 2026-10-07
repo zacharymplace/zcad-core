@@ -1,0 +1,206 @@
+"""Trials of Gridfinity parts: recording a print and what it fitted, and verifying it."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from zcad_core.cli import main
+from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
+from zcad_core.features.gridfinity_trial import (
+    complete_gridfinity_trial,
+    gridfinity_checks,
+    gridfinity_verification,
+    start_gridfinity_trial,
+)
+
+PASS = EnclosureTrialDisposition.PASS
+ENGINE_PLATE = {"kind": "baseplate", "made_by": "this engine", "name": ""}
+REBUILT_PLATE = {
+    "kind": "baseplate",
+    "made_by": "another generator",
+    "name": "Gridfinity Rebuilt 4x4 baseplate, printed from its OpenSCAD file",
+}
+
+
+def build(capsys: pytest.CaptureFixture[str], tmp_path: Path, *args: str) -> Path:
+    output = tmp_path / "part"
+    code = main(["gridfinity", *args, "--output-directory", str(output)])
+    capsys.readouterr()
+    assert code == 0
+
+    return output / "gridfinity.json"
+
+
+@pytest.fixture
+def bin_record(capsys: pytest.CaptureFixture[str], tmp_path: Path) -> Path:
+    return build(capsys, tmp_path, "bin", "--units", "1x1", "--height", "2", "--no-lip")
+
+
+def fill(trial: Path, *, result: str = "pass", **fit: Any) -> None:
+    observations = json.loads((trial / "observations.json").read_text())
+
+    for entry in observations.values():
+        entry["result"] = result
+
+    (trial / "observations.json").write_text(json.dumps(observations))
+    readings = json.loads((trial / "fit.json").read_text())
+    readings.update(fit)
+    (trial / "fit.json").write_text(json.dumps(readings))
+
+
+def complete(trial: Path, disposition: EnclosureTrialDisposition = PASS) -> Path:
+    return complete_gridfinity_trial(
+        trial, disposition=disposition, material_profile_id="petg"
+    )
+
+
+def test_the_checks_follow_the_part_and_its_options() -> None:
+    assert gridfinity_checks("bin", {"lip": False}) == [
+        "printed_cleanly",
+        "seats_flat",
+        "lifts_out",
+    ]
+    assert gridfinity_checks(
+        "bin",
+        {"lip": True, "divisions": [3, 1], "fitted": {"x": 1}, "magnets": True},
+    )[3:] == ["stacks", "compartments_clean", "object_fits", "magnets_seat"]
+    assert gridfinity_checks("baseplate", {"pieces": [[1, 2]], "screws": True}) == [
+        "printed_cleanly",
+        "holds_a_bin",
+        "pieces_lie_flat",
+        "screws_fit",
+    ]
+
+
+def test_a_bin_is_verified_on_two_passes_and_one_with_another_generator(
+    bin_record: Path,
+) -> None:
+    built = json.loads(bin_record.read_text())
+
+    assert built["design_name"] == "gridfinity-bin-1x1x2"
+    assert built["checks"] == ["printed_cleanly", "seats_flat", "lifts_out"]
+    assert built["nominal_measurements_mm"]["overall_width_mm"] == 41.5
+
+    first = start_gridfinity_trial(bin_record)
+    fit = json.loads((first / "fit.json").read_text())
+
+    assert fit["mated_with"]["kind"] == "baseplate"
+
+    fill(first, mated_with=ENGINE_PLATE, feel="right", seats_flat=True, lifts_out=True)
+    written = json.loads(complete(first).read_text())
+
+    assert written["passed"]
+    assert written["fit"]["feel"] == "right"
+    assert not gridfinity_verification(bin_record)["verified"]
+
+    second = start_gridfinity_trial(bin_record)
+    fill(second, mated_with=REBUILT_PLATE, feel="tight", seats_flat=True)
+    complete(second)
+    status = gridfinity_verification(bin_record)
+
+    assert status["verified"]
+    assert status["passing_with_another_generator"] == 1
+    assert status["trials"][1]["mated_with"]["name"].startswith("Gridfinity Rebuilt")
+
+
+@pytest.mark.parametrize(
+    ("fit", "error", "message"),
+    [
+        ({}, ValueError, "names what the part was fitted with"),
+        (
+            {"mated_with": {**REBUILT_PLATE, "name": " "}},
+            ValueError,
+            "needs its name and where it came from",
+        ),
+        ({"mated_with": {**ENGINE_PLATE, "made_by": "me"}}, ValueError, "made_by must"),
+        (
+            {"mated_with": ENGINE_PLATE, "feel": "snug"},
+            ValueError,
+            "feel must be one of",
+        ),
+        ({"mated_with": ENGINE_PLATE, "stacks": "yes"}, TypeError, "true or false"),
+    ],
+)
+def test_fit_readings_that_cannot_be_right_are_refused(
+    bin_record: Path, fit: dict[str, Any], error: type[Exception], message: str
+) -> None:
+    trial = start_gridfinity_trial(bin_record)
+    fill(trial, **fit)
+
+    with pytest.raises(error, match=message):
+        complete(trial)
+
+
+def test_a_passing_trial_cannot_fail_a_check_nor_be_written_twice(
+    bin_record: Path,
+) -> None:
+    trial = start_gridfinity_trial(bin_record)
+    fill(trial, result="fail", mated_with=ENGINE_PLATE, feel="loose")
+
+    with pytest.raises(ValueError, match="cannot have failed checks"):
+        complete(trial)
+
+    complete(trial, EnclosureTrialDisposition.REVISE)
+
+    with pytest.raises(FileExistsError, match="already completed"):
+        complete(trial, EnclosureTrialDisposition.FAIL)
+
+
+def test_a_reprinted_part_is_not_the_part_the_trial_is_of(bin_record: Path) -> None:
+    stl = Path(json.loads(bin_record.read_text())["parts"]["bin"]["stl_path"])
+    stl.write_bytes(stl.read_bytes() + b"\n")
+    trial = start_gridfinity_trial(bin_record)
+    fill(trial, mated_with=ENGINE_PLATE)
+
+    with pytest.raises(ValueError, match="no longer match the build record"):
+        complete(trial)
+
+
+def test_a_baseplate_trial_names_the_bin_it_held(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    record = build(capsys, tmp_path, "baseplate", "--units", "1x1")
+    trial = start_gridfinity_trial(record)
+
+    assert json.loads((trial / "fit.json").read_text())["mated_with"]["kind"] == "bin"
+    assert list(json.loads((trial / "observations.json").read_text())) == [
+        "printed_cleanly",
+        "holds_a_bin",
+    ]
+
+
+def test_the_trial_commands_start_complete_and_report(
+    capsys: pytest.CaptureFixture[str], bin_record: Path
+) -> None:
+    assert (
+        main(["gridfinity", "trial", "start", "--build-record", str(bin_record)]) == 0
+    )
+    trial = Path(json.loads(capsys.readouterr().out)["trial"])
+    fill(trial, mated_with=REBUILT_PLATE, feel="right")
+
+    code = main(
+        [
+            "gridfinity",
+            "trial",
+            "complete",
+            "--trial-directory",
+            str(trial),
+            "--disposition",
+            "pass",
+        ]
+    )
+    completed = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert completed["verification"]["passing_with_another_generator"] == 1
+
+    assert (
+        main(["gridfinity", "trial", "status", "--build-record", str(bin_record)]) == 0
+    )
+    status = json.loads(capsys.readouterr().out)
+
+    assert status == {**status, "verified": False, "passing_trials": 1}

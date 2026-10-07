@@ -740,6 +740,9 @@
       "status": "sourced",
       "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad SCREW_HOLE_RADIUS; gridfinity-rebuilt-holes.scad places it with the magnet"
     },
+    "features/gridfinity_trial.py:MINIMUM_TRIALS_TO_VERIFY": {
+      "status": "unstated"
+    },
     "features/guide_bores.py:CHUCK_LENGTH_MM": {
       "status": "unstated"
     },
