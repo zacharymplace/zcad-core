@@ -17,13 +17,12 @@ import pytest
 from zcad_core.cli import main
 from zcad_core.features.gridfinity import (
     BinSpec,
-    GridfinityPart,
-    build_baseplate,
     build_bin,
-    require_fits_bed,
     seat_height_mm,
     stack_seat_mm,
 )
+from zcad_core.features.gridfinity_baseplate import BaseplateSpec, build_baseplate
+from zcad_core.features.gridfinity_shapes import GridfinityPart, require_fits_bed
 from zcad_core.features.gridfinity_standard import (
     BASE_PROFILE_HEIGHT_MM,
     BASE_PROFILE_STEPS_MM,
@@ -49,7 +48,7 @@ def small_bin() -> GridfinityPart:
 
 @pytest.fixture(scope="module")
 def plate() -> GridfinityPart:
-    return build_baseplate(2, 2, PROFILE)
+    return build_baseplate(BaseplateSpec(2, 2), PROFILE)
 
 
 def inside(part: GridfinityPart, x: float, y: float, z: float) -> bool:
@@ -81,7 +80,9 @@ def test_a_one_unit_bin_keeps_to_the_standard(small_bin: GridfinityPart) -> None
         "one_solid": True,
         "base_to_standard": True,
         "seats_in_baseplate": True,
+        "compartments_open": True,
         "stacks": True,
+        "underside_holes_open": True,
     }
     # 41.5 mm square; three 7 mm units to the top of its wall, with the 4.4 mm lip above.
     assert small_bin.size_mm == pytest.approx((41.5, 41.5, 21.0 + 4.4), abs=0.01)
@@ -139,8 +140,8 @@ def test_a_bin_that_cannot_be_built_is_refused(spec: BinSpec, message: str) -> N
         build_bin(spec, PROFILE)
 
 
-def test_a_part_larger_than_the_bed_is_refused() -> None:
-    part = build_baseplate(5, 1, PROFILE, check=False)
+def test_a_bin_taller_than_the_bed_is_refused() -> None:
+    part = build_bin(BinSpec(1, 1, 26, lip=False), PROFILE)
 
     with pytest.raises(ValueError, match="larger than the printer's"):
         require_fits_bed(part, PROFILE)

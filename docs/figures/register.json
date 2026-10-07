@@ -615,35 +615,66 @@
     "features/fan_bay.py:_SCREW_LENGTHS_MM": {
       "status": "unstated"
     },
-    "features/gridfinity.py:ARC_STEPS": {
+    "features/gridfinity.py:BinSpec.divisions": {
       "status": "unstated"
-    },
-    "features/gridfinity.py:CLEAR_LIFT_MM": {
-      "status": "design_default",
-      "note": "A design value for a check: a seated base raised this much must be clear of what holds it"
     },
     "features/gridfinity.py:DEFAULT_WALL_MM": {
       "status": "design_default",
       "note": "A design value: the A1 mini profile's minimum wall; Gridfinity Rebuilt's own choice is 0.95 mm, under that minimum"
     },
-    "features/gridfinity.py:HELD_DROP_MM": {
-      "status": "design_default",
-      "note": "A design value for a check: a seated base pushed this much lower must meet what holds it, showing the slopes hold it"
-    },
-    "features/gridfinity.py:MAXIMUM_UNITS": {
-      "status": "design_default",
-      "note": "A design value: eight units is 336 mm, past any bed this engine prints on; the bed check refuses less"
-    },
     "features/gridfinity.py:MINIMUM_HEIGHT_UNITS": {
       "status": "design_default",
       "note": "A design value: one 7 mm unit is all base, with no room inside"
     },
-    "features/gridfinity.py:TOLERANCE_MM3": {
+    "features/gridfinity_inside.py:DIVIDER_MM": {
+      "status": "design_default",
+      "note": "A design value: the printer's minimum wall; Gridfinity Rebuilt's own d_div is the same 1.2 mm"
+    },
+    "features/gridfinity_inside.py:LABEL_TAB_DEPTH_MM": {
+      "status": "design_default",
+      "note": "A design value: room for a 12 mm label strip; Gridfinity Rebuilt's own tab is 15.85 mm on a 36-degree support, which would overhang past 45 degrees"
+    },
+    "features/gridfinity_inside.py:LABEL_TAB_FACE_MM": {
+      "status": "design_default",
+      "note": "A design value: the tab's front edge, the printer's minimum wall"
+    },
+    "features/gridfinity_inside.py:MINIMUM_COMPARTMENT_MM": {
+      "status": "design_default",
+      "note": "A design value: narrower than this a compartment holds nothing a hand can reach"
+    },
+    "features/gridfinity_inside.py:STACK_CLEARANCE_MM": {
+      "status": "design_default",
+      "note": "A design value: dividers stop this far under a stacked base's lowest point, so a bin still stacks"
+    },
+    "features/gridfinity_shapes.py:ARC_STEPS": {
+      "status": "unstated"
+    },
+    "features/gridfinity_shapes.py:CLEAR_LIFT_MM": {
+      "status": "design_default",
+      "note": "A design value for a check: a seated base raised this much must be clear of what holds it"
+    },
+    "features/gridfinity_shapes.py:HELD_DROP_MM": {
+      "status": "design_default",
+      "note": "A design value for a check: a seated base pushed this much lower must meet what holds it, showing the slopes hold it"
+    },
+    "features/gridfinity_shapes.py:MAXIMUM_UNITS": {
+      "status": "design_default",
+      "note": "A design value: eight units is 336 mm, past any bed this engine prints on; the bed check refuses less"
+    },
+    "features/gridfinity_shapes.py:TOLERANCE_MM3": {
       "status": "unstated"
     },
     "features/gridfinity_standard.py:BASEPLATE_CELL_RADIUS_MM": {
       "status": "sourced",
       "source": "Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings, the baseplate drawing's 8.0 corner; Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), gridfinity-baseplate.scad BASEPLATE_OUTER_DIAMETER"
+    },
+    "features/gridfinity_standard.py:BASEPLATE_COUNTERSINK_MM": {
+      "status": "sourced",
+      "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad BASEPLATE_SCREW_COUNTERSINK_ADDITIONAL_RADIUS, a 45-degree countersink so its depth"
+    },
+    "features/gridfinity_standard.py:BASEPLATE_FLOOR_MM": {
+      "status": "sourced",
+      "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad h_skel, the floor gridfinity-rebuilt-baseplate.scad puts under the cells"
     },
     "features/gridfinity_standard.py:BASEPLATE_HEIGHT_MM": {
       "status": "sourced",
@@ -692,6 +723,10 @@
     "features/gridfinity_standard.py:MAGNET_INSET_MM": {
       "status": "sourced",
       "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad d_hole_from_side"
+    },
+    "features/gridfinity_standard.py:SCREW_HOLE_MM": {
+      "status": "sourced",
+      "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad SCREW_HOLE_RADIUS; gridfinity-rebuilt-holes.scad places it with the magnet"
     },
     "features/guide_bores.py:CHUCK_LENGTH_MM": {
       "status": "unstated"

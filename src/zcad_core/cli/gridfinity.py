@@ -12,12 +12,11 @@ from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.gridfinity import (
     DEFAULT_WALL_MM,
     BinSpec,
-    GridfinityPart,
-    build_baseplate,
     build_bin,
-    require_fits_bed,
     write_gridfinity_record,
 )
+from zcad_core.features.gridfinity_baseplate import BaseplateSpec, build_baseplate
+from zcad_core.features.gridfinity_shapes import GridfinityPart, require_fits_bed
 from zcad_core.profiles import load_compensation_profile, load_printer_profile
 
 DEFAULT_PRINTER_PROFILE = Path("profiles/printers/bambu-lab-a1-mini.json")
@@ -53,7 +52,7 @@ def _export(
         ExportRequest(
             design_name=name,
             design_type=f"gridfinity-{part.kind}",
-            parts={part.kind: part.body},
+            parts=part.printed,
             output_directory=args.output_directory,
             repository_root=Path.cwd(),
             printer_profile=profile,
@@ -108,6 +107,9 @@ def _gridfinity_bin(args: argparse.Namespace) -> int:
         lip=not args.no_lip,
         magnets=args.magnets,
         wall_mm=args.wall_mm,
+        screws=args.screws,
+        divisions=args.divisions,
+        label_tabs=args.label_tabs,
     )
     part = build_bin(spec, profile, side_shortfall_mm=shortfall)
 
@@ -115,11 +117,14 @@ def _gridfinity_bin(args: argparse.Namespace) -> int:
 
 
 def _gridfinity_baseplate(args: argparse.Namespace) -> int:
-    """Build, validate, and export a plain Gridfinity baseplate, with its record."""
+    """Build, validate, and export a Gridfinity baseplate, in pieces if it outgrows the bed,
+    with its record."""
 
     profile = load_printer_profile(args.printer_profile)
     x, y = args.units
-    part = build_baseplate(x, y, profile)
+    part = build_baseplate(
+        BaseplateSpec(x, y, magnets=args.magnets, screws=args.screws), profile
+    )
 
     return _export(part, f"gridfinity-baseplate-{x}x{y}", args, profile)
 
@@ -147,16 +152,41 @@ def register(
     bin_.add_argument(
         "--magnets", action="store_true", help="magnet holes in every unit's corners"
     )
+    bin_.add_argument(
+        "--screws", action="store_true", help="M3 screw holes in every unit's corners"
+    )
+    bin_.add_argument(
+        "--divisions",
+        type=_units,
+        default=(1, 1),
+        help="compartments across and front to back, e.g. 3x1",
+    )
+    bin_.add_argument(
+        "--label-tabs",
+        action="store_true",
+        help="a label shelf on the back wall of each back compartment",
+    )
     bin_.add_argument("--wall-mm", type=float, default=DEFAULT_WALL_MM)
     bin_.add_argument("--output-directory", required=True, type=Path)
     bin_.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
     add_compensation_profile_argument(bin_)
     bin_.set_defaults(handler=_gridfinity_bin)
     plate = commands.add_parser(
-        "baseplate", help="build, validate, and export a plain baseplate"
+        "baseplate",
+        help="build, validate, and export a baseplate, in pieces if it outgrows the bed",
     )
     plate.add_argument(
         "--units", required=True, type=_units, help="cells across, e.g. 4x4"
+    )
+    plate.add_argument(
+        "--magnets",
+        action="store_true",
+        help="magnet pockets under every bin's magnets",
+    )
+    plate.add_argument(
+        "--screws",
+        action="store_true",
+        help="countersunk M3 holes to screw the plate down, under the magnets",
     )
     plate.add_argument("--output-directory", required=True, type=Path)
     plate.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
