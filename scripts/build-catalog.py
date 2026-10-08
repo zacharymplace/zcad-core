@@ -1,10 +1,13 @@
 """Build the z-cadalog: every design the engine has built, from the build records under evidence/.
 
 Each build record becomes one entry: what it is, its parts (their STL files beside the catalog
-for its 3D viewer, as base64 in JSON, since a published page serves only web file types), its checks, warnings, slice and nominal sizes, its lineage, how to
-build it again where the record says, and its status. The status is read from the files beside
-the record, never typed in; the first of these that holds:
+for its 3D viewer, as base64 in JSON, since a published page serves only web file types), its
+checks, warnings, slice and nominal sizes, its lineage, how to build it again where the record
+says, and its status. The status is read from the files beside the record, never typed in; the
+first of these that holds:
 
+0. ``example``: the build is under ``evidence/examples/``, built from a template's example
+   readings to show what the product makes: never a real object, and never trialled;
 1. ``superseded``: a later revision names this one (a candidate's ``relationship.json``, or a
    build's ``revision_of``);
 2. ``promoted``: a candidate's ``promotion.json``;
@@ -39,7 +42,9 @@ from typing import Any
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 TEMPLATE = REPOSITORY / "scripts" / "catalog" / "page.html"
-CATALOG_SCHEMA_VERSION = "1.0.0"
+CATALOG_SCHEMA_VERSION = "1.1.0"
+# Builds from a template's example readings, one of each product not yet built for real.
+EXAMPLES = "examples"
 
 # Known build records: the product they are, and the file a completed trial writes.
 KINDS = {
@@ -48,6 +53,14 @@ KINDS = {
     "enclosure-group.json": ("Group enclosure", "enclosure-group-trial.json"),
     "coupon.json": ("Calibration coupon", "calibration-coupon-trial.json"),
     "gridfinity.json": ("Gridfinity", "gridfinity-trial.json"),
+    "holder.json": ("Object holder", "holder-trial.json"),
+    "nest.json": ("Holding nest", "nest-trial.json"),
+    "jig.json": ("Insert jig", "jig-trial.json"),
+    "stack-build.json": ("Stackable items", "stack-trial.json"),
+    "layer-build.json": ("Stack layer", "layer-trial.json"),
+    "housing-build.json": ("Wearable housing", "housing-trial.json"),
+    "guide.json": ("Drill guide", "guide-trial.json"),
+    "fixture.json": ("PCB test fixture", "fixture-trial.json"),
 }
 # Folders a build writes inside its own, which hold no build records.
 INNER = {
@@ -139,8 +152,14 @@ def _stl_files(
         )
 
     found = {}
+    parts = dict(record.get("parts") or {})
 
-    for name, part in (record.get("parts") or {}).items():
+    # A stack build keeps each item's part under its name.
+    for name, item in (record.get("items") or {}).items():
+        if isinstance(item, dict) and isinstance(item.get("part"), dict):
+            parts[name] = item["part"]
+
+    for name, part in parts.items():
         if isinstance(part, dict) and "stl_path" in part:
             stl = _locate(str(part["stl_path"]), record_path, evidence)
 
@@ -393,7 +412,11 @@ def entry(
     built, asked = _checks(record)
     plates = _slices(folder)
     replaced, replaced_by = _lineage(record_path, record, records)
-    status = status_of(record_path, record, records)
+    status: dict[str, Any] = (
+        {"status": "example", "evidence": record_path}
+        if design_id.split("/")[0] == EXAMPLES
+        else status_of(record_path, record, records)
+    )
     model_files = []
 
     for part, stl in _stl_files(record_path, record, evidence).items():

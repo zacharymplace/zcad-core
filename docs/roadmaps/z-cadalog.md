@@ -9,7 +9,8 @@ shows what the engine can do, from a handful of example models. It is not a reco
 
 The **z-cadalog** is that record: every design the engine has built, in one place, each with its views, its figures, its status, and how to build it again.
 
-**Status (2026-10-08): phase 1 is built.** `python scripts/build-catalog.py`; see [Phase 1, as built](#phase-1-as-built).
+**Status (2026-10-08): phases 1 and 2 are built.** `python scripts/build-catalog.py` and `python scripts/build-examples.py`; see
+[Phase 1, as built](#phase-1-as-built) and [Phase 2, as built](#phase-2-as-built).
 
 ## What a design is
 
@@ -82,7 +83,7 @@ one.
 
 1. **The catalog of recorded designs (built).** `scripts/build-catalog.py` for the five record kinds above, status from the records, the page template, and the
    catalog published as a private page with its STL files and views. A test builds a catalog from a scratch `evidence/` of each kind and status.
-2. **Examples of the rest.** One build of each product not yet in `evidence/`, from the repository's example inputs, marked as examples.
+2. **Examples of the rest (built).** One build of each product not yet in `evidence/`, from the repository's example inputs, marked as examples.
 3. **Kept current.** `backup-evidence.sh` rebuilds the catalog after a backup and says when the published page is behind the evidence.
 
 Each phase is one PR.
@@ -106,6 +107,27 @@ models. Publishing the catalog is the step after the script: the page and its fi
   have one. None is verified today.
 - **The page** loads three.js and its STL loader from jsDelivr, pinned to 0.128.0 with integrity hashes, and fetches each design's parts only when it is
   opened.
+
+### Phase 2, as built
+
+`scripts/build-examples.py` builds one of each of the seven products into `evidence/examples/<product>/`, its inputs beside a `<product>-example/`
+build, and refuses if `evidence/examples/` exists. The catalog gives everything under `evidence/examples/` the status **example**, ahead of every other
+rule, so an example is never shown as built, on print day or trialled.
+
+| Product | Built from |
+| --- | --- |
+| Object holder | `capture template`'s example capture, then `holder template` |
+| Holding nest, insert jig, drill guide | The test suite's part, a 50 x 30 x 10 mm plate with 4 mm corners, as STEP, then each product's `template` |
+| Stackable items | `stack template`'s example profile and stack: a 2 x 1 bin and a 2 x 2 baseplate |
+| Wearable housing | `board template`'s example board, as a case |
+| PCB test fixture | The KiCad example board, `examples/kicad/sensor-board.kicad_pcb`, as `examples/kicad_board.py` builds it |
+
+- **The templates' guards.** Every build refuses a template's readings until a person replaces them: the capture's `needs_review` (and its unticked
+  edge features), and the example sources of the jig's iron and the stack profile. The figures are kept exactly as the templates wrote them, and each
+  guard is replaced by a source that begins "Template example values, unchanged and not measured". Those inputs exist only under `evidence/examples/`.
+- **The PCB test fixture** comes from the KiCad example, not `board template`: that board is one envelope over the whole board, which every pin meets.
+- **The catalog knows the seven products' build records** by name now (`holder.json`, `nest.json`, `jig.json`, `stack-build.json`, `layer-build.json`,
+  `housing-build.json`, `guide.json`, `fixture.json`), with their trial records, and reads a stack build's parts from its `items`.
 
 ## Open questions
 

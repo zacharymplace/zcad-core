@@ -107,6 +107,9 @@ def evidence(tmp_path: Path) -> Path:
         fit_checks={"one_solid": True, "fits_bed": False},
     )
     build(root, "widgets", "w1", "widget.json")
+    # An example: built from a template's readings, even with a trial opened beside it.
+    holder = build(root, "examples/holders", "h1", "holder.json")
+    (holder / "trials" / "trial-001").mkdir(parents=True)
 
     return root
 
@@ -135,6 +138,7 @@ def test_every_record_is_found_and_its_status_read_from_beside_it(
         "enclosures/e1": ("superseded", "e2"),
         "enclosures/e2": ("built", None),
         "widgets/w1": ("built", None),
+        "examples/holders/h1": ("example", None),
     }
     pending = designs["board-a/validation-lab/candidates/r002"]
     assert pending["status_evidence"] == (
