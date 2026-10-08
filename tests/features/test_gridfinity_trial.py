@@ -207,13 +207,14 @@ def test_the_trial_commands_start_complete_and_report(
     assert status == {**status, "verified": False, "passing_trials": 1}
 
 
-def test_a_sliced_part_is_sliced_as_exported_and_its_first_trial_opened(
-    capsys: pytest.CaptureFixture[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    sliced: dict[str, Any] = {}
+@pytest.fixture
+def sliced(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """What the slicer was asked for, in place of Bambu Studio."""
+
+    asked: dict[str, Any] = {}
 
     def slice_models(models: list[Path], output: Path, **options: Any) -> Any:
-        sliced.update(models=models, output=output, **options)
+        asked.update(models=models, output=output, **options)
         return SimpleNamespace(
             gcode_path=output / "plate_1.gcode",
             summary={
@@ -224,6 +225,13 @@ def test_a_sliced_part_is_sliced_as_exported_and_its_first_trial_opened(
         )
 
     monkeypatch.setattr("zcad_core.cli.gridfinity.slice_models", slice_models)
+
+    return asked
+
+
+def test_a_sliced_part_is_sliced_as_exported_and_its_first_trial_opened(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, sliced: dict[str, Any]
+) -> None:
     output = tmp_path / "part"
     command = ["gridfinity", "bin", "--units", "1x1", "--height", "2", "--no-lip"]
 
@@ -242,6 +250,51 @@ def test_a_sliced_part_is_sliced_as_exported_and_its_first_trial_opened(
     )
     assert Path(printed["trial"]) == output / "trials" / "trial-001"
     assert (output / "trials" / "trial-001" / "fit.json").is_file()
+    assert (printed["copies"], sliced["summary_fields"]["copies"]) == (1, 1)
+
+
+def test_a_pair_of_lipped_bins_goes_on_one_plate_for_the_stacking_check(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path, sliced: dict[str, Any]
+) -> None:
+    output = tmp_path / "pair"
+    command = ["gridfinity", "bin", "--units", "1x1", "--height", "2", "--slice"]
+
+    assert main([*command, "--copies", "2", "--output-directory", str(output)]) == 0
+    printed = json.loads(capsys.readouterr().out)["print"]
+    (stl,) = (
+        part["stl_path"]
+        for part in json.loads((output / "gridfinity.json").read_text())[
+            "parts"
+        ].values()
+    )
+    observations = json.loads(
+        (output / "trials" / "trial-001" / "observations.json").read_text()
+    )
+
+    assert [str(model) for model in sliced["models"]] == [stl, stl]
+    assert (printed["copies"], sliced["summary_fields"]["copies"]) == (2, 2)
+    assert "stacks" in observations
+
+
+@pytest.mark.parametrize(
+    ("options", "message"),
+    [
+        (["--copies", "2"], "add --slice"),
+        (["--copies", "0", "--slice"], "--copies must be 1 or more"),
+    ],
+)
+def test_copies_are_only_for_a_sliced_plate(
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+    options: list[str],
+    message: str,
+) -> None:
+    output = tmp_path / "part"
+    command = ["gridfinity", "bin", "--units", "1x1", "--height", "2", *options]
+
+    assert main([*command, "--output-directory", str(output)]) == 1
+    assert message in capsys.readouterr().err
+    assert not output.exists()
 
 
 def test_a_baseplate_in_pieces_is_not_sliced_onto_one_plate(
