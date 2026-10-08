@@ -191,7 +191,8 @@ the build record, a completed trial never overwritten, and a trial refused when 
 
 ## Not covered
 
-- **Half-grid and other grids.** Gridfinity has variants (half units, "lite" thin-walled bins, weighted baseplates, other generators' refinements). The
+- **Half-grid and other grids.** Half-grid bins have their own design, [Half-grid Gridfinity bins](gridfinity-half-grid.md). Gridfinity has other
+  variants ("lite" thin-walled bins, weighted baseplates, other generators' refinements). The
   engine builds the standard's full units first.
 - **Spiral-vase bins.** A print mode, not a shape; the slicer's.
 - **A drawer or a cabinet.** The engine's stackable items already make drawers; a drawer sized to a Gridfinity grid is a later design.

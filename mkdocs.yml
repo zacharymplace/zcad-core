@@ -62,6 +62,7 @@ nav:
       - Importing a KiCad board: roadmaps/kicad-import.md
       - Object holders: roadmaps/object-holders.md
       - Gridfinity bins: roadmaps/gridfinity-bins.md
+      - Half-grid Gridfinity bins: roadmaps/gridfinity-half-grid.md
   - API Reference:
       - Overview: reference/index.md
       - assemblies: reference/assemblies.md
