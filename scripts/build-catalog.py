@@ -25,8 +25,14 @@ Writes ``<output>/catalog.json``, the models under ``<output>/models/``, and the
 ``<output>/index.html``, a copy of ``scripts/catalog/page.html``, which reads ``catalog.json``.
 The output is generated: it is replaced on every run, and refused if it holds anything else.
 
+After publishing the catalogue, ``--mark-published <url>`` notes which evidence went up, in an
+ignored file beside it; every build then says whether the published page shows the evidence it
+was built from, and ``--summary`` says it in one line, which ``backup-evidence.sh`` prints after
+each backup.
+
 Usage:
-    python scripts/build-catalog.py [--evidence-root evidence] [--output catalog]
+    python scripts/build-catalog.py [--evidence-root evidence] [--output catalog] [--summary]
+    python scripts/build-catalog.py --mark-published <url> [--output catalog]
 """
 
 from __future__ import annotations
@@ -514,12 +520,84 @@ def build_catalog(evidence: Path, output: Path) -> dict[str, Any]:
     return catalog
 
 
+def published_record(output: Path) -> Path:
+    """Where this checkout notes what it last published: beside the catalogue, which is
+    replaced on every build, and ignored by git as the catalogue is."""
+
+    return output.parent / f".{output.name}-published.json"
+
+
+def mark_published(output: Path, url: str) -> dict[str, Any]:
+    """Note that the catalogue in ``output`` was published at ``url``."""
+
+    catalog = _read(output / "catalog.json")
+    record = {
+        "url": url,
+        "evidence_commit": catalog.get("evidence_commit"),
+        "repository_commit": catalog.get("repository_commit"),
+        "designs": len(catalog.get("designs", [])),
+        "published_at_utc": datetime.now(UTC).isoformat(),
+    }
+    published_record(output).write_text(
+        json.dumps(record, indent=2) + "\n", encoding="utf-8"
+    )
+
+    return record
+
+
+def summary(output: Path, catalog: dict[str, Any]) -> str:
+    """One line: the catalogue's evidence, and whether the published page shows it."""
+
+    here = catalog.get("evidence_commit")
+    line = f"catalog: {len(catalog['designs'])} designs at evidence {here or '?'}"
+    record_path = published_record(output)
+
+    if here is None:
+        return f"{line}; the evidence is not in git, so whether a published page is current cannot be told"
+
+    if not record_path.is_file():
+        return (
+            f"{line}; not published from this checkout: publish {output}/ and run "
+            "scripts/build-catalog.py --mark-published <url>"
+        )
+
+    published = _read(record_path)
+
+    if published.get("evidence_commit") == here:
+        return f"{line}; the published page ({published['url']}) is current"
+
+    return (
+        f"{line}; the published page ({published['url']}) shows evidence "
+        f"{published.get('evidence_commit') or '?'}: republish it, then mark it published"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--evidence-root", type=Path, default=Path("evidence"))
     parser.add_argument("--output", type=Path, default=Path("catalog"))
+    parser.add_argument(
+        "--mark-published",
+        metavar="URL",
+        help="note that the catalogue now in --output was published at URL; builds nothing",
+    )
+    parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="print one line: the catalogue's evidence and whether the published page shows it",
+    )
     args = parser.parse_args()
+
+    if args.mark_published:
+        print(json.dumps(mark_published(args.output, args.mark_published), indent=2))
+        return 0
+
     catalog = build_catalog(args.evidence_root.resolve(), args.output)
+
+    if args.summary:
+        print(summary(args.output, catalog))
+        return 0
+
     counts: dict[str, int] = {}
 
     for design in catalog["designs"]:
@@ -531,6 +609,7 @@ def main() -> int:
                 "catalog": str(args.output),
                 "designs": len(catalog["designs"]),
                 "status": counts,
+                "published": summary(args.output, catalog).split("; ", 1)[1],
             },
             indent=2,
         )

@@ -5,6 +5,8 @@ from __future__ import annotations
 import base64
 import importlib.util
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -178,6 +180,44 @@ def test_each_part_is_written_beside_the_catalogue_for_its_viewer(
         {"name": "fits_bed", "passed": False, "detail": ""},
     ]
     assert designs["enclosures/e1"]["trial_asks"] == ["board_seats"]
+
+
+def test_the_catalogue_says_whether_its_published_page_is_behind(
+    evidence: Path, tmp_path: Path
+) -> None:
+    module = catalogue()
+    output = tmp_path / "catalog"
+
+    assert "is not in git" in module.summary(
+        output, module.build_catalog(evidence, output)
+    )
+
+    # Real evidence is a git repository, which the published page is pinned to.
+    for command in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "Evidence"]):
+        subprocess.run(
+            ["git", "-C", str(evidence), *command],
+            check=True,
+            capture_output=True,
+            env={
+                **{k: v for k, v in os.environ.items() if not k.startswith("GIT_")},
+                "GIT_AUTHOR_NAME": "Test",
+                "GIT_AUTHOR_EMAIL": "test@example.com",
+                "GIT_COMMITTER_NAME": "Test",
+                "GIT_COMMITTER_EMAIL": "test@example.com",
+            },
+        )
+    catalog = module.build_catalog(evidence, output)
+
+    assert "not published from this checkout" in module.summary(output, catalog)
+
+    url = "https://claude.ai/artifact/example"
+    module.mark_published(output, url)
+
+    assert module.summary(output, catalog).endswith(f"({url}) is current")
+    assert (tmp_path / ".catalog-published.json").is_file()
+
+    moved_on = {**catalog, "evidence_commit": "f00dfee"}
+    assert "republish it" in module.summary(output, moved_on)
 
 
 def test_the_catalogue_is_regenerated_and_never_replaces_anything_else(

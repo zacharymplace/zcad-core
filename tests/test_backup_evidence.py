@@ -152,6 +152,27 @@ def test_a_large_file_tracked_by_lfs_is_backed_up_as_a_pointer(
     assert pointer.startswith("version https://git-lfs.github.com/spec/v1")
 
 
+def test_a_backup_rebuilds_the_catalogue_and_says_if_its_page_is_behind(
+    checkout: Path, shell: str
+) -> None:
+    scripts = SCRIPT.parent
+    shutil.copy(scripts / "build-catalog.py", checkout / "scripts" / "build-catalog.py")
+    (checkout / "scripts" / "catalog").mkdir()
+    shutil.copy(
+        scripts / "catalog" / "page.html",
+        checkout / "scripts" / "catalog" / "page.html",
+    )
+    (checkout / "evidence" / "filled.json").write_text("{}\n", encoding="utf-8")
+
+    result = back_up(checkout, shell)
+
+    assert result.returncode == 0, result.stderr
+    assert "backup-evidence: pushed" in result.stdout
+    assert "catalog: 0 designs at evidence" in result.stdout
+    assert "not published from this checkout" in result.stdout
+    assert (checkout / "catalog" / "catalog.json").is_file()
+
+
 def test_unchanged_evidence_needs_no_backup(checkout: Path, shell: str) -> None:
     result = back_up(checkout, shell)
 

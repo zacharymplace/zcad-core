@@ -15,8 +15,9 @@ exports/
 # Local Validation Lab source and generated evidence
 evidence/
 # The z-cadalog, generated from evidence/ by scripts/build-catalog.py (its template is
-# scripts/catalog/, which is tracked)
+# scripts/catalog/, which is tracked), and this checkout's note of what it last published
 /catalog/
+/.catalog-published.json
 
 # Generated documentation output
 site/

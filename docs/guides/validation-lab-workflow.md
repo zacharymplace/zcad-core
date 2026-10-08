@@ -40,7 +40,9 @@ fill it in and delete the line, or move it out of `evidence/`. It also
 refuses a file over 95 MB that Git LFS does not track, since GitHub would
 refuse it at the push. The evidence repository does not use LFS yet; once
 its `.gitattributes` routes files through LFS, the script needs git-lfs
-installed.
+installed. After a successful backup it rebuilds the
+[z-cadalog](../roadmaps/z-cadalog.md) and prints one line saying whether its
+published page is current or behind the evidence just backed up.
 
 ## 1. Register the target
 
