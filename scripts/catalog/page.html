@@ -153,9 +153,10 @@ function el(tag, attrs = {}, ...children) {
 const chip = (status, extra) => el("span", { class: "chip", "data-s": status }, status + (extra ? ` · ${extra}` : ""));
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
+// The folder names a design uniquely; two builds can share a design name (a lipped bin and a plain one).
 function shortName(d) {
   if (d.record === "candidate.json") return `${d.for} · ${d.id.split("/").pop()}`;
-  return d.name;
+  return d.id.split("/").pop();
 }
 
 function render() {
@@ -237,7 +238,9 @@ function viewer(host, d) {
     const w = host.clientWidth, h = host.clientHeight;
     renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
   };
-  Promise.all(d.models.map((m) => fetch(m.file).then((r) => { if (!r.ok) throw new Error(m.file); return r.arrayBuffer(); }).then((b) => loader.parse(b))))
+  // Each part is an STL as base64 in JSON: a published page serves only web file types.
+  const decode = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0)).buffer;
+  Promise.all(d.models.map((m) => fetch(m.file).then((r) => { if (!r.ok) throw new Error(m.file); return r.json(); }).then((j) => loader.parse(decode(j.base64)))))
     .then((geometries) => {
       let x = 0, ymax = 0, zmax = 0;
       geometries.forEach((g, i) => {

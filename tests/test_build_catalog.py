@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import importlib.util
 import json
 import sys
@@ -155,15 +156,18 @@ def test_a_record_of_an_unknown_kind_is_listed_by_its_path(
     assert widget["folder"] == "evidence/widgets/w1"
 
 
-def test_each_part_is_copied_beside_the_catalogue_for_its_viewer(
+def test_each_part_is_written_beside_the_catalogue_for_its_viewer(
     evidence: Path, tmp_path: Path
 ) -> None:
     output = tmp_path / "catalog"
     designs = by_id(catalogue().build_catalog(evidence, output))
     e2 = designs["enclosures/e2"]
 
-    assert e2["models"] == [{"part": "part", "file": "models/enclosures/e2/part.stl"}]
-    assert (output / e2["models"][0]["file"]).read_text() == STL
+    # As base64 in JSON: a published page serves only web file types, and STL is not one.
+    assert e2["models"] == [{"part": "part", "file": "models/enclosures/e2/part.json"}]
+    model = json.loads((output / e2["models"][0]["file"]).read_text())
+    assert (model["part"], model["format"]) == ("part", "stl")
+    assert base64.b64decode(model["base64"]).decode() == STL
     assert (output / "index.html").is_file()
     assert e2["checks"] == [
         {"name": "one_solid", "passed": True, "detail": ""},
