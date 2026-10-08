@@ -53,6 +53,7 @@ h1 span{color:var(--spot)}
   padding:5px 7px; border:1.5px solid var(--ink); color:var(--ink); background:var(--paper); white-space:nowrap}
 .chip b{font-weight:700}
 .chip[data-s="built"]{border-style:dashed}
+.chip[data-s="example"]{border-style:double; border-width:3px; color:var(--ink-2); border-color:var(--ink-2)}
 .chip[data-s="reviewed"]{border-style:solid}
 .chip[data-s="on print day"]{background:var(--spot-tint); border-color:var(--spot); color:var(--spot)}
 .chip[data-s="trial recorded"]{background:var(--data-tint); border-color:var(--data); color:var(--data)}
@@ -132,7 +133,7 @@ footer{margin-top:34px; font:400 11px/1.6 var(--f-mono); color:var(--ink-muted);
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" integrity="sha384-wagZhIFgY4hD+7awjQjR4e2E294y6J2HSnd8eTNc15ZubTeQeVRZwhQJ+W6hnBsf" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js" integrity="sha384-QF8EmP6pyNE+i7WmcltzC4ddzFVKDxfn5WD5gXyKTSE4SCw0R25TI+q0LUlnf7tq" crossorigin="anonymous"></script>
 <script>
-const ORDER = ["on print day", "trial recorded", "reviewed", "built", "verified", "promoted", "superseded"];
+const ORDER = ["on print day", "trial recorded", "reviewed", "built", "verified", "promoted", "example", "superseded"];
 const state = { catalog: null, hidden: new Set(), kind: "", showOlder: false, current: null };
 const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const anchor = (id) => id.replaceAll("/", "~");
