@@ -9,7 +9,7 @@ shows what the engine can do, from a handful of example models. It is not a reco
 
 The **z-cadalog** is that record: every design the engine has built, in one place, each with its views, its figures, its status, and how to build it again.
 
-**Status (2026-10-08): design only.**
+**Status (2026-10-08): phase 1 is built.** `python scripts/build-catalog.py`; see [Phase 1, as built](#phase-1-as-built).
 
 ## What a design is
 
@@ -80,12 +80,31 @@ one.
 
 ## Phases
 
-1. **The catalog of recorded designs.** `scripts/build-catalog.py` for the five record kinds above, status from the records, the page template, and the
+1. **The catalog of recorded designs (built).** `scripts/build-catalog.py` for the five record kinds above, status from the records, the page template, and the
    catalog published as a private page with its STL files and views. A test builds a catalog from a scratch `evidence/` of each kind and status.
 2. **Examples of the rest.** One build of each product not yet in `evidence/`, from the repository's example inputs, marked as examples.
 3. **Kept current.** `backup-evidence.sh` rebuilds the catalog after a backup and says when the published page is behind the evidence.
 
 Each phase is one PR.
+
+### Phase 1, as built
+
+`scripts/build-catalog.py` writes `catalog/` (ignored by git) with `catalog.json`, each design's STL parts under `models/`, and the page, a copy of
+`scripts/catalog/page.html`. Run against the evidence on 2026-10-08 it found 33 designs: 17 superseded, 14 on print day and 2 built, with 2.7 MB of
+models. Publishing the catalog is the step after the script: the page and its files, as a private page.
+
+- **Lineage from every relationship.** A candidate's parent is replaced by any recorded relationship (`supersedes`, `derived_from`), not only
+  `supersedes`; one revision was derived rather than superseded.
+- **A candidate's fixture** is the one its record names (`fixture_artifact_path`), which for the early revisions is not `fixture.stl` beside it. Paths a
+  record writes from the repository (`evidence/...`) are read against the evidence root, so the script works from a worktree.
+- **No design-review SVG views.** They are about a megabyte each, four to a reviewed candidate; every design with an STL has the 3D viewer instead, and the
+  views stay in each candidate's folder. The snap-shell candidates were exported as STEP only and are listed without a model, saying so.
+- **Rebuild lines** come from a slice's recorded recipe where there is one (the coupons and the Pi 5 enclosures); a candidate's is its regeneration from its parent, with
+  the reason left for whoever runs it. Gridfinity builds record no recipe yet, so they show none.
+- **Verification** is called only for Gridfinity, the one kind with a verification function; the others reach "trial recorded" at most until they
+  have one. None is verified today.
+- **The page** loads three.js and its STL loader from jsDelivr, pinned to 0.128.0 with integrity hashes, and fetches each design's parts only when it is
+  opened.
 
 ## Open questions
 

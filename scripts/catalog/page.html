@@ -1,0 +1,352 @@
+<title>z-cadalog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;600&family=Barlow+Condensed:wght@500;700&family=Space+Mono:wght@400;700&display=swap">
+<style>
+/* Layout: a record-sleeve header with the catalogue line, a status strip, then the designs as a
+   two-column catalogue (index left, the open design right, stacking on a phone). Generated from
+   catalog.json by scripts/build-catalog.py; never edited by hand. */
+:root{
+  --paper:#F1EFE8; --paper-2:#E4E0D5; --paper-3:#D6D1C2;
+  --ink:#12110F; --ink-2:#403C35; --ink-muted:#6E675E;
+  --rule:#B9B2A3; --rule-strong:#12110F;
+  --spot:#D63418; --spot-tint:#F6DDD6;
+  --data:#1C63B8; --data-tint:#D8E4F4;
+  --pass:#1F6B3A; --pass-tint:#DCEBDF;
+  --view:#E9E6DD; --part-a:#2E6E8E; --part-b:#C8762A; --part-c:#6F7F8C;
+  --dot:rgba(18,17,15,0.055);
+  --f-display:"Archivo Black",Impact,"Haettenschweiler","Arial Black",sans-serif;
+  --f-cond:"Barlow Condensed","Oswald","Arial Narrow",sans-serif;
+  --f-mono:"Space Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --f-body:"Archivo","Helvetica Neue",Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0C0C0B; --paper-2:#161614; --paper-3:#20201D;
+  --ink:#EFEBE1; --ink-2:#B4AEA2; --ink-muted:#8A8378;
+  --rule:#33322D; --rule-strong:#EFEBE1;
+  --spot:#FF5A36; --spot-tint:#2A1108; --data:#4D9BFF; --data-tint:#0C1B2E;
+  --pass:#5CC38A; --pass-tint:#10261A; --view:#141412;
+  --part-a:#5AA7CC; --part-b:#E7A64E; --part-c:#8B9CA8;
+  --dot:rgba(239,235,225,0.05); color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --paper:#0C0C0B; --paper-2:#161614; --paper-3:#20201D;
+  --ink:#EFEBE1; --ink-2:#B4AEA2; --ink-muted:#8A8378;
+  --rule:#33322D; --rule-strong:#EFEBE1;
+  --spot:#FF5A36; --spot-tint:#2A1108; --data:#4D9BFF; --data-tint:#0C1B2E;
+  --pass:#5CC38A; --pass-tint:#10261A; --view:#141412;
+  --part-a:#5AA7CC; --part-b:#E7A64E; --part-c:#8B9CA8;
+  --dot:rgba(239,235,225,0.05); color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--paper); color:var(--ink); font-family:var(--f-body);
+  background-image:radial-gradient(var(--dot) 1px, transparent 1.2px); background-size:4px 4px}
+.wrap{max-width:1180px; margin:0 auto; padding-inline:20px; padding-block:28px 72px}
+.cat{font:400 11px/1.5 var(--f-mono); letter-spacing:.06em; text-transform:uppercase; color:var(--ink-2); overflow-wrap:anywhere}
+h1{font:400 clamp(40px,8vw,68px)/.9 var(--f-display); text-transform:uppercase; letter-spacing:-.02em; margin:10px 0 0}
+h1 span{color:var(--spot)}
+.perf{height:0; border-top:3px dotted var(--spot); margin:18px 0 18px}
+.lede{font:400 15px/1.55 var(--f-body); color:var(--ink-2); max-width:72ch; margin:0}
+
+.strip{display:flex; flex-wrap:wrap; gap:8px; margin-top:18px}
+.chip{display:inline-flex; align-items:center; gap:6px; font:700 11px/1 var(--f-mono); letter-spacing:.06em; text-transform:uppercase;
+  padding:5px 7px; border:1.5px solid var(--ink); color:var(--ink); background:var(--paper); white-space:nowrap}
+.chip b{font-weight:700}
+.chip[data-s="built"]{border-style:dashed}
+.chip[data-s="reviewed"]{border-style:solid}
+.chip[data-s="on print day"]{background:var(--spot-tint); border-color:var(--spot); color:var(--spot)}
+.chip[data-s="trial recorded"]{background:var(--data-tint); border-color:var(--data); color:var(--data)}
+.chip[data-s="verified"], .chip[data-s="promoted"]{background:var(--pass); border-color:var(--pass); color:var(--paper)}
+.chip[data-s="superseded"]{border-style:dotted; color:var(--ink-muted); border-color:var(--ink-muted)}
+button.chip{cursor:pointer}
+button.chip[aria-pressed="false"]{opacity:.45}
+button:focus-visible, a:focus-visible, select:focus-visible{outline:2px solid var(--spot); outline-offset:2px}
+
+.controls{display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; margin-top:14px; font:400 12px/1.4 var(--f-mono); color:var(--ink-2)}
+.controls label{display:inline-flex; gap:6px; align-items:center}
+select{font:400 13px var(--f-body); color:var(--ink); background:var(--paper); border:1.5px solid var(--rule-strong); padding:5px 8px}
+
+.desk{display:grid; grid-template-columns:minmax(0,380px) minmax(0,1fr); gap:24px; margin-top:22px; align-items:start}
+@media (max-width:860px){.desk{grid-template-columns:minmax(0,1fr)}}
+.index{display:grid; gap:18px}
+.group h2{font:700 18px/1 var(--f-cond); letter-spacing:.1em; text-transform:uppercase; margin:0; padding-bottom:6px; border-bottom:2px solid var(--rule-strong); display:flex; justify-content:space-between; gap:8px}
+.group h2 small{font:400 11px var(--f-mono); color:var(--ink-muted); letter-spacing:.04em}
+.item{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 10px; width:100%; text-align:left; background:none; border:0; border-bottom:1.5px solid var(--rule);
+  padding:10px 4px; color:var(--ink); cursor:pointer; font:inherit}
+.item:hover{background:var(--paper-2)}
+.item[aria-current="true"]{background:var(--paper-3)}
+.item .nm{font:700 15px/1.15 var(--f-cond); letter-spacing:.04em; text-transform:uppercase; min-width:0; overflow-wrap:anywhere}
+.item .sub{grid-column:1 / -1; font:400 11px/1.4 var(--f-mono); color:var(--ink-muted); overflow-wrap:anywhere}
+.older{margin:4px 0 0 12px; border-left:2px dotted var(--rule); padding-left:8px}
+.older summary{font:700 11px/1.6 var(--f-mono); letter-spacing:.05em; text-transform:uppercase; color:var(--ink-muted); cursor:pointer}
+.empty{font:400 13px/1.5 var(--f-body); color:var(--ink-muted); padding:12px 0}
+
+.detail{position:sticky; top:calc(env(safe-area-inset-top, 0px) + 12px); border:2px solid var(--rule-strong); background:var(--paper); min-width:0}
+@media (max-width:860px){.detail{position:static}}
+.d-head{padding:14px 16px 10px; border-bottom:1.5px solid var(--rule); display:grid; gap:6px}
+.d-head h3{font:400 clamp(22px,3.4vw,32px)/1 var(--f-display); text-transform:uppercase; letter-spacing:-.01em; margin:0; overflow-wrap:anywhere}
+.d-head .k{font:400 12px/1.4 var(--f-mono); color:var(--ink-2); overflow-wrap:anywhere}
+.viewer{position:relative; background:var(--view); aspect-ratio:16/10; border-bottom:1.5px solid var(--rule)}
+.viewer canvas{display:block; width:100%; height:100%; touch-action:none; cursor:grab}
+.viewer .msg{position:absolute; inset:0; display:grid; place-items:center; padding:20px; text-align:center; font:400 13px/1.5 var(--f-body); color:var(--ink-muted)}
+.viewer .hint{position:absolute; left:10px; bottom:8px; font:400 11px var(--f-mono); color:var(--ink-muted); pointer-events:none}
+.viewer .parts{position:absolute; right:10px; top:8px; display:flex; flex-wrap:wrap; gap:4px 10px; font:400 11px var(--f-mono); color:var(--ink-2); pointer-events:none; justify-content:flex-end}
+.viewer .parts i{display:inline-block; width:9px; height:9px; margin-right:4px; vertical-align:-1px}
+.d-body{padding:4px 16px 18px; display:grid; gap:4px}
+.d-body h4{font:700 14px/1 var(--f-cond); letter-spacing:.1em; text-transform:uppercase; margin:16px 0 6px}
+dl.facts{margin:0; display:grid; grid-template-columns:minmax(0,170px) minmax(0,1fr); gap:5px 14px; font:400 12px/1.45 var(--f-mono)}
+dl.facts dt{color:var(--ink-muted)}
+dl.facts dd{margin:0; overflow-wrap:anywhere; font-variant-numeric:tabular-nums}
+@media (max-width:520px){dl.facts{grid-template-columns:minmax(0,1fr)} dl.facts dd{margin-bottom:6px}}
+ul.checks{list-style:none; margin:0; padding:0; display:grid; gap:3px; font:400 12px/1.45 var(--f-mono)}
+ul.checks li{display:grid; grid-template-columns:22px minmax(0,1fr); gap:6px}
+ul.checks .ok{color:var(--pass); font-weight:700}
+ul.checks .no{color:var(--spot); font-weight:700}
+.warn{border-left:4px solid var(--spot); padding:4px 0 4px 10px; font:400 13px/1.5 var(--f-body); margin:0}
+.cmd{display:flex; gap:8px; align-items:flex-start; min-width:0}
+.cmd code{flex:1; min-width:0; font:400 12px/1.5 var(--f-mono); background:var(--paper-2); border:1.5px solid var(--rule); padding:6px 8px; overflow-wrap:anywhere; user-select:all}
+.copy{font:700 11px/1 var(--f-cond); letter-spacing:.08em; text-transform:uppercase; background:var(--paper); color:var(--ink); border:1.5px solid var(--rule-strong); padding:6px 8px; cursor:pointer; flex:none}
+.link{background:none; border:0; padding:0; color:var(--data); text-decoration:underline; cursor:pointer; font:inherit}
+footer{margin-top:34px; font:400 11px/1.6 var(--f-mono); color:var(--ink-muted); text-transform:uppercase; letter-spacing:.05em; overflow-wrap:anywhere}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <div class="cat" id="catalogue">Z-CAD · catalogue · reading catalog.json…</div>
+  <h1>z-<span>cad</span>alog</h1>
+  <div class="perf" role="presentation"></div>
+  <p class="lede">Every design the engine has built, from the build records under <code>evidence/</code>. Each status is read from the files beside the record, and names the file that settled it. Nothing here is verified until a printed trial says so.</p>
+  <div class="strip" id="strip" aria-label="Designs by status"></div>
+  <div class="controls">
+    <label for="kind">Product <select id="kind"><option value="">All</option></select></label>
+    <label for="older"><input type="checkbox" id="older"> Show superseded revisions in the list</label>
+  </div>
+  <div class="desk">
+    <nav class="index" id="index" aria-label="Designs"><p class="empty">Loading the catalogue…</p></nav>
+    <section class="detail" id="detail" aria-live="polite"><div class="d-head"><h3>Pick a design</h3><p class="k">Its parts, checks, status and how to build it again appear here.</p></div></section>
+  </div>
+  <footer id="footer"></footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" integrity="sha384-wagZhIFgY4hD+7awjQjR4e2E294y6J2HSnd8eTNc15ZubTeQeVRZwhQJ+W6hnBsf" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js" integrity="sha384-QF8EmP6pyNE+i7WmcltzC4ddzFVKDxfn5WD5gXyKTSE4SCw0R25TI+q0LUlnf7tq" crossorigin="anonymous"></script>
+<script>
+const ORDER = ["on print day", "trial recorded", "reviewed", "built", "verified", "promoted", "superseded"];
+const state = { catalog: null, hidden: new Set(), kind: "", showOlder: false, current: null };
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const anchor = (id) => id.replaceAll("/", "~");
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") node.className = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else if (k === "text") node.textContent = v;
+    else node.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of children.flat()) if (c !== null && c !== undefined) node.append(c);
+  return node;
+}
+
+const chip = (status, extra) => el("span", { class: "chip", "data-s": status }, status + (extra ? ` · ${extra}` : ""));
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+function shortName(d) {
+  if (d.record === "candidate.json") return `${d.for} · ${d.id.split("/").pop()}`;
+  return d.name;
+}
+
+function render() {
+  const { catalog } = state;
+  const designs = catalog.designs;
+  const counts = {};
+  for (const d of designs) counts[d.status] = (counts[d.status] || 0) + 1;
+  document.getElementById("catalogue").textContent =
+    `ZC-CAT · ${plural(designs.length, "design")} · ${new Set(designs.map((d) => d.kind)).size} products · repo ${catalog.repository_commit || "?"} · evidence ${catalog.evidence_commit || "?"}`;
+  document.getElementById("strip").replaceChildren(...ORDER.filter((s) => counts[s]).map((s) =>
+    el("button", { type: "button", class: "chip", "data-s": s, "aria-pressed": String(!state.hidden.has(s)),
+      title: `Show or hide ${s} designs`,
+      onclick: () => { state.hidden.has(s) ? state.hidden.delete(s) : state.hidden.add(s); render(); } },
+      el("b", { text: String(counts[s]) }), s)));
+
+  const visible = designs.filter((d) => !state.hidden.has(d.status) && (!state.kind || d.kind === state.kind));
+  const groups = {};
+  for (const d of visible) (groups[d.kind] ||= []).push(d);
+  const nav = document.getElementById("index");
+  const sections = Object.entries(groups).sort(([a], [b]) => a.localeCompare(b)).map(([kind, list]) => {
+    const current = list.filter((d) => d.status !== "superseded" || state.showOlder);
+    const older = list.filter((d) => d.status === "superseded" && !state.showOlder);
+    return el("section", { class: "group" },
+      el("h2", {}, kind, el("small", { text: plural(list.length, "design") })),
+      ...current.map(item),
+      older.length ? el("details", { class: "older" }, el("summary", { text: `${plural(older.length, "superseded revision")}` }), ...older.map(item)) : null);
+  });
+  nav.replaceChildren(...(sections.length ? sections : [el("p", { class: "empty", text: "No design matches. Turn a status back on above." })]));
+
+  function item(d) {
+    const slice = d.slices.length ? `${d.slices.reduce((s, p) => s + p.minutes, 0).toFixed(0)} min · ${d.slices.reduce((s, p) => s + p.grams, 0).toFixed(1)} g` : "not sliced";
+    return el("button", { type: "button", class: "item", "aria-current": String(state.current === d.id), onclick: () => open(d.id, true) },
+      el("span", { class: "nm", text: shortName(d) }),
+      chip(d.status),
+      el("span", { class: "sub", text: `${d.folder} · ${slice}` }));
+  }
+}
+
+function fill() {
+  const kinds = [...new Set(state.catalog.designs.map((d) => d.kind))].sort();
+  document.getElementById("kind").append(...kinds.map((k) => el("option", { value: k, text: k })));
+}
+
+let three = null;
+
+function viewer(host, d) {
+  if (!d.models.length) {
+    host.append(el("div", { class: "msg", text: d.record === "candidate.json"
+      ? "This revision was exported as STEP only, with no STL to show."
+      : "No STL part was found beside this record." }));
+    return;
+  }
+  if (!window.THREE || !THREE.STLLoader) {
+    host.append(el("div", { class: "msg", text: "The 3D view could not load its library. The parts are listed below." }));
+    return;
+  }
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  } catch (error) {
+    host.append(el("div", { class: "msg", text: "The 3D view needs WebGL, which this browser has turned off." }));
+    return;
+  }
+  if (three) three.stop();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  host.prepend(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(32, 1.6, 0.5, 5000);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x556270, 0.85));
+  const key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(1, -1.2, 2); scene.add(key);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.35); fill.position.set(-2, 1, 1); scene.add(fill);
+  const colors = [css("--part-a"), css("--part-b"), css("--part-c")];
+  const loader = new THREE.STLLoader();
+  const group = new THREE.Group();
+  let running = true;
+  const resize = () => {
+    const w = host.clientWidth, h = host.clientHeight;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  };
+  Promise.all(d.models.map((m) => fetch(m.file).then((r) => { if (!r.ok) throw new Error(m.file); return r.arrayBuffer(); }).then((b) => loader.parse(b))))
+    .then((geometries) => {
+      let x = 0, ymax = 0, zmax = 0;
+      geometries.forEach((g, i) => {
+        g.computeBoundingBox();
+        const b = g.boundingBox, w = b.max.x - b.min.x;
+        const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: colors[i % 3], roughness: 0.62, metalness: 0.05 }));
+        mesh.position.set(x - b.min.x, -b.min.y, -b.min.z);
+        group.add(mesh);
+        x += w + 10; ymax = Math.max(ymax, b.max.y - b.min.y); zmax = Math.max(zmax, b.max.z - b.min.z);
+      });
+      const width = x - 10;
+      group.position.set(-width / 2, -ymax / 2, -zmax / 2);
+      scene.add(group);
+      const size = Math.max(width, ymax, zmax, 20);
+      camera.up.set(0, 0, 1); camera.position.set(0, -size * 1.5, size * 1.2); controls.target.set(0, 0, 0); controls.update();
+    })
+    .catch(() => host.append(el("div", { class: "msg", text: "A part file did not load. Rebuild the catalogue and publish it again." })));
+  const spin = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  (function tick() {
+    if (!running) return;
+    requestAnimationFrame(tick);
+    if (spin) group.rotation.z += 0.003;
+    controls.update(); renderer.render(scene, camera);
+  })();
+  resize();
+  addEventListener("resize", resize);
+  three = { stop: () => { running = false; removeEventListener("resize", resize); renderer.dispose(); } };
+}
+
+function copyButton(text) {
+  const b = el("button", { type: "button", class: "copy", text: "Copy" });
+  b.addEventListener("click", () => {
+    try {
+      navigator.clipboard.writeText(text).then(() => { b.textContent = "Copied"; setTimeout(() => (b.textContent = "Copy"), 1400); },
+        () => { b.textContent = "Select it"; });
+    } catch (error) { b.textContent = "Select it"; }
+  });
+  return b;
+}
+
+function open(id, focus) {
+  const d = state.catalog.designs.find((x) => x.id === id);
+  if (!d) return;
+  state.current = id;
+  try { history.replaceState(null, "", "#" + anchor(id)); } catch (error) { /* deep links are a convenience */ }
+  render();
+  const host = el("div", { class: "viewer" });
+  const colors = [css("--part-a"), css("--part-b"), css("--part-c")];
+  if (d.models.length) host.append(
+    el("div", { class: "parts" }, ...d.models.map((m, i) => el("span", {}, el("i", { style: `background:${colors[i % 3]}` }), m.part))),
+    el("div", { class: "hint", text: "drag to turn · scroll to zoom" }));
+  const facts = [
+    ["Product", d.kind], ["For", d.for], ["Built", d.built_at_utc ? d.built_at_utc.slice(0, 16).replace("T", " ") + " UTC" : null],
+    ["Commit", d.commit], ["Generator", d.generator_version], ["Printer", d.printer_profile_id],
+    ["Size", d.size_mm ? d.size_mm.map((v) => Number(v).toFixed(1)).join(" × ") + " mm" : null],
+    ["Slice", d.slices.length ? d.slices.map((p) => `${p.plate}: ${p.minutes} min, ${p.grams} g`).join("; ") : null],
+  ].filter(([, v]) => v);
+  const lineage = [];
+  const byName = Object.fromEntries(state.catalog.designs.map((x) => [x.name, x]));
+  for (const [label, name] of [["Replaces", d.replaces], ["Replaced by", d.replaced_by]]) {
+    if (!name) continue;
+    const other = byName[name];
+    lineage.push(el("dt", { text: label }), el("dd", {}, other ? el("button", { type: "button", class: "link", onclick: () => open(other.id, true), text: shortName(other) }) : name));
+  }
+  const detail = document.getElementById("detail");
+  detail.replaceChildren(
+    el("div", { class: "d-head" },
+      el("div", {}, chip(d.status, d.status_detail)),
+      el("h3", { tabindex: "-1", id: "d-title", text: shortName(d) }),
+      el("p", { class: "k", text: d.name })),
+    host,
+    el("div", { class: "d-body" },
+      el("h4", { text: "Status" }),
+      el("dl", { class: "facts" }, el("dt", { text: "Settled by" }), el("dd", { text: d.status_evidence || "its replacement" }), ...lineage),
+      el("h4", { text: "Record" }),
+      el("dl", { class: "facts" }, ...facts.flatMap(([k, v]) => [el("dt", { text: k }), el("dd", { text: v })])),
+      d.warnings.length ? el("h4", { text: "Warnings" }) : null,
+      ...d.warnings.map((w) => el("p", { class: "warn", text: w })),
+      d.checks.length ? el("h4", { text: `Checks at build · ${d.checks.filter((c) => c.passed).length}/${d.checks.length} passed` }) : null,
+      d.checks.length ? el("ul", { class: "checks" }, ...d.checks.map((c) => el("li", {},
+        el("span", { class: c.passed ? "ok" : "no", text: c.passed ? "✓" : "✗" }), `${c.name.replaceAll("_", " ")}${c.detail ? ` — ${c.detail}` : ""}`))) : null,
+      d.trial_asks.length ? el("h4", { text: "A trial asks" }) : null,
+      d.trial_asks.length ? el("p", { class: "k", style: "font:400 12px/1.5 var(--f-mono);margin:0", text: d.trial_asks.map((c) => c.replaceAll("_", " ")).join(" · ") }) : null,
+      Object.keys(d.nominal_measurements_mm).length ? el("h4", { text: "Measured on a print" }) : null,
+      Object.keys(d.nominal_measurements_mm).length ? el("dl", { class: "facts" }, ...Object.entries(d.nominal_measurements_mm).flatMap(([k, v]) => [el("dt", { text: k.replaceAll("_", " ") }), el("dd", { text: `${v} mm nominal` })])) : null,
+      el("h4", { text: "Build it again" }),
+      d.rebuild ? el("div", { class: "cmd" }, el("code", { text: d.rebuild }), copyButton(d.rebuild)) : el("p", { class: "k", style: "margin:0", text: "The record keeps no rebuild command; see its settings and the guide for this product." }),
+      el("h4", { text: "Where it lives" }),
+      el("div", { class: "cmd" }, el("code", { text: d.folder }), copyButton(d.folder)),
+    ));
+  viewer(host, d);
+  if (focus) document.getElementById("d-title").focus({ preventScroll: matchMedia("(min-width: 861px)").matches });
+}
+
+document.getElementById("kind").addEventListener("change", (e) => { state.kind = e.target.value; render(); });
+document.getElementById("older").addEventListener("change", (e) => { state.showOlder = e.target.checked; render(); });
+
+fetch("catalog.json")
+  .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then((catalog) => {
+    state.catalog = catalog;
+    fill();
+    document.getElementById("footer").textContent =
+      `Generated ${catalog.built_at_utc.slice(0, 16).replace("T", " ")} UTC by scripts/build-catalog.py from evidence at ${catalog.evidence_commit || "?"} · catalogue schema ${catalog.schema_version} · regenerate it, do not edit it`;
+    const wanted = location.hash.slice(1).replaceAll("~", "/");
+    const first = catalog.designs.find((d) => d.id === wanted) || catalog.designs.find((d) => d.status === "on print day") || catalog.designs[0];
+    if (first) open(first.id, false); else render();
+  })
+  .catch(() => {
+    document.getElementById("index").replaceChildren(el("p", { class: "empty", text: "catalog.json did not load. Rebuild the catalogue with scripts/build-catalog.py and publish it with its files." }));
+  });
+</script>
