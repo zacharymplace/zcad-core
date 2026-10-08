@@ -8,7 +8,8 @@ a 21 mm pitch, four to a cell, so a bin can be 21 or 63 mm across and still drop
 
 This is the design for half-grid **bins**. It adds nothing to baseplates, for the reason given under [Not covered](#not-covered).
 
-**Status (2026-10-07): design only.**
+**Status (2026-10-07): phase 1 is built.** `zcad-validation gridfinity bin --half-grid`; see [Phase 1, as built](#phase-1-as-built) and
+[Half-grid bins](../guides/gridfinity.md#half-grid-bins).
 
 ## Where the figures come from
 
@@ -93,12 +94,27 @@ whether the located warning matters.
 
 ## Phases
 
-1. **Half-grid bins.** `--half-grid` on `gridfinity bin`; the bases on a 21 mm pitch; the outer-corner holes and their refusal; the located check and
+1. **Half-grid bins (built).** `--half-grid` on `gridfinity bin`; the bases on a 21 mm pitch; the outer-corner holes and their refusal; the located check and
    warning; the stacking checks both ways; the figures registered against Rebuilt's lines; the record's pitch.
 2. **Fitted bins on the half grid.** `--half-grid` on `gridfinity fitted`, so a measured object takes the fewest half units: a 50 mm tool in a bin 63 mm across
    instead of 84 mm.
 
 Each phase is one PR, and no full-grid bin changes.
+
+### Phase 1, as built
+
+`BinSpec(half_grid=True)` in `features/gridfinity.py`, with `HALF_GRID_MM` and `HALF_GRID_HOLE_INSET_MM` in `features/gridfinity_standard.py`, each
+registered against Rebuilt's lines.
+
+- **Counts.** 1 to 16 half units each way, twice the full grid's 8, as far as the bed allows.
+- **Seating.** The bin is set at a cell's corner in a baseplate of the whole cells it covers. A bin within one cell rests on the cell's slopes; one that
+  covers more than a cell rests on the ridge between cells, 0.25 mm higher, as a full bin of more than one unit does. A test shows the check tells the
+  two apart: a 2 x 2 half-grid bin is held at the slopes and not at the ridges.
+- **Located.** As designed, a count rule: a bin one half unit across in either direction is warned of. A bin of two or more half units always has a whole
+  cell under it in that direction.
+- **Stacking both ways.** A half base set in the corner of the bin's lip (`stacks`) is a half-grid bin stacked on any bin, since a lip depends only on the
+  outline; a full base in the lip (`takes_a_full_base`) is a full bin stacked on a half-grid one, checked where the bin is two or more half units each way.
+- **The record** gives the pitch and `half_grid` in its settings, adds Rebuilt's half grid to its sources, and the build is named `gridfinity-bin-half-…`.
 
 ## Not covered
 

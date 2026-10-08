@@ -716,6 +716,14 @@
       "status": "sourced",
       "source": "Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings: the 42x42x7 mm grid"
     },
+    "features/gridfinity_standard.py:HALF_GRID_HOLE_INSET_MM": {
+      "status": "sourced",
+      "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad:35 HOLE_DISTANCE_FROM_BOTTOM_EDGE, placed at the bin's outer corners by base.scad:46-61 and 273-276 when half_grid implies only_corners (gridfinity-rebuilt-bins.scad:115); not in the unofficial specification"
+    },
+    "features/gridfinity_standard.py:HALF_GRID_MM": {
+      "status": "sourced",
+      "source": "Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), gridfinity-rebuilt-bins.scad:117 grid_dimensions = GRID_DIMENSIONS_MM / (half_grid ? 2 : 1); not in the unofficial specification"
+    },
     "features/gridfinity_standard.py:HEIGHT_UNIT_MM": {
       "status": "sourced",
       "source": "Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings: the 42x42x7 mm grid"

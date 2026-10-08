@@ -78,11 +78,11 @@ def size_of(body: cq.Workplane) -> tuple[float, float, float]:
     return bounds.xlen, bounds.ylen, bounds.zlen
 
 
-def check_units(units_x: int, units_y: int) -> None:
+def check_units(units_x: int, units_y: int, most: int = MAXIMUM_UNITS) -> None:
     for name, value in (("x", units_x), ("y", units_y)):
-        if not 1 <= value <= MAXIMUM_UNITS:
+        if not 1 <= value <= most:
             raise ValueError(
-                f"A Gridfinity part is 1 to {MAXIMUM_UNITS} units along {name}, not {value}"
+                f"A Gridfinity part is 1 to {most} units along {name}, not {value}"
             )
 
 
@@ -144,9 +144,11 @@ def box(
     )
 
 
-def unit_centres(units_x: int, units_y: int) -> list[tuple[float, float]]:
+def unit_centres(
+    units_x: int, units_y: int, pitch: float = GRID_MM
+) -> list[tuple[float, float]]:
     return [
-        ((i - (units_x - 1) / 2) * GRID_MM, (j - (units_y - 1) / 2) * GRID_MM)
+        ((i - (units_x - 1) / 2) * pitch, (j - (units_y - 1) / 2) * pitch)
         for i in range(units_x)
         for j in range(units_y)
     ]
@@ -166,12 +168,13 @@ def corner_holes(units_x: int, units_y: int) -> list[tuple[float, float]]:
     ]
 
 
-def base_unit(at: tuple[float, float, float]) -> cq.Workplane:
-    """One unit's base profile, its bottom at ``at``."""
+def base_unit(at: tuple[float, float, float], top: float = BASE_TOP_MM) -> cq.Workplane:
+    """One unit's base profile, its bottom at ``at``; a half-grid base is the same profile on a
+    smaller top."""
 
     return stepped(
-        BASE_TOP_MM,
-        BASE_TOP_MM,
+        top,
+        top,
         BASE_TOP_RADIUS_MM,
         profile_insets(BASE_PROFILE_STEPS_MM),
         at=at,

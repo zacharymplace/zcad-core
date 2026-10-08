@@ -6,11 +6,11 @@ The engine states no strength, holding force or load claim, and a figure it did 
 
 **Scope.** Module-level numeric constants, and the non-zero numeric defaults of dataclass fields and function parameters. A default of zero (no offset, none) is not a figure and is not listed. Not covered: a number inside a function body, a default given by `field(...)` or a factory, a keyword argument at a call (so a module-level instance such as a display's is not listed), and a number in a data file. A status is only as good as what the code says: a `sourced` figure is as the code cites it and has not been re-checked against the standard. An `unstated` figure is not wrong; it has no basis written down. Adding a figure without recording it fails the test suite.
 
-## The 791 figures
+## The 793 figures
 
 | Status | Count | Meaning |
 | --- | ---: | --- |
-| `sourced` | 48 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
+| `sourced` | 50 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
 | `estimated` | 9 | Read off a drawing's scale or a stated rough estimate: the source does not state it outright |
 | `design_default` | 60 | The engine's own choice, which the code says is a default, a design value or a guess |
 | `example` | 3 | An illustrative figure, not claimed right for any real part |
@@ -32,6 +32,8 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | `features/gridfinity_standard.py:BASE_TOP_MM` | `41.5` | Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings: a block 41.5 mm square (0.5 mm tolerance); Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad BASE_TOP_DIMENSIONS |
 | `features/gridfinity_standard.py:BASE_TOP_RADIUS_MM` | `3.75` | Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings, the block drawing's 3.75 corner; Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad BASE_TOP_RADIUS |
 | `features/gridfinity_standard.py:GRID_MM` | `42.0` | Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings: the 42x42x7 mm grid |
+| `features/gridfinity_standard.py:HALF_GRID_HOLE_INSET_MM` | `4.8` | Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad:35 HOLE_DISTANCE_FROM_BOTTOM_EDGE, placed at the bin's outer corners by base.scad:46-61 and 273-276 when half_grid implies only_corners (gridfinity-rebuilt-bins.scad:115); not in the unofficial specification |
+| `features/gridfinity_standard.py:HALF_GRID_MM` | `21.0` | Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), gridfinity-rebuilt-bins.scad:117 grid_dimensions = GRID_DIMENSIONS_MM / (half_grid ? 2 : 1); not in the unofficial specification |
 | `features/gridfinity_standard.py:HEIGHT_UNIT_MM` | `7.0` | Unofficial Gridfinity specification, github.com/gridfinity-unofficial/specification, README and profile drawings: the 42x42x7 mm grid |
 | `features/gridfinity_standard.py:LIP_STEPS_MM` | `((0.7, 0.7), (1.8, 0.0), (1.9, 1.9))` | Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad STACKING_LIP_LINE, based on the specification |
 | `features/gridfinity_standard.py:MAGNET_HOLE_DEPTH_MM` | `2.4` | Gridfinity Rebuilt, github.com/kennetek/gridfinity-rebuilt-openscad at 910e22d (MIT), standard.scad MAGNET_HOLE_DEPTH: a 2 mm magnet and two 0.2 mm layers |
