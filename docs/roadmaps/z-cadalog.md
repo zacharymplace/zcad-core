@@ -1,0 +1,94 @@
+# The z-cadalog
+
+## Purpose
+
+The engine has built a good deal by now: fixtures for six boards across 23 revisions, enclosures for the Pi 5 and the XIAO, a group enclosure, two
+calibration coupons, and Gridfinity bins and baseplates. Each is recorded under `evidence/`, but finding one means knowing its folder, and nothing says in one
+place which of them are current, which are waiting on a print, and which are superseded. The [Workbench](https://claude.ai/artifact/EUrzHLzx3CpXzd5jdx1fsn)
+shows what the engine can do, from a handful of example models. It is not a record of what has been built.
+
+The **z-cadalog** is that record: every design the engine has built, in one place, each with its views, its figures, its status, and how to build it again.
+
+**Status (2026-10-08): design only.**
+
+## What a design is
+
+A design is a **build record** under `evidence/`, the file a build writes and a trial reads. The catalog finds them by name, not by folder:
+
+| Record | Kind | Today |
+| --- | --- | --- |
+| `<target>/validation-lab/candidates/<revision>/candidate.json` | Validation Lab fixture | 23 revisions, six boards |
+| `enclosures/<name>/enclosure.json` | Enclosure | 2 |
+| `enclosures/<name>/enclosure-group.json` | Group enclosure | 1 |
+| `coupons/<name>/coupon.json` | Calibration coupon | 2 |
+| `gridfinity/<name>/gridfinity.json` | Gridfinity bin or baseplate | 5 |
+
+Every other product (holders, nests, jigs, stackable items, housings, drill guides, PCB test fixtures) writes a build record too, under its own name, and is
+catalogued the same way once one is built into `evidence/`. A record kind the catalog does not know is listed by its path and file name, not skipped, so a
+new product shows up before the catalog learns its fields.
+
+## Decision: status comes from the records, never from a field typed in
+
+Each design's status is read from the files beside it, in this order, the first that holds:
+
+1. **Superseded**: a later revision names this one as its parent (a candidate's `relationship.json`), or a later build records `revision_of` it.
+2. **Promoted**: a candidate's `promotion.json` says so.
+3. **Verified**: the kind's own rule holds (a Gridfinity part on two passing trials of its exact build record, as `gridfinity trial status` says; the
+   same rule as the kind's `status` command, called, not copied).
+4. **Trial recorded**: a completed trial, with its disposition (pass, revise, fail).
+5. **On print day**: a trial opened and pending, with its slice.
+6. **Reviewed**: a candidate with a current-schema visual review and no trial yet.
+7. **Built**: a build record and nothing after it.
+
+The catalog shows the evidence for each status (the file that settled it), so a reader can check it. It states nothing a record does not: no "ready", no
+"works", and a design is never verified because it looks finished.
+
+## Decision: what an entry shows
+
+- **Name, kind and product**, the board or object it is for, when it was built, and from which commit and generator version.
+- **Views**: the parts in a 3D viewer, from the STL files the build exported (the files a slicer is given); a candidate's design-review views as well.
+- **Figures**: the size, the checks and whether each passed, any warnings, the nominal measurements a trial checks, and the slice's time and filament.
+- **Status**, as above, with the file that settled it, and the lineage: the revision it replaced and the one that replaced it.
+- **How to build it again**: the slice's rebuild recipe when there is one, the regeneration command for a candidate, or the build's own command line.
+- **Where it lives**: its folder under `evidence/`.
+
+The index groups designs by product and shows each one's status as a chip, so what is waiting on a print stands out; superseded revisions fold under the
+one that replaced them.
+
+## Decision: a script builds it, and the page is regenerated, never edited
+
+`scripts/build-catalog.py` reads every build record under `evidence/` and writes `catalog/` (ignored by git, as `evidence/` is): `catalog.json`, one entry
+per design, and a copy of each design's STL files and views beside it. The page is a template in the repository, `scripts/catalog/page.html`, that reads
+`catalog.json` and shows it; publishing it with the files is the last step. Run again after any build or trial, the script writes the same catalog from the
+same evidence, so the page is never edited by hand and never drifts from the records.
+
+The catalog's page carries no evidence of its own: it is a view of `evidence/` at the commit it names. It is private, as the evidence is: vendor STEP models
+stay out of it (only the engine's own STL exports and the review views go in).
+
+## Decision: one example of each product not yet built
+
+Seven products have no build in `evidence/`, so the catalog would show only half of what the engine makes. Phase 2 builds one of each from the example
+inputs the repository already ships (`board template`, `capture template`, the guides' examples), into `evidence/examples/`, and the catalog marks them
+**example**: built from example readings, never a real object, and never trialled. An example is replaced by a real build of the same product when there is
+one.
+
+## Not covered
+
+- **Editing a design from the catalog.** It shows designs; builds happen on the command line.
+- **The Workbench.** It stays the engine's showcase; the catalog links to it and it may link here.
+- **Designs outside `evidence/`.** A build written elsewhere is not catalogued until it is moved or rebuilt there.
+
+## Phases
+
+1. **The catalog of recorded designs.** `scripts/build-catalog.py` for the five record kinds above, status from the records, the page template, and the
+   catalog published as a private page with its STL files and views. A test builds a catalog from a scratch `evidence/` of each kind and status.
+2. **Examples of the rest.** One build of each product not yet in `evidence/`, from the repository's example inputs, marked as examples.
+3. **Kept current.** `backup-evidence.sh` rebuilds the catalog after a backup and says when the published page is behind the evidence.
+
+Each phase is one PR.
+
+## Open questions
+
+- **Whether the catalog should be a command (`zcad-validation catalog`) rather than a script.** It reads evidence the way `record-print-day.py` does,
+  and is not part of building anything; the proposal is a script.
+- **Whether superseded candidates need their 3D views.** They are small (a fixture is a few kilobytes) and show what changed; the proposal is to keep them.
