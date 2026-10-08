@@ -17,9 +17,9 @@ if [[ ! -d "$evidence/.git" ]]; then
   exit 1
 fi
 
-# The CAD files (STEP, GLB, 3MF, zip) go through Git LFS, as evidence's
-# .gitattributes says. Without git-lfs, git would commit them whole where a
-# pointer belongs, so refuse rather than back up a repository LFS cannot read.
+# When evidence's .gitattributes routes files through Git LFS, git without
+# git-lfs would commit them whole where a pointer belongs, so refuse rather
+# than back up a repository LFS cannot read.
 if [[ -f "$evidence/.gitattributes" ]] &&
   grep -q 'filter=lfs' "$evidence/.gitattributes" &&
   ! git -C "$evidence" lfs version >/dev/null 2>&1; then
