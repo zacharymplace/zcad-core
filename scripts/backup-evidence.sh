@@ -79,3 +79,15 @@ fi
 git -C "$evidence" commit -q -m "Record evidence as of $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 git -C "$evidence" push -q
 echo "backup-evidence: pushed $(git -C "$evidence" rev-parse --short HEAD)"
+
+# Rebuild the z-cadalog from the evidence just backed up, and say whether its published page
+# is behind. The backup has already succeeded, so a catalogue that fails says so and no more.
+if [[ -f build-catalog.py ]]; then
+  python="$main_checkout/.venv/bin/python"
+  [[ -x "$python" ]] || python=python3
+
+  if ! "$python" build-catalog.py --evidence-root "$evidence" \
+    --output "$main_checkout/catalog" --summary; then
+    echo "backup-evidence: the catalogue was not rebuilt; run scripts/build-catalog.py" >&2
+  fi
+fi

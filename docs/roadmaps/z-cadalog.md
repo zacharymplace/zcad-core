@@ -9,8 +9,9 @@ shows what the engine can do, from a handful of example models. It is not a reco
 
 The **z-cadalog** is that record: every design the engine has built, in one place, each with its views, its figures, its status, and how to build it again.
 
-**Status (2026-10-08): phases 1 and 2 are built.** `python scripts/build-catalog.py` and `python scripts/build-examples.py`; see
-[Phase 1, as built](#phase-1-as-built) and [Phase 2, as built](#phase-2-as-built).
+**Status (2026-10-08): all three phases are built.** `python scripts/build-catalog.py` and `python scripts/build-examples.py`, and
+`backup-evidence.sh` keeps the catalog current; see [Phase 1](#phase-1-as-built), [Phase 2](#phase-2-as-built) and
+[Phase 3, as built](#phase-3-as-built).
 
 ## What a design is
 
@@ -84,7 +85,7 @@ one.
 1. **The catalog of recorded designs (built).** `scripts/build-catalog.py` for the five record kinds above, status from the records, the page template, and the
    catalog published as a private page with its STL files and views. A test builds a catalog from a scratch `evidence/` of each kind and status.
 2. **Examples of the rest (built).** One build of each product not yet in `evidence/`, from the repository's example inputs, marked as examples.
-3. **Kept current.** `backup-evidence.sh` rebuilds the catalog after a backup and says when the published page is behind the evidence.
+3. **Kept current (built).** `backup-evidence.sh` rebuilds the catalog after a backup and says when the published page is behind the evidence.
 
 Each phase is one PR.
 
@@ -128,6 +129,18 @@ rule, so an example is never shown as built, on print day or trialled.
 - **The PCB test fixture** comes from the KiCad example, not `board template`: that board is one envelope over the whole board, which every pin meets.
 - **The catalog knows the seven products' build records** by name now (`holder.json`, `nest.json`, `jig.json`, `stack-build.json`, `layer-build.json`,
   `housing-build.json`, `guide.json`, `fixture.json`), with their trial records, and reads a stack build's parts from its `items`.
+
+### Phase 3, as built
+
+The page is published from claude.ai, which a script cannot read, so the checkout keeps its own note of what it published.
+
+- **`--mark-published <url>`** writes `.catalog-published.json` beside `catalog/` (ignored by git): the URL, and the evidence and repository commits of
+  the catalog that went up. It builds nothing; it is the last step of publishing.
+- **Every build** compares its evidence commit with that note and says whether the published page is current, is behind (republish it, then mark it
+  published), or was never published from this checkout. `--summary` says it in one line. Evidence that is not in git cannot be compared, and the line
+  says so rather than guessing.
+- **`backup-evidence.sh`**, after a successful push, rebuilds the catalog with the main checkout's virtual environment and prints that line. The backup
+  has already succeeded by then, so a catalog that fails to build says so and does not fail the backup.
 
 ## Open questions
 
