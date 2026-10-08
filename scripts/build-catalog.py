@@ -1,7 +1,7 @@
 """Build the z-cadalog: every design the engine has built, from the build records under evidence/.
 
-Each build record becomes one entry: what it is, its parts (their STL files copied beside the
-catalog for its 3D viewer), its checks, warnings, slice and nominal sizes, its lineage, how to
+Each build record becomes one entry: what it is, its parts (their STL files beside the catalog
+for its 3D viewer, as base64 in JSON, since a published page serves only web file types), its checks, warnings, slice and nominal sizes, its lineage, how to
 build it again where the record says, and its status. The status is read from the files beside
 the record, never typed in; the first of these that holds:
 
@@ -29,6 +29,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import shutil
 import subprocess
@@ -396,9 +397,19 @@ def entry(
     model_files = []
 
     for part, stl in _stl_files(record_path, record, evidence).items():
-        target = models / design_id / f"{part}.stl"
+        # A published page serves only web file types, so each STL goes as base64 in JSON.
+        target = models / design_id / f"{part}.json"
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(stl, target)
+        target.write_text(
+            json.dumps(
+                {
+                    "part": part,
+                    "format": "stl",
+                    "base64": base64.b64encode(stl.read_bytes()).decode("ascii"),
+                }
+            ),
+            encoding="utf-8",
+        )
         model_files.append(
             {"part": part, "file": target.relative_to(models.parent).as_posix()}
         )

@@ -89,7 +89,8 @@ Each phase is one PR.
 
 ### Phase 1, as built
 
-`scripts/build-catalog.py` writes `catalog/` (ignored by git) with `catalog.json`, each design's STL parts under `models/`, and the page, a copy of
+`scripts/build-catalog.py` writes `catalog/` (ignored by git) with `catalog.json`, each design's STL parts under `models/` (as base64 in JSON, since a
+published page serves only web file types and STL is not one), and the page, a copy of
 `scripts/catalog/page.html`. Run against the evidence on 2026-10-08 it found 33 designs: 17 superseded, 14 on print day and 2 built, with 2.7 MB of
 models. Publishing the catalog is the step after the script: the page and its files, as a private page.
 
