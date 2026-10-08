@@ -63,6 +63,7 @@ nav:
       - Object holders: roadmaps/object-holders.md
       - Gridfinity bins: roadmaps/gridfinity-bins.md
       - Half-grid Gridfinity bins: roadmaps/gridfinity-half-grid.md
+      - The z-cadalog: roadmaps/z-cadalog.md
   - API Reference:
       - Overview: reference/index.md
       - assemblies: reference/assemblies.md
