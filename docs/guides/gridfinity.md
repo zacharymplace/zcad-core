@@ -84,6 +84,8 @@ model with `--model part.step`, turned so its `--up` axis (default `+z`) is up a
 - The bin is **solid** below its top, so a bin stacked on it rests on that top inside the lip rather than on the lip's slopes; an object sunk less than its
   height stands proud of the top and the build warns that a stacked bin would rest on it.
 - `--no-lip`, `--magnets` and `--screws` work as for a plain bin.
+- `--half-grid` counts the fewest units on the 21 mm half grid instead, as for a [half-grid bin](#half-grid-bins): a 50 mm tool gets a bin 62.5 mm across
+  instead of 83.5 mm. A bin one half unit across is warned of, and takes no magnets or screws.
 
 The checks are a plain bin's (one solid, base to the standard, seats, stacks) and the object's: it shares no volume with the bin in its pocket, it lifts
 straight out, and the notches are open.
