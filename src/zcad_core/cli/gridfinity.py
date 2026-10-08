@@ -182,10 +182,12 @@ def _gridfinity_bin(args: argparse.Namespace) -> int:
         screws=args.screws,
         divisions=args.divisions,
         label_tabs=args.label_tabs,
+        half_grid=args.half_grid,
     )
     part = build_bin(spec, profile, side_shortfall_mm=shortfall)
+    grid = "half-" if args.half_grid else ""
 
-    return _export(part, f"gridfinity-bin-{x}x{y}x{args.height}", args, profile)
+    return _export(part, f"gridfinity-bin-{grid}{x}x{y}x{args.height}", args, profile)
 
 
 def _footprint(args: argparse.Namespace) -> Footprint:
@@ -339,6 +341,11 @@ def register(
         "--label-tabs",
         action="store_true",
         help="a label shelf on the back wall of each back compartment",
+    )
+    bin_.add_argument(
+        "--half-grid",
+        action="store_true",
+        help="bases on Gridfinity Rebuilt's 21 mm half grid; --units then counts half units",
     )
     bin_.add_argument("--wall-mm", type=float, default=DEFAULT_WALL_MM)
     bin_.add_argument("--output-directory", required=True, type=Path)

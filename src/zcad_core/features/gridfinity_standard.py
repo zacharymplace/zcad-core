@@ -24,6 +24,13 @@ REBUILT = (
     "src/core/standard.scad and src/core/gridfinity-baseplate.scad at commit "
     "910e22d8607fd7f5f51ad5e5cbc5287a76810bfd (MIT licence)"
 )
+# The half grid is Rebuilt's, not the specification's, which never mentions half units.
+REBUILT_HALF_GRID = (
+    "Gridfinity Rebuilt's half grid, https://github.com/kennetek/gridfinity-rebuilt-openscad, "
+    "gridfinity-rebuilt-bins.scad (half_grid, grid_dimensions, only_corners) and "
+    "src/core/base.scad at commit 910e22d8607fd7f5f51ad5e5cbc5287a76810bfd (MIT licence); "
+    "not in the unofficial specification"
+)
 
 # The grid: a unit is 42 mm square and 7 mm tall. (SPECIFICATION)
 GRID_MM = 42.0
@@ -48,6 +55,13 @@ MAGNET_INSET_MM = 8.0
 # An M3 screw hole, 3 mm across, at a unit's corners as the magnets are. (REBUILT,
 # standard.scad SCREW_HOLE_RADIUS; gridfinity-rebuilt-holes.scad places it with the magnet)
 SCREW_HOLE_MM = 3.0
+# The half grid: bases on a 21 mm pitch, half the grid, each the full profile on a top the pitch
+# less the full grid's 0.5 mm gap, so they still fit an ordinary baseplate. Its magnet and screw
+# holes are at the bin's four outer corners only, 4.8 mm in from the edge of its bases' bottom.
+# (REBUILT_HALF_GRID: gridfinity-rebuilt-bins.scad:115-117, base.scad:34 and 273-276,
+# standard.scad:35 and 201-205)
+HALF_GRID_MM = 21.0
+HALF_GRID_HOLE_INSET_MM = 4.8
 # A baseplate with magnets or screws stands on a floor under its cells: 1 mm, with the magnet
 # hole's depth and a 45-degree countersink 2.5 mm deep added for each. (REBUILT,
 # gridfinity-rebuilt-baseplate.scad calculate_offset_skeletonized, h_skel and
@@ -80,6 +94,7 @@ def profile_insets(steps: tuple[tuple[float, float], ...]) -> list[tuple[float, 
     return points
 
 
+BASE_GAP_MM = GRID_MM - BASE_TOP_MM
 BASE_PROFILE_HEIGHT_MM = sum(rise for rise, _ in BASE_PROFILE_STEPS_MM)
 BASE_PROFILE_DEPTH_MM = sum(run for _, run in BASE_PROFILE_STEPS_MM)
 LIP_HEIGHT_MM = sum(rise for rise, _ in LIP_STEPS_MM)

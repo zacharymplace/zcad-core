@@ -30,6 +30,24 @@ Every unit has the standard's base: 41.5 mm square with 3.75 mm corners at its t
 tip, 2.6 mm in from the outside, by 0.7 mm at 45 degrees, up 1.8 mm, and out 1.9 mm at 45 degrees to the outside edge; a 45-degree shoulder under its tip
 carries it, so the bin prints standing on its base with nothing overhanging.
 
+### Half-grid bins
+
+`--half-grid` puts the bases on a 21 mm pitch, four to a cell, as Gridfinity Rebuilt builds them. `--units` then counts half units, 1 to 16 each:
+
+```bash
+zcad-validation gridfinity bin --half-grid --units 3x2 --height 3 --output-directory exports/half-3x2x3
+```
+
+That bin is 62.5 by 41.5 mm outside. Each half base is the full profile on a 20.5 mm top, keeping the 0.5 mm gap, so a half-grid bin drops into an
+ordinary baseplate; four half units have a full unit's outside, walls and lip. Magnet and screw holes go at the bin's four outer corners only, 4.8 mm in
+from its bases' bottom edge, and are refused on a bin one half unit across, where they would overlap.
+
+A bin one half unit across in either direction covers half a cell and rests on the cell's slope on one side only, so the build warns that it can slide
+half a cell unless a neighbour holds it. A bin three half units across is held by the whole cell under its other two.
+
+The half grid is Rebuilt's, not the standard's: the unofficial specification never mentions it. The record names Rebuilt's half grid as a source, and the
+name of the build says `half`. See [Half-grid Gridfinity bins](../roadmaps/gridfinity-half-grid.md).
+
 ## Baseplates
 
 `--units 4x4` makes a plate of 42 mm cells, 5 mm tall with 8 mm corners outside. Each cell's socket is the baseplate profile (0.7 mm at 45 degrees, 1.8 mm

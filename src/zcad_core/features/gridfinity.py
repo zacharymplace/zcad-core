@@ -7,6 +7,11 @@ stands above them with a 45-degree shoulder under its inner tip so it prints. Ma
 holes, if asked for, open on the underside in the four corners of every unit. Dividers and label
 tabs are :mod:`gridfinity_inside`'s; baseplates are :mod:`gridfinity_baseplate`'s.
 
+A **half-grid** bin (``--half-grid``) has its bases on a 21 mm pitch, as Gridfinity Rebuilt
+builds them: the same profile on a 20.5 mm top, counts in half units, the walls and lip of a full
+bin of the same outside, and magnet and screw holes at its four outer corners only. A bin one half
+unit across covers half a cell and is held there on one side only, so the build warns of it.
+
 A one-unit bin rests on its cell's slopes. The ridges between cells peak at the plate's 5 mm,
 above the 4.75 mm where a bin's bridge joins its units, so a bin of more than one unit rests on the
 ridges, 0.25 mm above its slopes: that is what the figures give, and the checks seat each bin where
@@ -39,6 +44,7 @@ from zcad_core.features.gridfinity_inside import (
     plan_inside,
 )
 from zcad_core.features.gridfinity_shapes import (
+    MAXIMUM_UNITS,
     GridfinityPart,
     base_unit,
     check_units,
@@ -51,6 +57,7 @@ from zcad_core.features.gridfinity_shapes import (
     unit_centres,
 )
 from zcad_core.features.gridfinity_standard import (
+    BASE_GAP_MM,
     BASE_HEIGHT_MM,
     BASE_PROFILE_DEPTH_MM,
     BASE_PROFILE_HEIGHT_MM,
@@ -60,6 +67,8 @@ from zcad_core.features.gridfinity_standard import (
     BASEPLATE_HEIGHT_MM,
     BASEPLATE_PROFILE_STEPS_MM,
     GRID_MM,
+    HALF_GRID_HOLE_INSET_MM,
+    HALF_GRID_MM,
     HEIGHT_UNIT_MM,
     LIP_DEPTH_MM,
     LIP_HEIGHT_MM,
@@ -67,6 +76,7 @@ from zcad_core.features.gridfinity_standard import (
     MAGNET_HOLE_DEPTH_MM,
     MAGNET_HOLE_MM,
     REBUILT,
+    REBUILT_HALF_GRID,
     SCREW_HOLE_MM,
     SPECIFICATION,
     profile_insets,
@@ -100,15 +110,43 @@ class BinSpec:
     # Compartments across and front to back.
     divisions: tuple[int, int] = (1, 1)
     label_tabs: bool = False
+    # Units on the half grid's 21 mm pitch, counted in half units.
+    half_grid: bool = False
 
     @property
     def height_mm(self) -> float:
         return self.height_units * HEIGHT_UNIT_MM
 
     @property
+    def pitch_mm(self) -> float:
+        return HALF_GRID_MM if self.half_grid else GRID_MM
+
+    @property
+    def base_top_mm(self) -> float:
+        return self.pitch_mm - BASE_GAP_MM
+
+    @property
     def footprint_mm(self) -> tuple[float, float]:
-        gap = GRID_MM - BASE_TOP_MM
-        return self.units_x * GRID_MM - gap, self.units_y * GRID_MM - gap
+        return (
+            self.units_x * self.pitch_mm - BASE_GAP_MM,
+            self.units_y * self.pitch_mm - BASE_GAP_MM,
+        )
+
+    @property
+    def cells(self) -> tuple[int, int]:
+        """The baseplate cells the bin covers, set at a cell's corner: a half-grid bin with an
+        odd count covers half of its last cell."""
+
+        per_cell = round(GRID_MM / self.pitch_mm)
+
+        return -(-self.units_x // per_cell), -(-self.units_y // per_cell)
+
+    @property
+    def located(self) -> bool:
+        """Whether some cell under the bin meets its bases on both sides in each direction: not
+        so for a half-grid bin one half unit across, which a neighbour must hold."""
+
+        return not self.half_grid or min(self.units_x, self.units_y) > 1
 
 
 def bin_block(spec: BinSpec) -> cq.Workplane:
@@ -124,8 +162,8 @@ def bin_block(spec: BinSpec) -> cq.Workplane:
         [(BASE_PROFILE_HEIGHT_MM, 0.0), (top, 0.0)],
     )
 
-    for x, y in unit_centres(spec.units_x, spec.units_y):
-        body = body.union(base_unit((x, y, 0.0)))
+    for x, y in unit_centres(spec.units_x, spec.units_y, spec.pitch_mm):
+        body = body.union(base_unit((x, y, 0.0), spec.base_top_mm))
 
     return body
 
@@ -171,13 +209,27 @@ def _bin_cavity(spec: BinSpec, width: float, depth: float) -> cq.Workplane:
     return stepped(width, depth, radius, insets)
 
 
+def hole_points(spec: BinSpec) -> list[tuple[float, float]]:
+    """Where magnets and screws go: every unit's four corners on the full grid, the bin's four
+    outer corners only on the half grid, 4.8 mm in from the edge of its bases' bottom."""
+
+    if not spec.half_grid:
+        return corner_holes(spec.units_x, spec.units_y)
+
+    width, depth = spec.footprint_mm
+    x = width / 2 - BASE_PROFILE_DEPTH_MM - HALF_GRID_HOLE_INSET_MM
+    y = depth / 2 - BASE_PROFILE_DEPTH_MM - HALF_GRID_HOLE_INSET_MM
+
+    return [(sx * x, sy * y) for sx in (-1, 1) for sy in (-1, 1)]
+
+
 def underside_holes(spec: BinSpec, least_floor: float) -> list[cq.Workplane]:
     """Magnet holes, and screw holes up through the base to a floor's thickness under the
-    cavity, in every unit's corners."""
+    cavity, where :func:`hole_points` puts them."""
 
     cutters = []
 
-    for x, y in corner_holes(spec.units_x, spec.units_y):
+    for x, y in hole_points(spec):
         if spec.magnets:
             magnet = cq.Solid.makeCylinder(
                 MAGNET_HOLE_MM / 2,
@@ -198,7 +250,20 @@ def underside_holes(spec: BinSpec, least_floor: float) -> list[cq.Workplane]:
 
 
 def _validate(spec: BinSpec, least_wall: float) -> None:
-    check_units(spec.units_x, spec.units_y)
+    # A half unit is half the grid, so a bin may have twice as many.
+    check_units(
+        spec.units_x, spec.units_y, MAXIMUM_UNITS * (2 if spec.half_grid else 1)
+    )
+
+    if (
+        spec.half_grid
+        and (spec.magnets or spec.screws)
+        and min(spec.units_x, spec.units_y) == 1
+    ):
+        raise ValueError(
+            "A half-grid bin one half unit across has no room for magnet or screw holes: "
+            "its outer corners' holes would overlap"
+        )
 
     if spec.height_units < MINIMUM_HEIGHT_UNITS:
         raise ValueError(
@@ -251,7 +316,9 @@ def build_bin(
         checks=_bin_checks(spec, body, inside),
         settings={
             "units": [spec.units_x, spec.units_y],
-            "seat_height_mm": seat_height_mm(spec.units_x, spec.units_y),
+            "half_grid": spec.half_grid,
+            "pitch_mm": spec.pitch_mm,
+            "seat_height_mm": seat_height_mm(*spec.cells),
             "height_units": spec.height_units,
             "height_mm": spec.height_mm,
             "lip": spec.lip,
@@ -264,38 +331,73 @@ def build_bin(
         },
         profile_id=str(profile.get("profile_id", "")),
         tolerance_status=str(profile.get("tolerance_status", "unknown")),
-        warnings=_fit_warnings(side_shortfall_mm),
+        warnings=_fit_warnings(side_shortfall_mm) + _located_warnings(spec),
     )
 
 
 def _bin_checks(spec: BinSpec, body: cq.Workplane, inside: Inside) -> dict[str, bool]:
-    plate = build_baseplate(
-        BaseplateSpec(spec.units_x, spec.units_y), {}, check=False
-    ).body
+    cells_x, cells_y = spec.cells
+    plate = build_baseplate(BaseplateSpec(cells_x, cells_y), {}, check=False).body
+    width, depth = spec.footprint_mm
+    # Set at the plate's corner: a half-grid bin with an odd count covers half its last cell.
+    corner_shift = (
+        (width + BASE_GAP_MM - cells_x * GRID_MM) / 2,
+        (depth + BASE_GAP_MM - cells_y * GRID_MM) / 2,
+        0.0,
+    )
     checks = {
         "one_solid": len(body.solids().vals()) == 1,
         "base_to_standard": base_to_standard(body, spec),
         "seats_in_baseplate": held(
-            body, plate, seat_height_mm(spec.units_x, spec.units_y)
+            body.translate(corner_shift), plate, seat_height_mm(cells_x, cells_y)
         ),
         "compartments_open": empty_at(body, compartment_points(inside)),
     }
 
     if spec.lip:
-        corner = (
-            -(spec.units_x - 1) * GRID_MM / 2,
-            -(spec.units_y - 1) * GRID_MM / 2,
-            0.0,
+        checks["stacks"] = held(
+            base_unit(_corner_unit(spec, spec.pitch_mm), spec.base_top_mm),
+            body,
+            stack_seat_mm(spec),
         )
-        checks["stacks"] = held(base_unit(corner), body, stack_seat_mm(spec))
+
+        # A full bin stacked on a half-grid one, which is wide enough to take its base.
+        if spec.half_grid and min(spec.units_x, spec.units_y) > 1:
+            checks["takes_a_full_base"] = held(
+                base_unit(_corner_unit(spec, GRID_MM)), body, stack_seat_mm(spec)
+            )
 
     if spec.magnets or spec.screws:
         checks["underside_holes_open"] = empty_at(
-            body,
-            [(x, y, 0.5) for x, y in corner_holes(spec.units_x, spec.units_y)],
+            body, [(x, y, 0.5) for x, y in hole_points(spec)]
         )
 
     return checks
+
+
+def _corner_unit(spec: BinSpec, pitch: float) -> tuple[float, float, float]:
+    """The centre of a base ``pitch`` across set in the bin's corner."""
+
+    width, depth = spec.footprint_mm
+
+    return (
+        -(width + BASE_GAP_MM - pitch) / 2,
+        -(depth + BASE_GAP_MM - pitch) / 2,
+        0.0,
+    )
+
+
+def _located_warnings(spec: BinSpec) -> tuple[str, ...]:
+    if spec.located:
+        return ()
+
+    return (
+        (
+            "This half-grid bin is one half unit across, so it covers half a cell and rests "
+            "on the cell's slope on one side only: it can slide half a cell unless a "
+            "neighbour holds it"
+        ),
+    )
 
 
 def _fit_warnings(side_shortfall_mm: float | None) -> tuple[str, ...]:
@@ -332,11 +434,12 @@ def stack_seat_mm(spec: BinSpec) -> float:
 
 
 def base_to_standard(body: cq.Workplane, spec: BinSpec) -> bool:
-    """The base's bottom is the profile's bottom and its top the standard's 41.5 mm units, each
-    measured across the whole bin."""
+    """The base's bottom is the profile's bottom and its top the standard's units (41.5 mm, or
+    20.5 mm on the half grid), each measured across the whole bin."""
 
-    pitch_x, pitch_y = (spec.units_x - 1) * GRID_MM, (spec.units_y - 1) * GRID_MM
-    bottom = BASE_TOP_MM - 2 * BASE_PROFILE_DEPTH_MM
+    pitch_x = (spec.units_x - 1) * spec.pitch_mm
+    pitch_y = (spec.units_y - 1) * spec.pitch_mm
+    bottom = spec.base_top_mm - 2 * BASE_PROFILE_DEPTH_MM
 
     return near(section(body, 0.0), (pitch_x + bottom, pitch_y + bottom)) and near(
         section(body, BASE_PROFILE_HEIGHT_MM - 0.01), spec.footprint_mm
@@ -382,7 +485,8 @@ def gridfinity_record(
             "baseplate_profile_steps_mm": [
                 list(step) for step in BASEPLATE_PROFILE_STEPS_MM
             ],
-            "sources": [SPECIFICATION, REBUILT],
+            "sources": [SPECIFICATION, REBUILT]
+            + ([REBUILT_HALF_GRID] if part.settings.get("half_grid") else []),
         },
         "size_mm": [round(width, 3), round(depth, 3), round(height, 3)],
         "printer_profile_id": part.profile_id,
