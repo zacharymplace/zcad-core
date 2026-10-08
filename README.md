@@ -80,10 +80,10 @@ tests for a quicker loop. The full gate takes five to eight minutes.
 `evidence/` holds the Validation Lab's records, trials and vendor models. It
 is ignored here and backed up to its own private repository with
 `scripts/backup-evidence.sh`, which refuses a file that still has its
-template's `needs_review` line. Its STEP, GLB, 3MF and zip files are stored
-with Git LFS, so a fresh clone needs `git lfs install --local` in it first,
-and the script refuses to run without git-lfs or to commit a file over 95 MB
-that LFS does not track. The tests that read it skip without it, so in
+template's `needs_review` line, or a file over 95 MB that Git LFS does not
+track, since GitHub refuses a file over 100 MB in git. The repository does not
+use LFS yet; once it does, the script refuses to run without git-lfs. The
+tests that read it skip without it, so in
 a linked worktree, link it before running the suite:
 
 ```bash
