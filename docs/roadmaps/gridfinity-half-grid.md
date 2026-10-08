@@ -8,8 +8,8 @@ a 21 mm pitch, four to a cell, so a bin can be 21 or 63 mm across and still drop
 
 This is the design for half-grid **bins**. It adds nothing to baseplates, for the reason given under [Not covered](#not-covered).
 
-**Status (2026-10-07): phase 1 is built.** `zcad-validation gridfinity bin --half-grid`; see [Phase 1, as built](#phase-1-as-built) and
-[Half-grid bins](../guides/gridfinity.md#half-grid-bins).
+**Status (2026-10-07): phases 1 and 2 are built.** `zcad-validation gridfinity bin --half-grid` and `gridfinity fitted --half-grid`; see
+[Phase 1, as built](#phase-1-as-built), [Phase 2, as built](#phase-2-as-built) and [Half-grid bins](../guides/gridfinity.md#half-grid-bins).
 
 ## Where the figures come from
 
@@ -96,7 +96,7 @@ whether the located warning matters.
 
 1. **Half-grid bins (built).** `--half-grid` on `gridfinity bin`; the bases on a 21 mm pitch; the outer-corner holes and their refusal; the located check and
    warning; the stacking checks both ways; the figures registered against Rebuilt's lines; the record's pitch.
-2. **Fitted bins on the half grid.** `--half-grid` on `gridfinity fitted`, so a measured object takes the fewest half units: a 50 mm tool in a bin 63 mm across
+2. **Fitted bins on the half grid (built).** `--half-grid` on `gridfinity fitted`, so a measured object takes the fewest half units: a 50 mm tool in a bin 63 mm across
    instead of 84 mm.
 
 Each phase is one PR, and no full-grid bin changes.
@@ -115,6 +115,18 @@ registered against Rebuilt's lines.
 - **Stacking both ways.** A half base set in the corner of the bin's lip (`stacks`) is a half-grid bin stacked on any bin, since a lip depends only on the
   outline; a full base in the lip (`takes_a_full_base`) is a full bin stacked on a half-grid one, checked where the bin is two or more half units each way.
 - **The record** gives the pitch and `half_grid` in its settings, adds Rebuilt's half grid to its sources, and the build is named `gridfinity-bin-half-…`.
+
+### Phase 2, as built
+
+`FittedSpec(half_grid=True)` in `features/gridfinity_fitted.py`. The fewest units are counted at the half grid's pitch, so a 50 x 30 mm tool takes 3 x 2
+half units (62.5 x 41.5 mm) where it took 2 x 1 full ones (83.5 x 41.5 mm).
+
+- **Shared checks.** The seat, the stacking checks, the hole refusal and the located warning moved into `features/gridfinity.py` as
+  `seats_in_baseplate`, `stacking_checks`, `refuse_overlapping_holes` and `located_warnings`, which the plain and fitted bins both call; a full-grid
+  fitted bin's checks are what they were.
+- **Stacking on a fitted bin.** As on the full grid, a stacked base rests on the solid top inside the lip; a half-grid fitted bin two or more half units
+  each way also takes a full base there.
+- **Names.** The build is named `gridfinity-fitted-<object>-half-<x>x<y>`.
 
 ## Not covered
 

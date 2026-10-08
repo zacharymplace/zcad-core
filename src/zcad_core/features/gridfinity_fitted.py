@@ -8,6 +8,10 @@ a floor left above the base. The pocket is the object's shadow seen from above, 
 clearance and open at the top, so the object lifts straight out whatever it does beneath. A finger
 notch is cut at the middle of each long side of the pocket where the bin's wall leaves room.
 
+On the half grid (``half_grid``) the units are 21 mm half units, so a measured object takes the
+fewest of those: a 50 mm tool a bin 63 mm across, not 84 mm. Its bases, holes and warnings are a
+half-grid bin's.
+
 The bin is solid below its top, so a bin stacked on it rests on that top inside the lip, not on
 the lip's slopes as it would in a hollow bin. The base, the lip and every interface figure are the
 plain bin's; inside, the fit is the engine's (the printer's sliding clearance, the coupon's measured
@@ -29,21 +33,23 @@ from zcad_core.features.gridfinity import (
     base_to_standard,
     bin_block,
     lip_socket,
+    located_warnings,
+    refuse_overlapping_holes,
     seat_height_mm,
+    seats_in_baseplate,
+    stacking_checks,
     underside_holes,
 )
-from zcad_core.features.gridfinity_baseplate import BaseplateSpec, build_baseplate
 from zcad_core.features.gridfinity_shapes import (
     GridfinityPart,
-    base_unit,
     box,
     empty_at,
-    held,
 )
 from zcad_core.features.gridfinity_standard import (
+    BASE_GAP_MM,
     BASE_PROFILE_HEIGHT_MM,
-    BASE_TOP_MM,
     GRID_MM,
+    HALF_GRID_MM,
     HEIGHT_UNIT_MM,
 )
 from zcad_core.features.guide_bores import printer_numbers
@@ -75,6 +81,8 @@ class FittedSpec:
     # The user's clearance per side, with its source; None takes the printer's.
     clearance_mm: float | None = None
     clearance_source: str = ""
+    # Units on the half grid's 21 mm pitch, counted in half units.
+    half_grid: bool = False
 
 
 @dataclass(frozen=True)
@@ -152,12 +160,13 @@ def fitted_clearance(
     )
 
 
-def fewest_units(object_mm: float, clearance: float, wall: float) -> int:
-    """The fewest units across that hold an object with the clearance and a wall each side."""
+def fewest_units(
+    object_mm: float, clearance: float, wall: float, pitch: float = GRID_MM
+) -> int:
+    """The fewest units across, of ``pitch``, that hold an object with the clearance and a wall
+    each side."""
 
-    gap = GRID_MM - BASE_TOP_MM
-
-    return max(1, math.ceil((object_mm + 2 * (clearance + wall) + gap) / GRID_MM))
+    return max(1, math.ceil((object_mm + 2 * (clearance + wall) + BASE_GAP_MM) / pitch))
 
 
 def _reach(shadow: tuple[Point, ...]) -> tuple[float, float]:
@@ -222,9 +231,10 @@ def build_fitted_bin(
         )
 
     reach_x, reach_y = _reach(item.shadow)
+    pitch = HALF_GRID_MM if spec.half_grid else GRID_MM
     fewest = (
-        fewest_units(2 * reach_x, clearance, wall),
-        fewest_units(2 * reach_y, clearance, wall),
+        fewest_units(2 * reach_x, clearance, wall, pitch),
+        fewest_units(2 * reach_y, clearance, wall, pitch),
     )
     units = spec.units or fewest
 
@@ -244,7 +254,9 @@ def build_fitted_bin(
         magnets=spec.magnets,
         screws=spec.screws,
         wall_mm=wall,
+        half_grid=spec.half_grid,
     )
+    refuse_overlapping_holes(bin_spec)
     top = bin_spec.height_mm
     pocket_floor = top - sink
     body = bin_block(bin_spec)
@@ -267,7 +279,7 @@ def build_fitted_bin(
         f"The object stands {proud:.1f} mm above the bin's top: a bin stacked on this one "
         "would rest on the object"
     )
-    warnings = (note,) if spec.lip and proud > 0 else ()
+    warnings = ((note,) if spec.lip and proud > 0 else ()) + located_warnings(bin_spec)
 
     return GridfinityPart(
         warnings=warnings,
@@ -276,7 +288,9 @@ def build_fitted_bin(
         checks=_fitted_checks(bin_spec, body, placed, height, notches, pocket_floor),
         settings={
             "units": list(units),
-            "seat_height_mm": seat_height_mm(*units),
+            "half_grid": spec.half_grid,
+            "pitch_mm": pitch,
+            "seat_height_mm": seat_height_mm(*bin_spec.cells),
             "height_units": height_units,
             "height_mm": top,
             "lip": spec.lip,
@@ -309,25 +323,17 @@ def _fitted_checks(
     pocket_floor: float,
 ) -> dict[str, bool]:
     solid = body.val()
-    plate = build_baseplate(BaseplateSpec(spec.units_x, spec.units_y), {}, check=False)
     checks = {
         "one_solid": len(body.solids().vals()) == 1,
         "base_to_standard": base_to_standard(body, spec),
-        "seats_in_baseplate": held(
-            body, plate.body, seat_height_mm(spec.units_x, spec.units_y)
-        ),
+        "seats_in_baseplate": seats_in_baseplate(spec, body),
         "object_fits_pocket": clear(solid, item),
         "object_lifts_out": lifts_out(item, solid, height + 10.0),
     }
 
     if spec.lip:
-        corner = (
-            -(spec.units_x - 1) * GRID_MM / 2,
-            -(spec.units_y - 1) * GRID_MM / 2,
-            0.0,
-        )
         # Solid below its top, the bin carries a stacked base on that top.
-        checks["stacks"] = held(base_unit(corner), body, spec.height_mm)
+        checks.update(stacking_checks(spec, body, spec.height_mm))
 
     if notches:
         checks["finger_notches_open"] = empty_at(

@@ -228,12 +228,15 @@ def _gridfinity_fitted(args: argparse.Namespace) -> int:
         units=args.units,
         clearance_mm=args.clearance_mm,
         clearance_source=args.clearance_source or "",
+        half_grid=args.half_grid,
     )
     part = build_fitted_bin(item, spec, profile, side_shortfall_mm=shortfall)
     x, y = part.settings["units"]
     stem = (args.capture or args.model).stem.lower().replace("_", "-")
 
-    return _export(part, f"gridfinity-fitted-{stem}-{x}x{y}", args, profile)
+    grid = "half-" if args.half_grid else ""
+
+    return _export(part, f"gridfinity-fitted-{stem}-{grid}{x}x{y}", args, profile)
 
 
 def _gridfinity_baseplate(args: argparse.Namespace) -> int:
@@ -406,6 +409,11 @@ def register(
     fitted.add_argument("--clearance-source", help="why that clearance")
     fitted.add_argument(
         "--no-lip", action="store_true", help="leave off the stacking lip"
+    )
+    fitted.add_argument(
+        "--half-grid",
+        action="store_true",
+        help="units on Gridfinity Rebuilt's 21 mm half grid; --units then counts half units",
     )
     fitted.add_argument("--magnets", action="store_true")
     fitted.add_argument("--screws", action="store_true")

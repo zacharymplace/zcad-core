@@ -255,15 +255,7 @@ def _validate(spec: BinSpec, least_wall: float) -> None:
         spec.units_x, spec.units_y, MAXIMUM_UNITS * (2 if spec.half_grid else 1)
     )
 
-    if (
-        spec.half_grid
-        and (spec.magnets or spec.screws)
-        and min(spec.units_x, spec.units_y) == 1
-    ):
-        raise ValueError(
-            "A half-grid bin one half unit across has no room for magnet or screw holes: "
-            "its outer corners' holes would overlap"
-        )
+    refuse_overlapping_holes(spec)
 
     if spec.height_units < MINIMUM_HEIGHT_UNITS:
         raise ValueError(
@@ -273,6 +265,21 @@ def _validate(spec: BinSpec, least_wall: float) -> None:
     if spec.wall_mm < least_wall:
         raise ValueError(
             f"A {spec.wall_mm:g} mm wall is under the printer's {least_wall:g} mm minimum"
+        )
+
+
+def refuse_overlapping_holes(spec: BinSpec) -> None:
+    """Refuse magnet or screw holes on a half-grid bin one half unit across, where the outer
+    corners' holes would overlap."""
+
+    if (
+        spec.half_grid
+        and (spec.magnets or spec.screws)
+        and min(spec.units_x, spec.units_y) == 1
+    ):
+        raise ValueError(
+            "A half-grid bin one half unit across has no room for magnet or screw holes: "
+            "its outer corners' holes would overlap"
         )
 
 
@@ -331,41 +338,20 @@ def build_bin(
         },
         profile_id=str(profile.get("profile_id", "")),
         tolerance_status=str(profile.get("tolerance_status", "unknown")),
-        warnings=_fit_warnings(side_shortfall_mm) + _located_warnings(spec),
+        warnings=_fit_warnings(side_shortfall_mm) + located_warnings(spec),
     )
 
 
 def _bin_checks(spec: BinSpec, body: cq.Workplane, inside: Inside) -> dict[str, bool]:
-    cells_x, cells_y = spec.cells
-    plate = build_baseplate(BaseplateSpec(cells_x, cells_y), {}, check=False).body
-    width, depth = spec.footprint_mm
-    # Set at the plate's corner: a half-grid bin with an odd count covers half its last cell.
-    corner_shift = (
-        (width + BASE_GAP_MM - cells_x * GRID_MM) / 2,
-        (depth + BASE_GAP_MM - cells_y * GRID_MM) / 2,
-        0.0,
-    )
     checks = {
         "one_solid": len(body.solids().vals()) == 1,
         "base_to_standard": base_to_standard(body, spec),
-        "seats_in_baseplate": held(
-            body.translate(corner_shift), plate, seat_height_mm(cells_x, cells_y)
-        ),
+        "seats_in_baseplate": seats_in_baseplate(spec, body),
         "compartments_open": empty_at(body, compartment_points(inside)),
     }
 
     if spec.lip:
-        checks["stacks"] = held(
-            base_unit(_corner_unit(spec, spec.pitch_mm), spec.base_top_mm),
-            body,
-            stack_seat_mm(spec),
-        )
-
-        # A full bin stacked on a half-grid one, which is wide enough to take its base.
-        if spec.half_grid and min(spec.units_x, spec.units_y) > 1:
-            checks["takes_a_full_base"] = held(
-                base_unit(_corner_unit(spec, GRID_MM)), body, stack_seat_mm(spec)
-            )
+        checks.update(stacking_checks(spec, body, stack_seat_mm(spec)))
 
     if spec.magnets or spec.screws:
         checks["underside_holes_open"] = empty_at(
@@ -375,7 +361,43 @@ def _bin_checks(spec: BinSpec, body: cq.Workplane, inside: Inside) -> dict[str, 
     return checks
 
 
-def _corner_unit(spec: BinSpec, pitch: float) -> tuple[float, float, float]:
+def seats_in_baseplate(spec: BinSpec, body: cq.Workplane) -> bool:
+    """Whether the bin rests on the engine's baseplate of the cells it covers, set at a cell's
+    corner: a half-grid bin with an odd count covers half its last cell."""
+
+    cells_x, cells_y = spec.cells
+    plate = build_baseplate(BaseplateSpec(cells_x, cells_y), {}, check=False).body
+    width, depth = spec.footprint_mm
+    shift = (
+        (width + BASE_GAP_MM - cells_x * GRID_MM) / 2,
+        (depth + BASE_GAP_MM - cells_y * GRID_MM) / 2,
+        0.0,
+    )
+
+    return held(body.translate(shift), plate, seat_height_mm(cells_x, cells_y))
+
+
+def stacking_checks(
+    spec: BinSpec, body: cq.Workplane, seat_z: float
+) -> dict[str, bool]:
+    """A base of the bin's own pitch set in its corner at ``seat_z`` (a bin like it stacked
+    on it) and, on a half-grid bin wide enough, a full base (a full bin stacked on it)."""
+
+    checks = {
+        "stacks": held(
+            base_unit(corner_unit(spec, spec.pitch_mm), spec.base_top_mm), body, seat_z
+        )
+    }
+
+    if spec.half_grid and min(spec.units_x, spec.units_y) > 1:
+        checks["takes_a_full_base"] = held(
+            base_unit(corner_unit(spec, GRID_MM)), body, seat_z
+        )
+
+    return checks
+
+
+def corner_unit(spec: BinSpec, pitch: float) -> tuple[float, float, float]:
     """The centre of a base ``pitch`` across set in the bin's corner."""
 
     width, depth = spec.footprint_mm
@@ -387,7 +409,7 @@ def _corner_unit(spec: BinSpec, pitch: float) -> tuple[float, float, float]:
     )
 
 
-def _located_warnings(spec: BinSpec) -> tuple[str, ...]:
+def located_warnings(spec: BinSpec) -> tuple[str, ...]:
     if spec.located:
         return ()
 

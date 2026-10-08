@@ -15,11 +15,20 @@ import pytest
 from zcad_core.cli import main
 from zcad_core.features.gridfinity import BinSpec, build_bin, hole_points
 from zcad_core.features.gridfinity_baseplate import BaseplateSpec, build_baseplate
+from zcad_core.features.gridfinity_fitted import (
+    FittedSpec,
+    Footprint,
+    build_fitted_bin,
+    capture_footprint,
+    fewest_units,
+)
 from zcad_core.features.gridfinity_shapes import GridfinityPart, held, section
 from zcad_core.features.gridfinity_standard import (
     BASE_PROFILE_HEIGHT_MM,
+    HALF_GRID_MM,
     REBUILT_HALF_GRID,
 )
+from zcad_core.hardware.wearables.capture import load_capture
 from zcad_core.profiles import load_printer_profile
 
 PROFILE = load_printer_profile(
@@ -126,3 +135,78 @@ def test_the_command_names_the_half_grid_and_cites_rebuilt(
     assert built["warnings"]
     assert record["settings"]["half_grid"] is True
     assert REBUILT_HALF_GRID in record["standard"]["sources"]
+
+
+def tool(length: float, width: float, thickness: float) -> dict[str, object]:
+    readings = {"length_mm": [length] * 3, "width_mm": [width] * 3}
+    return {
+        "schema_version": "1.0.0",
+        "units": "mm",
+        "device": "custom",
+        "name": "Pocket tool",
+        "measured_by": "Test",
+        "measured_on": "2026-10-07",
+        "caliper": "digital caliper, 0.01 mm",
+        "orientation": "flat, its blade east",
+        "source": "one tool, three passes",
+        "body_readings": {**readings, "thickness_mm": [thickness] * 3},
+        "outline": {"type": "rounded_rectangle", "radius_mm": 2.0},
+        "edge_features": [],
+        "edge_features_checked": True,
+        "face_features": [],
+    }
+
+
+def tool_footprint(tmp_path: Path, length: float, width: float) -> Footprint:
+    path = tmp_path / "tool.json"
+    path.write_text(json.dumps(tool(length, width, 10.0)), encoding="utf-8")
+
+    return capture_footprint(load_capture(path))
+
+
+def test_a_50_mm_tool_takes_three_half_units_not_two_whole_ones() -> None:
+    assert fewest_units(50.0, 0.2, 1.2) == 2
+    assert fewest_units(50.0, 0.2, 1.2, HALF_GRID_MM) == 3
+
+
+def test_a_fitted_bin_on_the_half_grid_keeps_to_the_half_grid(
+    tmp_path: Path,
+) -> None:
+    item = tool_footprint(tmp_path, 50.0, 30.0)
+    part = build_fitted_bin(item, FittedSpec(half_grid=True), PROFILE)
+
+    assert part.settings["units"] == [3, 2]
+    assert part.size_mm[:2] == pytest.approx((62.5, 41.5), abs=1e-3)
+    assert part.passed, part.checks
+    assert {"object_fits_pocket", "takes_a_full_base"} <= set(part.checks)
+    assert part.warnings == ()
+
+
+def test_a_narrow_fitted_bin_is_warned_of_and_takes_no_magnets(
+    tmp_path: Path,
+) -> None:
+    item = tool_footprint(tmp_path, 50.0, 12.0)
+    narrow = build_fitted_bin(item, FittedSpec(half_grid=True), PROFILE)
+
+    assert narrow.settings["units"] == [3, 1]
+    assert narrow.passed, narrow.checks
+    assert ["can slide half a cell" in note for note in narrow.warnings] == [True]
+
+    with pytest.raises(ValueError, match="holes would overlap"):
+        build_fitted_bin(
+            item, FittedSpec(depth_mm=8.0, half_grid=True, magnets=True), PROFILE
+        )
+
+
+def test_the_fitted_command_names_the_half_grid(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    capture_path = tmp_path / "pocket-tool.json"
+    capture_path.write_text(json.dumps(tool(50.0, 30.0, 6.0)), encoding="utf-8")
+    command = ["gridfinity", "fitted", "--capture", str(capture_path), "--half-grid"]
+
+    assert main([*command, "--output-directory", str(tmp_path / "out")]) == 0
+    built = json.loads(capsys.readouterr().out)
+
+    assert built["design_name"] == "gridfinity-fitted-pocket-tool-half-3x2"
+    assert built["settings"]["pitch_mm"] == HALF_GRID_MM
