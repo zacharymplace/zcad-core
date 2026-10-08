@@ -66,6 +66,12 @@ def _export(
 ) -> int:
     require_fits_bed(part, profile)
 
+    if args.copies < 1:
+        raise ValueError("--copies must be 1 or more")
+
+    if args.copies > 1 and not args.slice:
+        raise ValueError("--copies says how many go on the sliced plate; add --slice")
+
     if args.slice and part.pieces:
         raise ValueError(
             "--slice puts every part on one plate, and a baseplate in pieces needs a "
@@ -110,7 +116,7 @@ def _export(
     }
 
     if args.slice:
-        payload["print"] = _slice(name, files, record, args.slicer_profile)
+        payload["print"] = _slice(name, files, record, args.slicer_profile, args.copies)
 
     emit(payload)
 
@@ -118,19 +124,25 @@ def _export(
 
 
 def _slice(
-    name: str, files: dict[str, dict[str, Any]], record: Path, slicer_profile: Path
+    name: str,
+    files: dict[str, dict[str, Any]],
+    record: Path,
+    slicer_profile: Path,
+    copies: int,
 ) -> dict[str, Any]:
     """Slice the exported parts onto one plate, as they print, and open the
-    first trial of what was sliced."""
+    first trial of what was sliced. More than one copy is for a check that
+    needs a pair, such as a bin stacking on another."""
 
     try:
         sliced = slice_models(
-            [Path(entry["stl_path"]) for entry in files.values()],
+            [Path(entry["stl_path"]) for entry in files.values()] * copies,
             record.parent / "slice",
             slicer_profile_path=slicer_profile,
             summary_fields={
                 "design_name": name,
                 "build_record_sha256": _sha256(record),
+                "copies": copies,
             },
         )
     except SliceError as error:
@@ -139,6 +151,7 @@ def _slice(
     summary = sliced.summary
 
     return {
+        "copies": copies,
         "gcode": str(sliced.gcode_path),
         "estimated_print_minutes": round(summary["estimated_print_time_seconds"] / 60),
         "filament_used_g": round(summary["filament_used_g"], 1),
@@ -281,6 +294,13 @@ def _add_slice_arguments(parser: argparse.ArgumentParser) -> None:
         help="slice the parts onto one plate with Bambu Studio and open the first trial",
     )
     parser.add_argument("--slicer-profile", type=Path, default=DEFAULT_SLICER_PROFILE)
+    parser.add_argument(
+        "--copies",
+        type=int,
+        default=1,
+        help="how many of the part go on the sliced plate, e.g. 2 to try one bin "
+        "stacked on another",
+    )
 
 
 def register(
