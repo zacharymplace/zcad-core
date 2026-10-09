@@ -13,6 +13,7 @@ from zcad_core.cli._common import add_compensation_profile_argument, emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.holder import (
+    HOLDER_RECORD,
     build_holder,
     print_oriented,
     require_fits_bed,
@@ -139,6 +140,7 @@ def _holder_build(args: argparse.Namespace) -> int:
                 "mount": spec.mount,
                 "object_sha256": item.sha256,
             },
+            build_record_name=HOLDER_RECORD,
         )
     )
     files: dict[str, dict[str, Any]] = {

@@ -306,3 +306,20 @@ def test_a_baseplate_in_pieces_is_not_sliced_onto_one_plate(
     assert main([*command, "--output-directory", str(output)]) == 1
     assert "a baseplate in pieces needs a plate for each" in capsys.readouterr().err
     assert not output.exists()
+
+
+def test_a_refused_rebuild_leaves_the_earlier_bin_as_it_was(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    # Before, the second build replaced the parts and then refused to replace
+    # the record, which no longer matched them.
+    output = tmp_path / "part"
+    command = ["gridfinity", "bin", "--units", "1x1", "--no-lip"]
+
+    assert main([*command, "--height", "2", "--output-directory", str(output)]) == 0
+    capsys.readouterr()
+    before = {path.name: path.read_bytes() for path in output.glob("*.stl")}
+
+    assert main([*command, "--height", "3", "--output-directory", str(output)]) == 1
+    assert "nothing was written" in capsys.readouterr().err
+    assert {path.name: path.read_bytes() for path in output.glob("*.stl")} == before
