@@ -271,6 +271,14 @@ def _components(
     )
 
 
+def _optional(section: Mapping[str, Any], name: str, default: float) -> float:
+    """An optional number, the default when absent or ``null``, as the check reads it."""
+
+    value = section.get(name)
+
+    return default if value is None else float(value)
+
+
 def board_from_data(
     data: Mapping[str, Any], origin: BoardOrigin, *, catalog: bool = False
 ) -> BoardFileSpec:
@@ -326,9 +334,9 @@ def board_from_data(
             height_mm=float(connector["height_mm"]),
             depth_mm=float(connector["depth_mm"]),
             board_edge=cast(BoardEdge, connector["edge"]),
-            center_offset_mm=float(connector.get("center_offset_mm", 0.0)),
-            bottom_offset_from_board_top_mm=float(
-                connector.get("bottom_offset_from_board_top_mm", 0.0)
+            center_offset_mm=_optional(connector, "center_offset_mm", 0.0),
+            bottom_offset_from_board_top_mm=_optional(
+                connector, "bottom_offset_from_board_top_mm", 0.0
             ),
         ),
         components=_components(data, width, length, outline),
@@ -351,8 +359,8 @@ def board_from_data(
         mounting_hole_positions_mm=positions,
         mounting_hole_spacing_x_mm=spacing[0] if spacing else None,
         mounting_hole_spacing_y_mm=spacing[1] if spacing else None,
-        recommended_standoff_height_mm=float(standoff.get("height_mm", 3.0)),
-        recommended_clearance_mm=float(standoff.get("clearance_mm", 0.5)),
+        recommended_standoff_height_mm=_optional(standoff, "height_mm", 3.0),
+        recommended_clearance_mm=_optional(standoff, "clearance_mm", 0.5),
         name=str(data.get("name", data["identifier"])),
         source=str(data.get("source", "")),
         notes=str(data.get("notes", "")),

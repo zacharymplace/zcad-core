@@ -220,3 +220,32 @@ def test_a_components_file_loads_its_parts_and_warns_of_an_unmarked_overhang() -
     data["components"][0]["access_edge"] = "positive_y"
 
     assert check_board_data(data).warnings == ()
+
+
+@pytest.mark.parametrize(
+    ("section", "field", "attribute", "default"),
+    [
+        ("cable_connector", "center_offset_mm", "center_offset_mm", 0.0),
+        (
+            "cable_connector",
+            "bottom_offset_from_board_top_mm",
+            "bottom_offset_from_board_top_mm",
+            0.0,
+        ),
+        ("standoff", "height_mm", "recommended_standoff_height_mm", 3.0),
+        ("standoff", "clearance_mm", "recommended_clearance_mm", 0.5),
+    ],
+)
+def test_a_null_optional_number_is_absent_and_takes_the_default(
+    section: str, field: str, attribute: str, default: float
+) -> None:
+    # The check passed these and the build then failed on float(None).
+    data = template()
+    data[section][field] = None
+
+    assert check_board_data(data).valid
+
+    board = from_data(data)
+    built = board.usb_connector if section == "cable_connector" else board
+
+    assert getattr(built, attribute) == default
