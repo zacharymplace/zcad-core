@@ -18,7 +18,8 @@ nest that follows a silhouette, a plate that carries bores, the release and
 sweep checks, and a fixture that is unverified until a trial measures it. This
 document covers only what a board adds.
 
-This is a design, not built work. Nothing below exists in the code yet.
+**Status (2026-10-08): all four phases are built**, with the hinged closure and bottom-side probing, the last on
+2026-10-02: `zcad-validation fixture template`, `check`, `build`, `trial`, `status` and `derive`; see [Phases](#phases).
 
 ## What the engine already has
 
@@ -206,8 +207,8 @@ named group.
 - **The commands join the existing `fixture` group.** `fixture export` is the
   Validation Lab's print fixture; `fixture template` and `fixture check` sit
   beside it. They share a name and nothing else.
-- **Not built: bottom-side probing, the nest, the plate, the closure,** and the
-  catalogued pins. `side` other than `top` is refused with a message saying so.
+- **Not built in this phase: bottom-side probing, the nest, the plate, the closure,**
+  and the catalogued pins, all built since. `side` other than `top` is refused with a message saying so.
 
 ### What phase 2 changed
 
@@ -250,7 +251,8 @@ named group.
 
 ### What phase 3 changed
 
-- **Screws are built; the hinge is not.** The design called for either. A hinge
+- **Screws are built; the hinge was not, in this phase** (it is since, in
+  `features/pcb_fixture_hinge.py`). The design called for either. A hinge
   needs the plate to swing clear of the board and the pins' tails on a nest whose
   walls are thin and notched, and `lid_hinge` is written round an enclosure's
   rectangular cavity and its openings. Reusing it would mean bending the nest to

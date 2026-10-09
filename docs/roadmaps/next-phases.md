@@ -175,7 +175,11 @@ Open items, in order:
    plate's G-code and opens trial-001; record the print with
    `enclosure trial complete`, then `enclosure revise` proposes and builds
    the next revision from its measurements.
-2. **Lid options**: snap-fit lid, locating lip, countersunk holes, vents.
+2. **Lid options** are built, and unproven in plastic like the rest: a
+   snap-fit lid, a locating lip, countersunk holes and vent slots, then
+   hinged and sliding lids, vent patterns and fans (see
+   [Hinged and sliding lids](hinges-and-slides.md) and
+   [Thermal features](thermal-features.md)).
 
 ### Pi 5 group enclosure (2026-09-29)
 
@@ -209,9 +213,10 @@ Open items, in order:
    The guide's checklist covers the standoffs, ports, microSD slot, and the
    Active Cooler's height, which is inferred from the drawing rather than
    dimensioned. Correct `RaspberryPi5Spec` from what fits.
-2. **Trials and revisions**: `enclosure trial` and `enclosure revise` work on
-   the single-board `Enclosure`; the group enclosure has no trial record yet,
-   and needs print measurements to design one around.
+2. **Revisions**: `enclosure-group trial start` and `complete` record a group
+   enclosure's print, and `record-print-day.py` records it from the checklist,
+   but `enclosure revise` works only on the single-board `Enclosure`; a group
+   revision needs print measurements to design around.
 3. **Joined units and HATs** are unproven in plastic: the join bolts, and the
    headroom and standoff heights for a HAT or an under-board drive.
 

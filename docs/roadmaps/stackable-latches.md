@@ -11,6 +11,8 @@ This is the design for one printed latch, a **snap detent between a foot and a l
 bin: a cap that snaps on, and a drawer that clicks shut. The enclosure lid's lip, `--stack-top`, is a separate and smaller piece and is
 not in it.
 
+**Status (2026-10-08): all four phases are built**, the last on 2026-10-02; see [Phases](#phases).
+
 ## What the engine does not claim
 
 The stance of the stackable items design carries over:
@@ -175,7 +177,7 @@ See *Latches* in [Stackable items](../guides/stackable-items.md).
   a keeper, so none is checked.
 - **The seat check is the stack's own.** Laying an item on itself and on a baseplate, already in the build, now covers a hook seated in a
   keeper with no overlap; four new checks per latched bin or frame cover the rest.
-- **Not built yet:** the drawer's detent and the trial readings, as phases 3 and 4.
+- **Not built in this phase:** the drawer's detent and the trial readings, built in phases 3 and 4.
 
 ### What phase 2 changed
 
@@ -204,7 +206,7 @@ See *A drawer that clicks shut* in [Stackable items](../guides/stackable-items.m
   default 0.4 mm, so a frame with a detent needs `wall_mm` of 1.8, which the design had named as the check.
 - **The slides check frees the bumps once they leave the dimple.** The drawer pulled out by half and nine tenths of its length would press the wall by the engagement, so those positions use
   the drawer without bumps; shut, the drawer with its bumps must clear the frame's dimples.
-- **Not built yet:** the trial readings, phase 4.
+- **Not built in this phase:** the trial readings, built in phase 4.
 
 ### What phase 4 changed
 

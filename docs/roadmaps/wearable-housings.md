@@ -23,7 +23,8 @@ input: a **sealed device** you cannot open (a sensor, a pump, a tracker), and a
 worn: a strap, a band, a belt clip, an adhesive plate, a lanyard. This is the design
 for both inputs and the wearing they share.
 
-This is a design, not built work. Nothing below exists in the code yet.
+**Status (2026-10-08): all five phases are built**, the last on 2026-10-01: `zcad-validation capture` and
+`housing template`, `check`, `build` and `trial`; see [Phases](#phases).
 
 ## What the engine does not claim
 

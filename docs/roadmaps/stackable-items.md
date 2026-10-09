@@ -14,6 +14,8 @@ and bottom faces meet, and four kinds of item that adopt it: **bins** on a grid,
 can sit on any other that shares its profile, and one check, `check-stack`, answers
 whether two will.
 
+**Status (2026-10-08): all six phases are built**, the last on 2026-10-02: `zcad-validation stack`; see [Phases](#phases).
+
 ## What the engine does not claim
 
 The wearable housings roadmap's stance carries over, and stacking adds its own:
@@ -219,7 +221,7 @@ See [Stackable items](../guides/stackable-items.md).
   2.95 mm at its bottom; a lip of 0.7 mm chamfer, 1.8 mm straight and 1.9 mm chamfer, 4.4 mm high, reaching 2.6 mm in.
   Laid together they leave 0.25 mm across the wall at their tightest, which is what the check computes.
 - **Figures for phase 2, found now.** Magnet holes 6.5 mm across and 2.4 mm deep, screw holes 3 mm, 8 mm in from the side
-  of the cell (so 26 mm apart across it). Nothing is built from them yet.
+  of the cell (so 26 mm apart across it). Phase 2 built from them.
 - **The lip is cut off where it comes to a point.** The section ends at a zero-width tip, which cannot print. The build cuts it
   where its reach falls to 0.4 mm, a nozzle's width, so a bin is 0.4 mm lower in its lip than the section says. The nest check
   uses the whole section, which is the more careful of the two.
@@ -239,11 +241,11 @@ See [Stackable items](../guides/stackable-items.md).
 
 See *How an item holds* and *Does it stack* in [Stackable items](../guides/stackable-items.md).
 
-- **Latches are not built.** The design asked for a printed hook on the upper unit and a keeper on the lower. On
+- **Latches were not built here.** The design asked for a printed hook on the upper unit and a keeper on the lower. On
   this grid there is nowhere for one: bins stand 0.5 mm apart, so a hook outside the outline strikes the next bin,
   and the lip's inside is taken by the foot. A latch needs its own design, starting with the open question of where
   a keeper goes. Magnets and bolts are built and `check-stack` knows `lip`, `magnet` and `bolt`; `latch` joins when it
-  has a design. That design is now written, with its first phase built: see [Stackable latches](stackable-latches.md).
+  has a design. That design is now written, with all four of its phases built: see [Stackable latches](stackable-latches.md).
 - **Pockets meet at the foot and the baseplate, not between two bins.** A magnet or a bolt at a holding point is in
   the bottom of a foot and in a baseplate's floor. Between two bins nothing lies under a foot's holding point, because
   it stands over the cavity, so a bin on a bin is held by the lip alone and `check-stack` says so.
@@ -300,7 +302,7 @@ See *Enclosures on the grid* in [Stackable items](../guides/stackable-items.md).
 - **The record names the plate and `check-stack` reads it.** Both build records carry a `stack` entry, and `check-stack --upper` takes the
   record. Phase 6 adds the stack's own record; this is the enclosures'.
 - **The enclosure's top is unchanged.** Nothing stacks on an enclosure's lid, as the design left open. That is `--stack-top`, off by
-  default, and not built.
+  default, built since; see [Stacking on a lid](stack-top.md).
 - **Existing builds are unchanged.** `stack` is another value of `--mount`, and the design and record fields default to none.
 
 ### What phase 5 changed
