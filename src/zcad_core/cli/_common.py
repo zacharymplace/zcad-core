@@ -12,6 +12,7 @@ from typing import Any
 
 from zcad_core.features.mounts import measured_strain_limit
 from zcad_core.profiles import load_compensation_profile
+from zcad_core.profiles.joints import load_joint_profile, measured_fits
 from zcad_core.retention import (
     UNRECORDED_SLICER_PROFILE,
     CornerCapturePolicy,
@@ -274,4 +275,31 @@ def applied_strain_limit(profile_path: Path | None) -> Iterator[None]:
     source = f"{profile.payload['profile_id']} version {profile.payload['version']}"
 
     with measured_strain_limit(limit, source):
+        yield
+
+
+JOINT_PROFILE_HELP = (
+    "use this printer and material's joint profile: the sliding and press-fit "
+    "clearances its fit coupons measured replace the printer profile's "
+    "provisional ones"
+)
+
+
+def add_joint_profile_argument(parser: argparse.ArgumentParser) -> None:
+    """The option that lets a build use the clearances joint coupons measured;
+    without it, nothing changes."""
+
+    parser.add_argument("--joint-profile", type=Path, help=JOINT_PROFILE_HELP)
+
+
+@contextmanager
+def applied_joint_profile(profile_path: Path | None) -> Iterator[None]:
+    """For one command, build with the fits a joint profile measured, if the
+    command was given one."""
+
+    if profile_path is None:
+        yield
+        return
+
+    with measured_fits(load_joint_profile(profile_path)):
         yield

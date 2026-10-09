@@ -51,6 +51,10 @@ This repository intentionally contains no product-specific models.
   32-minute print whose measurements tell every build how this printer prints
   holes, gaps and bridges, and how far its plastic bends before it breaks; see
   `docs/guides/calibration-coupon.md`.
+- `zcad-validation joint build fit --slice` builds a fit coupon, a 38-minute
+  print of holes from 0 to 0.4 mm a side; how a metal rod fits each sets the
+  sliding and press-fit clearances guides, jigs, nests, holders, fixtures,
+  housings and stacks are built with; see `docs/guides/joint-coupons.md`.
 - `zcad-validation capture template` starts a caliper capture of a sealed
   device, and `zcad-validation housing build` builds something to wear it in;
   see `docs/guides/wearable-capture.md` and `docs/guides/wearable-housing.md`.

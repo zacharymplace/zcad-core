@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from zcad_core.cli._common import emit
+from zcad_core.cli._common import add_joint_profile_argument, emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.jig import (
@@ -200,11 +200,13 @@ def register(
     )
     check.add_argument("file", type=Path)
     check.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
+    add_joint_profile_argument(check)
     check.set_defaults(handler=_jig_check)
     build = commands.add_parser("build", help="build, validate, and export a jig")
     build.add_argument("--jig-file", required=True, type=Path)
     build.add_argument("--output-directory", required=True, type=Path)
     build.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
+    add_joint_profile_argument(build)
     build.set_defaults(handler=_jig_build)
 
     trial = commands.add_parser(

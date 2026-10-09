@@ -1116,6 +1116,43 @@
     "features/jig_holes.py:TOP_TOLERANCE_MM": {
       "status": "unstated"
     },
+    "features/joint_coupon.py:BORE_LENGTH_MM": {
+      "status": "unstated"
+    },
+    "features/joint_coupon.py:COVER_MM": {
+      "status": "design_default",
+      "note": "The fit coupon's own design choice, as features/joint_coupon.py states"
+    },
+    "features/joint_coupon.py:FIT_CLEARANCES_MM": {
+      "status": "design_default",
+      "note": "The rungs the fit coupon sweeps, the engine's own choice spanning the printer profile's provisional press and sliding fits, as features/joint_coupon.py states"
+    },
+    "features/joint_coupon.py:HOLE_WALL_MM": {
+      "status": "design_default",
+      "note": "The fit coupon's own design choice, as features/joint_coupon.py states"
+    },
+    "features/joint_coupon.py:MARGIN_MM": {
+      "status": "design_default",
+      "note": "The fit coupon's own design choice, as features/joint_coupon.py states"
+    },
+    "features/joint_coupon.py:MINIMUM_WALL_MM": {
+      "status": "unstated"
+    },
+    "features/joint_coupon.py:NOTCH_MM": {
+      "status": "unstated"
+    },
+    "features/joint_coupon.py:PLATE_MM": {
+      "status": "design_default",
+      "note": "The fit coupon's own design choice, as features/joint_coupon.py states"
+    },
+    "features/joint_coupon.py:REFERENCE_DIAMETER_MM": {
+      "status": "design_default",
+      "note": "The engine's own choice of reference size, as features/joint_coupon.py states; any measured rod is passed as --reference-mm"
+    },
+    "features/joint_coupon.py:ROW_GAP_MM": {
+      "status": "design_default",
+      "note": "The fit coupon's own design choice, as features/joint_coupon.py states"
+    },
     "features/lid_hinge.py:CATCH_BUMP_MM": {
       "status": "unstated"
     },
@@ -2337,6 +2374,9 @@
       "status": "unstated"
     },
     "profiles/guide_accuracy.py:DEFAULT_MINIMUM_TRIALS": {
+      "status": "unstated"
+    },
+    "profiles/joints.py:DEFAULT_MINIMUM_TRIALS": {
       "status": "unstated"
     },
     "profiles/thermal.py:DEFAULT_MINIMUM_TRIALS": {

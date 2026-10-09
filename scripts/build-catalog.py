@@ -58,6 +58,7 @@ KINDS = {
     "enclosure.json": ("Enclosure", "enclosure-trial.json"),
     "enclosure-group.json": ("Group enclosure", "enclosure-group-trial.json"),
     "coupon.json": ("Calibration coupon", "calibration-coupon-trial.json"),
+    "joint-coupon.json": ("Joint coupon", "joint-coupon-trial.json"),
     "gridfinity.json": ("Gridfinity", "gridfinity-trial.json"),
     "holder.json": ("Object holder", "holder-trial.json"),
     "nest.json": ("Holding nest", "nest-trial.json"),

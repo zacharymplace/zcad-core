@@ -34,6 +34,7 @@ from zcad_core.cli import (
     holder,
     housing,
     jig,
+    joint,
     nest,
     review,
     revision,
@@ -45,7 +46,7 @@ from zcad_core.cli import (
     trial,
     wearable,
 )
-from zcad_core.cli._common import applied_strain_limit
+from zcad_core.cli._common import applied_joint_profile, applied_strain_limit
 
 _COMMAND_GROUPS = (
     target,
@@ -62,6 +63,7 @@ _COMMAND_GROUPS = (
     enclosure_group,
     compensation,
     coupon,
+    joint,
     thermal,
     slice_check,
     wearable,
@@ -98,7 +100,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         # Measured figures apply only to a command given a profile.
-        with applied_strain_limit(getattr(args, "compensation_profile", None)):
+        with (
+            applied_strain_limit(getattr(args, "compensation_profile", None)),
+            applied_joint_profile(getattr(args, "joint_profile", None)),
+        ):
             return int(args.handler(args))
     except (
         ValueError,

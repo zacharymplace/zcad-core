@@ -99,6 +99,8 @@ def evidence(tmp_path: Path) -> Path:
     )
     coupon = build(root, "coupons", "c1", "coupon.json")
     write(coupon / "trials/trial-001/calibration-coupon-trial.json", {"features": []})
+    joint = build(root, "joints", "fit-01", "joint-coupon.json")
+    write(joint / "trials/trial-001/joint-coupon-trial.json", {"readings": []})
     build(root, "enclosures", "e1", "enclosure.json", checks=["board_seats"])
     build(
         root,
@@ -137,6 +139,7 @@ def test_every_record_is_found_and_its_status_read_from_beside_it(
             "pass_with_reservations",
         ),
         "coupons/c1": ("trial recorded", "measured"),
+        "joints/fit-01": ("trial recorded", "measured"),
         "enclosures/e1": ("superseded", "e2"),
         "enclosures/e2": ("built", None),
         "widgets/w1": ("built", None),

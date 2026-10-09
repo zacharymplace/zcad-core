@@ -31,6 +31,7 @@ from zcad_core.features.guide_common import IDENTIFIER, Findings, number, sectio
 from zcad_core.geometry.intersection import intersection_volume
 from zcad_core.hardware.bushings import get_bushing
 from zcad_core.hardware.electronics import board_outline
+from zcad_core.profiles.joints import fits_for
 
 BORE_KINDS = ("printed", "bushing")
 TILT_AXES = ("x", "y")
@@ -502,7 +503,8 @@ def parse_sections(data: Mapping[str, Any]) -> Sections:
 def printer_numbers(
     profile: Mapping[str, Any],
 ) -> tuple[dict[str, float], float, float]:
-    """The profile's three fits, its minimum wall, and its minimum floor."""
+    """The profile's three fits, its minimum wall, and its minimum floor; the
+    clearances are a joint profile's when the command applies one."""
 
     given = profile.get("tolerances_mm", {})
     fits: dict[str, float] = {}
@@ -517,6 +519,8 @@ def printer_numbers(
 
         fits[name] = float(given[name])
 
+    # A command given a joint profile builds with the clearances its coupons measured.
+    fits = fits_for(fits)
     minimums = profile.get("minimums_mm", {})
 
     return fits, float(minimums.get("wall", 1.2)), float(minimums.get("floor", 1.2))

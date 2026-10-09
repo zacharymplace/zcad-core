@@ -9,7 +9,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from zcad_core.cli._common import add_compensation_profile_argument, emit
+from zcad_core.cli._common import (
+    add_compensation_profile_argument,
+    add_joint_profile_argument,
+    emit,
+)
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.gridfinity import (
@@ -422,6 +426,7 @@ def register(
     fitted.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
     add_compensation_profile_argument(fitted)
     _add_slice_arguments(fitted)
+    add_joint_profile_argument(fitted)
     fitted.set_defaults(handler=_gridfinity_fitted)
 
     trial = commands.add_parser(
