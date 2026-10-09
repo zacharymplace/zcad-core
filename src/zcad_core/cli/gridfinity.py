@@ -91,6 +91,7 @@ def _export(
             repository_root=Path.cwd(),
             printer_profile=profile,
             parameters=part.settings,
+            build_record_name=GRIDFINITY_BUILD_RECORD,
         )
     )
     files = {

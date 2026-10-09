@@ -285,3 +285,22 @@ def test_the_trial_commands_start_complete_and_report(
 
     assert code == 0
     assert status == {**status, "verified": False, "needed": 2}
+
+
+def test_a_refused_rebuild_leaves_the_earlier_holder_as_it_was(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    output = build(tmp_path, capsys).parent
+    before = {path.name: path.read_bytes() for path in output.glob("*.stl")}
+    command = [
+        "holder",
+        "build",
+        "--holder-file",
+        str(tmp_path / "holder.json"),
+        "--output-directory",
+        str(output),
+    ]
+
+    assert main(command) == 1
+    assert "nothing was written" in capsys.readouterr().err
+    assert {path.name: path.read_bytes() for path in output.glob("*.stl")} == before
