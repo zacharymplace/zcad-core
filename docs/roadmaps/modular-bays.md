@@ -175,7 +175,7 @@ catalog's provisional status carried through.
 - **Every opening source counts.** A board file names its connectors three ways: the
   cable connector every board has, `wall_openings`, and parts marked `access_edge`.
   All three become openings, and ones that overlap merge by the web rule.
-- **Cradle bays are not built.** The design said "standoffs or a cradle". A board
+- **Cradle bays were not built in this phase; phase 2 built them.** The design said "standoffs or a cradle". A board
   with no mounting holes is refused, saying so. The cradle's clips sit at the
   board's edges, against the neighbouring bay's divider or service space (an open
   question in the design), and the single-board cradle is built round one board in

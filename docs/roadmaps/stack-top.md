@@ -11,6 +11,9 @@ That proposal does not survive a look at the geometry, and this design replaces 
 whole cells, and a lid is the size of the board plus its walls. So the top interface cannot be cut into the lid. It is a **top plate**: a baseplate, in whole
 cells, that sits on the lid and is held by the lid's own screws.
 
+**Status (2026-10-08): all three phases are built**, the last on 2026-10-03: `--stack-top` on `enclosure` and
+`enclosure-group`; see [Phases](#phases).
+
 ## What the engine does not claim
 
 The stance of the other stackable designs carries over:
@@ -105,7 +108,7 @@ See *A stack top: things stacked on the box* in [Stackable items](../guides/stac
 - **`stack_top` is its own flag beside `mount`.** An enclosure can have a stack plate under it and a stack top over it. `stack_profile` goes with either, and a profile with neither is refused.
 - **`check-stack` reads `RECORD:top`.** The enclosure's record carries `stack_top` (profile by hash, cells, floor, rim, screws), and `check-stack` takes the top as a baseplate of those cells and floor, as the
   *lower* item. A record with none says how to build one.
-- **Not built yet:** the Pi 5 group, and the trial readings, as phases 2 and 3. Holding by magnets, bolts or latches on a top is not asked for in this phase.
+- **Not built in this phase:** the Pi 5 group, and the trial readings, built in phases 2 and 3. Holding by magnets, bolts or latches on a top is not asked for in this phase.
 
 ### What phase 2 changed
 
@@ -119,7 +122,7 @@ See *A stack top: things stacked on the box* in [Stackable items](../guides/stac
   and the slots are known only then, and before the plate is built.
 - **`stack_top` joins `GroupDesign` and `GroupEnclosure`**, and the group's build record carries `stack_top`, so `check-stack RECORD:top` reads it as it does an enclosure's. The record's `design` holds `stack_top`.
 - **A row too wide for the bed is refused with its cells,** by the same bed check as the plate. The two-bay Pi 5 row, 176 mm wide, is refused by the row's own bed check first.
-- **Not built yet:** the trials, phase 3.
+- **Not built in this phase:** the trials, built in phase 3.
 
 ### What phase 3 changed
 

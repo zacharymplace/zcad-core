@@ -20,7 +20,8 @@ here as the guide's lower half; the test fixture has its own design,
 [PCB test fixtures](pcb-test-fixtures.md). A holding nest with a floor, notches and a label,
 and an insert jig, are designed in [Nests and jigs](nests-and-jigs.md).
 
-This is a design, not built work. Nothing below exists in the code yet.
+**Status (2026-10-08): all four phases are built**, the last on 2026-10-01: `zcad-validation guide template`, `import`,
+`check`, `build`, `trial`, `status` and `derive`; see [Phases](#phases).
 
 ## What the engine already has
 
@@ -190,7 +191,8 @@ the pooled thermal coefficient is. Until there are trials it reports none.
 - **The bushing's figures are inline, not catalogued.** As the design proposed:
   a `bushing` section in the file with a required `source`, and a build record
   that says the figures are the user's own. No bushing type is added to the
-  hardware catalog until a datasheet has been read.
+  hardware catalog until a datasheet has been read. Since then,
+  `hardware/bushings.py` catalogues bushings from read datasheets.
 - **The chuck is found by sliding it, not by sweeping a fixed cylinder.** The
   design's check sent a chuck-wide cylinder along the axis. What matters is how
   far up the axis the chuck must stand to clear the plate and any flange, which
@@ -290,7 +292,8 @@ the pooled thermal coefficient is. Until there are trials it reports none.
   made for them.
 
 All four phases are built. A guide for a part that is neither flat-topped nor
-shouldered, a printed clamp, and a bushing catalog remain as listed below.
+shouldered, a printed clamp, and a drill catalog remain as listed below;
+bushings are catalogued in `hardware/bushings.py`.
 
 Each phase is one PR. Phases 1 to 3 add a way in and change no existing build.
 
@@ -305,8 +308,8 @@ Each phase is one PR. Phases 1 to 3 add a way in and change no existing build.
   sheet, and a pilot in soft metal, with a bushing. The engine does not model
   cutting force, heat, or what material a part is.
 - **Mesh models.** STL and OBJ parts have no solids to read; STEP only.
-- **A drill and bushing catalog.** The engine takes a drill's size as an input,
-  and a bushing is added when a datasheet has been read.
+- **A drill catalog.** The engine takes a drill's size as an input. Bushings
+  are catalogued from read datasheets in `hardware/bushings.py`.
 
 ## Open questions
 

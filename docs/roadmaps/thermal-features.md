@@ -235,7 +235,7 @@ A fan is hardware, so it goes in the catalog beside the boards:
   connector openings, so "no other opening" is never the case; the report
   says whether the other openings pass at least what the guard does.
 - **No duct.** As the design predicted, it was the thing dropped.
-- **Not in the group enclosure yet:** phase 4.
+- **Not in the group enclosure in this phase:** built in phase 4.
 
 ### What phase 4 changed
 

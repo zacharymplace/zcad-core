@@ -6,6 +6,8 @@ A drawer is held by nothing. [Stackable latches](stackable-latches.md) gave it a
 out of the front. That design set the real stop aside, saying only that it "needs the drawer lifted over it, and a drawer has 0.6 mm of air above it". This is the design for
 it: a **stop** that keeps a drawer in the frame when it is pulled out, and lets go when it is released.
 
+**Status (2026-10-08): both phases are built**, the last on 2026-10-02; see [Phases](#phases).
+
 ## What the engine does not claim
 
 - **No holding force.** The engine does not say how hard the stop holds against a pull, or how many releases it takes. A trial reads a force and a count.
@@ -107,7 +109,7 @@ See *A drawer that clicks shut* in [Stackable items](../guides/stackable-items.m
 - **The window** is 5.6 mm along the wall and 4.2 mm tall, through the wall, at every slot on both sides. Windows in slots closer than the printer's minimum wall plus the window's height are refused.
 - **Three checks, two of them against the real frame.** `stop_holds`: the bump pulled out the stop's travel sits in its window, and a millimetre farther strikes the window's front wall. `stop_releases`: a bump pushed
   in by the engagement passes the whole travel of the frame with its dimples and windows. And the frame's `stop_windows_open`: each window void with the wall solid just ahead of its front edge.
-- **Not built yet:** the trial readings, as phase 2.
+- **Not built in this phase:** the trial readings, built in phase 2.
 
 ### What phase 2 changed
 

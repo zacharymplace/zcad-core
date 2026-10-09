@@ -21,6 +21,9 @@ Validation Lab does not replace the geometry, retention, manufacturing, or
 physical-validation subsystems. It organizes their outputs into a traceable
 engineering history.
 
+**Status (2026-10-08): all seven phases are built**, the last on 2026-08-16: `zcad-validation target`, `candidate`,
+`trial`, `revision`, `review` and `status`. The physical loop and publication continue in [Next phases](next-phases.md).
+
 ## Operating principles
 
 1. Evidence is append-only by default.

@@ -16,6 +16,9 @@ This is the design for one **nest core** and two products on it:
 
 The guide stays as it is. It becomes the third product on the core, with no change to what it builds.
 
+**Status (2026-10-08): all five phases are built**, the last on 2026-10-02: `zcad-validation nest` and `jig`; see
+[Phases](#phases).
+
 ## What the engine does not claim
 
 The stance of the other designs carries over:

@@ -12,7 +12,8 @@ The engine already treats a board as data. This is the design for letting a
 user supply that data, and for making it from a STEP model, without any new
 code per board.
 
-This is a design, not built work. Nothing below exists in the code yet.
+**Status (2026-10-08): all four phases are built**, the last on 2026-09-30: `zcad-validation board check`, `template`,
+`import` and `promote`; see [Phases](#phases).
 
 ## What the engine needs from a board
 
