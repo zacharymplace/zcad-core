@@ -6,16 +6,22 @@ This roadmap sequences work after the completed Validation Lab phases and the
 September 2026 export-validation work. It builds on both tracks rather than
 adding new retention strategies or hardware families.
 
-## Current position (2026-10-07)
+## Current position (2026-10-08)
 
 | Phase | Status |
 |---|---|
 | 0 — Restore the gate | Complete |
 | 1 — Route Validation Lab through the export pipeline | Complete |
-| 2 — Close the physical loop | Four candidates rebuilt with connector reliefs and sliced; visual reviews pending, then blocked on printer access |
+| 2 — Close the physical loop | Four candidates rebuilt with connector reliefs and sliced; visual reviews pending, then the first print day |
 | 3 — Measurement feedback | Built for fixtures and enclosures; needs Phase 2 trial data |
 | 4 — Retention-strategy breadth | Pico 2, XIAO, and UNO R4 rebuilt and sliced; visual reviews and prints pending |
-| 5 — Publication and downstream integration | Not started |
+| 5 — Publication and downstream integration | Designed in [Publishing a promoted candidate](candidate-publication.md); built once a candidate is promoted |
+
+The current release is 0.9.0. The [z-cadalog](z-cadalog.md) lists every
+design built under `evidence/` with its status, read from its records: on
+2026-10-08 it held 40 designs, 14 of them on print day, 2 built, 17
+superseded and 7 examples. `python scripts/build-catalog.py --summary` says
+whether the published page still matches the evidence.
 
 Four candidates are rebuilt under generator 1.5.0, with the base relieved
 under every overhanging connector (see the visual reviews below). Each has
@@ -31,6 +37,14 @@ human visual review before it prints (see Phase 2):
 No candidate has been printed or promoted yet, and nothing is
 publication-eligible.
 
+The first print day is queued: the four candidates above, the two A1 mini
+PETG calibration coupons, the Pi 5 and XIAO ESP32-S3 enclosures, the
+two-bay Pi 5 group enclosure, and five Gridfinity parts (a 1×1 baseplate, a plain
+and a lipped 1×1×3 bin, and half-grid 1×1×3 and 2×2×3 bins). Each is sliced
+for the A1 mini and has an open trial, and `scripts/record-print-day.py`
+records the answers from the Fixture Fit Trials checklist in one pass (see
+the [Validation Lab workflow](../guides/validation-lab-workflow.md)).
+
 The wearable snap shells, Dexcom G7 r002 and Tandem Mobi r003, are registered
 from published sizes and pass every fit check, including clip strain and
 clearance measured against the device. They stay provisional until a caliper
@@ -40,10 +54,11 @@ capture of a real device replaces those sizes; see
 
 ### Blockers and open items
 
-1. **No printer access.** Phase 2 needs a print and test fit of each
-   candidate, recorded with `zcad-validation trial complete`. An enclosure
-   should go on the same print run (see the enclosure builder below), and the
-   Pi 5 group enclosure's base is the one worth printing first (see its section
+1. **Nothing is printed yet.** Phase 2 needs a print and test fit of each
+   candidate, recorded with `zcad-validation trial complete` or the print-day
+   script above, and each candidate needs its visual review first. The
+   enclosures and Gridfinity parts go on the same print run, and the Pi 5
+   group enclosure's base is the one worth printing first (see its section
    below).
 2. **GitHub Actions is disabled for the account**, so CI never runs on
    GitHub. The same gates run locally: `scripts/check.sh`, enforced by the
@@ -53,8 +68,9 @@ capture of a real device replaces those sizes; see
    skip wherever `evidence/` is absent, as it is in a linked worktree; they
    are marked `slow`, and
    `scripts/check.sh --fast` skips them for a quicker local loop. Tests run
-   in parallel with pytest-xdist: the full gate takes five to eight minutes
-   (2026-10-05; it took about a minute when the suite was smaller).
+   in parallel with pytest-xdist: the full gate, 2,931 tests, takes ten to
+   thirty minutes (2026-10-08; it took about a minute when the suite was
+   smaller).
    A slice that stalls is stopped after 900 s and a test that runs past 900 s
    fails (`pytest-timeout`), so a hang is a failure, not a wait.
 
@@ -115,6 +131,13 @@ other reservations in the table above stand for the rebuilt candidates.
 - **Pi 5 group enclosure** (new, 2026-09-29; see below): one enclosure around
   a row of Raspberry Pi 5 boards, with bays that hold a Pi, keep a place for
   one, or hold other hardware, from `zcad-validation enclosure-group`.
+- **Gridfinity** (2026-10-06; see [Gridfinity bins](gridfinity-bins.md) and
+  [half-grid bins](gridfinity-half-grid.md)): bins, baseplates and bins
+  fitted to a measured object, on the 42 mm grid or the 21 mm half grid,
+  sliced and recorded on print day from `zcad-validation gridfinity`.
+- **z-cadalog** (2026-10-08; see [z-cadalog](z-cadalog.md)): every built
+  design in one page, with an example of each product, rebuilt by
+  `scripts/build-catalog.py` and checked after each evidence backup.
 - **Validated export pipeline**: geometry inspection, design validation
   reports, STEP round-trip and STL topology checks, staged publication with
   rollback, and STL clearance and material probes. As of Phase 1, every
