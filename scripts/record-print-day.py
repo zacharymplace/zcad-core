@@ -25,8 +25,9 @@ each finished one:
   fitted with;
 - a joint coupon under ``evidence/joints/``: writes the trial's
   ``observations.json`` from the answer's checks and the reading of each rung
-  in its ``fit`` (``{"readings": {rung: reading}}``, a rung not named being
-  skipped), and runs ``zcad-validation joint trial complete``. Like a coupon it
+  in its ``fit`` (``{"readings": {rung: reading}}``: a fit rung's word, or a
+  snap rung's readings; a rung not named is skipped), and runs
+  ``zcad-validation joint trial complete``. Like a coupon it
   has no verdict: answered ``fail``, it did not print, so there is nothing to
   record.
 

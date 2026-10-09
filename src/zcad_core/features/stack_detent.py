@@ -51,6 +51,7 @@ from zcad_core.features.stack_latch import (
 )
 
 __all__ = [
+    "DEFAULT_DETENT_ENGAGEMENT_MM",
     "DEFAULT_ENGAGEMENT_MM",
     "ENGAGEMENT_RANGE_MM",
     "DetentPlan",
@@ -64,6 +65,10 @@ __all__ = [
     "stop_points",
 ]
 
+# The engagement a detent is built with when its stack file gives none: the latch's 0.4 mm,
+# the engine's own guess, until a joint profile's snap coupon measures one
+# (:func:`zcad_core.profiles.joints.measured_detent_engagement`).
+DEFAULT_DETENT_ENGAGEMENT_MM = 0.4
 # A bump is this long along the wall's height, and its tongue reaches this far down from the
 # rim: a half millimetre of tongue above and below the bump.
 BUMP_Z_MM = 3.0

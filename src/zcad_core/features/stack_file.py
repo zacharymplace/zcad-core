@@ -23,9 +23,9 @@ from typing import Any
 
 from zcad_core.features.guide_bores import printer_numbers
 from zcad_core.features.guide_common import IDENTIFIER, Findings, number, section
-from zcad_core.features.stack_detent import DEFAULT_ENGAGEMENT_MM as DETENT_DEFAULT_MM
+from zcad_core.features.mounts import flexure_strain_limit
+from zcad_core.features.stack_detent import DEFAULT_DETENT_ENGAGEMENT_MM, plan_detent
 from zcad_core.features.stack_detent import ENGAGEMENT_RANGE_MM as DETENT_RANGE_MM
-from zcad_core.features.stack_detent import plan_detent
 from zcad_core.features.stack_drawers import (
     DEFAULT_CLEARANCE_MM,
     plan_frame,
@@ -49,6 +49,7 @@ from zcad_core.features.stack_profile import (
     read_profile_file,
 )
 from zcad_core.features.stack_solids import DIVIDER_MM
+from zcad_core.profiles.joints import measured_detent_engagement
 
 STACK_SCHEMA_VERSION = "1.0.0"
 STACK_KIND = "stack"
@@ -596,12 +597,15 @@ def _detent_engagement(entry: Mapping[str, Any]) -> float | None:
 
 
 def detent_engagement(item: Item) -> float:
-    """The engagement an item's detent uses: its own, else the engine's."""
+    """The engagement an item's detent uses: its own, else the one an applied joint
+    profile measured, else the engine's."""
 
     if item.detent_engagement_mm is not None:
         return item.detent_engagement_mm
 
-    return DETENT_DEFAULT_MM
+    measured = measured_detent_engagement(flexure_strain_limit())
+
+    return DEFAULT_DETENT_ENGAGEMENT_MM if measured is None else measured
 
 
 def _latch_sides(entry: Mapping[str, Any]) -> tuple[str, ...]:

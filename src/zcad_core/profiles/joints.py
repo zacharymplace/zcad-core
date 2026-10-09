@@ -17,11 +17,21 @@ profile's fits:
 - ``press_fit_clearance_per_side``: the largest rung that is still a press, in
   both orientations, in every trial.
 
+The snap coupon's rungs are drawer detents built at engagements from 0.3 to
+0.6 mm, each tried for whether it clicks shut, holds a shake, lets go by hand and
+whitens. Its figure is read by every stack build with a drawer detent or stop:
+
+- ``detent_engagement_mm``: the smallest rung that clicks shut, holds, lets go
+  and does not whiten, in every trial.
+
 Where no rung meets a rule the figure is left out, with the reason, and the
-printer profile's own figure stands. Two distinct trials are needed. A rung
-measured with one ``hole_oversize`` says nothing about holes built with
-another, so the trials must agree on it, the profile records it, and a build
-whose printer profile has changed it is refused the profile.
+engine's own figure stands. Each family needs two distinct trials of its own; a
+family with fewer is left out of the profile, and one with none of either is
+refused. A fit rung measured with one ``hole_oversize`` says nothing about holes
+built with another, and a detent's tongue is sized from the strain limit, so a
+rung measured at one limit says nothing about a tongue sized for another: the
+trials of a family must agree on theirs, the profile records it, and a build
+whose figure has since changed is refused the profile.
 
 A build applies a profile for one command (:func:`measured_fits`), as a
 compensation profile's strain limit is applied; without one, nothing changes.
@@ -43,7 +53,7 @@ from typing import Any
 
 from zcad_core.profiles.trial_records import distinct_trial_records
 
-JOINT_PROFILE_SCHEMA_VERSION = "1.0.0"
+JOINT_PROFILE_SCHEMA_VERSION = "1.1.0"
 JOINT_TRIAL_RECORD = "joint-coupon-trial.json"
 DEFAULT_MINIMUM_TRIALS = 2
 ORIENTATIONS = ("in_layer", "across_layers")
@@ -51,10 +61,20 @@ ORIENTATIONS = ("in_layer", "across_layers")
 FIT_READINGS = ("wont_go", "press", "slides", "loose")
 SLIDING = "sliding_clearance_per_side"
 PRESS_FIT = "press_fit_clearance_per_side"
+DETENT = "detent_engagement_mm"
+# What a snap rung is tried for; every one is true or false, and a holding rung is
+# one that clicks shut, holds and lets go, and has not whitened.
+SNAP_READINGS = ("clicks_shut", "holds_shake", "lets_go", "whitened")
 RULES = {
     SLIDING: "the smallest rung that slides, in both orientations, in every trial",
     PRESS_FIT: "the largest rung that is still a press, in both orientations, in every trial",
+    DETENT: (
+        "the smallest rung that clicks shut, holds a shake, lets go by hand and does "
+        "not whiten, in every trial"
+    ),
 }
+NO_RUNG = "no rung meets the rule in every trial; the engine's own figure stands"
+NO_FIT = "no rung meets the rule in every trial; the printer profile's figure stands"
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -66,18 +86,36 @@ def _read(path: Path) -> dict[str, Any]:
     return payload
 
 
+def family_trials(
+    evidence_root: Path,
+    family: str,
+    *,
+    printer_profile_id: str,
+    material_profile_id: str,
+) -> list[tuple[Path, dict[str, Any]]]:
+    """Every joint coupon trial of one family for this printer and material, each
+    counted once."""
+
+    return [
+        (path, record)
+        for path, record in distinct_trial_records(evidence_root, JOINT_TRIAL_RECORD)
+        if record.get("family") == family
+        and record.get("printer_profile_id") == printer_profile_id
+        and record.get("material_profile_id") == material_profile_id
+    ]
+
+
 def fit_trials(
     evidence_root: Path, *, printer_profile_id: str, material_profile_id: str
 ) -> list[tuple[Path, dict[str, Any]]]:
     """Every fit coupon trial for this printer and material, each counted once."""
 
-    return [
-        (path, record)
-        for path, record in distinct_trial_records(evidence_root, JOINT_TRIAL_RECORD)
-        if record.get("family") == "fit"
-        and record.get("printer_profile_id") == printer_profile_id
-        and record.get("material_profile_id") == material_profile_id
-    ]
+    return family_trials(
+        evidence_root,
+        "fit",
+        printer_profile_id=printer_profile_id,
+        material_profile_id=material_profile_id,
+    )
 
 
 def _rung_holds(trials: list[dict[str, Any]], clearance: float, reading: str) -> bool:
@@ -121,7 +159,7 @@ def choose_fits(trials: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             figures[figure] = {
                 "value_mm": None,
                 "rule": RULES[figure],
-                "reason": "no rung meets the rule in every trial; the printer profile's figure stands",
+                "reason": NO_FIT,
             }
         else:
             figures[figure] = {"value_mm": value, "rule": RULES[figure]}
@@ -137,6 +175,54 @@ def choose_fits(trials: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return figures
 
 
+def _holds(reading: dict[str, Any]) -> bool:
+    return (
+        reading["clicks_shut"]
+        and reading["holds_shake"]
+        and reading["lets_go"]
+        and not reading["whitened"]
+    )
+
+
+def choose_detent(trials: list[dict[str, Any]]) -> dict[str, Any]:
+    """The detent's engagement by its rule, or why there is none."""
+
+    engagements = sorted(
+        {
+            float(entry["engagement_mm"])
+            for trial in trials
+            for entry in trial["readings"]
+        }
+    )
+
+    for engagement in engagements:
+        if all(
+            any(
+                abs(entry["engagement_mm"] - engagement) < 1e-9 and _holds(entry)
+                for entry in trial["readings"]
+            )
+            for trial in trials
+        ):
+            return {"value_mm": engagement, "rule": RULES[DETENT]}
+
+    return {"value_mm": None, "rule": RULES[DETENT], "reason": NO_RUNG}
+
+
+def _agreed(found: list[tuple[Path, dict[str, Any]]], field: str, what: str) -> float:
+    """The one value of ``field`` every trial of a family was built with."""
+
+    values = {float(record[field]) for _, record in found}
+
+    if len(values) > 1:
+        raise ValueError(
+            f"The {what} trials were built with different {field} figures "
+            f"({', '.join(f'{value:g}' for value in sorted(values))}); a rung measured "
+            "with one says nothing about the other"
+        )
+
+    return values.pop()
+
+
 def derive_joint_profile(
     evidence_root: Path,
     *,
@@ -145,30 +231,45 @@ def derive_joint_profile(
     minimum_trials: int = DEFAULT_MINIMUM_TRIALS,
     previous: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Choose each fit figure from the recorded trials, as the next version of a
-    profile."""
+    """Choose each figure from the recorded trials of each family that has enough,
+    as the next version of a profile."""
 
-    found = fit_trials(
-        evidence_root,
-        printer_profile_id=printer_profile_id,
-        material_profile_id=material_profile_id,
-    )
+    families = {
+        family: family_trials(
+            evidence_root,
+            family,
+            printer_profile_id=printer_profile_id,
+            material_profile_id=material_profile_id,
+        )
+        for family in ("fit", "snap")
+    }
+    ready = {
+        family: found
+        for family, found in families.items()
+        if len(found) >= minimum_trials
+    }
 
-    if len(found) < minimum_trials:
+    if not ready:
+        counts = ", ".join(
+            f"{len(found)} {family}" for family, found in families.items()
+        )
         raise ValueError(
-            f"{len(found)} fit coupon trial(s) for {printer_profile_id} with "
-            f"{material_profile_id}; a joint profile needs at least {minimum_trials}"
+            f"Joint coupon trials for {printer_profile_id} with {material_profile_id}: "
+            f"{counts}; a joint profile needs at least {minimum_trials} of one family"
         )
 
-    oversizes = {float(record["hole_oversize_mm"]) for _, record in found}
+    figures: dict[str, dict[str, Any]] = {}
+    oversize = strain_limit = None
 
-    if len(oversizes) > 1:
-        raise ValueError(
-            "The fit coupon trials were built with different hole_oversize figures "
-            f"({', '.join(f'{value:g}' for value in sorted(oversizes))} mm); a rung "
-            "measured with one says nothing about the other"
-        )
+    if "fit" in ready:
+        oversize = _agreed(ready["fit"], "hole_oversize_mm", "fit coupon")
+        figures.update(choose_fits([record for _, record in ready["fit"]]))
 
+    if "snap" in ready:
+        strain_limit = _agreed(ready["snap"], "strain_limit", "snap coupon")
+        figures[DETENT] = choose_detent([record for _, record in ready["snap"]])
+
+    used = [entry for found in ready.values() for entry in found]
     history = list(previous.get("history", [])) if previous else []
 
     if previous:
@@ -187,14 +288,23 @@ def derive_joint_profile(
         "material_profile_id": material_profile_id,
         "version": (previous["version"] + 1) if previous else 1,
         "derived_at_utc": datetime.now(UTC).isoformat(),
-        "hole_oversize_mm": oversizes.pop(),
+        "hole_oversize_mm": oversize,
+        "strain_limit": strain_limit,
+        "families": {
+            family: (
+                f"{len(found)} trial(s)"
+                if family in ready
+                else f"{len(found)} trial(s), {minimum_trials} needed: left out"
+            )
+            for family, found in families.items()
+        },
         "generator_versions": sorted(
-            {str(record["generator_version"]) for _, record in found}
+            {str(record["generator_version"]) for _, record in used}
         ),
-        "figures": choose_fits([record for _, record in found]),
+        "figures": figures,
         "sources": [
             {"path": str(path), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
-            for path, _ in found
+            for path, _ in used
         ],
         "history": history,
     }
@@ -226,17 +336,36 @@ class JointProfile:
     payload: dict[str, Any]
 
     @property
-    def hole_oversize_mm(self) -> float:
-        return float(self.payload["hole_oversize_mm"])
+    def hole_oversize_mm(self) -> float | None:
+        value = self.payload.get("hole_oversize_mm")
+
+        return None if value is None else float(value)
+
+    @property
+    def strain_limit(self) -> float | None:
+        value = self.payload.get("strain_limit")
+
+        return None if value is None else float(value)
+
+    def _measured(self, figure: str) -> float | None:
+        entry = self.payload["figures"].get(figure) or {}
+        value = entry.get("value_mm")
+
+        return None if value is None else float(value)
 
     def fits(self) -> dict[str, float]:
-        """The figures the profile measured; one it could not choose is left out."""
+        """The clearances the profile measured; one it could not choose is left out."""
 
         return {
-            figure: float(entry["value_mm"])
-            for figure, entry in self.payload["figures"].items()
-            if entry.get("value_mm") is not None
+            figure: value
+            for figure in (SLIDING, PRESS_FIT)
+            if (value := self._measured(figure)) is not None
         }
+
+    def detent_engagement_mm(self) -> float | None:
+        """The detent's measured engagement, or None when the profile has none."""
+
+        return self._measured(DETENT)
 
     def reference(self) -> dict[str, Any]:
         return {
@@ -245,6 +374,7 @@ class JointProfile:
             "path": str(self.path),
             "sha256": hashlib.sha256(self.path.read_bytes()).hexdigest(),
             "fits_mm": self.fits(),
+            "detent_engagement_mm": self.detent_engagement_mm(),
         }
 
 
@@ -290,14 +420,50 @@ def fits_for(given: dict[str, float]) -> dict[str, float]:
     if profile is None:
         return given
 
-    oversize = given.get("hole_oversize")
+    fits = profile.fits()
 
-    if oversize is not None and abs(oversize - profile.hole_oversize_mm) > 1e-9:
+    if not fits:
+        return given
+
+    oversize = given.get("hole_oversize")
+    measured_on = profile.hole_oversize_mm
+
+    if (
+        oversize is not None
+        and measured_on is not None
+        and abs(oversize - measured_on) > 1e-9
+    ):
         raise ValueError(
             f"The joint profile {profile.path} was measured on holes built with "
-            f"hole_oversize {profile.hole_oversize_mm:g} mm, but the printer profile "
+            f"hole_oversize {measured_on:g} mm, but the printer profile "
             f"now says {oversize:g} mm; print a new fit coupon or build without "
             "--joint-profile"
         )
 
-    return {**given, **profile.fits()}
+    return {**given, **fits}
+
+
+def measured_detent_engagement(strain_limit: float) -> float | None:
+    """The applied joint profile's detent engagement, for a build held to
+    ``strain_limit``; None when no profile is applied or it has none.
+
+    Refused when the build's strain limit is not the one the profile's rungs were
+    built at: their tongues were sized for another."""
+
+    profile = applied_joint_profile()
+    engagement = None if profile is None else profile.detent_engagement_mm()
+
+    if profile is None or engagement is None:
+        return None
+
+    measured_at = profile.strain_limit
+
+    if measured_at is not None and abs(measured_at - strain_limit) > 1e-9:
+        raise ValueError(
+            f"The joint profile {profile.path} measured the detent with tongues sized for "
+            f"a strain limit of {100 * measured_at:g} per cent, but this build is held to "
+            f"{100 * strain_limit:g} per cent; print a new snap coupon at this limit or "
+            "build without --joint-profile"
+        )
+
+    return engagement

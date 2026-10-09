@@ -6,15 +6,16 @@ The engine states no strength, holding force or load claim, and a figure it did 
 
 **Scope.** Module-level numeric constants, and the non-zero numeric defaults of dataclass fields and function parameters. A default of zero (no offset, none) is not a figure and is not listed. Not covered: a number inside a function body, a default given by `field(...)` or a factory, a keyword argument at a call (so a module-level instance such as a display's is not listed), and a number in a data file. A status is only as good as what the code says: a `sourced` figure is as the code cites it and has not been re-checked against the standard. An `unstated` figure is not wrong; it has no basis written down. Adding a figure without recording it fails the test suite.
 
-## The 808 figures
+## The 820 figures
 
 | Status | Count | Meaning |
 | --- | ---: | --- |
 | `sourced` | 50 | From a named standard, datasheet or format (the source is as the code cites it; not re-checked) |
 | `estimated` | 9 | Read off a drawing's scale or a stated rough estimate: the source does not state it outright |
-| `design_default` | 106 | The engine's own choice, which the code says is a default, a design value or a guess |
+| `measured` | 1 | The engine's default until a build applies a joint profile that measured it |
+| `design_default` | 113 | The engine's own choice, which the code says is a default, a design value or a guess |
 | `example` | 3 | An illustrative figure, not claimed right for any real part |
-| `unstated` | 640 | No basis is stated in the code |
+| `unstated` | 644 | No basis is stated in the code |
 
 ## Sourced
 
@@ -85,6 +86,12 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | `hardware/electronics/raspberry_pi.py:RaspberryPi5Spec.fan_center_y_mm` | `0.1` | Read off the scale of Raspberry Pi's drawings (RP-008347, RP-008187), as hardware/electronics/raspberry_pi.py states; not dimensioned there |
 | `hardware/wearables/dexcom.py:DexcomG7Spec.adhesive_patch_diameter_mm` | `42.0` | A rough visual estimate with no manufacturer source, as hardware/wearables/dexcom.py states |
 
+## Measured
+
+| Figure | Value | Basis |
+| --- | --- | --- |
+| `features/stack_detent.py:DEFAULT_DETENT_ENGAGEMENT_MM` | `0.4` | The latch's 0.4 mm, the engine's own guess, as features/stack_detent.py states. Measured as the joint profile's `detent_engagement_mm`. |
+
 ## Design default
 
 | Figure | Value | Basis |
@@ -150,6 +157,13 @@ The engine states no strength, holding force or load claim, and a figure it did 
 | `features/nest_features.py:TAB_WIDTH_MM` | `10.0` | A size in features/nest_features.py, of which the module says 'every size here except the user's strap figures is the engine's own design choice' |
 | `features/nest_file.py:NOTCH_MARGIN_MM` | `3.0` | The engine's own design choice, as features/nest_file.py states of a finger notch |
 | `features/nest_file.py:NOTCH_WIDTH_MM` | `12.0` | The engine's own design choice, as features/nest_file.py states of a finger notch |
+| `features/snap_coupon.py:DRAWER_FLOOR_MM` | `1.2` | The snap coupon's own design choice, as features/snap_coupon.py states |
+| `features/snap_coupon.py:DRAWER_HEIGHT_MM` | `9.0` | The snap coupon's own design choice, as features/snap_coupon.py states |
+| `features/snap_coupon.py:DRAWER_WALL_MM` | `1.2` | The snap coupon's own design choice, as features/snap_coupon.py states |
+| `features/snap_coupon.py:FRAME_WALL_MM` | `2.0` | The snap coupon's own design choice, as features/snap_coupon.py states |
+| `features/snap_coupon.py:INNER_DEPTH_MM` | `32.0` | The snap coupon's own design choice, as features/snap_coupon.py states |
+| `features/snap_coupon.py:INNER_WIDTH_MM` | `22.0` | The snap coupon's own design choice, as features/snap_coupon.py states |
+| `features/snap_coupon.py:SNAP_ENGAGEMENTS_MM` | `(0.3, 0.4, 0.5, 0.6)` | The rungs the snap coupon sweeps, from the least engagement the engine builds, as features/snap_coupon.py states |
 | `features/stack_detent.py:BACK_MARGIN_MM` | `2.0` | A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial' |
 | `features/stack_detent.py:BUMP_BELOW_RIM_MM` | `2.0` | A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial' |
 | `features/stack_detent.py:BUMP_FROM_BACK_MM` | `14.0` | A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial' |
@@ -234,7 +248,7 @@ Each fan, bushing and pogo pin records where its figures came from, whether the 
 | `MILLMAX-0906-0-15-20-76-14-11-0` | pogo pin | yes | barrel_diameter_mm, force_at_travel_mm |
 | `MILLMAX-0906-1-15-20-75-14-11-0` | pogo pin | yes | barrel_diameter_mm, force_at_travel_mm |
 
-## Unstated (640)
+## Unstated (644)
 
 No basis is written down for these. Moving one out of this list means finding where its value came from, or saying it is the engine's own choice, in `docs/figures/register.json`.
 
@@ -895,6 +909,13 @@ Reviewed on 2026-10-03. **How:** for each unstated figure, the comment lines bes
 **`features/slots.py`**
 
 - `cut_through_slot(angle)` = `90.0`
+
+**`features/snap_coupon.py`**
+
+- `DOT_DEPTH_MM` = `0.6`
+- `DOT_DIAMETER_MM` = `1.6`
+- `DOT_PITCH_MM` = `3.0`
+- `RUNG_GAP_MM` = `6.0`
 
 **`features/stack.py`**
 
