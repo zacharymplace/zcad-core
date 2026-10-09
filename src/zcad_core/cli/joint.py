@@ -1,18 +1,25 @@
 """zcad-validation joint: build, record and derive from joint coupons.
 
-See :mod:`zcad_core.features.joint_coupon` for what a coupon sweeps and
-:mod:`zcad_core.profiles.joints` for how its trials choose a profile's figures.
+See :mod:`zcad_core.features.joint_coupon` (the fit coupon) and
+:mod:`zcad_core.features.snap_coupon` (the snap coupon) for what each sweeps, and
+:mod:`zcad_core.profiles.joints` for how their trials choose a profile's figures.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import cadquery as cq
 
-from zcad_core.cli._common import emit
+from zcad_core.cli._common import (
+    add_compensation_profile_argument,
+    add_joint_profile_argument,
+    emit,
+)
 from zcad_core.cli.slice_check import rebuild_recipe, write_print_copies
 from zcad_core.features.guide_bores import printer_numbers
 from zcad_core.features.joint_coupon import (
@@ -24,6 +31,13 @@ from zcad_core.features.joint_coupon import (
     sha256,
     start_joint_trial,
     write_fit_coupon_record,
+)
+from zcad_core.features.snap_coupon import (
+    build_snap_coupon,
+    complete_snap_trial,
+    snap_coupon_checks,
+    start_snap_trial,
+    write_snap_coupon_record,
 )
 from zcad_core.geometry.cadquery_support import workplane_shape
 from zcad_core.printing import SliceError, slice_models
@@ -80,57 +94,147 @@ def _joint_build_fit(args: argparse.Namespace) -> int:
         "checks": checks,
     }
     # It prints as built: flat on the bed, the wall standing at the back.
-    shapes = {"coupon": shape}
+    _print(args, payload, record, {"coupon": shape}, {"coupon": stl})
+    emit(payload)
+
+    return 0
+
+
+def _print(
+    args: argparse.Namespace,
+    payload: dict[str, object],
+    record: Path,
+    shapes: dict[str, Any],
+    stls: dict[str, Path],
+) -> None:
+    """Write the print copies, or slice them onto one plate and open the first trial."""
 
     if args.print_copies and not args.slice:
         payload["print_copies"] = write_print_copies(
             args.output_directory / "print", args.name, shapes
         )
 
-    if args.slice:
-        models = write_print_copies(args.output_directory / "print", args.name, shapes)
+    if not args.slice:
+        return
 
-        try:
-            sliced = slice_models(
-                [Path(path) for path in models.values()],
-                args.output_directory / "slice",
-                slicer_profile_path=args.slicer_profile,
-                summary_fields={
-                    "design_name": args.name,
-                    "build_record_sha256": sha256(record),
-                    "rebuild": rebuild_recipe(
-                        getattr(args, "argv", None), {"coupon": stl}
-                    ),
-                },
-            )
-        except SliceError as error:
-            raise ValueError(str(error)) from error
+    models = write_print_copies(args.output_directory / "print", args.name, shapes)
 
-        summary = sliced.summary
-        payload["print"] = {
-            "gcode": str(sliced.gcode_path),
-            "estimated_print_minutes": round(
-                summary["estimated_print_time_seconds"] / 60
-            ),
-            "filament_used_g": round(summary["filament_used_g"], 1),
-            "slicer_warning": summary["slicer_warning"],
-            "trial": str(start_joint_trial(record)),
-        }
+    try:
+        sliced = slice_models(
+            [Path(path) for path in models.values()],
+            args.output_directory / "slice",
+            slicer_profile_path=args.slicer_profile,
+            summary_fields={
+                "design_name": args.name,
+                "build_record_sha256": sha256(record),
+                "rebuild": rebuild_recipe(getattr(args, "argv", None), stls),
+            },
+        )
+    except SliceError as error:
+        raise ValueError(str(error)) from error
 
+    summary = sliced.summary
+    payload["print"] = {
+        "gcode": str(sliced.gcode_path),
+        "estimated_print_minutes": round(summary["estimated_print_time_seconds"] / 60),
+        "filament_used_g": round(summary["filament_used_g"], 1),
+        "slicer_warning": summary["slicer_warning"],
+        "trial": str(TRIALS[_family(record)][0](record)),
+    }
+
+
+def _joint_build_snap(args: argparse.Namespace) -> int:
+    """Build the snap coupon, write its record, and slice it if asked."""
+
+    if (args.output_directory / BUILD_RECORD).exists():
+        raise FileExistsError(
+            f"A joint coupon is already built in {args.output_directory}; build the "
+            "next one in its own folder"
+        )
+
+    printer_profile = load_printer_profile(args.printer_profile)
+    fits, least_wall, _ = printer_numbers(printer_profile)
+    coupon = build_snap_coupon(fits["sliding_clearance_per_side"], least_wall)
+    checks = snap_coupon_checks(coupon, printer_profile.get("build_volume_mm"))
+    failed = sorted(name for name, check in checks.items() if not check["passed"])
+
+    if failed:
+        raise ValueError(f"The coupon fails its checks: {', '.join(failed)}")
+
+    args.output_directory.mkdir(parents=True, exist_ok=True)
+    shapes = {
+        kind: workplane_shape(coupon.pieces(kind)) for kind in ("frame", "drawer")
+    }
+    stls = {}
+
+    for kind, shape in shapes.items():
+        stls[f"{kind}s"] = args.output_directory / f"{args.name}-{kind}s.stl"
+        cq.exporters.export(shape, str(stls[f"{kind}s"]))
+
+    record = write_snap_coupon_record(
+        coupon,
+        name=args.name,
+        stl_paths=stls,
+        output_directory=args.output_directory,
+        printer_profile_id=str(printer_profile["profile_id"]),
+        checks=checks,
+    )
+    payload: dict[str, object] = {
+        "build_record": str(record),
+        "parts": {part: {"stl": str(stl)} for part, stl in stls.items()},
+        "size_mm": [round(value, 1) for value in coupon.size_mm],
+        "rungs": {
+            rung.name: {
+                "engagement_mm": rung.engagement_mm,
+                "tongue_length_mm": round(rung.detent.length_mm, 2),
+                "strain_percent": round(100 * rung.detent.strain, 2),
+            }
+            for rung in coupon.rungs
+        },
+        "clearance_mm": coupon.clearance_mm,
+        "strain_limit": coupon.strain_limit,
+        "checks": checks,
+    }
+    # Each frame and drawer prints as built, floor down.
+    _print(
+        args,
+        payload,
+        record,
+        {f"{kind}s": shape for kind, shape in shapes.items()},
+        stls,
+    )
     emit(payload)
 
     return 0
 
 
+TRIALS: dict[str, tuple[Callable[[Path], Path], Callable[..., Path]]] = {
+    "fit": (start_joint_trial, complete_joint_trial),
+    "snap": (start_snap_trial, complete_snap_trial),
+}
+
+
+def _family(build_record: Path) -> str:
+    family = str(json.loads(build_record.read_text(encoding="utf-8")).get("family"))
+
+    if family not in TRIALS:
+        raise ValueError(
+            f"{build_record} is not a joint coupon this engine knows: {family}"
+        )
+
+    return family
+
+
 def _joint_trial_start(args: argparse.Namespace) -> int:
-    trial = start_joint_trial(args.build_record)
+    trial = TRIALS[_family(args.build_record)][0](args.build_record)
     emit({"trial": str(trial), "observations": str(trial / "observations.json")})
 
     return 0
 
 
 def _joint_trial_complete(args: argparse.Namespace) -> int:
-    record = complete_joint_trial(
+    build_record = args.trial_directory.parent.parent / BUILD_RECORD
+    record = TRIALS[_family(build_record)][1](
         args.trial_directory,
         material_profile_id=args.material_profile,
         notes=args.notes,
@@ -141,7 +245,7 @@ def _joint_trial_complete(args: argparse.Namespace) -> int:
 
 
 def _joint_derive(args: argparse.Namespace) -> int:
-    """Choose each fit figure from the recorded trials, as the next version."""
+    """Choose each figure from the recorded trials, as the next version."""
 
     output = args.output or (
         Path("profiles/joints")
@@ -217,6 +321,30 @@ def register(
     )
     fit.add_argument("--slicer-profile", type=Path, default=DEFAULT_SLICER_PROFILE)
     fit.set_defaults(handler=_joint_build_fit)
+    snap = families.add_parser(
+        "snap",
+        help="drawer detents at 0.3 to 0.6 mm engagement, each a drawer in a small frame",
+    )
+    snap.add_argument("--output-directory", required=True, type=Path)
+    snap.add_argument("--name", default="snap-coupon")
+    snap.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
+    snap.add_argument(
+        "--slice",
+        action="store_true",
+        help=(
+            "also slice it with Bambu Studio, in <output-directory>/slice, and "
+            "open the first trial"
+        ),
+    )
+    snap.add_argument(
+        "--print-copies",
+        action="store_true",
+        help="write the STLs the slicer would be given, in <output-directory>/print",
+    )
+    snap.add_argument("--slicer-profile", type=Path, default=DEFAULT_SLICER_PROFILE)
+    add_compensation_profile_argument(snap)
+    add_joint_profile_argument(snap)
+    snap.set_defaults(handler=_joint_build_snap)
 
     trial = commands.add_parser("trial", help="record a print of a joint coupon")
     trial_commands = trial.add_subparsers(dest="trial_command", required=True)

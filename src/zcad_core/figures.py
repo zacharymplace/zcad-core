@@ -17,6 +17,9 @@ listed. The statuses are:
   given. The source is as the code cites it; the register does not re-check it.
 - ``estimated``: read off a drawing's scale, or a stated rough estimate: from a
   named source that does not state it outright, as the code says.
+- ``measured``: the engine's own default until a build applies a joint profile
+  that measured it (:mod:`zcad_core.profiles.joints`); the entry's ``measures``
+  names the profile's figure.
 - ``design_default``: the engine's own choice, which the code itself says is a
   default, a design value or a guess, and that a trial or the user may replace.
 - ``example``: an illustrative figure, not claimed right for any real part.
@@ -43,10 +46,11 @@ from pathlib import Path
 from typing import Any
 
 PACKAGE = Path(__file__).resolve().parent
-STATUSES = ("sourced", "estimated", "design_default", "example", "unstated")
+STATUSES = ("sourced", "estimated", "measured", "design_default", "example", "unstated")
 STATUS_MEANING = {
     "sourced": "From a named standard, datasheet or format (the source is as the code cites it; not re-checked)",
     "estimated": "Read off a drawing's scale or a stated rough estimate: the source does not state it outright",
+    "measured": "The engine's default until a build applies a joint profile that measured it",
     "design_default": "The engine's own choice, which the code says is a default, a design value or a guess",
     "example": "An illustrative figure, not claimed right for any real part",
     "unstated": "No basis is stated in the code",
@@ -284,6 +288,8 @@ def problems(register: dict[str, dict[str, str]], figures: list[Figure]) -> list
             )
         elif status in NEEDS_SOURCE and not entry.get("source", "").strip():
             issues.append(f"{key} is {status} but says nothing of where it is from")
+        elif status == "measured" and not entry.get("measures", "").strip():
+            issues.append(f"{key} is measured but names no joint profile figure")
 
     return issues
 
@@ -399,7 +405,7 @@ def render(
             f"| `{status}` | {counts.get(status, 0)} | {STATUS_MEANING[status]} |"
         )
 
-    for status in ("sourced", "estimated", "design_default", "example"):
+    for status in ("sourced", "estimated", "measured", "design_default", "example"):
         rows = sorted(
             key for key, entry in register.items() if entry.get("status") == status
         )
@@ -414,6 +420,11 @@ def render(
             figure = by_key[key]
             entry = register[key]
             basis = entry.get("source") or entry.get("note") or figure.comment
+
+            if status == "measured":
+                basis = (
+                    f"{basis} Measured as the joint profile's `{entry['measures']}`."
+                )
             lines.append(f"| `{key}` | `{_cell(figure.value)}` | {_cell(basis)} |")
 
     lines += ["", "## Catalogued hardware", ""]

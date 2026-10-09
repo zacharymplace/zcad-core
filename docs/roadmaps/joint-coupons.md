@@ -16,8 +16,8 @@ strain limit, and `compensation derive` turns two such trials into a profile eve
 print per joint family that sweeps the deciding figure across a ladder of rungs, so one trial shows where the joint starts to work and where it
 stops, and two trials make a profile.
 
-**Status (2026-10-09): phase 1 is built.** `zcad-validation joint build fit`, `joint trial` and `joint derive`; see
-[Phase 1, as built](#phase-1-as-built) and the guide, [Measuring fits with a joint coupon](../guides/joint-coupons.md).
+**Status (2026-10-09): phases 1 and 2 are built.** `zcad-validation joint build fit` and `joint build snap`, `joint trial` and
+`joint derive`; see [Phase 1, as built](#phase-1-as-built), [Phase 2, as built](#phase-2-as-built) and the guide, [Measuring fits with a joint coupon](../guides/joint-coupons.md).
 
 ## What the engine does not claim
 
@@ -102,11 +102,14 @@ lists each coupon as a design.
 
 1. **The fit coupon and the joint profile (built).** `joint build fit`, its trial, `joint derive` for the two printer-profile clearances, and the
    products that read them taking the profile's figures when it exists. Exit: a fit coupon is on print day.
-2. **The snap coupon.** The hook-and-keeper rungs built from the products' own snap code, the engagement figures in the profile, the snap
-   lid, the stack latch and the detents reading them, and the register's **measured** status.
-3. **The boss and pocket coupons.** The insert pocket and boss wall, the magnet and pin pockets, and the enclosure, stack, Gridfinity and fixture
+2. **The snap coupon, for the drawer detent (built).** Detent rungs built by the stack's own detent code, the detent's engagement in the
+   profile, stack builds reading it, and the register's **measured** status. Narrowed from every snap; see the as-built notes.
+3. **The other snaps.** The snap lid, the slide lid and the cradle and retainer clips take their engagement as a parameter, the snap lid gains
+   the flexure check the others have, and each gets a row on the snap coupon and a figure in the profile. The stack latch joins once its rungs
+   are not capped by one profile's latch window.
+4. **The boss and pocket coupons.** The insert pocket and boss wall, the magnet and pin pockets, and the enclosure, stack, Gridfinity and fixture
    builds reading them.
-4. **Stale rungs.** A profile figure whose rungs were built under an older generator than the product now builds is reported, not applied, and
+5. **Stale rungs.** A profile figure whose rungs were built under an older generator than the product now builds is reported, not applied, and
    `joint status` lists what needs reprinting.
 
 Each phase is one PR, and a build without a joint profile is unchanged in every phase.
@@ -130,11 +133,38 @@ Each phase is one PR, and a build without a joint profile is unchanged in every 
   cover, so phase 1 has no registered figure to mark; the snap coupon's engagements are code constants and are.
 - **Print day.** `record-print-day.py` records a joint coupon from the answer's `fit.readings`; the z-cadalog lists it as a joint coupon.
 
+### Phase 2, as built
+
+`features/snap_coupon.py`, with the snap family added to `profiles/joints.py` and `cli/joint.py`.
+
+- **Narrowed to the drawer detent.** Built by each product's own code, as the design requires, only the detent took its engagement as a
+  parameter across a useful range. The snap lid and the slide lid read theirs from module constants (the snap lid has no flexure check at
+  all); the clips take theirs but no build sets it or records it; and the stack latch's planner caps the Gridfinity profile's latch at 0.4 mm.
+  Those wait for phase 3 rather than a coupon that measures a copy of them.
+- **Four rungs, not five.** 0.3, 0.4, 0.5 and 0.6 mm: the stack's planners refuse an engagement under 0.3 mm, so a 0.2 mm rung cannot be
+  built by the product's code.
+- **A rung is a drawer in a frame.** A hand-made frame plan (22 x 32 mm inside, a 2 mm wall) through `plan_detent`; the drawer from
+  `drawer_solid`, `cut_tongues` and `add_bumps`; the dimples by `cut_dimples` in a box frame open at the front, which stands in for a
+  product frame's foot and ledges, neither of which touches the detent. Tests show each shut drawer clears its frame and each bump would
+  strike the wall without its dimple. Dots in each drawer's floor and frame's roof number the rungs. 122 x 78 x 13 mm on the bed, about 21 minutes and 8 g of PETG.
+- **The tongue prints as a cantilever.** Bambu Studio warns of a floating cantilever on the drawers: the tongue's underside, about 8 mm
+  long, printed over the slit that frees it. A stack's own drawers are built by the same code and print the same way; the coupon keeps it,
+  so its trial says whether it sags, rather than the coupon testing a tongue the products do not print.
+- **Held to a strain limit.** The tongue's length is solved from the limit the build is held to, so the record and the profile keep that
+  limit, and a stack build held to another is refused the profile's engagement. The rungs are built with the printer's sliding clearance,
+  which a joint profile's fit can supply.
+- **The rule.** The detent's engagement is the smallest rung that clicks shut, holds a shake, lets go by hand and does not whiten, in every
+  trial; a spring scale's pull is recorded where given. A family with fewer than two trials is left out of the profile, so a fit and a snap
+  coupon each make their own figures.
+- **Applied in `detent_engagement`.** A stack item's own `detent.engagement_mm` wins; else the applied profile's; else
+  `DEFAULT_DETENT_ENGAGEMENT_MM`, 0.4 mm, now a constant of the detent's own and the register's first **measured** figure (its `measures`
+  names the profile's `detent_engagement_mm`). The latch's shared 0.4 mm is left as it was.
+
 ## Open questions
 
 - **Whether the snap coupon needs a rung per reach.** A latch's tongue and a lid's skirt bend over different lengths; engagement may not carry
-  between them. The proposal is one reach per product family on the coupon, three hook-and-keeper pairs a rung, and to split the figure only if
-  the first trials disagree.
+  between them. Phase 2 measures the detent alone, as a figure of its own; phase 3 adds each snap as its own row and figure rather than
+  carrying the detent's to them.
 - **Whether the fit coupon's two orientations should become two figures.** A peg in a layer and one across layers fit differently; the proposal is
   to record both and choose the larger clearance until a product needs them apart.
 - **Whether the joint profile belongs inside the compensation profile.** They are derived and read the same way; the proposal is to keep them

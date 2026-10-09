@@ -3,6 +3,7 @@
   "statuses": {
     "sourced": "From a named standard, datasheet or format (the source is as the code cites it; not re-checked)",
     "estimated": "Read off a drawing's scale or a stated rough estimate: the source does not state it outright",
+    "measured": "The engine's default until a build applies a joint profile that measured it",
     "design_default": "The engine's own choice, which the code says is a default, a design value or a guess",
     "example": "An illustrative figure, not claimed right for any real part",
     "unstated": "No basis is stated in the code"
@@ -1656,6 +1657,46 @@
     "features/slots.py:cut_through_slot(angle)": {
       "status": "unstated"
     },
+    "features/snap_coupon.py:DOT_DEPTH_MM": {
+      "status": "unstated"
+    },
+    "features/snap_coupon.py:DOT_DIAMETER_MM": {
+      "status": "unstated"
+    },
+    "features/snap_coupon.py:DOT_PITCH_MM": {
+      "status": "unstated"
+    },
+    "features/snap_coupon.py:DRAWER_FLOOR_MM": {
+      "status": "design_default",
+      "note": "The snap coupon's own design choice, as features/snap_coupon.py states"
+    },
+    "features/snap_coupon.py:DRAWER_HEIGHT_MM": {
+      "status": "design_default",
+      "note": "The snap coupon's own design choice, as features/snap_coupon.py states"
+    },
+    "features/snap_coupon.py:DRAWER_WALL_MM": {
+      "status": "design_default",
+      "note": "The snap coupon's own design choice, as features/snap_coupon.py states"
+    },
+    "features/snap_coupon.py:FRAME_WALL_MM": {
+      "status": "design_default",
+      "note": "The snap coupon's own design choice, as features/snap_coupon.py states"
+    },
+    "features/snap_coupon.py:INNER_DEPTH_MM": {
+      "status": "design_default",
+      "note": "The snap coupon's own design choice, as features/snap_coupon.py states"
+    },
+    "features/snap_coupon.py:INNER_WIDTH_MM": {
+      "status": "design_default",
+      "note": "The snap coupon's own design choice, as features/snap_coupon.py states"
+    },
+    "features/snap_coupon.py:RUNG_GAP_MM": {
+      "status": "unstated"
+    },
+    "features/snap_coupon.py:SNAP_ENGAGEMENTS_MM": {
+      "status": "design_default",
+      "note": "The rungs the snap coupon sweeps, from the least engagement the engine builds, as features/snap_coupon.py states"
+    },
     "features/stack.py:TOLERANCE_MM3": {
       "status": "unstated"
     },
@@ -1674,6 +1715,11 @@
     "features/stack_detent.py:BUMP_Z_MM": {
       "status": "design_default",
       "note": "A size in features/stack_detent.py, of which the module says 'every size here is the engine's own design choice, provisional until a trial'"
+    },
+    "features/stack_detent.py:DEFAULT_DETENT_ENGAGEMENT_MM": {
+      "status": "measured",
+      "measures": "detent_engagement_mm",
+      "note": "The latch's 0.4 mm, the engine's own guess, as features/stack_detent.py states."
     },
     "features/stack_detent.py:STOP_FRONT_MARGIN_MM": {
       "status": "design_default",

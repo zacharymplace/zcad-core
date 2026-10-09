@@ -163,6 +163,7 @@ def test_a_new_constant_a_gone_one_and_a_bare_claim_are_each_named(
         "module.py:ODD_MM": {"status": "made_up"},
         "module.py:EXAMPLE_MM": {"status": "example"},
         "module.py:GUESS_MM": {"status": "estimated"},
+        "module.py:TRIED_MM": {"status": "measured"},
     }
     issues = "\n".join(figures.problems(register, found))
 
@@ -172,6 +173,7 @@ def test_a_new_constant_a_gone_one_and_a_bare_claim_are_each_named(
     assert "module.py:ODD_MM has status 'made_up'" in issues
     assert "module.py:EXAMPLE_MM is example but says nothing of where" in issues
     assert "module.py:GUESS_MM is estimated but says nothing of where" in issues
+    assert "module.py:TRIED_MM is measured but names no joint profile figure" in issues
 
 
 def test_updating_adds_new_constants_as_unstated_and_keeps_what_is_known(
