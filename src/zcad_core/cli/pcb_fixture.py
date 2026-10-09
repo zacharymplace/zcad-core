@@ -11,7 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from zcad_core.cli._common import emit
+from zcad_core.cli._common import add_joint_profile_argument, emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.pcb_fixture import (
     FIXTURE_RECORD,
@@ -307,6 +307,7 @@ def add_commands(
         default=DEFAULT_PRINTER_PROFILE,
         help="the printer whose wall the pins' pitch is checked against",
     )
+    add_joint_profile_argument(check)
     check.set_defaults(handler=_fixture_check)
     build = fixture_commands.add_parser(
         "build", help="build, validate, and export a PCB test fixture's nest and plate"
@@ -327,5 +328,6 @@ def add_commands(
             "reports its measured offsets beside the worst-case sum"
         ),
     )
+    add_joint_profile_argument(build)
     build.set_defaults(handler=_fixture_build)
     _register_trials(fixture_commands)

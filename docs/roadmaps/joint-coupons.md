@@ -16,7 +16,8 @@ strain limit, and `compensation derive` turns two such trials into a profile eve
 print per joint family that sweeps the deciding figure across a ladder of rungs, so one trial shows where the joint starts to work and where it
 stops, and two trials make a profile.
 
-**Status (2026-10-09): designed, not built.**
+**Status (2026-10-09): phase 1 is built.** `zcad-validation joint build fit`, `joint trial` and `joint derive`; see
+[Phase 1, as built](#phase-1-as-built) and the guide, [Measuring fits with a joint coupon](../guides/joint-coupons.md).
 
 ## What the engine does not claim
 
@@ -99,16 +100,35 @@ lists each coupon as a design.
 
 ## Phases
 
-1. **The fit coupon and the joint profile.** `joint build fit`, its trial, `joint derive` for the two printer-profile clearances, and the four
-   products that read them taking the profile's figures when it exists. The register's **measured** status. Exit: a fit coupon is on print day.
-2. **The snap coupon.** The hook-and-keeper rungs built from the products' own snap code, the engagement figures in the profile, and the snap
-   lid, the stack latch and the detents reading them.
+1. **The fit coupon and the joint profile (built).** `joint build fit`, its trial, `joint derive` for the two printer-profile clearances, and the
+   products that read them taking the profile's figures when it exists. Exit: a fit coupon is on print day.
+2. **The snap coupon.** The hook-and-keeper rungs built from the products' own snap code, the engagement figures in the profile, the snap
+   lid, the stack latch and the detents reading them, and the register's **measured** status.
 3. **The boss and pocket coupons.** The insert pocket and boss wall, the magnet and pin pockets, and the enclosure, stack, Gridfinity and fixture
    builds reading them.
 4. **Stale rungs.** A profile figure whose rungs were built under an older generator than the product now builds is reported, not applied, and
    `joint status` lists what needs reprinting.
 
 Each phase is one PR, and a build without a joint profile is unchanged in every phase.
+
+### Phase 1, as built
+
+`features/joint_coupon.py`, `profiles/joints.py` and `cli/joint.py`.
+
+- **The rungs.** Two rows of nine round holes, 0 to 0.4 mm a side: through a block (in a layer) and through a standing wall (across layers),
+  96 x 28 x 13 mm. Each is sized by `fit_hole_diameter_mm`, the sum a guide's, a jig's and a fixture's bore are built from, and a test holds
+  it equal to the jig's. It is tried with a metal reference, a 6 mm drill's shank by default, not a printed peg: the parts these fits hold are
+  metal, and a printed peg would add its own error.
+- **A longer print than designed.** It slices to about 38 minutes and 15 g of PETG on the A1 mini, not under 25: the rows need full-height
+  walls round each hole. Thinner walls would test a different hole.
+- **One place to apply it.** Every product reads its clearances through `printer_numbers`, so the profile is applied there:
+  guides, jigs, nests, holders, PCB fixtures, housings, stacks and fitted Gridfinity bins take `--joint-profile`. A profile measured on
+  holes built with another `hole_oversize` is refused, not skipped.
+- **Recorded in the part metadata.** Each exported part's metadata names the profile and the fits it gave, under `manufacturing`; a build
+  without one writes the metadata it always did.
+- **The register's measured status moves to phase 2.** The two clearances are in the printer profile, a data file the register does not
+  cover, so phase 1 has no registered figure to mark; the snap coupon's engagements are code constants and are.
+- **Print day.** `record-print-day.py` records a joint coupon from the answer's `fit.readings`; the z-cadalog lists it as a joint coupon.
 
 ## Open questions
 

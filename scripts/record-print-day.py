@@ -22,7 +22,13 @@ each finished one:
   same two files and ``fit.json`` from the answer's ``fit`` (what it was
   fitted with and how it felt), and runs
   ``zcad-validation gridfinity trial complete``. A pass must name what it was
-  fitted with.
+  fitted with;
+- a joint coupon under ``evidence/joints/``: writes the trial's
+  ``observations.json`` from the answer's checks and the reading of each rung
+  in its ``fit`` (``{"readings": {rung: reading}}``, a rung not named being
+  skipped), and runs ``zcad-validation joint trial complete``. Like a coupon it
+  has no verdict: answered ``fail``, it did not print, so there is nothing to
+  record.
 
 An answer that is not finished (a check unanswered, no disposition, or no
 measurement where one is needed) is skipped with the reason, and a trial
@@ -141,6 +147,11 @@ def find_print(evidence_root: Path, candidate_id: str) -> tuple[str, Path]:
 
     if (enclosure / "enclosure-group.json").is_file():
         return "group", enclosure
+
+    joint = evidence_root / "joints" / candidate_id
+
+    if (joint / "joint-coupon.json").is_file():
+        return "joint", joint
 
     gridfinity = evidence_root / "gridfinity" / candidate_id
 
@@ -328,6 +339,60 @@ def record_gridfinity(answer: Answer, build: Path) -> dict[str, Any]:
     }
 
 
+def record_joint(answer: Answer, build: Path) -> dict[str, Any]:
+    """Record a joint coupon trial: its two checks and how each rung read,
+    over the trial's own template."""
+
+    trial = build / "trials" / "trial-001"
+    observations = json.loads((trial / "observations.json").read_text("utf-8"))
+    readings = dict(answer.fit.get("readings") or {})
+
+    for name, entry in observations.items():
+        if "reading" in entry:
+            entry["reading"] = readings.get(name, "skipped")
+        elif name in answer.observations:
+            given = answer.observations[name]
+            entry["result"] = "pass" if given["passed"] else "fail"
+            entry["notes"] = given.get("notes", "")
+
+    _write(trial / "observations.json", observations)
+    completed = _run(
+        [
+            "joint",
+            "trial",
+            "complete",
+            "--trial-directory",
+            str(trial),
+            "--notes",
+            answer.notes,
+        ]
+    )
+
+    return {"trial_record": completed["trial_record"]}
+
+
+def joint_unfinished(answer: Answer) -> str | None:
+    """Why a joint coupon's answer cannot be recorded yet: it is judged by its
+    readings, not by measurements or a verdict."""
+
+    open_checks = [
+        check
+        for check, entry in answer.observations.items()
+        if entry.get("passed") is None
+    ]
+
+    if open_checks:
+        return f"unanswered checks: {', '.join(open_checks)}"
+
+    if answer.disposition in GIVE_UP:
+        return "the coupon did not print, so it has nothing to record; print another"
+
+    if not answer.fit.get("readings"):
+        return "a joint coupon needs at least one rung read"
+
+    return None
+
+
 def recorded(kind: str, location: Path) -> bool:
     trial = location / "trials" / "trial-001"
 
@@ -343,6 +408,9 @@ def recorded(kind: str, location: Path) -> bool:
     if kind == "gridfinity":
         return (trial / "gridfinity-trial.json").is_file()
 
+    if kind == "joint":
+        return (trial / "joint-coupon-trial.json").is_file()
+
     return (trial / "trial.json").is_file()
 
 
@@ -354,7 +422,7 @@ def plan(answer: Answer, evidence_root: Path) -> tuple[str, str, Path | None]:
     if recorded(kind, location):
         return kind, "already recorded", location
 
-    reason = answer.unfinished()
+    reason = joint_unfinished(answer) if kind == "joint" else answer.unfinished()
 
     if reason is None and kind == "coupon" and answer.disposition in GIVE_UP:
         reason = "the coupon did not print, so it has nothing to record; print another"
@@ -467,6 +535,8 @@ def main() -> int:
                 entry["result"] = record_coupon(answer, location)
             elif kind == "gridfinity":
                 entry["result"] = record_gridfinity(answer, location)
+            elif kind == "joint":
+                entry["result"] = record_joint(answer, location)
             else:
                 entry["result"] = record_enclosure(
                     answer,

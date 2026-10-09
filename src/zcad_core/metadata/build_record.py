@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from zcad_core.metadata.git import git_environment
+from zcad_core.profiles.joints import applied_joint_profile
 
 
 def current_git_commit(
@@ -83,6 +84,17 @@ def build_part_record(
             density,
         )
 
+    manufacturing: dict[str, Any] = {
+        "printer_profile": (printer_profile),
+        "material_profile": (material_profile),
+        "density_g_cm3": density,
+    }
+    joints = applied_joint_profile()
+
+    # Only a build given a joint profile says so; any other is recorded as before.
+    if joints is not None:
+        manufacturing["joint_profile"] = joints.reference()
+
     return {
         "schema_version": "1.0",
         "generated_at": datetime.now(UTC).isoformat(),
@@ -121,11 +133,7 @@ def build_part_record(
                 else None
             ),
         },
-        "manufacturing": {
-            "printer_profile": (printer_profile),
-            "material_profile": (material_profile),
-            "density_g_cm3": density,
-        },
+        "manufacturing": manufacturing,
         "outputs": {
             "step": str(step_path),
             "stl": str(stl_path),

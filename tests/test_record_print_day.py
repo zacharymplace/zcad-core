@@ -195,6 +195,69 @@ def test_a_coupon_is_found_recorded_and_skipped_when_it_did_not_print(
     assert module.plan(measured, tmp_path)[1] == "already recorded"
 
 
+def test_a_joint_coupon_is_recorded_from_its_readings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module = recorder()
+    build = tmp_path / "joints" / "fit-01"
+    trial = build / "trials" / "trial-001"
+    trial.mkdir(parents=True)
+    (build / "joint-coupon.json").write_text("{}", encoding="utf-8")
+    template = {
+        "printed_cleanly": {"result": "pending", "notes": ""},
+        "reference_measured": {"result": "pending", "notes": ""},
+        "in_layer_0_10": {"reading": "pending", "clearance_per_side_mm": 0.1},
+        "in_layer_0_15": {"reading": "pending", "clearance_per_side_mm": 0.15},
+    }
+    (trial / "observations.json").write_text(json.dumps(template), encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def run(arguments: list[str]) -> dict[str, object]:
+        calls.append(arguments)
+        return {"trial_record": str(trial / "joint-coupon-trial.json")}
+
+    monkeypatch.setattr(module, "_run", run)
+    answers = tmp_path / "answers"
+    answers.mkdir()
+
+    def answer(disposition: str, readings: dict[str, str]):  # type: ignore[no-untyped-def]
+        return read(
+            answers,
+            {
+                "candidate_id": "fit-01",
+                "observations": {
+                    "printed_cleanly": {"passed": True, "notes": ""},
+                    "reference_measured": {"passed": True, "notes": ""},
+                },
+                "measurements": {},
+                "disposition": disposition,
+                "operator_notes": "",
+                "fit": {"readings": readings},
+            },
+        )
+
+    assert module.find_print(tmp_path, "fit-01") == ("joint", build)
+    assert module.plan(answer("fail", {}), tmp_path)[1].startswith(
+        "skip: the coupon did not print"
+    )
+    assert module.plan(answer("measured", {}), tmp_path)[1] == (
+        "skip: a joint coupon needs at least one rung read"
+    )
+
+    read_one = answer("measured", {"in_layer_0_10": "press"})
+    assert module.plan(read_one, tmp_path) == ("joint", "record", build)
+    module.record_joint(read_one, build)
+
+    assert calls[0][:3] == ["joint", "trial", "complete"]
+    written = json.loads((trial / "observations.json").read_text(encoding="utf-8"))
+    assert written["printed_cleanly"]["result"] == "pass"
+    assert written["in_layer_0_10"]["reading"] == "press"
+    # A rung not answered was not tried.
+    assert written["in_layer_0_15"]["reading"] == "skipped"
+    (trial / "joint-coupon-trial.json").write_text("{}", encoding="utf-8")
+    assert module.plan(read_one, tmp_path)[1] == "already recorded"
+
+
 def test_a_gridfinity_bin_is_recorded_with_what_it_was_fitted_with(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

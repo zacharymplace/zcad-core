@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from zcad_core.cli._common import emit
+from zcad_core.cli._common import add_joint_profile_argument, emit
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.guide import (
     GUIDE_RECORD,
@@ -279,6 +279,7 @@ def register(
         default=DEFAULT_PRINTER_PROFILE,
         help="the printer whose fits and walls the bores are checked against",
     )
+    add_joint_profile_argument(check)
     check.set_defaults(handler=_guide_check)
     build = commands.add_parser("build", help="build, validate, and export a guide")
     build.add_argument("--guide-file", required=True, type=Path)
@@ -297,6 +298,7 @@ def register(
             "its measured offsets beside the clearance bound"
         ),
     )
+    add_joint_profile_argument(build)
     build.set_defaults(handler=_guide_build)
     _register_trials(commands)
 

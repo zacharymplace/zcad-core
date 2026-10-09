@@ -30,6 +30,7 @@ nav:
   - Guides:
       - Validation Lab workflow: guides/validation-lab-workflow.md
       - Calibrating a printer: guides/calibration-coupon.md
+      - Measuring fits with a joint coupon: guides/joint-coupons.md
       - Engine example: guides/engine-example.md
       - Enclosure builder: guides/enclosure-builder.md
       - Your own board: guides/board-file.md

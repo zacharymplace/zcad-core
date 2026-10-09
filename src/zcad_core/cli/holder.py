@@ -9,7 +9,11 @@ import json
 from pathlib import Path
 from typing import Any
 
-from zcad_core.cli._common import add_compensation_profile_argument, emit
+from zcad_core.cli._common import (
+    add_compensation_profile_argument,
+    add_joint_profile_argument,
+    emit,
+)
 from zcad_core.exporters import ExportRequest, export_parts
 from zcad_core.features.enclosure_trial import EnclosureTrialDisposition
 from zcad_core.features.holder import (
@@ -249,12 +253,14 @@ def register(
     check.add_argument("file", type=Path)
     check.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
     add_compensation_profile_argument(check)
+    add_joint_profile_argument(check)
     check.set_defaults(handler=_holder_check)
     build = commands.add_parser("build", help="build, validate, and export a holder")
     build.add_argument("--holder-file", required=True, type=Path)
     build.add_argument("--output-directory", required=True, type=Path)
     build.add_argument("--printer-profile", type=Path, default=DEFAULT_PRINTER_PROFILE)
     add_compensation_profile_argument(build)
+    add_joint_profile_argument(build)
     build.set_defaults(handler=_holder_build)
 
     trial = commands.add_parser(
