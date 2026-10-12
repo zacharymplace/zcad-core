@@ -68,6 +68,7 @@ nav:
       - Publishing a promoted candidate: roadmaps/candidate-publication.md
       - Joint coupons: roadmaps/joint-coupons.md
       - Sweep plates: roadmaps/sweep-plates.md
+      - Generated print-day pages: roadmaps/print-day-pages.md
   - API Reference:
       - Overview: reference/index.md
       - assemblies: reference/assemblies.md
