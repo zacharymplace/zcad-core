@@ -67,6 +67,7 @@ nav:
       - The z-cadalog: roadmaps/z-cadalog.md
       - Publishing a promoted candidate: roadmaps/candidate-publication.md
       - Joint coupons: roadmaps/joint-coupons.md
+      - Sweep plates: roadmaps/sweep-plates.md
   - API Reference:
       - Overview: reference/index.md
       - assemblies: reference/assemblies.md
