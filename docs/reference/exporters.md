@@ -29,3 +29,19 @@ Tracked state excludes untracked files and is not an input/dependency fingerprin
 runtime verification, or a reproducibility guarantee. Export metadata readers
 should tolerate additive fields. Request/result APIs and artifact names are
 unchanged; producer metadata is staged and published with the existing artifacts.
+
+## Per-part artifact bindings
+
+Metadata emitted by `export_parts` includes an additive `artifacts` object with
+`step` and `stl` entries. Each contains `filename` (basename relative to the
+metadata directory), `sha256` (lowercase hex), and `size_bytes` (integer). These
+bind each part's metadata to the staged bytes published with it. Existing
+`outputs` paths, validation reports, producer fields, schema version, APIs and
+filenames remain unchanged. Round-trip hashes are reused when available; STEP
+exports without a feature validator are hashed after staging.
+
+Bindings remain usable when the whole export directory moves. They do not hash
+the metadata itself, sign an export, or establish geometric correctness, print
+suitability, or runtime compatibility. Verification is opt-in by the reader;
+no automatic verification or consumer migration is added. The lower-level
+`build_part_record` helper does not read artifact files or add these bindings.

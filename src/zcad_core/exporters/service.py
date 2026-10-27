@@ -349,6 +349,25 @@ def _stage_part(
         producer=producer,
     )
 
+    # Bind this part to the exact staged bytes. Reuse round-trip hashes when
+    # present; STEP without a feature validator is first emitted above.
+    artifacts = {}
+    for kind, final_path in (("step", step_path), ("stl", stl_path)):
+        staged_path = staging / final_path.name
+        digest = (
+            validation_report.get(f"{kind}_round_trip", {})
+            .get(f"{kind}_sha256_by_part", {})
+            .get(part_name)
+        )
+        if digest is None:
+            digest = hashlib.sha256(staged_path.read_bytes()).hexdigest()
+        artifacts[kind] = {
+            "filename": final_path.name,
+            "sha256": digest,
+            "size_bytes": staged_path.stat().st_size,
+        }
+    record["artifacts"] = artifacts
+
     record["validation"] = geometry.report
     record["design_validation"] = validation_report
     staged_metadata.write_text(
