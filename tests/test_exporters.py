@@ -135,7 +135,7 @@ def test_multi_part_names_include_part(
 
     calls = []
 
-    def provenance():
+    def provenance() -> dict[str, str | None]:
         calls.append(True)
         return {
             "name": "zcad-core",
