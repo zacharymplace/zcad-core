@@ -17,6 +17,7 @@ from zcad_core.exporters.models import (
 )
 from zcad_core.exporters.publication import publish_files
 from zcad_core.metadata.build_record import build_part_record
+from zcad_core.metadata.producer import producer_provenance
 from zcad_core.validation.design_report import (
     DesignValidationError,
     report_from_geometry,
@@ -308,6 +309,7 @@ def _stage_part(
     staging: Path,
     staged_steps: dict[str, bytes],
     validation_report: dict[str, Any],
+    producer: dict[str, str | None],
 ) -> ExportedPart:
     """Stage one part's STEP and metadata beside its STL."""
 
@@ -344,6 +346,7 @@ def _stage_part(
         printer_profile=(request.printer_profile),
         material_profile=(request.material_profile),
         repository_root=(request.repository_root),
+        producer=producer,
     )
 
     record["validation"] = geometry.report
@@ -390,11 +393,18 @@ def _prepare_exports(
     staged_steps = _step_round_trip(request, inspected, validation_report)
     _stl_round_trip(request, inspected, staging, validation_report)
 
+    producer = producer_provenance()
     return ExportResult(
         design_name=request.design_name,
         parts=tuple(
             _stage_part(
-                request, name, geometry, staging, staged_steps, validation_report
+                request,
+                name,
+                geometry,
+                staging,
+                staged_steps,
+                validation_report,
+                producer,
             )
             for name, geometry in inspected.items()
         ),

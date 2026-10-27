@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from zcad_core.metadata.git import git_environment
+from zcad_core.metadata.producer import producer_provenance
 from zcad_core.profiles.joints import applied_joint_profile
 
 
@@ -61,6 +62,7 @@ def build_part_record(
     printer_profile: dict[str, Any] | None,
     material_profile: dict[str, Any] | None,
     repository_root: Path,
+    producer: dict[str, str | None] | None = None,
 ) -> dict[str, Any]:
     """Build metadata for one exported part.
 
@@ -97,6 +99,7 @@ def build_part_record(
 
     return {
         "schema_version": "1.0",
+        "producer": producer if producer is not None else producer_provenance(),
         "generated_at": datetime.now(UTC).isoformat(),
         "git_commit": current_git_commit(repository_root),
         "design": {

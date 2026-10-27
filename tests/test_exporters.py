@@ -129,7 +129,22 @@ def test_single_main_part_uses_design_name(
 
 def test_multi_part_names_include_part(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from zcad_core.exporters import service
+
+    calls = []
+
+    def provenance():
+        calls.append(True)
+        return {
+            "name": "zcad-core",
+            "distribution_version": "fixture",
+            "git_commit": "core-commit",
+            "tracked_worktree_state": "clean",
+        }
+
+    monkeypatch.setattr(service, "producer_provenance", provenance)
     result = export_parts(
         ExportRequest(
             design_name="test-box",
@@ -142,6 +157,12 @@ def test_multi_part_names_include_part(
             repository_root=Path.cwd(),
         )
     )
+
+    assert len(calls) == 1
+    for part in result.parts:
+        record = json.loads(part.metadata_path.read_text())
+        assert record["producer"]["git_commit"] == "core-commit"
+        assert record["git_commit"] != "core-commit"
 
     stems = {part.stem for part in result.parts}
 
