@@ -7,7 +7,7 @@ from pathlib import Path
 import cadquery as cq
 import pytest
 
-from zcad_core.exporters import ExportRequest, export_parts
+from zcad_core.exporters import ExportRequest, export_parts, verify_artifact_bindings
 
 
 @pytest.mark.parametrize("multi", [False, True])
@@ -35,6 +35,10 @@ def test_bindings_match_each_published_part(
         )
     )
     for part in result.parts:
+        assert [c.status for c in verify_artifact_bindings(part.metadata_path)] == [
+            "matched",
+            "matched",
+        ]
         record = json.loads(part.metadata_path.read_text())
         assert record["schema_version"] == "1.0"
         assert "producer" in record
@@ -57,6 +61,10 @@ def test_bindings_match_each_published_part(
     relocated = tmp_path / "moved"
     (tmp_path / "export").rename(relocated)
     for part in result.parts:
+        assert all(
+            c.status == "matched"
+            for c in verify_artifact_bindings(relocated / part.metadata_path.name)
+        )
         metadata = json.loads((relocated / part.metadata_path.name).read_text())
         for binding in metadata["artifacts"].values():
             assert (

@@ -45,3 +45,40 @@ the metadata itself, sign an export, or establish geometric correctness, print
 suitability, or runtime compatibility. Verification is opt-in by the reader;
 no automatic verification or consumer migration is added. The lower-level
 `build_part_record` helper does not read artifact files or add these bindings.
+
+## Read-only artifact-binding verification
+
+`verify_artifact_bindings` is an opt-in check for an existing part's metadata
+and sibling STEP/STL files. It does not call exporters, change metadata, or write
+receipts. Existing export requests, results and metadata fields are unchanged.
+
+```python
+from pathlib import Path
+from zcad_core.exporters import verify_artifact_bindings
+
+for check in verify_artifact_bindings(Path("handoff/tamper.metadata.json")):
+    print(check.kind, check.status, check.reason)
+```
+
+The returned tuple contains one immutable `ArtifactBindingCheck` for each of
+`step` and `stl`. Each has a `status`, `reason`, and, when available, filename,
+expected/actual SHA-256 and expected/actual byte counts. Statuses are:
+
+- `matched`: both SHA-256 and byte size match the recorded binding.
+- `missing`: a valid binding names an absent sibling file.
+- `mismatched`: a readable regular file differs in hash or size.
+- `not-verifiable`: metadata/binding is missing or malformed, or the file cannot
+  be safely read. Legacy exports without bindings never pass implicitly.
+
+Files are streamed read-only. Filenames must be sibling basenames; absolute
+paths, path separators, drive syntax, traversal and artifact symlinks are refused.
+The directory is the resolved metadata file's parent. Historical `outputs` paths
+are never followed. Moving the entire sibling-file export directory is supported;
+reorganized bundles with separate artifact directories are outside this contract
+and need their own bundle verification. No consumer migration is required.
+
+Results are independent per artifact, with no aggregate verdict. Observed file
+changes during reading make the result not verifiable; this is not an atomic
+filesystem snapshot or a guarantee against subsequent modification. Matching
+bytes against editable metadata does not establish authenticity, geometric
+correctness, print suitability, runtime compatibility or recipient acceptance.
