@@ -18,6 +18,8 @@ evidence/
 # scripts/catalog/, which is tracked), and this checkout's note of what it last published
 /catalog/
 /.catalog-published.json
+# The print-day pages' data, generated from evidence/ by scripts/build-print-day.py
+/print-day/
 
 # Generated documentation output
 site/

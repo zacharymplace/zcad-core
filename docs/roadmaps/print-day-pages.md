@@ -11,7 +11,8 @@ The [z-cadalog](z-cadalog.md) solved the same problem for the catalogue: a scrip
 edited. This design does the same for print day: **every part whose trial is open and whose slice is ready is on the pages, with its figures
 and its checks read from its records**, and the only hand-written content is what a person knows that no record does.
 
-**Status (2026-10-12): designed, not built.**
+**Status (2026-11-11): phase 1 is built.** `python scripts/build-print-day.py` writes `print-day/print-day.json`; the pages are
+phases 2 to 4. See [Phase 1, as built](#phase-1-as-built).
 
 ## What a print is
 
@@ -90,6 +91,28 @@ and backed up but not yet on the published pages is the drift this design exists
 4. **Currency.** `--mark-published` for both pages and the line in `backup-evidence.sh`.
 
 Each phase is one PR.
+
+### Phase 1, as built
+
+- **Record reading is shared.** What the catalogue read from a build record (the kinds, finding the records, slices, trials,
+  lineage and status) moved from `scripts/build-catalog.py` to `zcad_core.build_records`, which both scripts import. The catalogue
+  is unchanged; since it now needs the engine installed, `backup-evidence.sh` runs it, as before, on the main checkout's `.venv`.
+- **A print is a current design whose latest trial is open.** Examples, superseded designs and promoted or verified ones are not
+  prints; a design whose latest trial is recorded is done. A reprint, a trial opened after one was recorded, is a print. The
+  z-cadalog calls that design *trial recorded*, not *on print day*: the one place the two disagree, left for the catalogue to
+  settle.
+- **Left off, with why:** a current design with no open trial, one not sliced, or one whose slice has no G-code beside its summary.
+  On the evidence of 2026-11-11 that is 16 prints (609 minutes) and two left off, the Dexcom G7 and Tandem Mobi snap shells, which
+  have no trial.
+- **What a print carries.** Each plate's minutes, grams, G-code path and hash, part and slicer warning, summed over the plates; the
+  open trial's checks with their guidance; its measurements with nominal and guidance (a fixture's template gives the guidance as
+  its `notes`); a joint coupon's rungs, each with what it is read as (one word of its choices for a fit rung, the named readings
+  for a snap rung); a Gridfinity part's `fit.json` as written; and the disposition choices, from the kind's own enums.
+- **Notes are checked.** `print-notes.json` takes only `watch` and `have` (lists of text), `optional` (true or false) and `after`
+  (text). Anything else is refused with the file and the field, before anything is written. No build has notes yet, so all 16 are
+  listed as having none.
+- **Not in this phase:** the order, which belongs to the sheet; an enclosure trial's `thermal.json`, which the checklist does not
+  take today either.
 
 ## Open questions
 

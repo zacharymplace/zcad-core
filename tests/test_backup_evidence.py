@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -163,8 +164,12 @@ def test_a_backup_rebuilds_the_catalogue_and_says_if_its_page_is_behind(
         checkout / "scripts" / "catalog" / "page.html",
     )
     (checkout / "evidence" / "filled.json").write_text("{}\n", encoding="utf-8")
+    # The catalogue reads records with the engine, so it runs, as in a real checkout, on the
+    # checkout's own environment: this one, with this repository's source.
+    (checkout / ".venv" / "bin").mkdir(parents=True)
+    (checkout / ".venv" / "bin" / "python").symlink_to(sys.executable)
 
-    result = back_up(checkout, shell)
+    result = back_up(checkout, shell, PYTHONPATH=str(SCRIPT.parents[1] / "src"))
 
     assert result.returncode == 0, result.stderr
     assert "backup-evidence: pushed" in result.stdout
