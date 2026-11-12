@@ -60,6 +60,19 @@ for check in verify_artifact_bindings(Path("handoff/tamper.metadata.json")):
     print(check.kind, check.status, check.reason)
 ```
 
+From a shell, `zcad-validation export verify` runs the same check on each
+`*.metadata.json` named, or found under a directory named, and prints every
+result as JSON:
+
+```bash
+zcad-validation export verify handoff/
+```
+
+It exits 1 unless every artifact's status is `matched`, so a legacy export with
+no bindings fails it. That exit code and the `all_matched` field are a
+statement about bytes only, a convenience of the command; the library function
+still returns independent results.
+
 The returned tuple contains one immutable `ArtifactBindingCheck` for each of
 `step` and `stl`. Each has a `status`, `reason`, and, when available, filename,
 expected/actual SHA-256 and expected/actual byte counts. Statuses are:
