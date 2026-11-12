@@ -15,6 +15,7 @@ The `zcad-validation` console script. `main()` is the entry point;
 | `zcad_core.cli.enclosure` | `enclosure hardware`, `build`, `revise`, `trial start`, `trial complete` |
 | `zcad_core.cli.enclosure_group` | `enclosure-group build`, `viewer` |
 | `zcad_core.cli.compensation` | `compensation derive` |
+| `zcad_core.cli.export` | `export verify` |
 
 Each module defines its handlers and a `register()` that adds its commands
 to the parser. The [Validation Lab workflow](../guides/validation-lab-workflow.md)
